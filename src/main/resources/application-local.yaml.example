@@ -1,0 +1,14 @@
+spring:
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5432/financeapp
+    username: postgres
+    password: CAMBIAR
+  security:
+    basic:
+      username: admin
+      password: CAMBIAR
+
+logging:
+  level:
+    com.oscargabriel.financeapp: DEBUG
+    org.springframework.web: DEBUG

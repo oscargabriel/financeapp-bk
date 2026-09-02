@@ -1,0 +1,34 @@
+# Reemplaza al application.yaml de main en el classpath de test: debe ser autocontenido.
+# Toda propiedad que un bean exija con @Value hay que replicarla aqui o el contexto revienta
+# con PlaceholderResolutionException.
+# initial-size 0 evita que el pool abra conexiones al arrancar el contexto, para que la suite
+# no dependa de un PostgreSQL levantado.
+spring:
+  application:
+    name: financeapp-bk
+  webflux:
+    base-path: /api
+  r2dbc:
+    # Puerto sin escucha a proposito: la suite nunca depende de un PostgreSQL y StatusIT
+    # verifica de forma determinista el camino "postgres DOWN".
+    url: r2dbc:postgresql://localhost:65535/financeapp-test
+    username: test
+    password: test
+    pool:
+      enabled: true
+      initial-size: 0
+      max-size: 5
+  security:
+    basic:
+      username: test
+      password: test
+
+cors:
+  allowed-origins: "*"
+
+status:
+  check-timeout: 2s
+
+logging:
+  pattern:
+    console: "%d{dd-MM-yyyy HH:mm:ss.SSS} [%thread] %-5level %logger{36} [%X{requestId}] - %msg%n"
