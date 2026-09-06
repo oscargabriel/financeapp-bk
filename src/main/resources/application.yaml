@@ -16,7 +16,8 @@ spring:
   application:
     name: financeapp-bk
   profiles:
-    active: ${SPRING_PROFILES_ACTIVE:local}
+#    active: ${SPRING_PROFILES_ACTIVE:local}
+#    active: ${SPRING_PROFILES_ACTIVE:prod}
   webflux:
     base-path: ${SERVER_BASE_PATH:/api}
   codec:
@@ -44,6 +45,16 @@ cors:
 
 status:
   check-timeout: ${STATUS_CHECK_TIMEOUT:2s}
+
+# Verificacion de conectividad con la base al arrancar: si no responde tras agotar los intentos,
+# el contexto no termina de levantar y la aplicacion no queda escuchando. Se apaga solo donde no
+# hay base que responder (la suite de tests).
+startup:
+  db-check:
+    enabled: ${STARTUP_DB_CHECK_ENABLED:true}
+    max-attempts: ${STARTUP_DB_CHECK_MAX_ATTEMPTS:5}
+    initial-backoff: ${STARTUP_DB_CHECK_INITIAL_BACKOFF:1s}
+    timeout: ${STARTUP_DB_CHECK_TIMEOUT:3s}
 
 logging:
   level:

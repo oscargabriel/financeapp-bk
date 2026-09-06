@@ -29,6 +29,15 @@ cors:
 status:
   check-timeout: 2s
 
+# Apagado a proposito: el r2dbc de esta suite apunta a un puerto sin escucha, asi que el chequeo
+# de arranque abortaria el contexto de todos los tests de integracion.
+startup:
+  db-check:
+    enabled: false
+    max-attempts: 3
+    initial-backoff: 1ms
+    timeout: 50ms
+
 logging:
   pattern:
     console: "%d{dd-MM-yyyy HH:mm:ss.SSS} [%thread] %-5level %logger{36} [%X{requestId}] - %msg%n"
