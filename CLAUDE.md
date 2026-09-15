@@ -1,0 +1,151 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+Backend de finanzas personales. Java 25 + Spring Boot 4.1.1 (WebFlux), R2DBC contra PostgreSQL 18,
+Gradle 9.7.1 con wrapper. Arquitectura hexagonal. Se construye por etapas.
+
+## Comandos
+
+Shell habitual: PowerShell 7. En Git Bash, `./gradlew` equivalente.
+
+```powershell
+.\gradlew.bat build                 # compila y corre la suite
+.\gradlew.bat test                  # solo tests — no necesita Docker ni base
+.\gradlew.bat bootRun               # levanta la app (perfil local por defecto)
+
+.\gradlew.bat test --tests "*MonthlySpendingIT"                        # una clase
+.\gradlew.bat test --tests "*MonthlySpendingIT.devuelve401*"           # un método
+```
+
+**No hay checkstyle ni linter configurado** en `build.gradle`. La verificación es la suite más la
+colección Bruno; no prometas un paso de lint que no existe.
+
+Verificación contra la app real, desde `bruno/` con la app levantada:
+
+```powershell
+bru run . -r --env local
+```
+
+Toda etapa cierra con las dos cosas en verde, nunca una sola. El request Bruno de un endpoint nuevo
+se escribe en el mismo ciclo TDD que los tests JUnit, antes del endpoint y fallando.
+
+Desde el 12-09-2026 `bru run` dejó de ser un complemento. La estrategia es de **dos capas** —JUnit
+con mocks, integración desde Bruno contra la app y la base reales—, así que el SQL de las vistas, el
+cálculo de las metas y el corte de mes por zona horaria **no los verifica nada más**. Una etapa que
+cierre solo con Gradle en verde no está verificada.
+
+## Arquitectura
+
+Hexagonal estricta en tres paquetes bajo `com.oscargabriel.financeapp`:
+
+```
+domain/          model, port/in, port/out, exceptions   ← sin Spring (salvo Reactor)
+application/     usecase                                 ← implementa port/in, usa port/out
+infrastructure/  adapter/in/web, adapter/out/persistence, config
+```
+
+El cableado que importa: un controlador depende del **puerto de entrada**
+(`GetMonthlySpendingPort`), nunca de la clase del caso de uso. El caso de uso
+(`GetMonthlySpendingUseCase`, `@Service`) implementa ese puerto y consume un **puerto de salida**
+(`MonthlySpendingQueryPort`), que implementa un adapter de persistencia. Para un endpoint nuevo se
+tocan los cuatro archivos en ese orden.
+
+El dominio sí usa `Flux`/`Mono` en las firmas de los puertos: acoplamiento aceptado en este
+proyecto, no un descuido.
+
+### Base path
+
+`spring.webflux.base-path` vale `/api`. Los `@RequestMapping` de los controladores **no** lo
+incluyen, pero los tests, Bruno y cualquier cliente piden `/api/...`. Es la fuente número uno de
+404 confusos.
+
+### Errores
+
+Todos los errores salen con el mismo JSON: `{"errors":[{code, description, field}]}`, producido por
+`WebExceptionHandler` (extiende `AbstractErrorWebExceptionHandler`, `@Order(HIGHEST_PRECEDENCE)`) —
+`@ControllerAdvice` es servlet-only y aquí no aplica. Para agregar un tipo de excepción: un `case`
+nuevo en el switch de patrones, **siempre antes del `default` y antes de su supertipo**, porque el
+switch no admite un subtipo dominado.
+
+Los códigos viven en el enum `ErrorCodes`, en SCREAMING_SNAKE_CASE describiendo la categoría, no el
+mensaje.
+
+Dos patrones que se repiten y conviene imitar:
+
+- **Los controladores parsean a mano** los path y query params (UUID, `YearMonth`) en vez de dejar
+  la conversión a Spring. La conversión fallida de Spring termina en `ServerWebInputException`, que
+  el handler global reporta como `JSON_PARSING_ERROR` sobre el body — engañoso para un parámetro de
+  ruta.
+- **La validación se lanza dentro de un `Flux.defer`**, para que un rango inválido salga como señal
+  de error del Flux y no como excepción al ensamblar la cadena.
+
+### Trazabilidad
+
+`LoggingFilter` mete un `requestId` en el Reactor Context; `ReactorMdcHook` lo copia al MDC de SLF4J
+en cada evento del pipeline, porque en WebFlux el MDC no cruza schedulers. El patrón de log incluye
+`[%X{requestId}]`. Si tocas cualquiera de los dos, verifica que el id siga apareciendo en logs que
+pasen por `boundedElastic`.
+
+### Configuración y arranque
+
+- `application.yaml` lee los secretos como variables de entorno **sin default**: un despliegue sin
+  `DB_USERNAME` / `DB_PASSWORD` / `SECURITY_USERNAME` / `SECURITY_PASSWORD` falla al arrancar en vez
+  de levantar con credenciales implícitas.
+- `spring.profiles.active` vale `${SPRING_PROFILES_ACTIVE:local}`: sin la variable se arranca en
+  local, así que **un despliegue tiene que definir `SPRING_PROFILES_ACTIVE=prod`**. No dejar esa
+  clave vacía: Boot 4 rechaza `profiles` vacía y el contexto ni se crea.
+- `DatabaseStartupCheck` hace `SELECT 1` antes de que Netty abra el puerto y aborta el contexto si
+  la base no responde. Apagado en la suite (`startup.db-check.enabled: false`).
+- El bean `Clock` (`ClockConfig`, zona `app.timezone`) existe para que los casos de uso que dependen
+  de «hoy» se puedan probar con fecha fija. Inyéctalo en vez de llamar a `YearMonth.now()`.
+- **Ninguna ruta es pública**: `SecurityConfig` usa `anyExchange().authenticated()` con Basic Auth,
+  incluido `/api/status`. Si entra Swagger o un monitor externo, hay que declarar la excepción ahí.
+- Preferir `@Value` sobre inyectar `Environment`.
+
+`src/main/resources/application-local.yaml` no se versiona y tiene las credenciales reales.
+
+## Tests
+
+`*Test` son unitarios o de slice, `*IT` de integración. **No hay source set aparte**: `test` los
+corre todos, y ninguno necesita base ni Docker.
+
+- Persistencia: no se prueba en la suite. Los adapters R2DBC se verifican desde `bruno/` contra
+  PostgreSQL real; no vuelvas a introducir `@Testcontainers` sin cambiar esta decisión.
+- Web con servidor real: `@SpringBootTest(webEnvironment = RANDOM_PORT)` + `WebTestClient`.
+- Reactivo: `StepVerifier`, no `block()`.
+- Datos de prueba: Object Mother en `src/test/java/.../support/`.
+
+`src/test/resources/application.yaml` **reemplaza por completo** al de `main` en el classpath de
+test. Toda propiedad nueva que un bean exija con `@Value` hay que replicarla ahí o el contexto
+revienta con `PlaceholderResolutionException`. Su R2DBC apunta a `localhost:65535` a propósito, y
+desde que salió Testcontainers **nada sobrescribe esa URL**: cualquier test que intente hablar con
+la base falla por diseño. Si necesitas ejercitar una consulta, el lugar es `bruno/`.
+
+## Base de datos
+
+No hay Flyway ni `schema.sql` en el arranque: el esquema se crea a mano desde `docs/database/`.
+Ningún test monta ya esos archivos, así que **un cambio en `schema.sql` o `seed.sql` no rompe la
+suite: rompe `bru run`**, y solo si te acuerdas de correrlo. El escenario de la colección es
+`docs/database/test-data.sql`, que se carga con psql y usa fechas relativas al mes en curso.
+
+`src/test/resources/db/monthly-spending-fixture.sql` quedó sin uso al salir Testcontainers. Se
+conserva porque sus fechas absolutas y su segundo usuario son la base del escenario que falta
+montar en Bruno.
+
+## Dónde viven las tareas
+
+En Notion, no en este repo ni en la memoria. El servidor MCP `notion` está declarado en `.mcp.json`
+con alcance de proyecto: solo existe aquí. Requiere `claude mcp login notion` una vez por máquina.
+
+El ciclo —consumir la tarea, implementarla, actualizarla— está en el skill `tareas-notion`, que
+tiene los IDs de las bases. El diseño completo está en
+`docs/superpowers/specs/2026-09-11-notion-tareas-design.md`.
+
+**Reparto con la memoria persistente:** Notion guarda lo accionable (pendientes de cobertura, mocks
+por cerrar, etapas futuras). La memoria del proyecto guarda las decisiones y el porqué. No se
+duplica.
+
+Esto adapta la regla del CLAUDE.md global que pide registrar cada mock o stub acordado en una
+memoria tipo `project`: aquí se cumple creando la tarea en Notion, y la memoria conserva la decisión
+de diseño. Es deliberado, no un olvido.
