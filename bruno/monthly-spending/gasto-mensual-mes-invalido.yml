@@ -1,0 +1,33 @@
+info:
+  name: Gasto mensual con mes mal formado
+  type: http
+  seq: 6
+
+http:
+  method: GET
+  url: "{{baseUrl}}/users/{{userId}}/monthly-spending?from=2026-9"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: from
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Mes fuera del formato YYYY-MM
+
+  `2026-9` no es un mes valido: el formato exige dos digitos. El error identifica el parametro que
+  fallo (`from` o `to`) para que el cliente sepa cual corregir.

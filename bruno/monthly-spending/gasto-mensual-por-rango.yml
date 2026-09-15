@@ -1,0 +1,53 @@
+info:
+  name: Gasto mensual por rango
+  type: http
+  seq: 2
+
+http:
+  method: GET
+  url: "{{baseUrl}}/users/{{userId}}/monthly-spending?from={{mesAnterior}}&to={{mesActual}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: length
+      value: "2"
+  scripts:
+    - type: before-request
+      code: |-
+        const comoMes = function (fecha) {
+          return fecha.getFullYear() + "-" + String(fecha.getMonth() + 1).padStart(2, "0");
+        };
+        const hoy = new Date();
+        bru.setVar("mesActual", comoMes(hoy));
+        bru.setVar("mesAnterior", comoMes(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1)));
+    - type: tests
+      code: |-
+        test("acota el resultado a los dos meses pedidos", function() {
+          const meses = res.getBody().map(function (m) { return m.periodMonth; });
+          expect(meses).to.eql([bru.getVar("mesActual"), bru.getVar("mesAnterior")]);
+        });
+
+        test("el mes en curso trae la meta global del escenario", function() {
+          expect(res.getBody()[0].budgetAmount).to.equal(2000000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # GET /api/users/{userId}/monthly-spending?from=&to=
+
+  `from` y `to` en formato `YYYY-MM`, ambos inclusive. El script `before-request` los calcula en
+  tiempo de corrida porque `test-data.sql` genera los movimientos relativos al mes en curso: fijar
+  meses literales aqui dejaria el request roto el mes siguiente.
+
+  El escenario tiene movimientos en el mes actual y en el anterior, y una meta global de 2.000.000
+  en ambos, asi que el rango de dos meses debe devolver exactamente dos elementos.

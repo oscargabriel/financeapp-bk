@@ -1,0 +1,34 @@
+info:
+  name: Gasto mensual con rango invertido
+  type: http
+  seq: 7
+
+http:
+  method: GET
+  url: "{{baseUrl}}/users/{{userId}}/monthly-spending?from=2026-05&to=2026-01"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: from
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Rango con el inicio despues del fin
+
+  La regla vive en el value object `MonthRange`, no en el controlador: el caso de uso traduce su
+  `IllegalArgumentException` al error estandar del API. Un `from` futuro sin `to` cae en este mismo
+  caso, porque el `to` que falta se completa con el mes en curso.

@@ -1,0 +1,31 @@
+info:
+  name: Gasto mensual sin credenciales
+  type: http
+  seq: 8
+
+http:
+  method: GET
+  url: "{{baseUrl}}/users/{{userId}}/monthly-spending"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Sin Authorization
+
+  La ausencia de `http.auth` rompe a proposito la herencia de Basic Auth de la coleccion. Ninguna
+  ruta del API es publica; si esto empieza a responder 200, alguien abrio la ruta sin quererlo.
+
+  Ojo con lo que este 401 NO cubre: hoy el Basic es un unico usuario de servicio, no el dueño de
+  los datos, asi que cualquiera con la credencial puede pedir el mes de cualquier `userId`. Cuando
+  exista autenticacion por usuario hay que agregar aqui el caso de pedir el mes de otro y esperar
+  403.

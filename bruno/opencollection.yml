@@ -1,0 +1,41 @@
+opencollection: 1.0.0
+
+info:
+  name: financeapp-bk
+
+request:
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+docs:
+  content: |
+    # financeapp-bk
+
+    Todas las rutas exigen Basic Auth, declarado aqui una sola vez: los requests usan
+    `auth: inherit` salvo el que prueba justamente el caso sin credenciales.
+
+    ## Ambientes
+
+    - `local` — `http://localhost:8080`, la app corriendo con el perfil `local`.
+    - `prod` — URL publica. Todavia no hay despliegue: `PROD_HOST` se define cuando lo haya.
+
+    Los secretos no se versionan. Copiar `.env.sample` a `.env` (ignorado por git) y llenar los
+    valores; los ambientes los leen con `{{process.env....}}`.
+
+    ## Convencion
+
+    Una carpeta por recurso del API. Cada etapa del proyecto agrega su carpeta y sus requests con
+    bloque `runtime.assertions` en el mismo ciclo TDD que los tests JUnit, y cierra con:
+
+        bru run . -r --env local
+
+    La coleccion no reemplaza a la suite de Gradle: la complementa contra un servidor real.
+  type: text/markdown
+bundled: false
+extensions:
+  bruno:
+    ignore:
+      - node_modules
+      - .git

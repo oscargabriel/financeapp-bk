@@ -1,0 +1,60 @@
+info:
+  name: Mes con meta y sin movimientos
+  type: http
+  seq: 4
+
+http:
+  method: GET
+  url: "{{baseUrl}}/users/{{userId}}/monthly-spending?from={{mesSiguiente}}&to={{mesSiguiente}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: length
+      value: "1"
+  scripts:
+    - type: before-request
+      code: |-
+        const siguiente = new Date();
+        siguiente.setDate(1);
+        siguiente.setMonth(siguiente.getMonth() + 1);
+        bru.setVar("mesSiguiente", siguiente.getFullYear() + "-"
+            + String(siguiente.getMonth() + 1).padStart(2, "0"));
+    - type: tests
+      code: |-
+        test("gastar cero con meta configurada devuelve ceros, no null", function() {
+          const mes = res.getBody()[0];
+          expect(mes.periodMonth).to.equal(bru.getVar("mesSiguiente"));
+          expect(mes.totalSpent).to.equal(0);
+          expect(mes.transactionCount).to.equal(0);
+          expect(mes.budgetAmount).to.equal(2000000);
+          expect(mes.remaining).to.equal(2000000);
+          expect(mes.percentUsed).to.equal(0);
+        });
+
+        test("el gasto de las 21:30 del ultimo dia del mes en curso no se cuela en este mes", function() {
+          expect(res.getBody()[0].transactionCount).to.equal(0);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Mes con meta y sin gastos
+
+  La otra mitad de la distincion entre `null` y cero. El mes siguiente del escenario tiene meta
+  global de 2.000.000 y ningun movimiento, asi que llega por el lado del `FULL OUTER JOIN` que
+  aporta la meta: `totalSpent` y `transactionCount` en cero, `remaining` igual a la meta completa
+  y `percentUsed` en 0. Comparar con el mes sin meta de "Gasto mensual (rango por defecto)", donde
+  esos tres campos viajan en `null`.
+
+  Pide el mes explicitamente porque la ventana por defecto termina en el mes en curso y este queda
+  fuera. De paso cierra por el otro lado el corte de mes: el gasto de las 21:30 del ultimo dia del
+  mes en curso, que en UTC ya cae aqui, no debe aparecer en este conteo.

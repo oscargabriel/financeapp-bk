@@ -1,0 +1,27 @@
+name: local
+variables:
+  - name: host
+    value: http://localhost:8080
+    enabled: true
+    secret: false
+    type: text
+  - name: baseUrl
+    value: http://localhost:8080/api
+    enabled: true
+    secret: false
+    type: text
+  - name: basicUser
+    value: "{{process.env.BRUNO_BASIC_USER}}"
+    enabled: true
+    secret: false
+    type: text
+  - name: basicPass
+    value: "{{process.env.BRUNO_BASIC_PASS}}"
+    enabled: true
+    secret: false
+    type: text
+  - name: userId
+    value: 10000000-0000-7000-8000-000000000001
+    enabled: true
+    secret: false
+    type: text
