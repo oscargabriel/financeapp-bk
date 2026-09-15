@@ -1,5 +1,6 @@
 plugins {
 	id 'java'
+	id 'jacoco'
 	id 'org.springframework.boot' version '4.1.1'
 	id 'io.spring.dependency-management' version '1.1.7'
 }
@@ -34,4 +35,54 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	finalizedBy tasks.jacocoTestReport
+}
+
+// Fijada, no heredada del plugin: la version tiene que entender bytecode de Java 25. 0.8.14 es
+// justo la que trae Gradle 9.7.1 hoy, asi que esto no cambia nada ahora y protege de un
+// downgrade de Gradle mas adelante.
+jacoco {
+	toolVersion = '0.8.14'
+}
+
+// Lo que la suite no puede cubrir, y por tanto no cuenta para el umbral:
+//   * el main, que no tiene forma de ejercitarse desde un test
+//   * el adapter R2DBC, que desde el 12-09-2026 se verifica desde bruno/ contra PostgreSQL real
+// El resto entra, DTOs y configuracion incluidos: hoy estan entre el 90 y el 100%, asi que
+// excluirlos solo esconderia el dato.
+def clasesSinCobertura = [
+	'com/oscargabriel/financeapp/FinanceappBkApplication.class',
+	'com/oscargabriel/financeapp/infrastructure/adapter/out/persistence/MonthlySpendingR2dbcAdapter.class'
+]
+
+def clasesMedidas = { fileCollection ->
+	files(fileCollection.files.collect { fileTree(dir: it, exclude: clasesSinCobertura) })
+}
+
+tasks.named('jacocoTestReport') {
+	dependsOn tasks.test
+	classDirectories.setFrom(clasesMedidas(classDirectories))
+	reports {
+		xml.required = true
+		html.required = true
+	}
+}
+
+tasks.named('jacocoTestCoverageVerification') {
+	dependsOn tasks.test
+	classDirectories.setFrom(clasesMedidas(classDirectories))
+	violationRules {
+		rule {
+			limit {
+				counter = 'LINE'
+				value = 'COVEREDRATIO'
+				minimum = 0.85
+			}
+		}
+	}
+}
+
+// Colgado de check, no de test: 'gradlew test' mide y deja el reporte, 'gradlew build' exige.
+tasks.named('check') {
+	dependsOn tasks.jacocoTestCoverageVerification
 }

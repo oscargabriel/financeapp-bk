@@ -10,7 +10,7 @@ Gradle 9.7.1 con wrapper. Arquitectura hexagonal. Se construye por etapas.
 Shell habitual: PowerShell 7. En Git Bash, `./gradlew` equivalente.
 
 ```powershell
-.\gradlew.bat build                 # compila y corre la suite
+.\gradlew.bat build                 # compila, corre la suite y exige el umbral de cobertura
 .\gradlew.bat test                  # solo tests — no necesita Docker ni base
 .\gradlew.bat bootRun               # levanta la app (perfil local por defecto)
 
@@ -124,6 +124,24 @@ test. Toda propiedad nueva que un bean exija con `@Value` hay que replicarla ah�
 revienta con `PlaceholderResolutionException`. Su R2DBC apunta a `localhost:65535` a propósito, y
 desde que salió Testcontainers **nada sobrescribe esa URL**: cualquier test que intente hablar con
 la base falla por diseño. Si necesitas ejercitar una consulta, el lugar es `bruno/`.
+
+### Cobertura
+
+JaCoCo mide sobre la suite de Gradle. El reporte queda en
+`build/reports/jacoco/test/html/index.html` (ábrelo en el navegador; el XML del mismo directorio
+es para herramientas). Se regenera solo: `test` lo produce como paso final.
+
+El umbral es **85 % de línea** y lo exige `jacocoTestCoverageVerification`, colgado de `check`.
+Es decir: `gradlew test` mide y deja el reporte, **`gradlew build` es el que falla** si se baja del
+umbral. El mensaje del fallo dice el ratio real y el mínimo esperado.
+
+Quedan fuera del cálculo exactamente dos clases, y están listadas en `build.gradle` con el porqué:
+`FinanceappBkApplication` (el `main`) y `MonthlySpendingR2dbcAdapter` (lo verifica `bruno/`). **Los
+DTOs y la configuración sí cuentan** — están entre el 90 y el 100 %, y excluirlos, como suele
+hacerse por inercia, solo bajaría el número y escondería el dato.
+
+No leas el porcentaje de rama como si fuera el de línea: hoy está en 62 % y casi todo es
+`WebExceptionHandler`. No hay umbral de rama a propósito, hasta que esa clase tenga tests.
 
 ## Base de datos
 
