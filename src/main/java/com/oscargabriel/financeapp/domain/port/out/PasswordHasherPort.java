@@ -7,4 +7,10 @@ package com.oscargabriel.financeapp.domain.port.out;
 public interface PasswordHasherPort {
 
     String hash(String plainPassword);
+
+    /**
+     * El hash nunca se compara con equals: lleva la sal dentro, asi que la misma clave produce
+     * uno distinto cada vez y solo el algoritmo sabe verificarlo.
+     */
+    boolean matches(String plainPassword, String passwordHash);
 }

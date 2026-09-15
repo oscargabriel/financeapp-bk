@@ -42,6 +42,12 @@ spring:
     basic:
       username: ${SECURITY_USERNAME}
       password: ${SECURITY_PASSWORD}
+    jwt:
+      # Sin default, como el resto de secretos: un despliegue que olvide JWT_SECRET no arranca,
+      # en vez de firmar todos los tokens con una clave que estaria en el repositorio.
+      secret: ${JWT_SECRET}
+      expiration: ${JWT_EXPIRATION:1h}
+      issuer: ${JWT_ISSUER:financeapp-bk}
 
 app:
   # Zona con la que se resuelve "el mes actual" en el rango por defecto de los reportes mensuales.

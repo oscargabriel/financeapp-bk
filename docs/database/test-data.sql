@@ -15,16 +15,17 @@
 \set ON_ERROR_STOP on
 SET search_path TO finance, public;
 
-\set uid    '10000000-0000-7000-8000-000000000001'
-\set cash   '20000000-0000-7000-8000-000000000001'
-\set debit  '20000000-0000-7000-8000-000000000002'
-\set credit '20000000-0000-7000-8000-000000000003'
-\set usd    '20000000-0000-7000-8000-000000000004'
+\set uid      '10000000-0000-7000-8000-000000000001'
+\set inactivo '10000000-0000-7000-8000-000000000002'
+\set cash     '20000000-0000-7000-8000-000000000001'
+\set debit    '20000000-0000-7000-8000-000000000002'
+\set credit   '20000000-0000-7000-8000-000000000003'
+\set usd      '20000000-0000-7000-8000-000000000004'
 
 BEGIN;
 
 -- Borrado del escenario anterior. El resto cae en cascada desde users.
-DELETE FROM finance.users WHERE email = 'prueba@financeapp.local';
+DELETE FROM finance.users WHERE email IN ('prueba@financeapp.local', 'inactivo@financeapp.local');
 
 -- El request de alta de bruno/auth/ crea un usuario nuevo en cada corrida, con el correo
 -- registro-<timestamp>@bruno.local. Recargar este escenario es lo que los limpia.
@@ -47,6 +48,17 @@ VALUES
      '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy',
      'Oscar', 'Zambrano', '3001234567', DATE '1995-03-14',
      123456789, 'COP', 'America/Bogota');
+
+
+-- Misma contrasena que el usuario de arriba, y a proposito: lo unico que cambia entre los dos
+-- es is_active, asi que un login que lo dejara entrar solo podria haber fallado en ese filtro.
+-- Sin categorias ni movimientos: no existe para ningun otro request de la coleccion.
+INSERT INTO finance.users
+    (id, email, password_hash, first_name, base_currency_code, timezone, is_active)
+VALUES
+    (:'inactivo'::uuid, 'inactivo@financeapp.local',
+     '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy',
+     'Cuenta', 'COP', 'America/Bogota', FALSE);
 
 
 -- -----------------------------------------------------------------------------

@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockUser;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 
@@ -21,9 +22,12 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 
 import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
+import com.oscargabriel.financeapp.domain.model.AccessToken;
+import com.oscargabriel.financeapp.domain.model.LoginCommand;
 import com.oscargabriel.financeapp.domain.model.RegisteredUser;
 import com.oscargabriel.financeapp.domain.model.RegistrationCommand;
 import com.oscargabriel.financeapp.domain.model.User;
+import com.oscargabriel.financeapp.domain.port.in.LoginPort;
 import com.oscargabriel.financeapp.domain.port.in.RegisterUserPort;
 import com.oscargabriel.financeapp.infrastructure.config.SecurityConfig;
 import com.oscargabriel.financeapp.support.UserMother;
@@ -40,6 +44,8 @@ class AuthControllerTest {
 
     private static final String URI_REGISTRO = "/auth/register";
 
+    private static final String URI_LOGIN = "/auth/login";
+
     private static final UUID ID = UUID.fromString("01994f00-0000-7000-8000-000000000001");
 
     @Autowired
@@ -47,6 +53,9 @@ class AuthControllerTest {
 
     @MockitoBean
     private RegisterUserPort registerUser;
+
+    @MockitoBean
+    private LoginPort login;
 
     @Test
     void devuelve401CuandoNoHayCredenciales() {
@@ -140,6 +149,87 @@ class AuthControllerTest {
                 .expectStatus().isBadRequest();
 
         verifyNoInteractions(registerUser);
+    }
+
+    @Test
+    void devuelve200ConElTokenYSuVigenciaEnSegundos() {
+        when(login.login(any()))
+                .thenReturn(Mono.just(new AccessToken("un.jwt.firmado", Duration.ofHours(1))));
+
+        webTestClient.mutateWith(mockUser())
+                .post().uri(URI_LOGIN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(unasCredenciales())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.accessToken").isEqualTo("un.jwt.firmado")
+                .jsonPath("$.tokenType").isEqualTo("Bearer")
+                .jsonPath("$.expiresIn").isEqualTo(3600);
+    }
+
+    @Test
+    void trasladaLasCredencialesTalCualAlCasoDeUso() {
+        when(login.login(any()))
+                .thenReturn(Mono.just(new AccessToken("un.jwt.firmado", Duration.ofHours(1))));
+
+        webTestClient.mutateWith(mockUser())
+                .post().uri(URI_LOGIN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(unasCredenciales())
+                .exchange()
+                .expectStatus().isOk();
+
+        verify(login).login(new LoginCommand(UserMother.EMAIL, UserMother.PASSWORD));
+    }
+
+    @Test
+    void devuelve401ConElFormatoDeErrorDelProyectoCuandoLasCredencialesNoSirven() {
+        when(login.login(any())).thenReturn(Mono.error(new BadRequestException(
+                HttpStatus.UNAUTHORIZED, ErrorCodes.INVALID_CREDENTIALS,
+                "Correo o contrasena incorrectos", "credentials")));
+
+        webTestClient.mutateWith(mockUser())
+                .post().uri(URI_LOGIN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(unasCredenciales())
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("INVALID_CREDENTIALS")
+                .jsonPath("$.errors[0].description").isEqualTo("Correo o contrasena incorrectos");
+    }
+
+    /** El token es una credencial: no puede acabar en un log ni en el eco de la peticion. */
+    @Test
+    void laRespuestaDelLoginNoDevuelveLaClaveQueSeMando() {
+        when(login.login(any()))
+                .thenReturn(Mono.just(new AccessToken("un.jwt.firmado", Duration.ofHours(1))));
+
+        byte[] cuerpo = webTestClient.mutateWith(mockUser())
+                .post().uri(URI_LOGIN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(unasCredenciales())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody().returnResult().getResponseBody();
+
+        assertThat(new String(cuerpo)).doesNotContain(UserMother.PASSWORD);
+    }
+
+    @Test
+    void elLoginTambienExigeCredencialesDeAcceso() {
+        webTestClient.post().uri(URI_LOGIN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(unasCredenciales())
+                .exchange()
+                .expectStatus().isUnauthorized();
+
+        verifyNoInteractions(login);
+    }
+
+    private static Map<String, String> unasCredenciales() {
+        return Map.of("email", UserMother.EMAIL, "password", UserMother.PASSWORD);
     }
 
     private static Map<String, Object> unPayload() {

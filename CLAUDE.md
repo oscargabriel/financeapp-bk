@@ -90,8 +90,10 @@ pasen por `boundedElastic`.
 ### Configuración y arranque
 
 - `application.yaml` lee los secretos como variables de entorno **sin default**: un despliegue sin
-  `DB_USERNAME` / `DB_PASSWORD` / `SECURITY_USERNAME` / `SECURITY_PASSWORD` falla al arrancar en vez
-  de levantar con credenciales implícitas.
+  `DB_USERNAME` / `DB_PASSWORD` / `SECURITY_USERNAME` / `SECURITY_PASSWORD` / `JWT_SECRET` falla al
+  arrancar en vez de levantar con credenciales implícitas. `JWT_SECRET` además tiene que medir 32
+  bytes o más: `JwtTokenIssuerAdapter` lo comprueba al construirse, porque HS256 no firma con menos
+  y el fallo aparecería en el primer login en vez de en el arranque.
 - `spring.profiles.active` vale `${SPRING_PROFILES_ACTIVE:local}`: sin la variable se arranca en
   local, así que **un despliegue tiene que definir `SPRING_PROFILES_ACTIVE=prod`**. No dejar esa
   clave vacía: Boot 4 rechaza `profiles` vacía y el contexto ni se crea.
@@ -103,9 +105,11 @@ pasen por `boundedElastic`.
 - El bean `Clock` (`ClockConfig`, zona `app.timezone`) existe para que los casos de uso que dependen
   de «hoy» se puedan probar con fecha fija. Inyéctalo en vez de llamar a `YearMonth.now()`.
 - **Ninguna ruta es pública**: `SecurityConfig` usa `anyExchange().authenticated()` con Basic Auth,
-  incluido `/api/status` y **el registro**. Que `POST /api/auth/register` exija credencial se decidió
-  en FA-12: abrirlo mientras el Basic sea global es alta de usuarios anónima y sin límite de tasa.
-  Se abre en FA-14, con el filtro JWT. Si entra Swagger o un monitor externo, la excepción va ahí.
+  incluido `/api/status`, **el registro y el login**. Que `POST /api/auth/register` exija credencial
+  se decidió en FA-12: abrirlo mientras el Basic sea global es alta de usuarios anónima y sin límite
+  de tasa. `POST /api/auth/login` está detrás por lo mismo, y el token que emite todavía no lo acepta
+  nadie: quien lo valide es el filtro de FA-14, que es también donde las dos rutas se abren. Si entra
+  Swagger o un monitor externo, la excepción va ahí.
 - Preferir `@Value` sobre inyectar `Environment`.
 
 `src/main/resources/application-local.yaml` no se versiona y tiene las credenciales reales.
@@ -142,7 +146,7 @@ Quedan fuera del cálculo exactamente dos clases, y están listadas en `build.gr
 DTOs y la configuración sí cuentan** — están entre el 90 y el 100 %, y excluirlos, como suele
 hacerse por inercia, solo bajaría el número y escondería el dato.
 
-No leas el porcentaje de rama como si fuera el de línea: hoy está en 76 % frente al 91 % de línea, y
+No leas el porcentaje de rama como si fuera el de línea: hoy está en 79 % frente al 93 % de línea, y
 lo que falta es casi todo `WebExceptionHandler`. No hay umbral de rama a propósito, hasta que esa
 clase tenga tests.
 

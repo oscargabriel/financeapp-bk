@@ -30,8 +30,11 @@ variables:
     enabled: true
     secret: false
     type: text
+  # secret: false como basicPass, aunque sea una contrasena. Con secret: true Bruno guarda el
+  # valor en su propio almacen y descarta este, asi que la interpolacion de process.env no llega
+  # a correr y la variable queda vacia.
   - name: testUserPassword
     value: "{{process.env.TEST_USER_PASSWORD}}"
     enabled: true
-    secret: true
+    secret: false
     type: text

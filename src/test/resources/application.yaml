@@ -22,6 +22,12 @@ spring:
     basic:
       username: test
       password: test
+    jwt:
+      # Valor fijo y visible: no protege nada porque esta suite no emite tokens que salgan de
+      # ella. Tiene 32 bytes porque HS256 no firma con menos y el bean falla al construirse.
+      secret: secreto-de-pruebas-de-32-bytes!!
+      expiration: 1h
+      issuer: financeapp-bk-test
 
 app:
   timezone: America/Bogota

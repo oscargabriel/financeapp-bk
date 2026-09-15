@@ -1,5 +1,7 @@
 package com.oscargabriel.financeapp.infrastructure.adapter.out.persistence;
 
+import java.util.UUID;
+
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.r2dbc.core.DatabaseClient;
@@ -10,6 +12,7 @@ import org.springframework.transaction.reactive.TransactionalOperator;
 import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.model.User;
+import com.oscargabriel.financeapp.domain.model.UserCredentials;
 import com.oscargabriel.financeapp.domain.port.out.UserRepositoryPort;
 
 import reactor.core.publisher.Mono;
@@ -24,6 +27,18 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
                  WHERE lower(email) = lower(:email)
                    AND deleted_at IS NULL
             )
+            """;
+
+    /**
+     * is_active y deleted_at se filtran aqui, no en el caso de uso: asi no hay forma de emitir un
+     * token para una cuenta desactivada por haberse olvidado una condicion aguas arriba.
+     */
+    private static final String CREDENCIALES_ACTIVAS = """
+            SELECT id, password_hash
+              FROM finance.users
+             WHERE lower(email) = lower(:email)
+               AND deleted_at IS NULL
+               AND is_active
             """;
 
     private static final String INSERTAR_USUARIO = """
@@ -58,6 +73,16 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
         return databaseClient.sql(EXISTE_EMAIL)
                 .bind("email", email)
                 .map((row, metadata) -> row.get(0, Boolean.class))
+                .one();
+    }
+
+    @Override
+    public Mono<UserCredentials> findActiveByEmail(String email) {
+        return databaseClient.sql(CREDENCIALES_ACTIVAS)
+                .bind("email", email)
+                .map((row, metadata) -> new UserCredentials(
+                        row.get("id", UUID.class),
+                        row.get("password_hash", String.class)))
                 .one();
     }
 

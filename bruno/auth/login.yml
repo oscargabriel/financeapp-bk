@@ -1,0 +1,83 @@
+info:
+  name: Login correcto
+  type: http
+  seq: 4
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/login"
+  auth: inherit
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{testUserEmail}}",
+        "password": "{{testUserPassword}}"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.tokenType
+      operator: eq
+      value: Bearer
+  scripts:
+    - type: tests
+      code: |-
+        function payload(token) {
+          const parte = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+          return JSON.parse(Buffer.from(parte, "base64").toString("utf8"));
+        }
+
+        function cabecera(token) {
+          const parte = token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/");
+          return JSON.parse(Buffer.from(parte, "base64").toString("utf8"));
+        }
+
+        test("devuelve un JWT de tres partes firmado con HS256", function() {
+          const token = res.getBody().accessToken;
+          expect(token.split(".")).to.have.lengthOf(3);
+          expect(cabecera(token).alg).to.equal("HS256");
+        });
+
+        test("el subject es el usuario del escenario de pruebas", function() {
+          expect(payload(res.getBody().accessToken).sub)
+            .to.equal("10000000-0000-7000-8000-000000000001");
+        });
+
+        test("el token expira despues de emitirse y coincide con expiresIn", function() {
+          const claims = payload(res.getBody().accessToken);
+          expect(claims.exp).to.be.above(claims.iat);
+          expect(claims.exp - claims.iat).to.equal(res.getBody().expiresIn);
+        });
+
+        test("no devuelve la contrasena que se mando", function() {
+          expect(JSON.stringify(res.getBody())).to.not.contain(bru.getEnvVar("testUserPassword"));
+        });
+
+        test("guarda el token para los requests que vengan despues", function() {
+          bru.setVar("accessToken", res.getBody().accessToken);
+          expect(bru.getVar("accessToken")).to.be.a("string").and.not.be.empty;
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Login correcto
+
+  Usa el usuario que monta `docs/database/test-data.sql` con la clave que guarda `bruno/.env`
+  como `TEST_USER_PASSWORD`. Si este request devuelve 401, lo primero que hay que mirar es si el
+  escenario esta cargado y si el `.env` tiene esa variable.
+
+  Los claims se leen decodificando el payload en base64url, sin verificar la firma: el secreto
+  vive solo en la aplicacion y la coleccion no tiene por que conocerlo. Que la firma sea valida
+  lo comprueba `JwtTokenIssuerAdapterTest` en la suite.
+
+  El token queda en la variable `accessToken` de la corrida. Todavia no lo consume nadie: el
+  filtro que lo acepta en vez del Basic entra en FA-14.
