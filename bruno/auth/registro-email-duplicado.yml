@@ -1,0 +1,44 @@
+info:
+  name: Registro con un correo ya usado
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/register"
+  auth: inherit
+  body:
+    type: json
+    data: |-
+      {
+        "email": "PRUEBA@financeapp.local",
+        "password": "unaClaveLarga",
+        "firstName": "Otra"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: DUPLICATE_RESOURCE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: email
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Correo ya registrado
+
+  `prueba@financeapp.local` es el usuario que monta `docs/database/test-data.sql`, asi que este
+  request siempre encuentra el correo ocupado.
+
+  Va en MAYUSCULAS a proposito: el unico de la tabla es sobre `lower(email)`, y sin normalizar el
+  correo antes de comparar, este alta pasaria y crearia un segundo usuario con el mismo buzon.

@@ -103,7 +103,9 @@ pasen por `boundedElastic`.
 - El bean `Clock` (`ClockConfig`, zona `app.timezone`) existe para que los casos de uso que dependen
   de «hoy» se puedan probar con fecha fija. Inyéctalo en vez de llamar a `YearMonth.now()`.
 - **Ninguna ruta es pública**: `SecurityConfig` usa `anyExchange().authenticated()` con Basic Auth,
-  incluido `/api/status`. Si entra Swagger o un monitor externo, hay que declarar la excepción ahí.
+  incluido `/api/status` y **el registro**. Que `POST /api/auth/register` exija credencial se decidió
+  en FA-12: abrirlo mientras el Basic sea global es alta de usuarios anónima y sin límite de tasa.
+  Se abre en FA-14, con el filtro JWT. Si entra Swagger o un monitor externo, la excepción va ahí.
 - Preferir `@Value` sobre inyectar `Environment`.
 
 `src/main/resources/application-local.yaml` no se versiona y tiene las credenciales reales.
@@ -140,8 +142,9 @@ Quedan fuera del cálculo exactamente dos clases, y están listadas en `build.gr
 DTOs y la configuración sí cuentan** — están entre el 90 y el 100 %, y excluirlos, como suele
 hacerse por inercia, solo bajaría el número y escondería el dato.
 
-No leas el porcentaje de rama como si fuera el de línea: hoy está en 62 % y casi todo es
-`WebExceptionHandler`. No hay umbral de rama a propósito, hasta que esa clase tenga tests.
+No leas el porcentaje de rama como si fuera el de línea: hoy está en 76 % frente al 91 % de línea, y
+lo que falta es casi todo `WebExceptionHandler`. No hay umbral de rama a propósito, hasta que esa
+clase tenga tests.
 
 ## Base de datos
 

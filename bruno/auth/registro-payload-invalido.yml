@@ -1,0 +1,57 @@
+info:
+  name: Registro con el payload invalido
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/register"
+  auth: inherit
+  body:
+    type: json
+    data: |-
+      {
+        "email": "no-es-un-email",
+        "password": "corta",
+        "firstName": "  ",
+        "baseCurrencyCode": "XXX",
+        "timezone": "Marte/Olympus"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+  scripts:
+    - type: tests
+      code: |-
+        test("reporta los cuatro campos invalidos en una sola respuesta", function() {
+          const campos = res.getBody().errors.map(function (e) { return e.field; });
+          expect(campos.sort()).to.eql(["email", "firstName", "password", "timezone"]);
+        });
+
+        test("cada error trae el contrato completo", function() {
+          res.getBody().errors.forEach(function (e) {
+            expect(e.code).to.equal("VALIDATION_ERROR");
+            expect(e.description).to.be.a("string").and.not.be.empty;
+          });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Payload invalido
+
+  Cuatro campos mal de una vez. La respuesta los reporta todos juntos en vez de rendirse en el
+  primero: obligar al cliente a descubrirlos de uno en uno, a base de reintentos, solo es gratis
+  para el servidor.
+
+  `XXX` tiene formato de moneda valido —tres letras— pero no esta en el catalogo, asi que su error
+  no llega de la validacion de formato sino de la consulta a `finance.currencies`. Por eso este
+  payload no lo reporta junto a los otros cuatro: el caso de uso no va a la base mientras haya
+  errores de formato pendientes.

@@ -26,6 +26,10 @@ BEGIN;
 -- Borrado del escenario anterior. El resto cae en cascada desde users.
 DELETE FROM finance.users WHERE email = 'prueba@financeapp.local';
 
+-- El request de alta de bruno/auth/ crea un usuario nuevo en cada corrida, con el correo
+-- registro-<timestamp>@bruno.local. Recargar este escenario es lo que los limpia.
+DELETE FROM finance.users WHERE email LIKE '%@bruno.local';
+
 
 -- -----------------------------------------------------------------------------
 -- Usuario

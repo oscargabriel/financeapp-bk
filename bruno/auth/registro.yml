@@ -1,0 +1,80 @@
+info:
+  name: Registro de usuario
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/register"
+  auth: inherit
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailNuevo}}",
+        "password": "unaClaveLarga",
+        "firstName": "Ana",
+        "lastName": "Gomez",
+        "baseCurrencyCode": "USD",
+        "timezone": "America/Lima"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: before-request
+      code: |-
+        // Un correo distinto por corrida: el alta no es idempotente y con uno fijo la segunda
+        // ejecucion daria 409. La limpieza de estos usuarios esta en docs/database/test-data.sql.
+        bru.setVar("emailNuevo", "registro-" + Date.now() + "@bruno.local");
+    - type: tests
+      code: |-
+        test("devuelve el usuario creado con el correo que se pidio", function() {
+          expect(res.getBody().email).to.equal(bru.getVar("emailNuevo"));
+          expect(res.getBody().firstName).to.equal("Ana");
+          expect(res.getBody().lastName).to.equal("Gomez");
+        });
+
+        test("el identificador es un UUID version 7", function() {
+          expect(res.getBody().id).to.match(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+        });
+
+        test("respeta la moneda y la zona que mando el cliente", function() {
+          expect(res.getBody().baseCurrencyCode).to.equal("USD");
+          expect(res.getBody().timezone).to.equal("America/Lima");
+        });
+
+        test("copio las categorias por defecto de la semilla", function() {
+          expect(res.getBody().defaultCategories).to.be.above(0);
+        });
+
+        test("no filtra la contrasena ni su hash", function() {
+          const cuerpo = JSON.stringify(res.getBody());
+          expect(cuerpo).to.not.contain("unaClaveLarga");
+          expect(cuerpo).to.not.contain("password");
+          expect(cuerpo).to.not.contain("$2a$");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Alta de usuario
+
+  Unico request de la coleccion que escribe en la base. El correo lleva un timestamp porque el alta
+  no es idempotente: con uno fijo, la segunda corrida devolveria 409 en vez de 201.
+
+  Los usuarios que deja se borran al recargar `docs/database/test-data.sql`, que limpia el dominio
+  `@bruno.local` completo.
+
+  `defaultCategories` dice cuantas filas se copiaron desde `default_categories`. Se afirma `> 0` y no
+  el numero exacto a proposito: la semilla puede crecer sin que este request se vuelva rojo. Hoy es
+  lo unico observable desde el API de que la copia ocurrio; cuando exista `GET /api/categories`
+  (etapa 6) se podra comprobar el contenido, no solo el conteo.

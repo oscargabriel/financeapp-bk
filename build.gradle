@@ -52,7 +52,7 @@ jacoco {
 // excluirlos solo esconderia el dato.
 def clasesSinCobertura = [
 	'com/oscargabriel/financeapp/FinanceappBkApplication.class',
-	'com/oscargabriel/financeapp/infrastructure/adapter/out/persistence/MonthlySpendingR2dbcAdapter.class'
+	'com/oscargabriel/financeapp/infrastructure/adapter/out/persistence/*R2dbcAdapter.class'
 ]
 
 def clasesMedidas = { fileCollection ->

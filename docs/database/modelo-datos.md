@@ -123,7 +123,7 @@ erDiagram
 |---|---|
 | Esquema | `finance`, no `public`. Aísla el modelo de extensiones y de cualquier otra cosa instalada en la base. |
 | Nombres | `snake_case`, tablas en plural, FK `<entidad>_id`, índices `ix_`, únicos `ux_`, checks `ck_`, triggers `trg_`. |
-| PK | `UUID` v7 generado por la aplicación (Java 25 lo trae en el JDK). Ordenables por tiempo, seguros de exponer en la API. Las tablas de catálogo (`currencies`, `default_categories`, `exchange_rates`) sí llevan default en la base, porque se pueblan por SQL. |
+| PK | `UUID` v7 generado por la aplicación con `domain/model/UuidV7`. Ordenables por tiempo, seguros de exponer en la API. **El JDK 25 no trae v7** —`java.util.UUID` solo ofrece `randomUUID` (v4), `nameUUIDFromBytes` y `fromString`—, así que la clase implementa el RFC 9562 a mano; comprobado el 15-09-2026 al escribir el primer INSERT (FA-12). Cuando el SQL genera la PK en una sola sentencia, como la copia de la semilla al registrarse, usa `uuidv7()`, nativo desde PostgreSQL 18. Las tablas de catálogo (`currencies`, `default_categories`, `exchange_rates`) sí llevan default en la base, porque se pueblan por SQL. |
 | Montos | `NUMERIC(18,4)`. Cuatro decimales para no perder precisión al convertir moneda, aunque el COP se maneje en enteros. |
 | Enums | `VARCHAR` + `CHECK`, no tipos `ENUM` nativos: R2DBC los mapea sin códec extra y agregar un valor es cambiar un CHECK, no un `ALTER TYPE` irreversible. |
 | Tiempo | `TIMESTAMPTZ` siempre. `created_at` / `updated_at` en toda tabla, `updated_at` mantenido por el trigger `set_updated_at()`. |
