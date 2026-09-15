@@ -11,8 +11,9 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 /**
  * Servidor real: verifica que la ruta queda publicada bajo spring.webflux.base-path y protegida.
  * El camino con datos no se prueba aqui porque el R2DBC de la suite apunta a un puerto sin
- * escucha a proposito; eso lo cubre MonthlySpendingR2dbcAdapterIT contra PostgreSQL real y el
- * request de Bruno contra el servidor levantado.
+ * escucha a proposito. Desde que Testcontainers salio de la suite, el 200 con cuerpo, el calculo
+ * de la meta y el corte de mes por zona horaria los verifica solo bruno/monthly-spending/ contra
+ * el servidor levantado: esta clase cubre lo que se puede probar sin base.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class MonthlySpendingIT {
