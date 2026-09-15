@@ -10,16 +10,6 @@ variables:
     enabled: true
     secret: false
     type: text
-  - name: basicUser
-    value: "{{process.env.PROD_BASIC_USER}}"
-    enabled: true
-    secret: false
-    type: text
-  - name: basicPass
-    value: "{{process.env.PROD_BASIC_PASS}}"
-    enabled: true
-    secret: false
-    type: text
   - name: userId
     value: "{{process.env.PROD_USER_ID}}"
     enabled: true

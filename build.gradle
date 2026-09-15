@@ -21,10 +21,13 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
-	// Solo por JwtEncoder y su implementacion Nimbus, para firmar el token del login. El
-	// starter de resource-server traeria ademas la autoconfiguracion de validacion, que no
-	// hace falta hasta que exista el filtro JWT.
+	// Los dos modulos de Spring Security, no el starter de Boot: la autoconfiguracion de este
+	// ultimo se cuelga de spring.security.oauth2.resourceserver.*, que esta aplicacion no usa
+	// porque declara su propio decoder con la misma clave con la que firma.
+	//   jose            -> JwtEncoder, para emitir el token en el login
+	//   resource-server -> la validacion del Bearer en la cadena de seguridad
 	implementation 'org.springframework.security:spring-security-oauth2-jose'
+	implementation 'org.springframework.security:spring-security-oauth2-resource-server'
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'org.postgresql:r2dbc-postgresql'

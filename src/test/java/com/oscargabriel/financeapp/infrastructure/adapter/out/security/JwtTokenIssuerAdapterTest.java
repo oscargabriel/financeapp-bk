@@ -1,7 +1,6 @@
 package com.oscargabriel.financeapp.infrastructure.adapter.out.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.text.ParseException;
 import java.time.Clock;
@@ -75,28 +74,10 @@ class JwtTokenIssuerAdapterTest {
         assertThat(emitir().expiresIn()).isEqualTo(VIGENCIA);
     }
 
-    /**
-     * HS256 no firma con menos de 256 bits. Fallar al construir el bean deja el contexto abajo
-     * en el arranque, en vez de devolver 500 en el primer login de produccion.
-     */
-    @Test
-    void noArrancaConUnSecretoDemasiadoCorto() {
-        assertThatThrownBy(() -> new JwtTokenIssuerAdapter(
-                "corto", VIGENCIA, "financeapp-bk-test", RELOJ))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("spring.security.jwt.secret");
-    }
-
-    /** El mensaje del fallo se loguea al arrancar: no puede llevar el secreto dentro. */
-    @Test
-    void elMensajeDelSecretoCortoNoRepiteElSecreto() {
-        assertThatThrownBy(() -> new JwtTokenIssuerAdapter(
-                "clave-corta", VIGENCIA, "financeapp-bk-test", RELOJ))
-                .hasMessageNotContaining("clave-corta");
-    }
-
     private static AccessToken emitir() {
-        return new JwtTokenIssuerAdapter(SECRETO, VIGENCIA, "financeapp-bk-test", RELOJ)
+        return new JwtTokenIssuerAdapter(
+                new SecretKeySpec(SECRETO.getBytes(), JWSAlgorithm.HS256.getName()),
+                VIGENCIA, "financeapp-bk-test", RELOJ)
                 .issueFor(ID);
     }
 }

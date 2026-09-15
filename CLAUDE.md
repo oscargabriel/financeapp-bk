@@ -68,6 +68,12 @@ Todos los errores salen con el mismo JSON: `{"errors":[{code, description, field
 nuevo en el switch de patrones, **siempre antes del `default` y antes de su supertipo**, porque el
 switch no admite un subtipo dominado.
 
+**Con una excepción: el 401 de la cadena de seguridad.** Se resuelve dentro del filtro, antes de que
+exista una excepción que el handler global pueda ver, así que su cuerpo lo escribe
+`UnauthenticatedEntryPoint`. Si cambias el formato de error, hay que tocar los dos. Ese 401 no dice
+nunca por qué falló el token: el motivo va al log, y `WWW-Authenticate` se emite como `Bearer` pelado
+porque el entry point de Spring publicaría ahí el detalle técnico como `error_description`.
+
 Los códigos viven en el enum `ErrorCodes`, en SCREAMING_SNAKE_CASE describiendo la categoría, no el
 mensaje.
 
@@ -90,10 +96,10 @@ pasen por `boundedElastic`.
 ### Configuración y arranque
 
 - `application.yaml` lee los secretos como variables de entorno **sin default**: un despliegue sin
-  `DB_USERNAME` / `DB_PASSWORD` / `SECURITY_USERNAME` / `SECURITY_PASSWORD` / `JWT_SECRET` falla al
-  arrancar en vez de levantar con credenciales implícitas. `JWT_SECRET` además tiene que medir 32
-  bytes o más: `JwtTokenIssuerAdapter` lo comprueba al construirse, porque HS256 no firma con menos
-  y el fallo aparecería en el primer login en vez de en el arranque.
+  `DB_USERNAME` / `DB_PASSWORD` / `JWT_SECRET` falla al arrancar en vez de levantar con
+  credenciales implícitas. `JWT_SECRET` además tiene que medir 32
+  bytes o más: `JwtConfig` lo comprueba al construir la clave, porque HS256 no firma con menos y el
+  fallo aparecería en el primer login en vez de en el arranque.
 - `spring.profiles.active` vale `${SPRING_PROFILES_ACTIVE:local}`: sin la variable se arranca en
   local, así que **un despliegue tiene que definir `SPRING_PROFILES_ACTIVE=prod`**. No dejar esa
   clave vacía: Boot 4 rechaza `profiles` vacía y el contexto ni se crea.
@@ -104,12 +110,15 @@ pasen por `boundedElastic`.
   [`docs/verificaciones-manuales.md`](docs/verificaciones-manuales.md), que cubre los dos caminos.
 - El bean `Clock` (`ClockConfig`, zona `app.timezone`) existe para que los casos de uso que dependen
   de «hoy» se puedan probar con fecha fija. Inyéctalo en vez de llamar a `YearMonth.now()`.
-- **Ninguna ruta es pública**: `SecurityConfig` usa `anyExchange().authenticated()` con Basic Auth,
-  incluido `/api/status`, **el registro y el login**. Que `POST /api/auth/register` exija credencial
-  se decidió en FA-12: abrirlo mientras el Basic sea global es alta de usuarios anónima y sin límite
-  de tasa. `POST /api/auth/login` está detrás por lo mismo, y el token que emite todavía no lo acepta
-  nadie: quien lo valide es el filtro de FA-14, que es también donde las dos rutas se abren. Si entra
-  Swagger o un monitor externo, la excepción va ahí.
+- **Dos rutas públicas y ni una más**: desde FA-14 `SecurityConfig` valida `Authorization: Bearer`
+  con `oauth2ResourceServer`, y solo `POST /auth/register` y `POST /auth/login` llevan `permitAll`
+  — no se puede exigir un token para pedir el primero. Todo lo demás, `/api/status` incluido, es
+  `anyExchange().authenticated()`. Las reglas se escriben **sin** el prefijo `/api`: el base-path lo
+  quita el `HttpHandler` antes de que la cadena vea la petición. Si entra Swagger o un monitor
+  externo, la excepción va ahí, y `JwtSecurityIT` es lo que avisa si alguien abre otra cosa.
+- **La clave de firma vive solo en `JwtConfig`**, que expone el `SecretKey` y el `ReactiveJwtDecoder`.
+  `JwtTokenIssuerAdapter` recibe ese mismo bean: leer el secreto dos veces por separado dejaría
+  emitir tokens que el propio API no acepta. El decoder valida además expiración y emisor.
 - Preferir `@Value` sobre inyectar `Environment`.
 
 `src/main/resources/application-local.yaml` no se versiona y tiene las credenciales reales. No hay
@@ -124,9 +133,6 @@ spring:
     username: postgres
     password: ...
   security:
-    basic:
-      username: ...
-      password: ...
     jwt:
       secret: ...        # 32 bytes o más, o el contexto no arranca
       expiration: 1h
@@ -164,7 +170,7 @@ Quedan fuera del cálculo exactamente dos clases, y están listadas en `build.gr
 DTOs y la configuración sí cuentan** — están entre el 90 y el 100 %, y excluirlos, como suele
 hacerse por inercia, solo bajaría el número y escondería el dato.
 
-No leas el porcentaje de rama como si fuera el de línea: hoy está en 79 % frente al 93 % de línea, y
+No leas el porcentaje de rama como si fuera el de línea: hoy está en 82 % frente al 93 % de línea, y
 lo que falta es casi todo `WebExceptionHandler`. No hay umbral de rama a propósito, hasta que esa
 clase tenga tests.
 

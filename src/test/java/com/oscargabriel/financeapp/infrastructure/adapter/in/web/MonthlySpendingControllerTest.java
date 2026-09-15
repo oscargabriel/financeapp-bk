@@ -5,7 +5,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockUser;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockJwt;
 
 import java.time.YearMonth;
 
@@ -20,6 +20,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.port.in.GetMonthlySpendingPort;
+import com.oscargabriel.financeapp.infrastructure.config.JwtConfig;
 import com.oscargabriel.financeapp.infrastructure.config.SecurityConfig;
 import com.oscargabriel.financeapp.support.MonthlySpendingMother;
 
@@ -30,7 +31,7 @@ import reactor.core.publisher.Flux;
  * completa la verifica MonthlySpendingIT contra un servidor real.
  */
 @WebFluxTest(MonthlySpendingController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, JwtConfig.class, UnauthenticatedEntryPoint.class})
 class MonthlySpendingControllerTest {
 
     private static final String URI_BASE = "/users/" + MonthlySpendingMother.USER_ID + "/monthly-spending";
@@ -55,7 +56,7 @@ class MonthlySpendingControllerTest {
         when(getMonthlySpending.get(eq(MonthlySpendingMother.USER_ID), any(), any())).thenReturn(
                 Flux.just(MonthlySpendingMother.unMesConMeta(YearMonth.of(2026, 9))));
 
-        webTestClient.mutateWith(mockUser()).get().uri(URI_BASE)
+        webTestClient.mutateWith(mockJwt()).get().uri(URI_BASE)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -75,7 +76,7 @@ class MonthlySpendingControllerTest {
         when(getMonthlySpending.get(eq(MonthlySpendingMother.USER_ID), any(), any()))
                 .thenReturn(Flux.empty());
 
-        webTestClient.mutateWith(mockUser()).get().uri(URI_BASE)
+        webTestClient.mutateWith(mockJwt()).get().uri(URI_BASE)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody().json("[]");
@@ -86,7 +87,7 @@ class MonthlySpendingControllerTest {
         when(getMonthlySpending.get(eq(MonthlySpendingMother.USER_ID), any(), any())).thenReturn(
                 Flux.just(MonthlySpendingMother.unMesSinMeta(YearMonth.of(2026, 8))));
 
-        webTestClient.mutateWith(mockUser()).get().uri(URI_BASE)
+        webTestClient.mutateWith(mockJwt()).get().uri(URI_BASE)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -101,7 +102,7 @@ class MonthlySpendingControllerTest {
         when(getMonthlySpending.get(eq(MonthlySpendingMother.USER_ID), any(), any()))
                 .thenReturn(Flux.empty());
 
-        webTestClient.mutateWith(mockUser()).get()
+        webTestClient.mutateWith(mockJwt()).get()
                 .uri(URI_BASE + "?from=2026-01&to=2026-03")
                 .exchange()
                 .expectStatus().isOk();
@@ -115,7 +116,7 @@ class MonthlySpendingControllerTest {
         when(getMonthlySpending.get(eq(MonthlySpendingMother.USER_ID), any(), any()))
                 .thenReturn(Flux.empty());
 
-        webTestClient.mutateWith(mockUser()).get().uri(URI_BASE)
+        webTestClient.mutateWith(mockJwt()).get().uri(URI_BASE)
                 .exchange()
                 .expectStatus().isOk();
 
@@ -124,7 +125,7 @@ class MonthlySpendingControllerTest {
 
     @Test
     void devuelve400CuandoElUserIdNoEsUnUuid() {
-        webTestClient.mutateWith(mockUser()).get().uri("/users/no-es-uuid/monthly-spending")
+        webTestClient.mutateWith(mockJwt()).get().uri("/users/no-es-uuid/monthly-spending")
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()
@@ -136,7 +137,7 @@ class MonthlySpendingControllerTest {
 
     @Test
     void devuelve400CuandoElMesInicialNoTieneElFormatoEsperado() {
-        webTestClient.mutateWith(mockUser()).get().uri(URI_BASE + "?from=2026-9")
+        webTestClient.mutateWith(mockJwt()).get().uri(URI_BASE + "?from=2026-9")
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()
@@ -148,7 +149,7 @@ class MonthlySpendingControllerTest {
 
     @Test
     void devuelve400CuandoElMesFinalNoTieneElFormatoEsperado() {
-        webTestClient.mutateWith(mockUser()).get().uri(URI_BASE + "?to=septiembre")
+        webTestClient.mutateWith(mockJwt()).get().uri(URI_BASE + "?to=septiembre")
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()
@@ -163,7 +164,7 @@ class MonthlySpendingControllerTest {
                 Flux.error(new BadRequestException(HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR,
                         "El mes inicial es posterior al mes final", "from")));
 
-        webTestClient.mutateWith(mockUser()).get().uri(URI_BASE + "?from=2026-05&to=2026-01")
+        webTestClient.mutateWith(mockJwt()).get().uri(URI_BASE + "?from=2026-05&to=2026-01")
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()

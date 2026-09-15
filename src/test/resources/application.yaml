@@ -19,9 +19,6 @@ spring:
       initial-size: 0
       max-size: 5
   security:
-    basic:
-      username: test
-      password: test
     jwt:
       # Valor fijo y visible: no protege nada porque esta suite no emite tokens que salgan de
       # ella. Tiene 32 bytes porque HS256 no firma con menos y el bean falla al construirse.

@@ -12,6 +12,9 @@ runtime:
     - expression: res.status
       operator: eq
       value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
 
 settings:
   encodeUrl: true
@@ -22,10 +25,10 @@ settings:
 docs: |
   # Sin Authorization
 
-  La ausencia de `http.auth` rompe a proposito la herencia de Basic Auth de la coleccion. Ninguna
-  ruta del API es publica; si esto empieza a responder 200, alguien abrio la ruta sin quererlo.
+  La ausencia de `http.auth` rompe a proposito la herencia del Bearer de la coleccion. Esta ruta no
+  es publica; si empieza a responder 200, alguien la abrio sin quererlo.
 
-  Ojo con lo que este 401 NO cubre: hoy el Basic es un unico usuario de servicio, no el dueño de
-  los datos, asi que cualquiera con la credencial puede pedir el mes de cualquier `userId`. Cuando
-  exista autenticacion por usuario hay que agregar aqui el caso de pedir el mes de otro y esperar
-  403.
+  Ojo con lo que este 401 NO cubre: desde FA-14 el token si identifica a una persona, pero el
+  `userId` sigue viniendo en la URL y nadie compara los dos. Cualquier token valido puede pedir el
+  mes de cualquier usuario. Eso lo cierra FA-15, y es ahi donde toca agregar el caso de pedir el
+  mes de otro y esperar 403.

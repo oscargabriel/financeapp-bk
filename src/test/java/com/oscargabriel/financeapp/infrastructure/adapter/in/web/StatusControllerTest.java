@@ -1,7 +1,7 @@
 package com.oscargabriel.financeapp.infrastructure.adapter.in.web;
 
 import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockUser;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockJwt;
 
 import java.util.List;
 
@@ -15,12 +15,13 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import com.oscargabriel.financeapp.domain.model.ServiceHealth;
 import com.oscargabriel.financeapp.domain.model.SystemStatus;
 import com.oscargabriel.financeapp.domain.port.in.CheckSystemStatusPort;
+import com.oscargabriel.financeapp.infrastructure.config.JwtConfig;
 import com.oscargabriel.financeapp.infrastructure.config.SecurityConfig;
 
 import reactor.core.publisher.Mono;
 
 @WebFluxTest(StatusController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, JwtConfig.class, UnauthenticatedEntryPoint.class})
 class StatusControllerTest {
 
     // El slice monta el controller directamente: spring.webflux.base-path (/api) lo aplica el
@@ -46,7 +47,7 @@ class StatusControllerTest {
         when(checkSystemStatus.check()).thenReturn(
                 Mono.just(SystemStatus.of(List.of(ServiceHealth.up("postgres")))));
 
-        webTestClient.mutateWith(mockUser()).get().uri(STATUS_URI)
+        webTestClient.mutateWith(mockJwt()).get().uri(STATUS_URI)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -61,7 +62,7 @@ class StatusControllerTest {
                         ServiceHealth.down("postgres"),
                         ServiceHealth.up("redis")))));
 
-        webTestClient.mutateWith(mockUser()).get().uri(STATUS_URI)
+        webTestClient.mutateWith(mockJwt()).get().uri(STATUS_URI)
                 .exchange()
                 .expectStatus().isEqualTo(503)
                 .expectBody()

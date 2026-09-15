@@ -10,16 +10,6 @@ variables:
     enabled: true
     secret: false
     type: text
-  - name: basicUser
-    value: "{{process.env.BRUNO_BASIC_USER}}"
-    enabled: true
-    secret: false
-    type: text
-  - name: basicPass
-    value: "{{process.env.BRUNO_BASIC_PASS}}"
-    enabled: true
-    secret: false
-    type: text
   - name: userId
     value: 10000000-0000-7000-8000-000000000001
     enabled: true
@@ -30,9 +20,9 @@ variables:
     enabled: true
     secret: false
     type: text
-  # secret: false como basicPass, aunque sea una contrasena. Con secret: true Bruno guarda el
-  # valor en su propio almacen y descarta este, asi que la interpolacion de process.env no llega
-  # a correr y la variable queda vacia.
+  # secret: false aunque sea una contrasena. Con secret: true Bruno guarda el valor en su propio
+  # almacen y descarta este, asi que la interpolacion de process.env no llega a correr y la
+  # variable queda vacia: los requests de login fallan con 400 por contrasena ausente.
   - name: testUserPassword
     value: "{{process.env.TEST_USER_PASSWORD}}"
     enabled: true

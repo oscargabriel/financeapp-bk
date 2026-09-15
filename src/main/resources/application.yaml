@@ -39,9 +39,6 @@ spring:
       max-create-connection-time: 3s
       validation-query: SELECT 1
   security:
-    basic:
-      username: ${SECURITY_USERNAME}
-      password: ${SECURITY_PASSWORD}
     jwt:
       # Sin default, como el resto de secretos: un despliegue que olvide JWT_SECRET no arranca,
       # en vez de firmar todos los tokens con una clave que estaria en el repositorio.

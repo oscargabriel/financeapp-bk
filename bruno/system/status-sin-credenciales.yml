@@ -12,6 +12,16 @@ runtime:
     - expression: res.status
       operator: eq
       value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+  scripts:
+    - type: tests
+      code: |-
+        test("el rechazo no cuenta por que fallo", function() {
+          expect(res.getHeader("www-authenticate")).to.equal("Bearer");
+          expect(JSON.stringify(res.getBody())).to.not.contain("Jwt");
+        });
 
 settings:
   encodeUrl: true
@@ -22,9 +32,13 @@ settings:
 docs: |
   # GET /api/status sin Authorization
 
-  La ausencia de `http.auth` rompe a proposito la herencia de Basic Auth de la coleccion: un
-  request sin esa clave se parsea como `mode: none`, que es lo que emite el propio
-  serializador de Bruno. Escribir `auth: none` explicito funciona igual pero hace que el CLI
-  imprima `toBrunoAuth failed: Unsupported auth type` en cada corrida. Ninguna ruta es
-  publica (`SecurityConfig` usa `anyExchange().authenticated()`), asi que el status tambien exige
-  credenciales. Si este request empieza a devolver 200, alguien abrio una ruta sin quererlo.
+  La ausencia de `http.auth` rompe a proposito la herencia del Bearer de la coleccion: un request
+  sin esa clave se parsea como `mode: none`, que es lo que emite el propio serializador de Bruno.
+  Escribir `auth: none` explicito funciona igual pero hace que el CLI imprima
+  `toBrunoAuth failed: Unsupported auth type` en cada corrida.
+
+  Las unicas rutas publicas son `/api/auth/register` y `/api/auth/login`; el status no lo es. Si
+  este request empieza a devolver 200, alguien abrio una ruta sin quererlo.
+
+  El cuerpo se comprueba ademas del codigo: el 401 tiene que salir con el mismo
+  `{"errors":[...]}` que el resto del API y sin decir por que fallo el token.

@@ -8,6 +8,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
+import com.oscargabriel.financeapp.support.TokenMother;
+
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class WebExceptionHandlerIT {
 
@@ -27,7 +29,7 @@ class WebExceptionHandlerIT {
     @Test
     void devuelveElFormatoDeErrorEstandarEnUnaRutaInexistente() {
         webTestClient.get().uri("/api/no-existe")
-                .headers(headers -> headers.setBasicAuth("test", "test"))
+                .headers(headers -> headers.setBearerAuth(TokenMother.valido()))
                 .exchange()
                 .expectStatus().isNotFound()
                 .expectBody()
@@ -40,7 +42,7 @@ class WebExceptionHandlerIT {
     @Test
     void noFiltraInternalsEnElCuerpoDelError() {
         webTestClient.get().uri("/api/no-existe")
-                .headers(headers -> headers.setBasicAuth("test", "test"))
+                .headers(headers -> headers.setBearerAuth(TokenMother.valido()))
                 .exchange()
                 .expectStatus().isNotFound()
                 .expectBody()

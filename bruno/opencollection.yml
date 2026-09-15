@@ -5,16 +5,19 @@ info:
 
 request:
   auth:
-    type: basic
-    username: "{{basicUser}}"
-    password: "{{basicPass}}"
+    type: bearer
+    token: "{{accessToken}}"
 
 docs:
   content: |
     # financeapp-bk
 
-    Todas las rutas exigen Basic Auth, declarado aqui una sola vez: los requests usan
-    `auth: inherit` salvo el que prueba justamente el caso sin credenciales.
+    Todas las rutas exigen `Authorization: Bearer`, declarado aqui una sola vez: los requests
+    usan `auth: inherit` salvo los de `auth/`, que son publicos, y los que prueban justamente el
+    caso sin credenciales.
+
+    El token lo produce `auth/login`, que guarda la variable `accessToken` de la corrida. Por eso
+    esa carpeta va primera: sin ella, todo lo demas responderia 401.
 
     ## Ambientes
 

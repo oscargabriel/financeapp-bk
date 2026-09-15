@@ -8,6 +8,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
+import com.oscargabriel.financeapp.support.TokenMother;
+
 /**
  * Servidor real: verifica que la ruta queda publicada bajo spring.webflux.base-path y protegida.
  * El camino con datos no se prueba aqui porque el R2DBC de la suite apunta a un puerto sin
@@ -43,7 +45,7 @@ class MonthlySpendingIT {
     @Test
     void noExponeElEndpointFueraDelBasePath() {
         webTestClient.get().uri("/users/10000000-0000-7000-8000-000000000001/monthly-spending")
-                .headers(headers -> headers.setBasicAuth("test", "test"))
+                .headers(headers -> headers.setBearerAuth(TokenMother.valido()))
                 .exchange()
                 .expectStatus().isNotFound();
     }
@@ -51,7 +53,7 @@ class MonthlySpendingIT {
     @Test
     void rechazaConBadRequestUnUserIdQueNoEsUuidAntesDeTocarLaBase() {
         webTestClient.get().uri("/api/users/no-es-uuid/monthly-spending")
-                .headers(headers -> headers.setBasicAuth("test", "test"))
+                .headers(headers -> headers.setBearerAuth(TokenMother.valido()))
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()

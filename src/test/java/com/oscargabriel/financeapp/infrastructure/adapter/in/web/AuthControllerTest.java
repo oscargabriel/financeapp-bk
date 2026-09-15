@@ -5,7 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockUser;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockJwt;
 
 import java.time.Duration;
 import java.util.Map;
@@ -29,6 +29,7 @@ import com.oscargabriel.financeapp.domain.model.RegistrationCommand;
 import com.oscargabriel.financeapp.domain.model.User;
 import com.oscargabriel.financeapp.domain.port.in.LoginPort;
 import com.oscargabriel.financeapp.domain.port.in.RegisterUserPort;
+import com.oscargabriel.financeapp.infrastructure.config.JwtConfig;
 import com.oscargabriel.financeapp.infrastructure.config.SecurityConfig;
 import com.oscargabriel.financeapp.support.UserMother;
 
@@ -39,7 +40,7 @@ import reactor.core.publisher.Mono;
  * bruno/auth/ contra un servidor real.
  */
 @WebFluxTest(AuthController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, JwtConfig.class, UnauthenticatedEntryPoint.class})
 class AuthControllerTest {
 
     private static final String URI_REGISTRO = "/auth/register";
@@ -57,22 +58,26 @@ class AuthControllerTest {
     @MockitoBean
     private LoginPort login;
 
+    /**
+     * No se puede exigir un token para pedir el primero: desde FA-14 el alta es una de las dos
+     * rutas publicas, y este test esta para que nadie la vuelva a cerrar sin darse cuenta.
+     */
     @Test
-    void devuelve401CuandoNoHayCredenciales() {
+    void elRegistroNoExigeToken() {
+        when(registerUser.register(any())).thenReturn(Mono.just(unRegistro()));
+
         webTestClient.post().uri(URI_REGISTRO)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(unPayload())
                 .exchange()
-                .expectStatus().isUnauthorized();
-
-        verifyNoInteractions(registerUser);
+                .expectStatus().isCreated();
     }
 
     @Test
     void devuelve201ConElUsuarioCreado() {
         when(registerUser.register(any())).thenReturn(Mono.just(unRegistro()));
 
-        webTestClient.mutateWith(mockUser())
+        webTestClient.mutateWith(mockJwt())
                 .post().uri(URI_REGISTRO)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(unPayload())
@@ -93,7 +98,7 @@ class AuthControllerTest {
     void nuncaDevuelveLaContrasenaNiSuHash() {
         when(registerUser.register(any())).thenReturn(Mono.just(unRegistro()));
 
-        byte[] cuerpo = webTestClient.mutateWith(mockUser())
+        byte[] cuerpo = webTestClient.mutateWith(mockJwt())
                 .post().uri(URI_REGISTRO)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(unPayload())
@@ -111,7 +116,7 @@ class AuthControllerTest {
     void trasladaElPayloadTalCualAlCasoDeUso() {
         when(registerUser.register(any())).thenReturn(Mono.just(unRegistro()));
 
-        webTestClient.mutateWith(mockUser())
+        webTestClient.mutateWith(mockJwt())
                 .post().uri(URI_REGISTRO)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(unPayload())
@@ -128,7 +133,7 @@ class AuthControllerTest {
                 HttpStatus.CONFLICT, ErrorCodes.DUPLICATE_RESOURCE,
                 "Ya hay una cuenta registrada con ese correo", "email")));
 
-        webTestClient.mutateWith(mockUser())
+        webTestClient.mutateWith(mockJwt())
                 .post().uri(URI_REGISTRO)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(unPayload())
@@ -141,7 +146,7 @@ class AuthControllerTest {
 
     @Test
     void devuelve400CuandoElCuerpoNoEsJsonValido() {
-        webTestClient.mutateWith(mockUser())
+        webTestClient.mutateWith(mockJwt())
                 .post().uri(URI_REGISTRO)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("{ esto no es json")
@@ -156,7 +161,7 @@ class AuthControllerTest {
         when(login.login(any()))
                 .thenReturn(Mono.just(new AccessToken("un.jwt.firmado", Duration.ofHours(1))));
 
-        webTestClient.mutateWith(mockUser())
+        webTestClient.mutateWith(mockJwt())
                 .post().uri(URI_LOGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(unasCredenciales())
@@ -173,7 +178,7 @@ class AuthControllerTest {
         when(login.login(any()))
                 .thenReturn(Mono.just(new AccessToken("un.jwt.firmado", Duration.ofHours(1))));
 
-        webTestClient.mutateWith(mockUser())
+        webTestClient.mutateWith(mockJwt())
                 .post().uri(URI_LOGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(unasCredenciales())
@@ -189,7 +194,7 @@ class AuthControllerTest {
                 HttpStatus.UNAUTHORIZED, ErrorCodes.INVALID_CREDENTIALS,
                 "Correo o contrasena incorrectos", "credentials")));
 
-        webTestClient.mutateWith(mockUser())
+        webTestClient.mutateWith(mockJwt())
                 .post().uri(URI_LOGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(unasCredenciales())
@@ -206,7 +211,7 @@ class AuthControllerTest {
         when(login.login(any()))
                 .thenReturn(Mono.just(new AccessToken("un.jwt.firmado", Duration.ofHours(1))));
 
-        byte[] cuerpo = webTestClient.mutateWith(mockUser())
+        byte[] cuerpo = webTestClient.mutateWith(mockJwt())
                 .post().uri(URI_LOGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(unasCredenciales())
@@ -218,14 +223,37 @@ class AuthControllerTest {
     }
 
     @Test
-    void elLoginTambienExigeCredencialesDeAcceso() {
+    void elLoginTampocoExigeToken() {
+        when(login.login(any()))
+                .thenReturn(Mono.just(new AccessToken("un.jwt.firmado", Duration.ofHours(1))));
+
         webTestClient.post().uri(URI_LOGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(unasCredenciales())
                 .exchange()
+                .expectStatus().isOk();
+    }
+
+    /** Publicas son esas dos y nada mas: cualquier otra ruta bajo /auth sigue cerrada. */
+    @Test
+    void ningunaOtraRutaDeAuthEsPublica() {
+        webTestClient.post().uri("/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(unasCredenciales())
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED");
+    }
+
+    /** El alta es publica para POST, no para cualquier verbo. */
+    @Test
+    void elRegistroSoloEsPublicoParaPost() {
+        webTestClient.get().uri(URI_REGISTRO)
+                .exchange()
                 .expectStatus().isUnauthorized();
 
-        verifyNoInteractions(login);
+        verifyNoInteractions(registerUser);
     }
 
     private static Map<String, String> unasCredenciales() {

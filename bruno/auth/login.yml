@@ -6,7 +6,6 @@ info:
 http:
   method: POST
   url: "{{baseUrl}}/auth/login"
-  auth: inherit
   body:
     type: json
     data: |-
@@ -79,5 +78,6 @@ docs: |
   vive solo en la aplicacion y la coleccion no tiene por que conocerlo. Que la firma sea valida
   lo comprueba `JwtTokenIssuerAdapterTest` en la suite.
 
-  El token queda en la variable `accessToken` de la corrida. Todavia no lo consume nadie: el
-  filtro que lo acepta en vez del Basic entra en FA-14.
+  El token queda en la variable `accessToken` de la corrida, y desde FA-14 es lo que autentica al
+  resto de la coleccion: por eso la carpeta `auth` va primera. Si este request se cae, todo lo que
+  viene detras responde 401 y el motivo real es este.
