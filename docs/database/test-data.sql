@@ -34,11 +34,17 @@ DELETE FROM finance.users WHERE email LIKE '%@bruno.local';
 -- -----------------------------------------------------------------------------
 -- Usuario
 -- -----------------------------------------------------------------------------
+-- El hash es BCrypt cost 10 de la contrasena 'claveDePrueba123', y esta escrito aqui en vez
+-- de generarse porque psql no sabe calcular BCrypt sin pgcrypto. Versionar el hash obliga a
+-- documentar la clave en alguna parte, y este comentario es donde se busca; la copia que usan
+-- los requests vive en bruno/.env como TEST_USER_PASSWORD para que ninguno la lleve incrustada.
+-- Es un dato del escenario local, no una credencial: no abre nada fuera de esta base.
 INSERT INTO finance.users
     (id, email, password_hash, first_name, last_name, phone, birth_date,
      telegram_chat_id, base_currency_code, timezone)
 VALUES
-    (:'uid'::uuid, 'prueba@financeapp.local', '$2a$10$hashDePruebaNoEsUnaClaveReal',
+    (:'uid'::uuid, 'prueba@financeapp.local',
+     '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy',
      'Oscar', 'Zambrano', '3001234567', DATE '1995-03-14',
      123456789, 'COP', 'America/Bogota');
 

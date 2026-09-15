@@ -25,3 +25,13 @@ variables:
     enabled: true
     secret: false
     type: text
+  - name: testUserEmail
+    value: prueba@financeapp.local
+    enabled: true
+    secret: false
+    type: text
+  - name: testUserPassword
+    value: "{{process.env.TEST_USER_PASSWORD}}"
+    enabled: true
+    secret: true
+    type: text
