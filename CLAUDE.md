@@ -146,6 +146,11 @@ No leas el porcentaje de rama como si fuera el de línea: hoy está en 62 % y ca
 ## Base de datos
 
 No hay Flyway ni `schema.sql` en el arranque: el esquema se crea a mano desde `docs/database/`.
+**Eso es una decisión, no una pendiente** — evaluada contra Flyway sobre JDBC y cerrada el
+14-09-2026; el porqué y la condición para revisarla están en `docs/database/modelo-datos.md`. Su
+precio es el doble apunte: cada cambio se escribe en `schema.sql` **y** se emite como update en
+`docs/database/update/`, a mano las dos veces. Después de emitir un update, corre la comparación de
+esquemas de ese mismo documento: es lo único que detecta que las dos copias hayan divergido.
 Ningún test monta ya esos archivos, así que **un cambio en `schema.sql` o `seed.sql` no rompe la
 suite: rompe `bru run`**, y solo si te acuerdas de correrlo. El escenario de la colección es
 `docs/database/test-data.sql`, que se carga con psql y usa fechas relativas al mes en curso.
