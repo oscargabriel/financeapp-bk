@@ -96,7 +96,10 @@ pasen por `boundedElastic`.
   local, así que **un despliegue tiene que definir `SPRING_PROFILES_ACTIVE=prod`**. No dejar esa
   clave vacía: Boot 4 rechaza `profiles` vacía y el contexto ni se crea.
 - `DatabaseStartupCheck` hace `SELECT 1` antes de que Netty abra el puerto y aborta el contexto si
-  la base no responde. Apagado en la suite (`startup.db-check.enabled: false`).
+  la base no responde. Apagado en la suite (`startup.db-check.enabled: false`), así que ni Gradle
+  ni Bruno lo ejercitan: al tocarlo, o tocar `PostgresHealthCheckAdapter` o las propiedades
+  `startup.db-check.*`, la verificación es el procedimiento manual de
+  [`docs/verificaciones-manuales.md`](docs/verificaciones-manuales.md), que cubre los dos caminos.
 - El bean `Clock` (`ClockConfig`, zona `app.timezone`) existe para que los casos de uso que dependen
   de «hoy» se puedan probar con fecha fija. Inyéctalo en vez de llamar a `YearMonth.now()`.
 - **Ninguna ruta es pública**: `SecurityConfig` usa `anyExchange().authenticated()` con Basic Auth,
