@@ -112,7 +112,25 @@ pasen por `boundedElastic`.
   Swagger o un monitor externo, la excepción va ahí.
 - Preferir `@Value` sobre inyectar `Environment`.
 
-`src/main/resources/application-local.yaml` no se versiona y tiene las credenciales reales.
+`src/main/resources/application-local.yaml` no se versiona y tiene las credenciales reales. No hay
+archivo de ejemplo: se borró el 15-09-2026 porque se quedaba viejo cada vez que aparecía una clave
+nueva. Estas son las que el perfil local necesita, y este párrafo es el que hay que actualizar
+cuando cambien:
+
+```yaml
+spring:
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5432/financeapp
+    username: postgres
+    password: ...
+  security:
+    basic:
+      username: ...
+      password: ...
+    jwt:
+      secret: ...        # 32 bytes o más, o el contexto no arranca
+      expiration: 1h
+```
 
 ## Tests
 
