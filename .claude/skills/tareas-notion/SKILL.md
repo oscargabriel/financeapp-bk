@@ -25,14 +25,29 @@ tarea en el chat y en los mensajes de commit.
 ### 1. Consumir
 
 `notion-query-data-sources` en modo `rows` sobre `Tareas`, filtro `Estado = Lista`, orden por
-`Prioridad`, límite 5. Mostrar las candidatas con `ID`, título, tipo y prioridad. Si el usuario pidió
-"la siguiente", tomar la primera; si no, esperar a que elija.
+`Prioridad` y luego por `ID`, límite 5. Mostrar las candidatas con `ID`, título, tipo y prioridad.
+Si el usuario pidió "la siguiente", tomar la primera; si no, esperar a que elija.
 
-**`Prioridad` se ordena `ascending`**, no `descending`: Notion ordena los `select` por el orden de
-sus opciones, y `Alta` es la primera. Pedir `descending` devuelve las de prioridad baja arriba.
+**Los dos criterios de orden son `ascending`**, no `descending`. Notion ordena los `select` por el
+orden de sus opciones, y `Alta` es la primera: pedir `descending` devuelve las de prioridad baja
+arriba. El `ID` desempata dentro de un mismo nivel, y hace falta porque la mayoría de las tareas
+comparten prioridad: sin él, "la siguiente" no es una pregunta con una sola respuesta.
+
+### Qué significa cada prioridad
+
+| Nivel | Cuándo | Cuántas esperar |
+|---|---|---|
+| `Alta` | Sale primero: un bug, una corrección urgente, o que el usuario diga que esa va antes que las demás. | Pocas; lo normal es una |
+| `Media` | **El valor por defecto de toda tarea nueva.** El trabajo ordinario de las etapas. | La mayoría |
+| `Baja` | Accesorio. Se hace cuando no queda nada en `Media`. | Las que sobran |
+
+Se recalibró el 18-09-2026, cuando 8 de las 12 tareas tomables eran `Alta` y la prioridad había
+dejado de discriminar. No se agregó un nivel por encima a propósito: un nivel nuevo se infla igual
+que el anterior si no hay una regla de uso, y `Alta` con la regla escrita ya cubre el caso de "esta
+va primero".
 
 Si el plan de Notion empieza a limitar `query_data_sources` en modo `rows`, la vista `Siguiente` ya
-trae el mismo filtro y orden, y el modo `view` no consume cuota:
+trae el mismo filtro y el mismo orden en dos criterios, y el modo `view` no consume cuota:
 
 ```
 mode: view
@@ -98,7 +113,8 @@ El discriminador es una sola pregunta:
 > **¿Puedo dejar esta tarea en verde y cerrada sin eso?**
 
 - **Sí** → tarea nueva con `notion-create-pages` en `Tareas`: `Estado = Backlog`, `Tipo`
-  correspondiente, y en el cuerpo bajo `## Contexto` **por qué surgió y en qué tarea apareció**.
+  correspondiente, `Prioridad = Media` salvo que sea un bug o una urgencia, y en el cuerpo bajo
+  `## Contexto` **por qué surgió y en qué tarea apareció**.
 - **No** —el código no compila, la suite no pasa, el endpoint queda roto sin eso— es parte de la
   tarea actual, y se dice explícitamente al cerrarla en `## Notas de implementación`.
 
