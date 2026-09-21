@@ -19,12 +19,17 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.web.reactive.function.server.RouterFunction;
 import org.springframework.web.reactive.function.server.ServerResponse;
 
+import com.oscargabriel.financeapp.support.BasicMother;
 import com.oscargabriel.financeapp.support.TokenMother;
 
 /**
- * La cadena de seguridad entera contra un servidor real, que es el unico sitio donde se ejercita
- * junto al base-path /api: las reglas se escriben sin ese prefijo porque lo quita el HttpHandler
- * antes, y un slice web no lo montaria.
+ * Las dos cadenas de seguridad enteras contra un servidor real, que es el unico sitio donde se
+ * ejercitan junto al base-path /api: las reglas se escriben sin ese prefijo porque lo quita el
+ * HttpHandler antes, y un slice web no lo montaria.
+ *
+ * Desde FA-43 lo que se prueba no es solo que cada credencial sirva en su cadena, sino que la otra
+ * no sirva: el securityMatcher es lo unico que separa las dos, y un matcher mal escrito dejaria
+ * cualquiera de las dos credenciales entrando por las dos puertas.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class JwtSecurityIT {
@@ -132,27 +137,83 @@ class JwtSecurityIT {
                 .doesNotContain("signature", "Signed JWT", "expired", "Jwt", "iss");
     }
 
-    /** No se puede exigir un token para pedir el primero. */
+    /** Desde FA-43 el alta tampoco es publica: sin la credencial compartida no se puede pedir. */
     @Test
-    void elLoginEsAlcanzableSinToken() {
+    void elLoginNoEsAlcanzableSinCredenciales() {
         webTestClient.post().uri("/api/auth/login")
+                .header(HttpHeaders.CONTENT_TYPE, "application/json")
+                .bodyValue("{\"email\":\"\",\"password\":\"\"}")
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    void elRegistroNoEsAlcanzableSinCredenciales() {
+        webTestClient.post().uri("/api/auth/register")
+                .header(HttpHeaders.CONTENT_TYPE, "application/json")
+                .bodyValue("{}")
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
+
+    /**
+     * Con el Basic llega al caso de uso y muere ahi por el payload vacio, no en el filtro: un 401
+     * aqui querria decir que la credencial compartida no abre las rutas de auth.
+     */
+    @Test
+    void elLoginEsAlcanzableConBasic() {
+        webTestClient.post().uri("/api/auth/login")
+                .headers(BasicMother.cabecera())
                 .header(HttpHeaders.CONTENT_TYPE, "application/json")
                 .bodyValue("{\"email\":\"\",\"password\":\"\"}")
                 .exchange()
                 .expectStatus().isBadRequest();
     }
 
-    /**
-     * Llega al caso de uso y muere ahi por un payload vacio, no en el filtro. Un 401 aqui querria
-     * decir que el alta volvio a estar cerrada.
-     */
     @Test
-    void elRegistroEsAlcanzableSinToken() {
+    void elRegistroEsAlcanzableConBasic() {
         webTestClient.post().uri("/api/auth/register")
+                .headers(BasicMother.cabecera())
                 .header(HttpHeaders.CONTENT_TYPE, "application/json")
                 .bodyValue("{}")
                 .exchange()
                 .expectStatus().isBadRequest();
+    }
+
+    /**
+     * 503 y no 200 porque el R2DBC de la suite apunta a un puerto sin escucha: lo que este caso
+     * prueba es que el Basic atraviesa la cadena, no el estado de la base. El 200 con la base
+     * arriba solo lo ve bruno/system/status.yml, y el 200 con el puerto mockeado
+     * StatusControllerTest.
+     */
+    @Test
+    void elStatusEsAlcanzableConBasic() {
+        webTestClient.get().uri("/api/status")
+                .headers(BasicMother.cabecera())
+                .exchange()
+                .expectStatus().isEqualTo(503);
+    }
+
+    /** El Bearer no sirve en la cadena del Basic, aunque el token sea impecable. */
+    @Test
+    void devuelve401EnElStatusConUnTokenValido() {
+        webTestClient.get().uri("/api/status")
+                .headers(headers -> headers.setBearerAuth(TokenMother.valido()))
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED");
+    }
+
+    /** Y el Basic no sirve en la cadena del JWT. */
+    @Test
+    void devuelve401EnUnaRutaDeApiConBasicValido() {
+        webTestClient.get().uri(RUTA_PROTEGIDA)
+                .headers(BasicMother.cabecera())
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED");
     }
 
     @Test
@@ -164,6 +225,36 @@ class JwtSecurityIT {
         webTestClient.get().uri("/api/no-existe")
                 .exchange()
                 .expectStatus().isUnauthorized();
+    }
+
+    /**
+     * Cada cadena anuncia su propio esquema, y ninguna de las dos anuncia un realm: el nombre de
+     * la aplicacion no tiene por que viajar en la cabecera de un rechazo.
+     */
+    @Test
+    void cadaCadenaRetaConSuPropioEsquema() {
+        assertThat(retoDe("/api/status")).isEqualTo("Basic");
+        assertThat(retoDe(RUTA_PROTEGIDA)).isEqualTo("Bearer");
+
+        String retoDelLogin = webTestClient.post().uri("/api/auth/login")
+                .header(HttpHeaders.CONTENT_TYPE, "application/json")
+                .bodyValue("{}")
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .returnResult(String.class)
+                .getResponseHeaders()
+                .getFirst(HttpHeaders.WWW_AUTHENTICATE);
+
+        assertThat(retoDelLogin).isEqualTo("Basic");
+    }
+
+    private String retoDe(String ruta) {
+        return webTestClient.get().uri(ruta)
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .returnResult(String.class)
+                .getResponseHeaders()
+                .getFirst(HttpHeaders.WWW_AUTHENTICATE);
     }
 
     private void esperaUn401Identico(String token) {

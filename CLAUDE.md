@@ -68,11 +68,13 @@ Todos los errores salen con el mismo JSON: `{"errors":[{code, description, field
 nuevo en el switch de patrones, **siempre antes del `default` y antes de su supertipo**, porque el
 switch no admite un subtipo dominado.
 
-**Con una excepción: el 401 de la cadena de seguridad.** Se resuelve dentro del filtro, antes de que
-exista una excepción que el handler global pueda ver, así que su cuerpo lo escribe
+**Con una excepción: el 401 de las cadenas de seguridad.** Se resuelve dentro del filtro, antes de
+que exista una excepción que el handler global pueda ver, así que su cuerpo lo escribe
 `UnauthenticatedEntryPoint`. Si cambias el formato de error, hay que tocar los dos. Ese 401 no dice
-nunca por qué falló el token: el motivo va al log, y `WWW-Authenticate` se emite como `Bearer` pelado
-porque el entry point de Spring publicaría ahí el detalle técnico como `error_description`.
+nunca por qué falló la autenticación: el motivo va al log, y `WWW-Authenticate` sale como el esquema
+pelado —`Basic` o `Bearer` según la cadena, sin `realm`— porque el entry point de Spring publicaría
+ahí el detalle técnico como `error_description`. Desde FA-43 el esquema es un parámetro del
+constructor y `SecurityConfig` crea una instancia por cadena: la clase ya no es un `@Component`.
 
 Los códigos viven en el enum `ErrorCodes`, en SCREAMING_SNAKE_CASE describiendo la categoría, no el
 mensaje.
@@ -96,8 +98,8 @@ pasen por `boundedElastic`.
 ### Configuración y arranque
 
 - `application.yaml` lee los secretos como variables de entorno **sin default**: un despliegue sin
-  `DB_USERNAME` / `DB_PASSWORD` / `JWT_SECRET` falla al arrancar en vez de levantar con
-  credenciales implícitas. `JWT_SECRET` además tiene que medir 32
+  `DB_USERNAME` / `DB_PASSWORD` / `JWT_SECRET` / `BASIC_USERNAME` / `BASIC_PASSWORD` falla al
+  arrancar en vez de levantar con credenciales implícitas. `JWT_SECRET` además tiene que medir 32
   bytes o más: `JwtConfig` lo comprueba al construir la clave, porque HS256 no firma con menos y el
   fallo aparecería en el primer login en vez de en el arranque.
 - `spring.profiles.active` vale `${SPRING_PROFILES_ACTIVE:local}`: sin la variable se arranca en
@@ -110,12 +112,18 @@ pasen por `boundedElastic`.
   [`docs/verificaciones-manuales.md`](docs/verificaciones-manuales.md), que cubre los dos caminos.
 - El bean `Clock` (`ClockConfig`, zona `app.timezone`) existe para que los casos de uso que dependen
   de «hoy» se puedan probar con fecha fija. Inyéctalo en vez de llamar a `YearMonth.now()`.
-- **Dos rutas públicas y ni una más**: desde FA-14 `SecurityConfig` valida `Authorization: Bearer`
-  con `oauth2ResourceServer`, y solo `POST /auth/register` y `POST /auth/login` llevan `permitAll`
-  — no se puede exigir un token para pedir el primero. Todo lo demás, `/api/status` incluido, es
-  `anyExchange().authenticated()`. Las reglas se escriben **sin** el prefijo `/api`: el base-path lo
-  quita el `HttpHandler` antes de que la cadena vea la petición. Si entra Swagger o un monitor
-  externo, la excepción va ahí, y `JwtSecurityIT` es lo que avisa si alguien abre otra cosa.
+- **Dos cadenas y ninguna ruta pública**: desde FA-43 `SecurityConfig` expone dos
+  `SecurityWebFilterChain`. La de `@Order(0)` lleva un `securityMatcher` con `POST /auth/register`,
+  `POST /auth/login` y `GET /status`, y las autentica con `httpBasic` contra el único usuario del
+  `MapReactiveUserDetailsService`; la de `@Order(1)` recoge todo lo demás con
+  `oauth2ResourceServer().jwt()` y el Basic deshabilitado. CSRF, CORS y `formLogin` salen del método
+  `comun(...)`, para que las dos no se separen con el tiempo. Las reglas se escriben **sin** el
+  prefijo `/api`: el base-path lo quita el `HttpHandler` antes de que la cadena vea la petición.
+  Lo que hay que probar al tocar esto no es que cada credencial sirva, sino que la otra **no**: un
+  Bearer válido contra `/status` y un Basic válido contra una ruta de la API tienen que dar 401, y
+  `JwtSecurityIT` es lo que avisa si el matcher se corre. El precio, aceptado en FA-43: ya no hay
+  ruta pública, así que un cliente sin la credencial compartida no puede ni registrarse, y un
+  frontend de navegador la expone a quien abra las DevTools.
 - **La clave de firma vive solo en `JwtConfig`**, que expone el `SecretKey` y el `ReactiveJwtDecoder`.
   `JwtTokenIssuerAdapter` recibe ese mismo bean: leer el secreto dos veces por separado dejaría
   emitir tokens que el propio API no acepta. El decoder valida además expiración y emisor.
@@ -136,6 +144,9 @@ spring:
     jwt:
       secret: ...        # 32 bytes o más, o el contexto no arranca
       expiration: 1h
+    basic:
+      username: ...      # credencial compartida de /auth/* y /status
+      password: ...      # la misma que BASIC_USERNAME/BASIC_PASSWORD de bruno/.env
 ```
 
 ## Tests

@@ -1,7 +1,6 @@
 package com.oscargabriel.financeapp.infrastructure.adapter.in.web;
 
 import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockJwt;
 
 import java.util.List;
 
@@ -17,11 +16,12 @@ import com.oscargabriel.financeapp.domain.model.SystemStatus;
 import com.oscargabriel.financeapp.domain.port.in.CheckSystemStatusPort;
 import com.oscargabriel.financeapp.infrastructure.config.JwtConfig;
 import com.oscargabriel.financeapp.infrastructure.config.SecurityConfig;
+import com.oscargabriel.financeapp.support.BasicMother;
 
 import reactor.core.publisher.Mono;
 
 @WebFluxTest(StatusController.class)
-@Import({SecurityConfig.class, JwtConfig.class, UnauthenticatedEntryPoint.class})
+@Import({SecurityConfig.class, JwtConfig.class})
 class StatusControllerTest {
 
     // El slice monta el controller directamente: spring.webflux.base-path (/api) lo aplica el
@@ -42,12 +42,22 @@ class StatusControllerTest {
                 .expectStatus().isUnauthorized();
     }
 
+    /** El usuario existe y la clave no: la contrasena del entorno se verifica, no se asume. */
+    @Test
+    void devuelve401ConUnaClaveBasicIncorrecta() {
+        webTestClient.get().uri(STATUS_URI)
+                .headers(BasicMother.cabeceraConClaveIncorrecta())
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
+
     @Test
     void devuelve200ConTodosLosServiciosArriba() {
         when(checkSystemStatus.check()).thenReturn(
                 Mono.just(SystemStatus.of(List.of(ServiceHealth.up("postgres")))));
 
-        webTestClient.mutateWith(mockJwt()).get().uri(STATUS_URI)
+        webTestClient.get().uri(STATUS_URI)
+                .headers(BasicMother.cabecera())
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -62,7 +72,8 @@ class StatusControllerTest {
                         ServiceHealth.down("postgres"),
                         ServiceHealth.up("redis")))));
 
-        webTestClient.mutateWith(mockJwt()).get().uri(STATUS_URI)
+        webTestClient.get().uri(STATUS_URI)
+                .headers(BasicMother.cabecera())
                 .exchange()
                 .expectStatus().isEqualTo(503)
                 .expectBody()

@@ -5,7 +5,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockJwt;
 
 import java.time.Duration;
 import java.util.Map;
@@ -31,6 +30,8 @@ import com.oscargabriel.financeapp.domain.port.in.LoginPort;
 import com.oscargabriel.financeapp.domain.port.in.RegisterUserPort;
 import com.oscargabriel.financeapp.infrastructure.config.JwtConfig;
 import com.oscargabriel.financeapp.infrastructure.config.SecurityConfig;
+import com.oscargabriel.financeapp.support.BasicMother;
+import com.oscargabriel.financeapp.support.TokenMother;
 import com.oscargabriel.financeapp.support.UserMother;
 
 import reactor.core.publisher.Mono;
@@ -40,7 +41,7 @@ import reactor.core.publisher.Mono;
  * bruno/auth/ contra un servidor real.
  */
 @WebFluxTest(AuthController.class)
-@Import({SecurityConfig.class, JwtConfig.class, UnauthenticatedEntryPoint.class})
+@Import({SecurityConfig.class, JwtConfig.class})
 class AuthControllerTest {
 
     private static final String URI_REGISTRO = "/auth/register";
@@ -59,26 +60,29 @@ class AuthControllerTest {
     private LoginPort login;
 
     /**
-     * No se puede exigir un token para pedir el primero: desde FA-14 el alta es una de las dos
-     * rutas publicas, y este test esta para que nadie la vuelva a cerrar sin darse cuenta.
+     * FA-43 cerro el alta detras del Basic: ya no hay ninguna ruta publica, asi que un cliente sin
+     * la credencial compartida no puede ni crear una cuenta. Precio aceptado a cambio de que el
+     * registro no quede expuesto al escaneo automatizado.
      */
     @Test
-    void elRegistroNoExigeToken() {
-        when(registerUser.register(any())).thenReturn(Mono.just(unRegistro()));
-
+    void elRegistroExigeLaCredencialCompartida() {
         webTestClient.post().uri(URI_REGISTRO)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(unPayload())
                 .exchange()
-                .expectStatus().isCreated();
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED");
+
+        verifyNoInteractions(registerUser);
     }
 
     @Test
     void devuelve201ConElUsuarioCreado() {
         when(registerUser.register(any())).thenReturn(Mono.just(unRegistro()));
 
-        webTestClient.mutateWith(mockJwt())
-                .post().uri(URI_REGISTRO)
+        webTestClient.post().uri(URI_REGISTRO)
+                .headers(BasicMother.cabecera())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(unPayload())
                 .exchange()
@@ -98,8 +102,8 @@ class AuthControllerTest {
     void nuncaDevuelveLaContrasenaNiSuHash() {
         when(registerUser.register(any())).thenReturn(Mono.just(unRegistro()));
 
-        byte[] cuerpo = webTestClient.mutateWith(mockJwt())
-                .post().uri(URI_REGISTRO)
+        byte[] cuerpo = webTestClient.post().uri(URI_REGISTRO)
+                .headers(BasicMother.cabecera())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(unPayload())
                 .exchange()
@@ -116,8 +120,8 @@ class AuthControllerTest {
     void trasladaElPayloadTalCualAlCasoDeUso() {
         when(registerUser.register(any())).thenReturn(Mono.just(unRegistro()));
 
-        webTestClient.mutateWith(mockJwt())
-                .post().uri(URI_REGISTRO)
+        webTestClient.post().uri(URI_REGISTRO)
+                .headers(BasicMother.cabecera())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(unPayload())
                 .exchange()
@@ -133,8 +137,8 @@ class AuthControllerTest {
                 HttpStatus.CONFLICT, ErrorCodes.DUPLICATE_RESOURCE,
                 "Ya hay una cuenta registrada con ese correo", "email")));
 
-        webTestClient.mutateWith(mockJwt())
-                .post().uri(URI_REGISTRO)
+        webTestClient.post().uri(URI_REGISTRO)
+                .headers(BasicMother.cabecera())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(unPayload())
                 .exchange()
@@ -146,8 +150,8 @@ class AuthControllerTest {
 
     @Test
     void devuelve400CuandoElCuerpoNoEsJsonValido() {
-        webTestClient.mutateWith(mockJwt())
-                .post().uri(URI_REGISTRO)
+        webTestClient.post().uri(URI_REGISTRO)
+                .headers(BasicMother.cabecera())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("{ esto no es json")
                 .exchange()
@@ -161,8 +165,8 @@ class AuthControllerTest {
         when(login.login(any()))
                 .thenReturn(Mono.just(new AccessToken("un.jwt.firmado", Duration.ofHours(1))));
 
-        webTestClient.mutateWith(mockJwt())
-                .post().uri(URI_LOGIN)
+        webTestClient.post().uri(URI_LOGIN)
+                .headers(BasicMother.cabecera())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(unasCredenciales())
                 .exchange()
@@ -178,8 +182,8 @@ class AuthControllerTest {
         when(login.login(any()))
                 .thenReturn(Mono.just(new AccessToken("un.jwt.firmado", Duration.ofHours(1))));
 
-        webTestClient.mutateWith(mockJwt())
-                .post().uri(URI_LOGIN)
+        webTestClient.post().uri(URI_LOGIN)
+                .headers(BasicMother.cabecera())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(unasCredenciales())
                 .exchange()
@@ -194,8 +198,8 @@ class AuthControllerTest {
                 HttpStatus.UNAUTHORIZED, ErrorCodes.INVALID_CREDENTIALS,
                 "Correo o contrasena incorrectos", "credentials")));
 
-        webTestClient.mutateWith(mockJwt())
-                .post().uri(URI_LOGIN)
+        webTestClient.post().uri(URI_LOGIN)
+                .headers(BasicMother.cabecera())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(unasCredenciales())
                 .exchange()
@@ -211,8 +215,8 @@ class AuthControllerTest {
         when(login.login(any()))
                 .thenReturn(Mono.just(new AccessToken("un.jwt.firmado", Duration.ofHours(1))));
 
-        byte[] cuerpo = webTestClient.mutateWith(mockJwt())
-                .post().uri(URI_LOGIN)
+        byte[] cuerpo = webTestClient.post().uri(URI_LOGIN)
+                .headers(BasicMother.cabecera())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(unasCredenciales())
                 .exchange()
@@ -223,21 +227,39 @@ class AuthControllerTest {
     }
 
     @Test
-    void elLoginTampocoExigeToken() {
-        when(login.login(any()))
-                .thenReturn(Mono.just(new AccessToken("un.jwt.firmado", Duration.ofHours(1))));
-
+    void elLoginTambienExigeLaCredencialCompartida() {
         webTestClient.post().uri(URI_LOGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(unasCredenciales())
                 .exchange()
-                .expectStatus().isOk();
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED");
+
+        verifyNoInteractions(login);
     }
 
-    /** Publicas son esas dos y nada mas: cualquier otra ruta bajo /auth sigue cerrada. */
+    /** El Basic abre estas dos rutas y nada mas: el JWT no entra por aqui. */
     @Test
-    void ningunaOtraRutaDeAuthEsPublica() {
+    void unTokenValidoNoSirveEnLasRutasDeAuth() {
+        webTestClient.post().uri(URI_LOGIN)
+                .headers(headers -> headers.setBearerAuth(TokenMother.valido()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(unasCredenciales())
+                .exchange()
+                .expectStatus().isUnauthorized();
+
+        verifyNoInteractions(login);
+    }
+
+    /**
+     * Con Basic son esas dos rutas y nada mas: cualquier otra bajo /auth cae en la cadena del JWT,
+     * donde la credencial compartida no vale.
+     */
+    @Test
+    void ningunaOtraRutaDeAuthAceptaElBasic() {
         webTestClient.post().uri("/auth/refresh")
+                .headers(BasicMother.cabecera())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(unasCredenciales())
                 .exchange()
@@ -246,10 +268,11 @@ class AuthControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED");
     }
 
-    /** El alta es publica para POST, no para cualquier verbo. */
+    /** El Basic abre el alta para POST, no para cualquier verbo. */
     @Test
-    void elRegistroSoloEsPublicoParaPost() {
+    void elRegistroSoloAceptaElBasicEnPost() {
         webTestClient.get().uri(URI_REGISTRO)
+                .headers(BasicMother.cabecera())
                 .exchange()
                 .expectStatus().isUnauthorized();
 

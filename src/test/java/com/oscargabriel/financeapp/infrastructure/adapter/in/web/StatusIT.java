@@ -8,7 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
-import com.oscargabriel.financeapp.support.TokenMother;
+import com.oscargabriel.financeapp.support.BasicMother;
 
 /**
  * Servidor real: el unico punto donde se verifica que spring.webflux.base-path aplica (lo hace el
@@ -41,7 +41,7 @@ class StatusIT {
     @Test
     void devuelve503ConPostgresAbajoCuandoLaBaseNoResponde() {
         webTestClient.get().uri("/api/status")
-                .headers(headers -> headers.setBearerAuth(TokenMother.valido()))
+                .headers(BasicMother.cabecera())
                 .exchange()
                 .expectStatus().isEqualTo(503)
                 .expectBody()
@@ -52,7 +52,7 @@ class StatusIT {
     @Test
     void noExponeElEndpointFueraDelBasePath() {
         webTestClient.get().uri("/status")
-                .headers(headers -> headers.setBearerAuth(TokenMother.valido()))
+                .headers(BasicMother.cabecera())
                 .exchange()
                 .expectStatus().isNotFound();
     }

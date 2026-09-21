@@ -45,6 +45,12 @@ spring:
       secret: ${JWT_SECRET}
       expiration: ${JWT_EXPIRATION:1h}
       issuer: ${JWT_ISSUER:financeapp-bk}
+    # Credencial compartida de las rutas que no llevan JWT: POST /auth/register, POST /auth/login
+    # y GET /status. Sin default por lo mismo que JWT_SECRET: un despliegue que las olvide no
+    # arranca, en vez de quedar abierto con un usuario y una clave escritos en el repositorio.
+    basic:
+      username: ${BASIC_USERNAME}
+      password: ${BASIC_PASSWORD}
 
 app:
   # Zona con la que se resuelve "el mes actual" en el rango por defecto de los reportes mensuales.

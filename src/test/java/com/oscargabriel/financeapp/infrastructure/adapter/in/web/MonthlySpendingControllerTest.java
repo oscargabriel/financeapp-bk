@@ -31,7 +31,7 @@ import reactor.core.publisher.Flux;
  * completa la verifica MonthlySpendingIT contra un servidor real.
  */
 @WebFluxTest(MonthlySpendingController.class)
-@Import({SecurityConfig.class, JwtConfig.class, UnauthenticatedEntryPoint.class})
+@Import({SecurityConfig.class, JwtConfig.class})
 class MonthlySpendingControllerTest {
 
     private static final String URI_BASE = "/users/" + MonthlySpendingMother.USER_ID + "/monthly-spending";
