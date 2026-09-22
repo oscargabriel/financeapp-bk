@@ -1,0 +1,61 @@
+info:
+  name: Usuario sin datos — alta
+  type: http
+  seq: 10
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/register"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailSinDatos}}",
+        "password": "{{claveSinDatos}}",
+        "firstName": "Sin",
+        "lastName": "Datos",
+        "baseCurrencyCode": "COP",
+        "timezone": "America/Bogota"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: before-request
+      code: |-
+        // Un correo por corrida, igual que auth/registro: el alta no es idempotente y con uno fijo
+        // la segunda ejecucion daria 409. La limpieza vive en docs/database/test-data.sql.
+        bru.setVar("emailSinDatos", "sin-datos-" + Date.now() + "@bruno.local");
+        bru.setVar("claveSinDatos", "unaClaveLarga");
+    - type: tests
+      code: |-
+        test("guarda el correo para el login que viene despues", function() {
+          expect(res.getBody().email).to.equal(bru.getVar("emailSinDatos"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Alta del usuario sin movimientos
+
+  Primero de los tres requests que reemplazan al viejo "Gasto mensual de un usuario sin datos".
+  Desde FA-15 el usuario sale del token y la URL no lo lleva, asi que el mes de alguien sin
+  movimientos ya no se pide con su UUID: hay que tener su token.
+
+  El escenario de `docs/database/test-data.sql` no sirve para esto. Sus dos usuarios son el de
+  pruebas —que tiene movimientos— y el inactivo, que no puede hacer login a proposito. De ahi que
+  el caso se monte creando uno.
+
+  Va con Basic porque `/auth/register` vive en la cadena de la credencial compartida, no en la del
+  JWT, y esta carpeta hereda el Bearer de la coleccion.

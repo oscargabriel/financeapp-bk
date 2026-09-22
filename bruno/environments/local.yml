@@ -10,6 +10,9 @@ variables:
     enabled: true
     secret: false
     type: text
+  # Desde FA-15 ninguna URL la lleva: el usuario sale del token. Sobrevive como el identificador
+  # esperado del usuario del escenario, contra el que se compara el `sub` en
+  # monthly-spending/Usuario sin datos - login.
   - name: userId
     value: 10000000-0000-7000-8000-000000000001
     enabled: true
@@ -25,6 +28,19 @@ variables:
   # variable queda vacia: los requests de login fallan con 400 por contrasena ausente.
   - name: testUserPassword
     value: "{{process.env.TEST_USER_PASSWORD}}"
+    enabled: true
+    secret: false
+    type: text
+  # Credencial compartida de las rutas que no llevan JWT (auth/ y system/). secret: false por lo
+  # mismo que testUserPassword: con secret: true Bruno descarta el valor del archivo y la
+  # interpolacion de process.env no llega a correr.
+  - name: basicUser
+    value: "{{process.env.BASIC_USERNAME}}"
+    enabled: true
+    secret: false
+    type: text
+  - name: basicPass
+    value: "{{process.env.BASIC_PASSWORD}}"
     enabled: true
     secret: false
     type: text

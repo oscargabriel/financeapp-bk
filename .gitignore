@@ -38,3 +38,7 @@ out/
 
 ### Configuracion local (no versionada) ###
 application-local.yaml
+application-prod.yaml
+
+### Claude Code (config por usuario, no versionada) ###
+.claude/settings.local.json

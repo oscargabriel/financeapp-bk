@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webflux.test.autoconfigure.WebFluxTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.JwtMutator;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
@@ -34,13 +35,18 @@ import reactor.core.publisher.Flux;
 @Import({SecurityConfig.class, JwtConfig.class})
 class MonthlySpendingControllerTest {
 
-    private static final String URI_BASE = "/users/" + MonthlySpendingMother.USER_ID + "/monthly-spending";
+    private static final String URI_BASE = "/monthly-spending";
 
     @Autowired
     private WebTestClient webTestClient;
 
     @MockitoBean
     private GetMonthlySpendingPort getMonthlySpending;
+
+    /** El userId ya no viaja en la URL: el controlador lo lee del subject del token. */
+    private static JwtMutator tokenDelUsuario() {
+        return mockJwt().jwt(jwt -> jwt.subject(MonthlySpendingMother.USER_ID.toString()));
+    }
 
     @Test
     void devuelve401CuandoNoHayCredenciales() {
@@ -56,7 +62,7 @@ class MonthlySpendingControllerTest {
         when(getMonthlySpending.get(eq(MonthlySpendingMother.USER_ID), any(), any())).thenReturn(
                 Flux.just(MonthlySpendingMother.unMesConMeta(YearMonth.of(2026, 9))));
 
-        webTestClient.mutateWith(mockJwt()).get().uri(URI_BASE)
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -76,7 +82,7 @@ class MonthlySpendingControllerTest {
         when(getMonthlySpending.get(eq(MonthlySpendingMother.USER_ID), any(), any()))
                 .thenReturn(Flux.empty());
 
-        webTestClient.mutateWith(mockJwt()).get().uri(URI_BASE)
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody().json("[]");
@@ -87,7 +93,7 @@ class MonthlySpendingControllerTest {
         when(getMonthlySpending.get(eq(MonthlySpendingMother.USER_ID), any(), any())).thenReturn(
                 Flux.just(MonthlySpendingMother.unMesSinMeta(YearMonth.of(2026, 8))));
 
-        webTestClient.mutateWith(mockJwt()).get().uri(URI_BASE)
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -102,7 +108,7 @@ class MonthlySpendingControllerTest {
         when(getMonthlySpending.get(eq(MonthlySpendingMother.USER_ID), any(), any()))
                 .thenReturn(Flux.empty());
 
-        webTestClient.mutateWith(mockJwt()).get()
+        webTestClient.mutateWith(tokenDelUsuario()).get()
                 .uri(URI_BASE + "?from=2026-01&to=2026-03")
                 .exchange()
                 .expectStatus().isOk();
@@ -116,28 +122,36 @@ class MonthlySpendingControllerTest {
         when(getMonthlySpending.get(eq(MonthlySpendingMother.USER_ID), any(), any()))
                 .thenReturn(Flux.empty());
 
-        webTestClient.mutateWith(mockJwt()).get().uri(URI_BASE)
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE)
                 .exchange()
                 .expectStatus().isOk();
 
         verify(getMonthlySpending).get(MonthlySpendingMother.USER_ID, null, null);
     }
 
+    /**
+     * Solo alcanzable con un token firmado con la clave de la aplicacion y un subject que no emite
+     * JwtTokenIssuerAdapter. Un sub que no identifica a nadie no autentica, asi que sale como el
+     * mismo 401 de UnauthenticatedEntryPoint y no como un 400 sobre un parametro que el cliente no
+     * controla.
+     */
     @Test
-    void devuelve400CuandoElUserIdNoEsUnUuid() {
-        webTestClient.mutateWith(mockJwt()).get().uri("/users/no-es-uuid/monthly-spending")
+    void devuelve401CuandoElSubjectDelTokenNoEsUnUuid() {
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.subject("no-es-uuid")))
+                .get().uri(URI_BASE)
                 .exchange()
-                .expectStatus().isBadRequest()
+                .expectStatus().isUnauthorized()
                 .expectBody()
-                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.INVALID_ARGUMENT.getCode())
-                .jsonPath("$.errors[0].field").isEqualTo("userId");
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.UNAUTHENTICATED.getCode())
+                .jsonPath("$.errors[0].description").isEqualTo("Autenticacion requerida")
+                .jsonPath("$.errors[0].field").isEqualTo("authorization");
 
         verifyNoInteractions(getMonthlySpending);
     }
 
     @Test
     void devuelve400CuandoElMesInicialNoTieneElFormatoEsperado() {
-        webTestClient.mutateWith(mockJwt()).get().uri(URI_BASE + "?from=2026-9")
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "?from=2026-9")
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()
@@ -149,7 +163,7 @@ class MonthlySpendingControllerTest {
 
     @Test
     void devuelve400CuandoElMesFinalNoTieneElFormatoEsperado() {
-        webTestClient.mutateWith(mockJwt()).get().uri(URI_BASE + "?to=septiembre")
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "?to=septiembre")
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()
@@ -164,7 +178,7 @@ class MonthlySpendingControllerTest {
                 Flux.error(new BadRequestException(HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR,
                         "El mes inicial es posterior al mes final", "from")));
 
-        webTestClient.mutateWith(mockJwt()).get().uri(URI_BASE + "?from=2026-05&to=2026-01")
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "?from=2026-05&to=2026-01")
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()

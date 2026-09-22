@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: "{{baseUrl}}/users/{{userId}}/monthly-spending?from=2026-05&to=2026-01"
+  url: "{{baseUrl}}/monthly-spending?from=2026-05&to=2026-01"
   auth: inherit
 
 runtime:

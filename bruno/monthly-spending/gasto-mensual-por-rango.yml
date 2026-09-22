@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: "{{baseUrl}}/users/{{userId}}/monthly-spending?from={{mesAnterior}}&to={{mesActual}}"
+  url: "{{baseUrl}}/monthly-spending?from={{mesAnterior}}&to={{mesActual}}"
   auth: inherit
 
 runtime:
@@ -43,7 +43,7 @@ settings:
   maxRedirects: 5
 
 docs: |
-  # GET /api/users/{userId}/monthly-spending?from=&to=
+  # GET /api/monthly-spending?from=&to=
 
   `from` y `to` en formato `YYYY-MM`, ambos inclusive. El script `before-request` los calcula en
   tiempo de corrida porque `test-data.sql` genera los movimientos relativos al mes en curso: fijar

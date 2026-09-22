@@ -6,8 +6,9 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -20,7 +21,7 @@ import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.MonthlySpen
 import reactor.core.publisher.Flux;
 
 @RestController
-@RequestMapping("/users/{userId}/monthly-spending")
+@RequestMapping("/monthly-spending")
 public class MonthlySpendingController {
 
     private static final Pattern FORMATO_MES = Pattern.compile("[0-9]{4}-[0-9]{2}");
@@ -33,25 +34,28 @@ public class MonthlySpendingController {
 
     @GetMapping
     public Flux<MonthlySpendingResponse> monthlySpending(
-            @PathVariable String userId,
+            @AuthenticationPrincipal Jwt jwt,
             @RequestParam(required = false) String from,
             @RequestParam(required = false) String to) {
         return Flux.defer(() -> getMonthlySpending.get(
-                        parseUserId(userId), parseMonth(from, "from"), parseMonth(to, "to")))
+                        usuarioDelToken(jwt), parseMonth(from, "from"), parseMonth(to, "to")))
                 .map(MonthlySpendingResponse::from);
     }
 
     /**
-     * El UUID se parsea aqui y no via @PathVariable UUID: la conversion fallida de Spring termina
-     * en ServerWebInputException, que el handler global reporta como JSON_PARSING_ERROR sobre el
-     * body — engañoso para un parametro de ruta.
+     * El usuario sale del token y no de la URL: mientras el cliente eligiera de quien es el
+     * resumen, cualquier token valido podia pedir el de cualquiera.
+     *
+     * Un subject que no sea UUID solo puede venir de un token firmado con la clave de esta
+     * aplicacion y emitido por otro: no identifica a nadie, asi que se rechaza con el mismo 401
+     * que UnauthenticatedEntryPoint y no con un 400, que insinuaria un parametro corregible.
      */
-    private static UUID parseUserId(String userId) {
+    private static UUID usuarioDelToken(Jwt jwt) {
         try {
-            return UUID.fromString(userId);
+            return UUID.fromString(jwt.getSubject());
         } catch (IllegalArgumentException e) {
-            throw new BadRequestException(HttpStatus.BAD_REQUEST, ErrorCodes.INVALID_ARGUMENT,
-                    "El identificador de usuario no es un UUID valido", "userId", e);
+            throw new BadRequestException(HttpStatus.UNAUTHORIZED, ErrorCodes.UNAUTHENTICATED,
+                    "Autenticacion requerida", "authorization", e);
         }
     }
 

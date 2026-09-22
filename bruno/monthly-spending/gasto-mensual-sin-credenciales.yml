@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: "{{baseUrl}}/users/{{userId}}/monthly-spending"
+  url: "{{baseUrl}}/monthly-spending"
 
 runtime:
   assertions:
@@ -15,6 +15,13 @@ runtime:
     - expression: res.body.errors[0].code
       operator: eq
       value: UNAUTHENTICATED
+  scripts:
+    - type: tests
+      code: |-
+        test("el rechazo no cuenta por que fallo", function() {
+          expect(res.getHeader("www-authenticate")).to.equal("Bearer");
+          expect(JSON.stringify(res.getBody())).to.not.contain("Jwt");
+        });
 
 settings:
   encodeUrl: true
@@ -28,7 +35,10 @@ docs: |
   La ausencia de `http.auth` rompe a proposito la herencia del Bearer de la coleccion. Esta ruta no
   es publica; si empieza a responder 200, alguien la abrio sin quererlo.
 
-  Ojo con lo que este 401 NO cubre: desde FA-14 el token si identifica a una persona, pero el
-  `userId` sigue viniendo en la URL y nadie compara los dos. Cualquier token valido puede pedir el
-  mes de cualquier usuario. Eso lo cierra FA-15, y es ahi donde toca agregar el caso de pedir el
-  mes de otro y esperar 403.
+  El reto es `Bearer` y no `Basic`: esta ruta la atiende la cadena del JWT, y cada cadena anuncia su
+  propio esquema. Que el reto cambie aqui querria decir que el `securityMatcher` se corrio.
+
+  Lo que este 401 no cubre —quien pide el mes de otro— dejo de ser expresable en FA-15: la ruta ya
+  no lleva usuario, sale del token. No hay un 403 que probar porque no hay forma de pedir un
+  recurso ajeno; lo que queda es comprobar que cada token ve lo suyo, y eso lo hace
+  "Gasto mensual de un usuario sin datos".

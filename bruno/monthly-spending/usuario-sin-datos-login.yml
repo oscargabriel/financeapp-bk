@@ -1,0 +1,48 @@
+info:
+  name: Usuario sin datos — login
+  type: http
+  seq: 11
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/login"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailSinDatos}}",
+        "password": "{{claveSinDatos}}"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("el token es del usuario recien creado y no del escenario", function() {
+          const parte = res.getBody().accessToken.split(".")[1]
+            .replace(/-/g, "+").replace(/_/g, "/");
+          const sub = JSON.parse(Buffer.from(parte, "base64").toString("utf8")).sub;
+          expect(sub).to.not.equal(bru.getEnvVar("userId"));
+          bru.setVar("tokenSinDatos", res.getBody().accessToken);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Login del usuario sin movimientos
+
+  Guarda el token en `tokenSinDatos` y no en `accessToken`: pisar esa variable dejaria al resto de
+  la corrida autenticada como un usuario sin datos, y los requests que esperan los numeros del
+  escenario se caerian con un array vacio.

@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: "{{baseUrl}}/users/{{userId}}/monthly-spending"
+  url: "{{baseUrl}}/monthly-spending"
   auth: inherit
 
 runtime:
@@ -100,9 +100,10 @@ settings:
   maxRedirects: 5
 
 docs: |
-  # GET /api/users/{userId}/monthly-spending
+  # GET /api/monthly-spending
 
-  Resumen de `finance.v_monthly_spending` para el usuario, un elemento por mes:
+  Resumen de `finance.v_monthly_spending` para el usuario del token, un elemento por mes. Desde
+  FA-15 la ruta no lleva a quien se consulta: sale del claim `sub`.
 
       [{ "periodMonth": "2026-09", "currencyCode": "COP", "totalSpent": 1905500,
          "budgetAmount": 2000000, "remaining": 94500, "percentUsed": 95.28,

@@ -20,7 +20,7 @@ import com.oscargabriel.financeapp.support.TokenMother;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class MonthlySpendingIT {
 
-    private static final String RUTA = "/api/users/10000000-0000-7000-8000-000000000001/monthly-spending";
+    private static final String RUTA = "/api/monthly-spending";
 
     @Value("${local.server.port}")
     private int port;
@@ -44,20 +44,24 @@ class MonthlySpendingIT {
 
     @Test
     void noExponeElEndpointFueraDelBasePath() {
-        webTestClient.get().uri("/users/10000000-0000-7000-8000-000000000001/monthly-spending")
+        webTestClient.get().uri("/monthly-spending")
                 .headers(headers -> headers.setBearerAuth(TokenMother.valido()))
                 .exchange()
                 .expectStatus().isNotFound();
     }
 
+    /**
+     * Con el token valido la cadena del JWT deja pasar y es el enrutamiento el que responde: 404,
+     * porque desde FA-15 nadie publica esa ruta. Sin token daria 401 y no probaria nada, que es lo
+     * que hace el primer caso de esta clase sobre la ruta nueva.
+     */
     @Test
-    void rechazaConBadRequestUnUserIdQueNoEsUuidAntesDeTocarLaBase() {
-        webTestClient.get().uri("/api/users/no-es-uuid/monthly-spending")
+    void laRutaConUserIdEnLaUrlYaNoExiste() {
+        webTestClient.get().uri("/api/users/10000000-0000-7000-8000-000000000001/monthly-spending")
                 .headers(headers -> headers.setBearerAuth(TokenMother.valido()))
                 .exchange()
-                .expectStatus().isBadRequest()
+                .expectStatus().isNotFound()
                 .expectBody()
-                .jsonPath("$.errors[0].code").isEqualTo("INVALID_ARGUMENT")
-                .jsonPath("$.errors[0].field").isEqualTo("userId");
+                .jsonPath("$.errors[0].code").isEqualTo("NOT_FOUND");
     }
 }

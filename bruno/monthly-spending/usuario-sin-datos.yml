@@ -1,0 +1,42 @@
+info:
+  name: Gasto mensual de un usuario sin datos
+  type: http
+  seq: 12
+
+http:
+  method: GET
+  url: "{{baseUrl}}/monthly-spending"
+  auth:
+    type: bearer
+    token: "{{tokenSinDatos}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: isEmpty
+  scripts:
+    - type: tests
+      code: |-
+        test("no ve los meses del usuario del escenario", function() {
+          expect(res.getBody()).to.eql([]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Usuario sin meses
+
+  Un usuario recien creado responde 200 con un array vacio, no 404: la ausencia de filas no es un
+  recurso inexistente.
+
+  Desde FA-15 este request es tambien la comprobacion del IDOR que cerro la tarea. Antes pedia el
+  mes de un UUID ajeno con el token del usuario del escenario y le respondian; ahora la misma
+  peticion, con la misma URL, devuelve lo del dueño del token y nada mas. Si algun dia este cuerpo
+  trae meses, alguien volvio a dejar que el cliente elija de quien es el resumen.
