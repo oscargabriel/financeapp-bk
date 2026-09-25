@@ -28,7 +28,9 @@ spring:
   lifecycle:
     timeout-per-shutdown-phase: 20s
   r2dbc:
-    url: r2dbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:financeapp}
+    # schema=finance fija el search_path de la conexion: el esquema no es public, y sin el
+    # parametro una consulta sin calificar falla con "relation does not exist".
+    url: r2dbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:financeapp}?schema=finance
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     pool:

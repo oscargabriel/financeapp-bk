@@ -424,13 +424,20 @@ reconstruye la base y se vuelve a correr `test-data.sql` y `test-checks.sql`.
 
 ## Configuración de la aplicación
 
-El esquema no es `public`, así que la conexión R2DBC debe apuntar a `finance`:
+El esquema no es `public`, así que la conexión R2DBC apunta a `finance` con el parámetro de la
+URL, que fija el `search_path` de cada conexión del pool:
 
 ```
 spring.r2dbc.url=r2dbc:postgresql://host:5432/financeapp?schema=finance
 ```
 
-o fijándolo en el rol: `ALTER ROLE <usuario> SET search_path = finance, public;`
+Se eligió la URL y no `ALTER ROLE <usuario> SET search_path = finance, public;` (FA-38,
+24-09-2026) porque la URL queda versionada con la aplicación, mientras que el rol es un cambio en
+la base que habría que repetir a mano en cada entorno.
+
+Hoy lo llevan `application.yaml` y `application-local.yaml`. `application-prod.yaml` sobrescribe la
+URL **sin** el parámetro: se ajusta junto con las credenciales de producción, antes del pase. Los
+adapters siguen calificando `finance.` en el SQL, lo que funciona con o sin el parámetro.
 
 ## Pendiente para próximas iteraciones
 

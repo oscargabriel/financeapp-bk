@@ -137,7 +137,7 @@ cuando cambien:
 ```yaml
 spring:
   r2dbc:
-    url: r2dbc:postgresql://localhost:5432/financeapp
+    url: r2dbc:postgresql://localhost:5432/financeapp?schema=finance   # el esquema no es public
     username: postgres
     password: ...
   security:
