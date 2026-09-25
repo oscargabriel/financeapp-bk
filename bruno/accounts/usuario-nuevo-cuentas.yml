@@ -1,0 +1,42 @@
+info:
+  name: Cuentas de un usuario nuevo
+  type: http
+  seq: 7
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts?includeInactive=true"
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: isArray
+    - expression: res.body
+      operator: length
+      value: "0"
+  scripts:
+    - type: tests
+      code: |-
+        test("el escenario si tenia cuentas que este usuario podria haber visto", function() {
+          expect(JSON.parse(bru.getVar("idsCuentasEscenario"))).to.have.length(4);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Nadie ve las cuentas de otro
+
+  El usuario sale del `sub` del token, asi que no hay forma de pedir las de otro: lo que se prueba
+  es que cada token ve lo suyo. Pide tambien las desactivadas para que el filtro de `is_active` no
+  esconda una fuga. Depende de "Listar cuentas", que deja los ids del usuario del escenario en
+  `idsCuentasEscenario`; corrido solo, el test falla.
