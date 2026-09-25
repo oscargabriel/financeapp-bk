@@ -1,0 +1,48 @@
+info:
+  name: Categorias de un usuario nuevo
+  type: http
+  seq: 9
+
+http:
+  method: GET
+  url: "{{baseUrl}}/categories"
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: length
+      value: "22"
+  scripts:
+    - type: tests
+      code: |-
+        test("solo trae su copia de la semilla, nada de lo que el escenario agrego", function() {
+          const nombres = res.getBody().map(function (c) { return c.name; });
+          expect(nombres).to.not.include("Gimnasio");
+          expect(nombres).to.not.include("Ajustes");
+          res.getBody().forEach(function (c) { expect(c.isSystem).to.equal(true); });
+        });
+
+        test("ninguno de sus ids es del usuario del escenario", function() {
+          const ajenos = JSON.parse(bru.getVar("idsCategoriasEscenario"));
+          expect(ajenos).to.have.length(24);
+          res.getBody().forEach(function (c) { expect(ajenos).to.not.include(c.id); });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Nadie ve las categorias de otro
+
+  El usuario sale del `sub` del token, asi que no hay forma de pedir las de otro: lo que se prueba
+  es que cada token ve lo suyo. Depende de "Listar categorias", que deja los ids del usuario del
+  escenario en `idsCategoriasEscenario`; corrido solo, este request falla en el segundo test.

@@ -28,7 +28,8 @@ BEGIN;
 DELETE FROM finance.users WHERE email IN ('prueba@financeapp.local', 'inactivo@financeapp.local');
 
 -- Los requests de alta de bruno/ crean un usuario nuevo en cada corrida: auth/ con el correo
--- registro-<timestamp>@bruno.local y monthly-spending/ con sin-datos-<timestamp>@bruno.local.
+-- registro-<timestamp>@bruno.local, monthly-spending/ con sin-datos-<timestamp>@bruno.local y
+-- categories/ con categorias-<timestamp>@bruno.local.
 -- Recargar este escenario es lo que los limpia.
 DELETE FROM finance.users WHERE email LIKE '%@bruno.local';
 
@@ -74,6 +75,16 @@ SELECT gen_random_uuid(), :'uid'::uuid, d.name, d.applies_to, d.icon, d.color, d
 -- Una categoría propia, para probar que conviven con las del sistema.
 INSERT INTO finance.categories (id, user_id, name, applies_to, icon, color, sort_order)
 VALUES (gen_random_uuid(), :'uid'::uuid, 'Gimnasio', 'EXPENSE', 'dumbbell', '#00695C', 300);
+
+-- La semilla no trae ninguna BOTH: sin esta, el filtro de bruno/categories/ no tendria como
+-- probar que pedir EXPENSE o INCOME tambien devuelve las que sirven para los dos. Sin icono ni
+-- color a proposito, porque los dos son opcionales y la respuesta tiene que llevarlos en null.
+INSERT INTO finance.categories (id, user_id, name, applies_to, sort_order)
+VALUES (gen_random_uuid(), :'uid'::uuid, 'Ajustes', 'BOTH', 260);
+
+-- Borrada logicamente: GET /api/categories no la puede devolver.
+INSERT INTO finance.categories (id, user_id, name, applies_to, icon, color, sort_order, deleted_at)
+VALUES (gen_random_uuid(), :'uid'::uuid, 'Cigarrillos', 'EXPENSE', 'flame', '#BF360C', 170, now());
 
 
 -- -----------------------------------------------------------------------------

@@ -1,0 +1,44 @@
+info:
+  name: Listar categorias de gasto
+  type: http
+  seq: 2
+
+http:
+  method: GET
+  url: "{{baseUrl}}/categories?appliesTo=EXPENSE"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: length
+      value: "18"
+  scripts:
+    - type: tests
+      code: |-
+        const nombres = function () {
+          return res.getBody().map(function (c) { return c.name; });
+        };
+
+        test("trae las de gasto y la que sirve para los dos, ninguna de ingreso", function() {
+          const alcances = res.getBody().map(function (c) { return c.appliesTo; });
+          expect(alcances).to.not.include("INCOME");
+          expect(nombres()).to.include("Mercado");
+          expect(nombres()).to.include("Gimnasio");
+          expect(nombres()).to.include("Ajustes");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # GET /api/categories?appliesTo=EXPENSE
+
+  Pedir `EXPENSE` responde "que puedo ofrecer al registrar un gasto": las 16 de gasto de la
+  semilla, `Gimnasio` y `Ajustes`, que es BOTH. Por eso son 18 y no 17.

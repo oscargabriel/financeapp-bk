@@ -1,0 +1,41 @@
+info:
+  name: Usuario nuevo — login
+  type: http
+  seq: 8
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/login"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailCategorias}}",
+        "password": "{{claveCategorias}}"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("tokenCategorias", res.getBody().accessToken);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Login del segundo usuario
+
+  Guarda el token en `tokenCategorias` y no en `accessToken`, para no dejar al resto de la corrida
+  autenticado como este usuario.
