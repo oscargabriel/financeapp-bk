@@ -12,9 +12,16 @@ docs:
   content: |
     # financeapp-bk
 
-    Todas las rutas exigen `Authorization: Bearer`, declarado aqui una sola vez: los requests
-    usan `auth: inherit` salvo los de `auth/`, que son publicos, y los que prueban justamente el
-    caso sin credenciales.
+    Ninguna ruta es publica, y no todas se autentican igual. Desde FA-43 el API tiene dos cadenas:
+
+    - `auth/` y `system/` van con **HTTP Basic**, la credencial compartida de `BASIC_USERNAME` y
+      `BASIC_PASSWORD`. Las dos carpetas la declaran en su `folder.yml`.
+    - Todo lo demas va con **Bearer**, declarado aqui una sola vez; los requests usan
+      `auth: inherit`.
+
+    Los requests que prueban el caso sin credenciales omiten la clave `auth` a proposito, y los dos
+    que cruzan las credenciales (`Status con Bearer`, `Gasto mensual con Basic`) declaran la que no
+    corresponde: los dos tienen que dar 401.
 
     El token lo produce `auth/login`, que guarda la variable `accessToken` de la corrida. Por eso
     esa carpeta va primera: sin ella, todo lo demas responderia 401.

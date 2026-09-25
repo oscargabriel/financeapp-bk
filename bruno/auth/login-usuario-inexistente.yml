@@ -13,6 +13,7 @@ http:
         "email": "nadie@financeapp.local",
         "password": "{{testUserPassword}}"
       }
+  auth: inherit
 
 runtime:
   assertions:
