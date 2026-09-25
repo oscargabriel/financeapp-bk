@@ -2,7 +2,6 @@ package com.oscargabriel.financeapp.infrastructure.adapter.in.web;
 
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
-import java.util.UUID;
 import java.util.regex.Pattern;
 
 import org.springframework.http.HttpStatus;
@@ -38,25 +37,8 @@ public class MonthlySpendingController {
             @RequestParam(required = false) String from,
             @RequestParam(required = false) String to) {
         return Flux.defer(() -> getMonthlySpending.get(
-                        usuarioDelToken(jwt), parseMonth(from, "from"), parseMonth(to, "to")))
+                        UsuarioDelToken.de(jwt), parseMonth(from, "from"), parseMonth(to, "to")))
                 .map(MonthlySpendingResponse::from);
-    }
-
-    /**
-     * El usuario sale del token y no de la URL: mientras el cliente eligiera de quien es el
-     * resumen, cualquier token valido podia pedir el de cualquiera.
-     *
-     * Un subject que no sea UUID solo puede venir de un token firmado con la clave de esta
-     * aplicacion y emitido por otro: no identifica a nadie, asi que se rechaza con el mismo 401
-     * que UnauthenticatedEntryPoint y no con un 400, que insinuaria un parametro corregible.
-     */
-    private static UUID usuarioDelToken(Jwt jwt) {
-        try {
-            return UUID.fromString(jwt.getSubject());
-        } catch (IllegalArgumentException e) {
-            throw new BadRequestException(HttpStatus.UNAUTHORIZED, ErrorCodes.UNAUTHENTICATED,
-                    "Autenticacion requerida", "authorization", e);
-        }
     }
 
     private static YearMonth parseMonth(String valor, String campo) {

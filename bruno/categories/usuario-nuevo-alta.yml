@@ -1,0 +1,51 @@
+info:
+  name: Usuario nuevo — alta
+  type: http
+  seq: 7
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/register"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailCategorias}}",
+        "password": "{{claveCategorias}}",
+        "firstName": "Otra",
+        "lastName": "Persona",
+        "baseCurrencyCode": "COP",
+        "timezone": "America/Bogota"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: before-request
+      code: |-
+        // Un correo por corrida: el alta no es idempotente. La limpieza vive en
+        // docs/database/test-data.sql.
+        bru.setVar("emailCategorias", "categorias-" + Date.now() + "@bruno.local");
+        bru.setVar("claveCategorias", "unaClaveLarga");
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Alta de un segundo usuario
+
+  Primero de los tres requests que prueban que nadie ve las categorias de otro. El registro le
+  copia las 22 de la semilla, con los mismos nombres que las del usuario del escenario: lo que las
+  distingue son los ids y las dos que el escenario agrega a mano.
+
+  Va con Basic porque `/auth/register` vive en la cadena de la credencial compartida.

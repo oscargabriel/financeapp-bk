@@ -176,12 +176,13 @@ El umbral es **85 % de línea** y lo exige `jacocoTestCoverageVerification`, col
 Es decir: `gradlew test` mide y deja el reporte, **`gradlew build` es el que falla** si se baja del
 umbral. El mensaje del fallo dice el ratio real y el mínimo esperado.
 
-Quedan fuera del cálculo exactamente dos clases, y están listadas en `build.gradle` con el porqué:
-`FinanceappBkApplication` (el `main`) y `MonthlySpendingR2dbcAdapter` (lo verifica `bruno/`). **Los
-DTOs y la configuración sí cuentan** — están entre el 90 y el 100 %, y excluirlos, como suele
-hacerse por inercia, solo bajaría el número y escondería el dato.
+Quedan fuera del cálculo dos patrones, listados en `build.gradle` con el porqué:
+`FinanceappBkApplication` (el `main`) y `*R2dbcAdapter` (todos los adapters R2DBC: los verifica
+`bruno/`, y la suite no tiene base). **Los DTOs y la configuración sí cuentan** — están entre el
+90 y el 100 %, y excluirlos, como suele hacerse por inercia, solo bajaría el número y escondería
+el dato.
 
-No leas el porcentaje de rama como si fuera el de línea: hoy está en 82 % frente al 93 % de línea, y
+No leas el porcentaje de rama como si fuera el de línea: hoy está en 82 % frente al 94 % de línea, y
 lo que falta es casi todo `WebExceptionHandler`. No hay umbral de rama a propósito, hasta que esa
 clase tenga tests.
 

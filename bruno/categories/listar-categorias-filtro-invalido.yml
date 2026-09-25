@@ -1,0 +1,33 @@
+info:
+  name: Listar categorias con filtro invalido
+  type: http
+  seq: 5
+
+http:
+  method: GET
+  url: "{{baseUrl}}/categories?appliesTo=GASTO"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: appliesTo
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Filtro fuera de EXPENSE, INCOME y BOTH
+
+  El controlador parsea el parametro a mano: si lo convirtiera Spring, el fallo saldria como
+  `JSON_PARSING_ERROR` sobre el body, que no dice que el problema es la query.
