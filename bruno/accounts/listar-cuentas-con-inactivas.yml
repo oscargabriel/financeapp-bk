@@ -1,0 +1,52 @@
+info:
+  name: Listar cuentas con las desactivadas
+  type: http
+  seq: 2
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts?includeInactive=true"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: length
+      value: "5"
+  scripts:
+    - type: tests
+      code: |-
+        const nombres = function () {
+          return res.getBody().map(function (c) { return c.name; });
+        };
+
+        test("la desactivada sale al final, marcada como inactiva", function() {
+          const ultima = res.getBody()[4];
+          expect(ultima.name).to.equal("Nequi");
+          expect(ultima.isActive).to.equal(false);
+          expect(ultima.currentBalance).to.equal(80000);
+          expect(ultima.availableCredit).to.equal(null);
+        });
+
+        test("las activas conservan su orden por nombre", function() {
+          expect(nombres().slice(0, 4)).to.deep.equal(["Ahorros USD", "Bancolombia", "Efectivo", "Visa"]);
+        });
+
+        test("la borrada no sale ni pidiendo las desactivadas", function() {
+          expect(nombres()).to.not.include("Davivienda");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # includeInactive=true
+
+  Suma las desactivadas (`is_active = false`) al final de la lista. Las borradas
+  (`deleted_at` con valor) no salen nunca, ni con este parametro.

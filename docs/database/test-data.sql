@@ -21,6 +21,7 @@ SET search_path TO finance, public;
 \set debit    '20000000-0000-7000-8000-000000000002'
 \set credit   '20000000-0000-7000-8000-000000000003'
 \set usd      '20000000-0000-7000-8000-000000000004'
+\set nequi    '20000000-0000-7000-8000-000000000005'
 
 BEGIN;
 
@@ -28,8 +29,8 @@ BEGIN;
 DELETE FROM finance.users WHERE email IN ('prueba@financeapp.local', 'inactivo@financeapp.local');
 
 -- Los requests de alta de bruno/ crean un usuario nuevo en cada corrida: auth/ con el correo
--- registro-<timestamp>@bruno.local, monthly-spending/ con sin-datos-<timestamp>@bruno.local y
--- categories/ con categorias-<timestamp>@bruno.local.
+-- registro-<timestamp>@bruno.local, monthly-spending/ con sin-datos-<timestamp>@bruno.local,
+-- categories/ con categorias-<timestamp>@bruno.local y accounts/ con cuentas-<timestamp>@bruno.local.
 -- Recargar este escenario es lo que los limpia.
 DELETE FROM finance.users WHERE email LIKE '%@bruno.local';
 
@@ -101,6 +102,15 @@ INSERT INTO finance.accounts
      credit_limit, statement_day, payment_due_day)
 VALUES
     (:'credit'::uuid, :'uid'::uuid, 'Visa', 'CREDIT', 'COP', 0, 5000000, 15, 5);
+
+-- Desactivada: GET /api/accounts solo la devuelve con includeInactive=true. Sin movimientos, asi
+-- que su saldo vigente es el inicial.
+INSERT INTO finance.accounts (id, user_id, name, type, currency_code, initial_balance, is_active)
+VALUES (:'nequi'::uuid, :'uid'::uuid, 'Nequi', 'DEBIT', 'COP', 80000, FALSE);
+
+-- Borrada logicamente: GET /api/accounts no la devuelve nunca, ni con includeInactive=true.
+INSERT INTO finance.accounts (id, user_id, name, type, currency_code, initial_balance, deleted_at)
+VALUES (gen_random_uuid(), :'uid'::uuid, 'Davivienda', 'SAVINGS', 'COP', 150000, now());
 
 
 -- -----------------------------------------------------------------------------

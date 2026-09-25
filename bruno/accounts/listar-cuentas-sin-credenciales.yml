@@ -1,0 +1,34 @@
+info:
+  name: Listar cuentas sin credenciales
+  type: http
+  seq: 4
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+  scripts:
+    - type: tests
+      code: |-
+        test("el reto es el de la cadena del JWT", function() {
+          expect(res.getHeader("www-authenticate")).to.equal("Bearer");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Sin Authorization
+
+  Sin la clave `http.auth` a proposito, para romper la herencia del Bearer de la coleccion.
