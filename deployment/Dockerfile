@@ -1,8 +1,12 @@
 # Contexto de build: la raiz del repo, no esta carpeta. Es lo que usa el disparador de Cloud Run
 # (docker build -f deployment/Dockerfile .) y lo que filtra el .dockerignore de la raiz.
 #   docker build -f deployment/Dockerfile -t financeapp-bk .
+#
+# Java de Microsoft (mcr.microsoft.com/openjdk) en las dos etapas, decision del usuario del
+# 26-09-2026: recibe parches con frecuencia. No hay imagen solo-JRE, asi que el runtime es la
+# distroless: sin shell ni gestor de paquetes, pero con el JDK completo.
 
-FROM eclipse-temurin:25-jdk AS build
+FROM mcr.microsoft.com/openjdk/jdk:25-ubuntu AS build
 WORKDIR /workspace
 
 COPY gradlew build.gradle settings.gradle ./
@@ -19,8 +23,7 @@ RUN ./gradlew build --no-daemon
 RUN cp "$(ls build/libs/*.jar | grep -v -- '-plain.jar')" app.jar \
     && java -Djarmode=tools -jar app.jar extract --layers --launcher --destination extracted
 
-FROM eclipse-temurin:25-jre
-RUN groupadd --system app && useradd --system --gid app --no-create-home app
+FROM mcr.microsoft.com/openjdk/jdk:25-distroless
 WORKDIR /app
 
 COPY --from=build /workspace/extracted/dependencies/ ./
@@ -28,6 +31,7 @@ COPY --from=build /workspace/extracted/spring-boot-loader/ ./
 COPY --from=build /workspace/extracted/snapshot-dependencies/ ./
 COPY --from=build /workspace/extracted/application/ ./
 
+# Sin shell no se puede crear un usuario: 'app' (uid 101) ya viene en la imagen distroless.
 USER app
 
 # El default del yaml es local: un despliegue tiene que arrancar en prod aunque olvide la variable.
