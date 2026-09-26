@@ -424,20 +424,19 @@ reconstruye la base y se vuelve a correr `test-data.sql` y `test-checks.sql`.
 
 ## Configuración de la aplicación
 
-El esquema no es `public`, así que la conexión R2DBC apunta a `finance` con el parámetro de la
-URL, que fija el `search_path` de cada conexión del pool:
+El esquema no es `public`, así que cada conexión del pool abre con `search_path = finance`. Lo fija
+`R2dbcSearchPathConfig`, que manda al driver la opción de arranque `options=-c search_path=finance`.
 
-```
-spring.r2dbc.url=r2dbc:postgresql://host:5432/financeapp?schema=finance
-```
+Hasta FA-47 (26-09-2026) lo hacía el parámetro `?schema=finance` de la URL. Contra PostgreSQL local
+funcionaba, pero **Neon lo descarta**: el driver lo envía como parámetro de arranque `search_path`
+y la conexión queda en `"$user", public`. Neon sí respeta `options=-c ...`, igual que `PGOPTIONS` en
+`psql`. La URL no puede llevarlo porque el driver parte las opciones por `=` y el valor contiene uno.
+El bean reemplaza el mapa de opciones del driver, así que un `?schema=` que quede en una URL (el
+`application-local.yaml` lo conserva) no tiene efecto.
 
-Se eligió la URL y no `ALTER ROLE <usuario> SET search_path = finance, public;` (FA-38,
-24-09-2026) porque la URL queda versionada con la aplicación, mientras que el rol es un cambio en
-la base que habría que repetir a mano en cada entorno.
-
-Hoy lo llevan `application.yaml` y `application-local.yaml`. `application-prod.yaml` sobrescribe la
-URL **sin** el parámetro: se ajusta junto con las credenciales de producción, antes del pase. Los
-adapters siguen calificando `finance.` en el SQL, lo que funciona con o sin el parámetro.
+Se eligió resolverlo en código y no con `ALTER ROLE` o `ALTER DATABASE ... SET search_path` (FA-38
+y FA-47) porque queda versionado con la aplicación; el cambio en la base habría que repetirlo a mano
+en cada entorno. Los adapters siguen calificando `finance.` en el SQL.
 
 ## Pendiente para próximas iteraciones
 
