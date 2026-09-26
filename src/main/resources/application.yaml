@@ -1,5 +1,10 @@
+# Este archivo es la configuracion de Cloud Run: la imagen solo lleva application.yaml, y el
+# servicio completa el resto con variables de entorno y Secret Manager. application-local.yaml y
+# application-prod.yaml no se versionan: el primero es el desarrollo diario y el segundo simula la
+# nube en local para reproducir una falla puntual. Los dos sobrescriben lo que difiere de aqui.
 server:
-  port: ${SERVER_PORT:8080}
+  # Cloud Run inyecta el puerto en PORT; SERVER_PORT queda para correr la imagen fuera de Run.
+  port: ${PORT:${SERVER_PORT:8080}}
   shutdown: graceful
   compression:
     enabled: true
@@ -17,7 +22,7 @@ spring:
     name: financeapp-bk
   profiles:
     # Sin la variable de entorno se arranca en local. Un despliegue DEBE definir
-    # SPRING_PROFILES_ACTIVE=prod: si lo olvida, levanta con la configuracion de desarrollo.
+    # SPRING_PROFILES_ACTIVE=prod, para no depender de que la imagen no traiga application-local.
     # No dejar esta clave sin un valor activo: Boot 4 rechaza 'profiles' vacia y el contexto ni
     # siquiera llega a crearse.
     active: ${SPRING_PROFILES_ACTIVE:local}
@@ -28,16 +33,24 @@ spring:
   lifecycle:
     timeout-per-shutdown-phase: 20s
   r2dbc:
-    # schema=finance fija el search_path de la conexion: el esquema no es public, y sin el
-    # parametro una consulta sin calificar falla con "relation does not exist".
-    url: r2dbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:financeapp}?schema=finance
+    # En Cloud Run, DB_HOST es el host DIRECTO de Neon (sin -pooler), validado en FA-44. Neon
+    # rechaza conexiones sin TLS, de ahi sslMode=require por defecto; el driver negocia SNI solo.
+    # El search_path (esquema finance, no public) no va en la URL sino en R2dbcSearchPathConfig:
+    # Neon ignora el ?schema=, y ese bean pisa el mapa de opciones del driver de todos modos.
+    url: r2dbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:financeapp}?sslMode=${DB_SSL_MODE:require}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     pool:
       enabled: true
-      initial-size: 5
-      max-size: 20
-      max-idle-time: 30m
+      # Maximo 3 instancias de Cloud Run x 10 = 30 conexiones, frente a las 901 de max_connections
+      # del plan Free de Neon (computo de 2 CU). Con R2DBC, 10 conexiones sirven a las 80
+      # peticiones concurrentes por instancia. Si sube el maximo de instancias, rehacer la cuenta.
+      # initial-size 1: el arranque en frio (Cloud Run escala a 0) no abre conexiones de mas.
+      initial-size: 1
+      max-size: 10
+      # Por debajo de los 5 min tras los que Neon suspende la base: el pool suelta la conexion
+      # antes de que Neon la corte, y validation-query descarta la que quede rota.
+      max-idle-time: 4m
       max-create-connection-time: 3s
       validation-query: SELECT 1
   security:
@@ -58,8 +71,11 @@ app:
   # Zona con la que se resuelve "el mes actual" en el rango por defecto de los reportes mensuales.
   timezone: ${APP_TIMEZONE:America/Bogota}
 
+# Obligatorio, sin default: el servicio tiene que declarar la lista de origenes. Mientras no
+# exista frontend, Cloud Run lleva "*", decision provisional del usuario (26-09-2026) que se
+# reemplaza por la URL del frontend en cuanto exista (OWASP A05).
 cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS}
 
 status:
   check-timeout: ${STATUS_CHECK_TIMEOUT:2s}
