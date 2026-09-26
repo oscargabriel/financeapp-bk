@@ -1,0 +1,49 @@
+info:
+  name: Cuentas creadas del usuario nuevo
+  type: http
+  seq: 14
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts?includeInactive=true"
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: length
+      value: "2"
+  scripts:
+    - type: tests
+      code: |-
+        test("quedan exactamente las dos altas que respondieron 201", function() {
+          const ids = res.getBody().map(function (c) { return c.id; });
+          expect(ids.sort()).to.eql([bru.getVar("idCuentaCredito"), bru.getVar("idCuentaEfectivo")].sort());
+        });
+
+        test("el saldo persistido es el que devolvio el alta", function() {
+          const porNombre = function (nombre) {
+            return res.getBody().find(function (c) { return c.name === nombre; });
+          };
+          expect(porNombre("Billetera").currentBalance).to.equal(150000);
+          expect(porNombre("Mastercard").currentBalance).to.equal(-200000);
+          expect(porNombre("Mastercard").availableCredit).to.equal(2800000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Lo que quedo en la base
+
+  Relee con el listado: las dos altas validas persistieron con el saldo que sembro el trigger, y
+  ninguno de los 400 ni el 409 dejo una fila. Depende de "Crear cuenta de efectivo" y "Crear tarjeta
+  de credito", que guardan sus ids.

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import com.oscargabriel.financeapp.support.TokenMother;
@@ -34,6 +35,16 @@ class AccountsIT {
     @Test
     void devuelve401EnLaRutaConBasePathCuandoNoHayCredenciales() {
         webTestClient.get().uri("/api/accounts")
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().valueEquals("WWW-Authenticate", "Bearer");
+    }
+
+    @Test
+    void devuelve401AlCrearEnLaRutaConBasePathCuandoNoHayCredenciales() {
+        webTestClient.post().uri("/api/accounts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"name\": \"Billetera\", \"type\": \"CASH\", \"currencyCode\": \"COP\"}")
                 .exchange()
                 .expectStatus().isUnauthorized()
                 .expectHeader().valueEquals("WWW-Authenticate", "Bearer");

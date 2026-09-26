@@ -1,0 +1,48 @@
+info:
+  name: Crear cuenta con currentBalance
+  type: http
+  seq: 11
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Con saldo impuesto",
+        "type": "SAVINGS",
+        "currencyCode": "COP",
+        "initialBalance": 1000,
+        "currentBalance": 999999
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: currentBalance
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # currentBalance no se acepta
+
+  El saldo vigente es del trigger. Ignorar el campo en silencio dejaria al cliente creyendo que lo
+  fijo; rechazarlo le dice que use `initialBalance`.

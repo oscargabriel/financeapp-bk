@@ -1,0 +1,66 @@
+info:
+  name: Crear cuenta de efectivo
+  type: http
+  seq: 8
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "  Billetera  ",
+        "type": "CASH",
+        "currencyCode": "cop",
+        "initialBalance": 150000
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        const cuenta = res.getBody();
+
+        test("devuelve el mismo contrato que el listado", function() {
+          expect(cuenta.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+          expect(cuenta).to.have.all.keys("id", "name", "type", "currencyCode", "currentBalance",
+              "availableCredit", "isActive");
+        });
+
+        test("normaliza el nombre y la moneda", function() {
+          expect(cuenta.name).to.equal("Billetera");
+          expect(cuenta.currencyCode).to.equal("COP");
+        });
+
+        test("el saldo vigente es el inicial que sembro el trigger", function() {
+          expect(cuenta.currentBalance).to.equal(150000);
+          expect(cuenta.availableCredit).to.equal(null);
+          expect(cuenta.isActive).to.equal(true);
+        });
+
+        bru.setVar("idCuentaEfectivo", cuenta.id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # POST /api/accounts
+
+  Crea una cuenta del usuario del token. El cuerpo lleva `initialBalance`, nunca `currentBalance`:
+  el saldo vigente lo siembra `trg_accounts_seed_balance`, y la respuesta lo trae del `RETURNING`
+  del INSERT, asi que el `currentBalance` que se ve aqui es el que calculo la base.
+
+  Corre con `tokenCuentas`, el usuario nuevo de "Usuario nuevo — alta": el del escenario tiene que
+  seguir con sus 4 cuentas para "Listar cuentas", y un usuario por corrida evita choques de nombre
+  al repetir la coleccion.
