@@ -1,0 +1,40 @@
+info:
+  name: Saldos sin cambios tras los rechazos
+  type: http
+  seq: 11
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts"
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const saldo = function (nombre) {
+          return String(res.getBody().find(function (c) { return c.name === nombre; }).currentBalance);
+        };
+
+        test("ningun lote rechazado movio los saldos", function() {
+          expect(saldo("Efectivo")).to.equal(bru.getVar("saldoOrigen"));
+          expect(saldo("Ahorros")).to.equal(bru.getVar("saldoDestino"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Todo o nada
+
+  El lote de "Lote con elementos invalidos" traia un elemento valido en `[0]`: si hubiera entrado,
+  el saldo del origen habria bajado 10.000.
