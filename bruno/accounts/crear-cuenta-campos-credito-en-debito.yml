@@ -1,0 +1,53 @@
+info:
+  name: Crear debito con campos de credito
+  type: http
+  seq: 10
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Debito con cupo",
+        "type": "DEBIT",
+        "currencyCode": "COP",
+        "creditLimit": 1000000,
+        "statementDay": 15
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+  scripts:
+    - type: tests
+      code: |-
+        test("reporta cada campo de credito mal puesto", function() {
+          const campos = res.getBody().errors.map(function (e) { return e.field; });
+          expect(campos.sort()).to.eql(["creditLimit", "statementDay"]);
+        });
+
+        test("todos son errores de validacion", function() {
+          res.getBody().errors.forEach(function (e) {
+            expect(e.code).to.equal("VALIDATION_ERROR");
+          });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Campos de credito en una cuenta que no es CREDIT
+
+  `ck_accounts_credit_fields` lo rechazaria en la base con un error de constraint. El caso de uso
+  lo corta antes con un 400 por campo; "Cuentas creadas del usuario nuevo" comprueba que no quedo
+  nada escrito.

@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import com.oscargabriel.financeapp.domain.model.Account;
 import com.oscargabriel.financeapp.domain.model.AccountType;
+import com.oscargabriel.financeapp.domain.model.CreateAccountCommand;
 
 /** Cuentas para los tests. Los saldos son los del escenario de docs/database/test-data.sql. */
 public final class AccountMother {
@@ -44,5 +45,22 @@ public final class AccountMother {
     public static Account inactiva() {
         return new Account(UUID.fromString("20000000-0000-7000-8000-000000000006"), "Nequi",
                 AccountType.DEBIT, "COP", new BigDecimal("80000.0000"), null, false);
+    }
+
+    public static CreateAccountCommand altaEfectivo() {
+        return new CreateAccountCommand("Billetera", "CASH", "COP", new BigDecimal("150000"),
+                null, null, null, null);
+    }
+
+    public static CreateAccountCommand altaTarjeta() {
+        return new CreateAccountCommand("Mastercard", "CREDIT", "COP", new BigDecimal("-200000"),
+                new BigDecimal("3000000"), 20, 5, null);
+    }
+
+    /** Como la vuelve a leer el INSERT ... RETURNING: con el saldo que sembro el trigger. */
+    public static Account tarjetaCreada() {
+        return new Account(UUID.fromString("20000000-0000-7000-8000-000000000007"), "Mastercard",
+                AccountType.CREDIT, "COP", new BigDecimal("-200000.0000"),
+                new BigDecimal("3000000.0000"), true);
     }
 }

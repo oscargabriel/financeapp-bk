@@ -17,6 +17,7 @@ http:
         "baseCurrencyCode": "USD",
         "timezone": "America/Lima"
       }
+  auth: inherit
 
 runtime:
   assertions:

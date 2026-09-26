@@ -13,6 +13,7 @@ http:
         "email": "{{testUserEmail}}",
         "password": "{{testUserPassword}}"
       }
+  auth: inherit
 
 runtime:
   assertions:

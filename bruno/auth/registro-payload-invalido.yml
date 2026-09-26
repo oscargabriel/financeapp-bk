@@ -16,6 +16,7 @@ http:
         "baseCurrencyCode": "XXX",
         "timezone": "Marte/Olympus"
       }
+  auth: inherit
 
 runtime:
   assertions:

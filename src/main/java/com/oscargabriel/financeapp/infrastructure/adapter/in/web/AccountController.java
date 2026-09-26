@@ -4,25 +4,33 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
+import com.oscargabriel.financeapp.domain.port.in.CreateAccountPort;
 import com.oscargabriel.financeapp.domain.port.in.ListAccountsPort;
 import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.AccountResponse;
+import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.CreateAccountRequest;
 
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @RestController
 @RequestMapping("/accounts")
 public class AccountController {
 
     private final ListAccountsPort listAccounts;
+    private final CreateAccountPort createAccount;
 
-    public AccountController(ListAccountsPort listAccounts) {
+    public AccountController(ListAccountsPort listAccounts, CreateAccountPort createAccount) {
         this.listAccounts = listAccounts;
+        this.createAccount = createAccount;
     }
 
     @GetMapping
@@ -30,6 +38,15 @@ public class AccountController {
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(required = false) String includeInactive) {
         return Flux.defer(() -> listAccounts.list(UsuarioDelToken.de(jwt), parseIncludeInactive(includeInactive)))
+                .map(AccountResponse::from);
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public Mono<AccountResponse> create(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestBody CreateAccountRequest request) {
+        return Mono.defer(() -> createAccount.create(UsuarioDelToken.de(jwt), request.toCommand()))
                 .map(AccountResponse::from);
     }
 

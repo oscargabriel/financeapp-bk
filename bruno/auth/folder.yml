@@ -3,5 +3,11 @@ info:
   type: folder
   seq: 1
 
+# Desde FA-43 estas rutas no son publicas: viven en la cadena del Basic, no en la del JWT. Por eso
+# la carpeta sobrescribe el bearer de la coleccion en vez de heredarlo; el token que produce el
+# login sigue siendo lo que autentica al resto.
 request:
-  auth: inherit
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
