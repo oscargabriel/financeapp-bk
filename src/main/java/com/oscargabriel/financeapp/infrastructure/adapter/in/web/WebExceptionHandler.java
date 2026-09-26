@@ -114,6 +114,13 @@ public class WebExceptionHandler extends AbstractErrorWebExceptionHandler {
                     yield respond(single(ErrorCodes.NOT_FOUND, "Recurso no encontrado", "request"),
                             HttpStatus.NOT_FOUND);
                 }
+                // El codec corta el cuerpo al pasar spring.codec.max-in-memory-size, antes de que
+                // exista un DTO que validar: el cliente tiene que saber que es el tamano y no el contenido.
+                if (status.value() == HttpStatus.CONTENT_TOO_LARGE.value()) {
+                    yield respond(single(ErrorCodes.PAYLOAD_TOO_LARGE,
+                            "El cuerpo supera el tamano maximo permitido; parte el lote en envios mas pequenos",
+                            "body"), HttpStatus.CONTENT_TOO_LARGE);
+                }
                 log.warn("Peticion rechazada con status={}: {}", status.value(), rse.getReason());
                 yield respond(single(ErrorCodes.VALIDATION_ERROR,
                         "La peticion no pudo ser procesada", "request"), HttpStatus.valueOf(status.value()));
