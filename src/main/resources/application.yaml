@@ -21,11 +21,10 @@ spring:
   application:
     name: financeapp-bk
   profiles:
-    # Sin la variable de entorno se arranca en local. Un despliegue DEBE definir
-    # SPRING_PROFILES_ACTIVE=prod, para no depender de que la imagen no traiga application-local.
-    # No dejar esta clave sin un valor activo: Boot 4 rechaza 'profiles' vacia y el contexto ni
-    # siquiera llega a crearse.
-    active: ${SPRING_PROFILES_ACTIVE:local}
+    # Sin default, como los secretos: sin la variable la aplicacion no arranca (Boot rechaza el
+    # placeholder sin resolver como nombre de perfil). En local hay que definir
+    # SPRING_PROFILES_ACTIVE=local; la imagen de Cloud Run ya trae prod.
+    active: ${SPRING_PROFILES_ACTIVE}
   webflux:
     base-path: ${SERVER_BASE_PATH:/api}
   codec:

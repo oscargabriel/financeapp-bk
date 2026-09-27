@@ -34,7 +34,7 @@ COPY --from=build /workspace/extracted/application/ ./
 # Sin shell no se puede crear un usuario: 'app' (uid 101) ya viene en la imagen distroless.
 USER app
 
-# El default del yaml es local: un despliegue tiene que arrancar en prod aunque olvide la variable.
+# El yaml no trae default y sin perfil la app no arranca: la imagen fija prod, y el servicio lo puede sobrescribir.
 ENV SPRING_PROFILES_ACTIVE=prod
 # Cloud Run inyecta PORT y application.yaml lo lee; 8080 es el valor que usa si no llega.
 EXPOSE 8080

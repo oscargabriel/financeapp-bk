@@ -24,6 +24,7 @@ class CloudRunConfigTest {
 
     private static Map<String, Object> variablesDelServicio() {
         Map<String, Object> variables = new HashMap<>();
+        variables.put("SPRING_PROFILES_ACTIVE", "prod");
         variables.put("DB_HOST", "ep-ejemplo.us-east-1.aws.neon.tech");
         variables.put("DB_NAME", "neondb");
         variables.put("DB_USERNAME", "usuario");
@@ -97,6 +98,7 @@ class CloudRunConfigTest {
      */
     @ParameterizedTest(name = "sin {0} no resuelve {1}")
     @CsvSource({
+            "SPRING_PROFILES_ACTIVE, spring.profiles.active",
             "DB_USERNAME, spring.r2dbc.username",
             "DB_PASSWORD, spring.r2dbc.password",
             "JWT_SECRET, spring.security.jwt.secret",
