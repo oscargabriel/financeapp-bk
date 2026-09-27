@@ -33,16 +33,17 @@ docs:
       entera** (`auth/` registra usuarios y `accounts/` y `transactions/` escriben), y los reportes
       esperan `test-data.sql`, que en Neon no existe. `system/` es de solo lectura.
 
-    Los secretos no se versionan. Copiar `.env.sample` a `.env` (ignorado por git) y llenar los
-    valores: `local` lee todo de ahi con `{{process.env....}}`, `prod` solo `PROD_HOST`.
+    Los secretos no se versionan. `local` los lee de `.env` (copiar `.env.sample`, ignorado por
+    git) con `{{process.env....}}`.
 
-    Las credenciales de `prod` (`basicUser`, `basicPass`, `testUserEmail`, `testUserPassword`) van
-    con `secret: true` y se escriben en la app, en Environments > prod: Bruno las guarda cifradas y
-    no comparten clave con las de local. El CLI no ve ese almacen, asi que desde la terminal se
-    pasan con `--env-var`, pidiendolas en el momento para que no queden en el historial:
+    `prod` no usa `.env`: `host` (la URL de Cloud Run), `userId`, `basicUser`, `basicPass`,
+    `testUserEmail` y `testUserPassword` van con `secret: true` y se escriben en la app, en
+    Environments > prod. Bruno los guarda cifrados y no comparten clave con local; `baseUrl` se
+    deriva de `host`. El CLI no ve ese almacen, asi que desde la terminal se pasan con `--env-var`,
+    pidiendo las credenciales en el momento para que no queden en el historial:
 
         $c = Get-Credential -Message "Basic de prod"
-        bru run system -r --env prod --env-var "basicUser=$($c.UserName)" --env-var "basicPass=$($c.GetNetworkCredential().Password)"
+        bru run system -r --env prod --env-var "host=https://<servicio>.run.app" --env-var "basicUser=$($c.UserName)" --env-var "basicPass=$($c.GetNetworkCredential().Password)"
 
     ## Convencion
 

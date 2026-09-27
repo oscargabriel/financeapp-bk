@@ -1,13 +1,21 @@
 name: prod
 variables:
-  # La URL no es secreta: sale de PROD_HOST en bruno/.env, sin /api y sin barra final.
+  # Todo prod va con secret: true y sin valor, igual que los secretos del servicio en Cloud Run: se
+  # escribe en la app de Bruno (Environments > prod), que lo guarda cifrado en su almacen local, y
+  # nada de prod queda en texto plano en disco ni en bruno/.env. No se lee de process.env: con
+  # secret: true Bruno descartaria esa interpolacion. Tampoco comparte claves con local, asi que
+  # cambiar de ambiente no pisa nada. El CLI no ve ese almacen: bru run --env prod necesita
+  # --env-var para cada una.
+  #
+  # host es la URL de Cloud Run, sin /api y sin barra final. baseUrl se deriva de el para no
+  # escribir la URL dos veces.
   - name: host
-    value: "{{process.env.PROD_HOST}}"
+    value: ""
     enabled: true
-    secret: false
+    secret: true
     type: text
   - name: baseUrl
-    value: "{{process.env.PROD_HOST}}/api"
+    value: "{{host}}/api"
     enabled: true
     secret: false
     type: text
@@ -15,15 +23,12 @@ variables:
   # esperado del usuario del escenario, contra el que se compara el `sub` en
   # monthly-spending/Usuario sin datos - login.
   - name: userId
-    value: "{{process.env.PROD_USER_ID}}"
+    value: ""
     enabled: true
-    secret: false
+    secret: true
     type: text
-  # Credenciales de produccion: secret: true y sin valor aqui ni en bruno/.env, a proposito. Se
-  # escriben en la app de Bruno (Environments > prod), que las guarda cifradas en su almacen local;
-  # asi no quedan en texto plano en disco ni las pisa el cambio de ambiente con local. Al reves que
-  # en local.yml, no se leen de process.env: con secret: true Bruno descartaria esa interpolacion.
-  # El CLI no ve ese almacen: bru run --env prod necesita --env-var para cada una.
+  # Credencial compartida del Basic (auth/ y system/): la de los secretos basic-username y
+  # basic-password del servicio.
   - name: basicUser
     value: ""
     enabled: true
