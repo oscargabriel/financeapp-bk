@@ -1,5 +1,6 @@
 name: prod
 variables:
+  # La URL no es secreta: sale de PROD_HOST en bruno/.env, sin /api y sin barra final.
   - name: host
     value: "{{process.env.PROD_HOST}}"
     enabled: true
@@ -18,13 +19,30 @@ variables:
     enabled: true
     secret: false
     type: text
+  # Credenciales de produccion: secret: true y sin valor aqui ni en bruno/.env, a proposito. Se
+  # escriben en la app de Bruno (Environments > prod), que las guarda cifradas en su almacen local;
+  # asi no quedan en texto plano en disco ni las pisa el cambio de ambiente con local. Al reves que
+  # en local.yml, no se leen de process.env: con secret: true Bruno descartaria esa interpolacion.
+  # El CLI no ve ese almacen: bru run --env prod necesita --env-var para cada una.
   - name: basicUser
-    value: "{{process.env.BASIC_USERNAME}}"
+    value: ""
     enabled: true
-    secret: false
+    secret: true
     type: text
   - name: basicPass
-    value: "{{process.env.BASIC_PASSWORD}}"
+    value: ""
     enabled: true
-    secret: false
+    secret: true
+    type: text
+  # Usuario con el que se hace login en prod (auth/login). No existe test-data.sql en Neon: es una
+  # cuenta real registrada en el servicio.
+  - name: testUserEmail
+    value: ""
+    enabled: true
+    secret: true
+    type: text
+  - name: testUserPassword
+    value: ""
+    enabled: true
+    secret: true
     type: text
