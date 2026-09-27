@@ -1,0 +1,7 @@
+info:
+  name: Monthly spending
+  type: folder
+  seq: 3
+
+request:
+  auth: inherit

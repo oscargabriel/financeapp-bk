@@ -1,0 +1,42 @@
+info:
+  name: Cuerpo de mas de 1 MB
+  type: http
+  seq: 14
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: "[]"
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "413"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: PAYLOAD_TOO_LARGE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: body
+  scripts:
+    - type: before-request
+      code: |-
+        req.setBody([{ "description": "x".repeat(1100000) }]);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Por encima de spring.codec.max-in-memory-size
+
+  El codec corta antes de que el controlador vea el lote. Sin mapearlo, Spring respondia 413 con el
+  texto generico del handler; ahora dice que el cuerpo es demasiado grande y que hay que partir el lote.

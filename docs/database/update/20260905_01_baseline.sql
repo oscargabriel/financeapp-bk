@@ -1,0 +1,16 @@
+-- =============================================================================
+-- 2026-09-05 · 01 · Línea base del modelo
+--
+-- Primera versión del esquema: usuarios, cuentas, categorías, transacciones,
+-- monedas con tasa de cambio, metas de gasto y las vistas de gasto mensual.
+--
+-- Al ser la línea base NO se duplica el DDL aquí: se aplica ejecutando los
+-- archivos de construcción, en este orden y sobre una base vacía.
+--
+--   psql -U <usuario> -d financeapp -f ../schema.sql
+--   psql -U <usuario> -d financeapp -f ../seed.sql
+--
+-- A partir del siguiente update, cada archivo de esta carpeta sí contiene los
+-- ALTER / CREATE / DROP concretos del cambio, y el mismo cambio se refleja en
+-- schema.sql para que la construcción desde cero siga siendo equivalente.
+-- =============================================================================

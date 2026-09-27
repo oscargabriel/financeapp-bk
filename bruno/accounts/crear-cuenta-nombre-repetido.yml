@@ -1,0 +1,43 @@
+info:
+  name: Crear cuenta con nombre repetido
+  type: http
+  seq: 13
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "BILLETERA",
+        "type": "CASH",
+        "currencyCode": "COP"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: DUPLICATE_RESOURCE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: name
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Nombre ya usado por otra cuenta del usuario
+
+  `ux_accounts_user_name` es unico sobre `lower(name)` entre las no borradas, asi que `BILLETERA`
+  choca con la `Billetera` de "Crear cuenta de efectivo". Sin traducirlo, el choque saldria como 500.

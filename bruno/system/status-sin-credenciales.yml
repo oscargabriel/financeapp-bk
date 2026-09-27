@@ -1,0 +1,44 @@
+info:
+  name: Status sin credenciales
+  type: http
+  seq: 2
+
+http:
+  method: GET
+  url: "{{baseUrl}}/status"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+  scripts:
+    - type: tests
+      code: |-
+        test("el rechazo no cuenta por que fallo", function() {
+          expect(res.getHeader("www-authenticate")).to.equal("Basic");
+          expect(JSON.stringify(res.getBody())).to.not.contain("Jwt");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # GET /api/status sin Authorization
+
+  La ausencia de `http.auth` rompe a proposito la herencia del Basic de la carpeta: un request
+  sin esa clave se parsea como `mode: none`, que es lo que emite el propio serializador de Bruno.
+  Escribir `auth: none` explicito funciona igual pero hace que el CLI imprima
+  `toBrunoAuth failed: Unsupported auth type` en cada corrida.
+
+  Desde FA-43 no queda ninguna ruta publica: el status vive detras del Basic. Si este request
+  empieza a devolver 200, alguien abrio una ruta sin quererlo.
+
+  El reto que se comprueba es `Basic` y no `Bearer` porque esta ruta la atiende la otra cadena.
+  Sigue sin decir por que fallo, y el cuerpo sigue siendo el `{"errors":[...]}` del resto del API.

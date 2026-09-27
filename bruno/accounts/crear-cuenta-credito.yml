@@ -1,0 +1,56 @@
+info:
+  name: Crear tarjeta de credito
+  type: http
+  seq: 9
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Mastercard",
+        "type": "CREDIT",
+        "currencyCode": "COP",
+        "initialBalance": -200000,
+        "creditLimit": 3000000,
+        "statementDay": 20,
+        "paymentDueDay": 5
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.type
+      operator: eq
+      value: CREDIT
+  scripts:
+    - type: tests
+      code: |-
+        test("entra con la deuda como saldo negativo", function() {
+          expect(res.getBody().currentBalance).to.equal(-200000);
+        });
+
+        test("el cupo disponible es el limite menos lo que ya debe", function() {
+          expect(res.getBody().availableCredit).to.equal(2800000);
+        });
+
+        bru.setVar("idCuentaCredito", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Tarjeta con deuda inicial
+
+  `creditLimit`, `statementDay` y `paymentDueDay` solo se aceptan en `CREDIT`. Un saldo inicial
+  negativo es deuda que la tarjeta ya traia al entrar al sistema.

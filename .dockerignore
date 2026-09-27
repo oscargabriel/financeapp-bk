@@ -1,0 +1,13 @@
+# Lista de lo permitido: entra solo lo que necesita deployment/Dockerfile. Todo lo demas queda
+# fuera sin nombrarlo, incluidos build/, .gradle/, .git/, bruno/ (con su .env), docs/ y cualquier
+# archivo con secretos que aparezca despues.
+*
+!gradlew
+!gradle/
+!build.gradle
+!settings.gradle
+!src/
+
+# Estan dentro de src/ pero no se versionan y llevan credenciales reales.
+**/application-local.yaml
+**/application-prod.yaml

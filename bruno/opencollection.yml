@@ -1,0 +1,51 @@
+opencollection: 1.0.0
+
+info:
+  name: financeapp-bk
+
+request:
+  auth:
+    type: bearer
+    token: "{{accessToken}}"
+
+docs:
+  content: |
+    # financeapp-bk
+
+    Ninguna ruta es publica, y no todas se autentican igual. Desde FA-43 el API tiene dos cadenas:
+
+    - `auth/` y `system/` van con **HTTP Basic**, la credencial compartida de `BASIC_USERNAME` y
+      `BASIC_PASSWORD`. Las dos carpetas la declaran en su `folder.yml`.
+    - Todo lo demas va con **Bearer**, declarado aqui una sola vez; los requests usan
+      `auth: inherit`.
+
+    Los requests que prueban el caso sin credenciales omiten la clave `auth` a proposito, y los dos
+    que cruzan las credenciales (`Status con Bearer`, `Gasto mensual con Basic`) declaran la que no
+    corresponde: los dos tienen que dar 401.
+
+    El token lo produce `auth/login`, que guarda la variable `accessToken` de la corrida. Por eso
+    esa carpeta va primera: sin ella, todo lo demas responderia 401.
+
+    ## Ambientes
+
+    - `local` — `http://localhost:8080`, la app corriendo con el perfil `local`.
+    - `prod` — URL publica. Todavia no hay despliegue: `PROD_HOST` se define cuando lo haya.
+
+    Los secretos no se versionan. Copiar `.env.sample` a `.env` (ignorado por git) y llenar los
+    valores; los ambientes los leen con `{{process.env....}}`.
+
+    ## Convencion
+
+    Una carpeta por recurso del API. Cada etapa del proyecto agrega su carpeta y sus requests con
+    bloque `runtime.assertions` en el mismo ciclo TDD que los tests JUnit, y cierra con:
+
+        bru run . -r --env local
+
+    La coleccion no reemplaza a la suite de Gradle: la complementa contra un servidor real.
+  type: text/markdown
+bundled: false
+extensions:
+  bruno:
+    ignore:
+      - node_modules
+      - .git

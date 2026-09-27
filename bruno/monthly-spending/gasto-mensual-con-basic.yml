@@ -1,0 +1,36 @@
+info:
+  name: Gasto mensual con Basic
+  type: http
+  seq: 9
+
+http:
+  method: GET
+  url: "{{baseUrl}}/monthly-spending"
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Gasto mensual con la credencial compartida
+
+  La credencial del Basic abre el registro, el login y el status, y nada mas. Contra una ruta de la
+  API tiene que dar 401: si algun dia responde 200, la credencial compartida se convirtio en una
+  llave universal del API, que es justo lo que la separacion en dos cadenas evita.
+
+  Es la mitad del par; la otra es `system/Status con Bearer`.

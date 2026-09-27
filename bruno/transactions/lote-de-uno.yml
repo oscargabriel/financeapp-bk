@@ -1,0 +1,73 @@
+info:
+  name: Lote de uno
+  type: http
+  seq: 6
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idOrigen}}",
+          "categoryId": "{{idMercado}}",
+          "amount": 50000,
+          "description": "  Mercado de la semana  ",
+          "notes": "Pagado en efectivo",
+          "occurredAt": "2026-09-20T10:15:00-05:00"
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body
+      operator: isArray
+    - expression: res.body
+      operator: length
+      value: "1"
+  scripts:
+    - type: tests
+      code: |-
+        const t = res.getBody()[0];
+
+        test("devuelve el contrato completo del movimiento", function() {
+          expect(t).to.have.all.keys("id", "type", "accountId", "destinationAccountId", "categoryId",
+              "amount", "currencyCode", "description", "notes", "occurredAt");
+          expect(t.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+        });
+
+        test("guarda lo que se mando, con la descripcion recortada", function() {
+          expect(t.type).to.equal("EXPENSE");
+          expect(t.accountId).to.equal(bru.getVar("idOrigen"));
+          expect(t.categoryId).to.equal(bru.getVar("idMercado"));
+          expect(t.destinationAccountId).to.equal(null);
+          expect(t.amount).to.equal(50000);
+          expect(t.currencyCode).to.equal("COP");
+          expect(t.description).to.equal("Mercado de la semana");
+          expect(t.notes).to.equal("Pagado en efectivo");
+        });
+
+        test("devuelve el instante en UTC", function() {
+          expect(t.occurredAt).to.equal("2026-09-20T15:15:00Z");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # POST /api/transactions con un solo elemento
+
+  El cuerpo siempre es un arreglo, aunque traiga un movimiento. `amount` va positivo: el signo lo
+  da el tipo. `occurredAt` exige offset, y la respuesta devuelve el mismo instante en UTC.

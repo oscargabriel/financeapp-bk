@@ -1,0 +1,42 @@
+info:
+  name: Status
+  type: http
+  seq: 1
+
+http:
+  method: GET
+  url: "{{baseUrl}}/status"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: eq
+      value: UP
+    - expression: res.body.services.postgres
+      operator: eq
+      value: UP
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # GET /api/status
+
+  Estado del sistema y de cada dependencia. Responde 200 con todo arriba:
+
+      { "status": "UP", "services": { "postgres": "UP" } }
+
+  y 503 con el mismo cuerpo en DOWN cuando una dependencia no responde dentro de
+  `status.check-timeout` (2s por defecto).
+
+  El camino 503 no se modela como request aparte: no es reproducible sin bajar PostgreSQL. Ese
+  lo cubre de forma determinista `StatusIT` en la suite de Gradle, que en cambio nunca ve el 200
+  (apunta el R2DBC de test a un puerto sin escucha). Este request es la unica verificacion del
+  camino feliz, y por eso exige `postgres: UP` en vez de aceptar cualquier estado.

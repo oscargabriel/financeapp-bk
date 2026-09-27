@@ -1,0 +1,90 @@
+info:
+  name: Lote con elementos invalidos
+  type: http
+  seq: 9
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idOrigen}}",
+          "categoryId": "{{idMercado}}",
+          "amount": 10000,
+          "description": "Este si es valido",
+          "occurredAt": "2026-09-21T10:00:00-05:00"
+        },
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idOrigen}}",
+          "categoryId": "{{idMercado}}",
+          "amount": -5000,
+          "description": "Monto negativo",
+          "occurredAt": "2026-09-21T10:00:00-05:00"
+        },
+        {
+          "type": "TRANSFER",
+          "accountId": "{{idOrigen}}",
+          "destinationAccountId": "{{idDestino}}",
+          "categoryId": "{{idMercado}}",
+          "amount": 1000,
+          "description": "Transferencia con categoria",
+          "occurredAt": "2026-09-21T10:00:00-05:00"
+        },
+        {
+          "type": "INCOME",
+          "accountId": "{{idOrigen}}",
+          "categoryId": "{{idSalario}}",
+          "amount": 1000,
+          "currencyCode": "USD",
+          "description": "Moneda distinta de COP",
+          "occurredAt": "2026-09-21T10:00:00-05:00"
+        },
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idOrigen}}",
+          "categoryId": "{{idMercado}}",
+          "amount": 1000,
+          "description": "Fecha sin offset",
+          "occurredAt": "2026-09-21T10:00:00"
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+  scripts:
+    - type: tests
+      code: |-
+        test("lista todos los errores, cada uno con el indice del elemento", function() {
+          const campos = res.getBody().errors.map(function (e) { return e.field; });
+          expect(campos.sort()).to.eql(["[1].amount", "[2].categoryId", "[3].currencyCode", "[4].occurredAt"]);
+        });
+
+        test("todos son errores de validacion con descripcion", function() {
+          res.getBody().errors.forEach(function (e) {
+            expect(e.code).to.equal("VALIDATION_ERROR");
+            expect(e.description).to.be.a("string").and.not.be.empty;
+          });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Cuatro elementos invalidos y uno valido
+
+  Todo o nada: el elemento `[0]` es correcto y tampoco entra. La respuesta reporta los cuatro
+  errores juntos, con `field` indexado, para corregir el lote en una sola pasada.

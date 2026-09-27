@@ -1,0 +1,12 @@
+info:
+  name: System
+  type: folder
+  seq: 2
+
+# GET /api/status lo atiende la cadena del Basic: un monitor externo lo consulta con la credencial
+# compartida, sin necesitar una cuenta de usuario ni un token.
+request:
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"

@@ -1,0 +1,15 @@
+info:
+  name: Transactions
+  type: folder
+  seq: 6
+
+request:
+  auth: inherit
+
+docs: |
+  # Transacciones
+
+  Toda la carpeta corre con un usuario nuevo por corrida (`transacciones-<timestamp>@bruno.local`) y
+  su token en `tokenTransacciones`. Dar de alta movimientos cambia saldos, y los saldos del usuario
+  del escenario los verifican accounts/ y monthly-spending/: escribir sobre el obligaria a recargar
+  `test-data.sql` entre corridas. Recargarlo es lo que limpia a estos usuarios.

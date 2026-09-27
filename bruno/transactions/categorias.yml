@@ -1,0 +1,37 @@
+info:
+  name: Categorias del usuario
+  type: http
+  seq: 5
+
+http:
+  method: GET
+  url: "{{baseUrl}}/categories"
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const id = function (nombre) {
+          return res.getBody().find(function (c) { return c.name === nombre; }).id;
+        };
+        bru.setVar("idMercado", id("Mercado"));
+        bru.setVar("idSalario", id("Salario"));
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Ids de las categorias
+
+  `Mercado` es de gasto y `Salario` de ingreso: el alta valida que el alcance de la categoria
+  corresponda al tipo del movimiento.

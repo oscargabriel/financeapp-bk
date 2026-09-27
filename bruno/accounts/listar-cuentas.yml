@@ -1,0 +1,86 @@
+info:
+  name: Listar cuentas
+  type: http
+  seq: 1
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: isArray
+    - expression: res.body
+      operator: length
+      value: "4"
+  scripts:
+    - type: tests
+      code: |-
+        const porNombre = function (nombre) {
+          return res.getBody().find(function (c) { return c.name === nombre; });
+        };
+
+        test("cada cuenta trae el contrato completo y nada mas", function() {
+          res.getBody().forEach(function (c) {
+            expect(c.id).to.match(/^[0-9a-f-]{36}$/);
+            expect(c).to.have.all.keys("id", "name", "type", "currencyCode", "currentBalance",
+                "availableCredit", "isActive");
+            expect(c.isActive).to.equal(true);
+          });
+        });
+
+        test("ordena por nombre y deja fuera la desactivada y la borrada", function() {
+          const nombres = res.getBody().map(function (c) { return c.name; });
+          expect(nombres).to.deep.equal(["Ahorros USD", "Bancolombia", "Efectivo", "Visa"]);
+        });
+
+        test("la tarjeta trae su deuda como saldo negativo y el cupo que le queda", function() {
+          const visa = porNombre("Visa");
+          expect(visa.type).to.equal("CREDIT");
+          expect(visa.currentBalance).to.equal(-658000);
+          expect(visa.availableCredit).to.equal(4342000);
+        });
+
+        test("las cuentas que no son de credito no tienen cupo", function() {
+          ["Ahorros USD", "Bancolombia", "Efectivo"].forEach(function (nombre) {
+            expect(porNombre(nombre).availableCredit).to.equal(null);
+          });
+        });
+
+        test("saldo y moneda salen de la base, con los movimientos del escenario aplicados", function() {
+          expect(porNombre("Efectivo").currentBalance).to.equal(322500);
+          expect(porNombre("Bancolombia").currentBalance).to.equal(12375000);
+          expect(porNombre("Ahorros USD").currencyCode).to.equal("USD");
+          expect(porNombre("Ahorros USD").currentBalance).to.equal(1100);
+        });
+
+        bru.setVar("idsCuentasEscenario", JSON.stringify(res.getBody().map(function (c) { return c.id; })));
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # GET /api/accounts
+
+  Cuentas activas y no borradas del usuario del token, por nombre:
+
+      [{ "id": "...", "name": "Visa", "type": "CREDIT", "currencyCode": "COP",
+         "currentBalance": -658000.0000, "availableCredit": 4342000.0000, "isActive": true }]
+
+  `availableCredit` es `credit_limit + current_balance` en las `CREDIT` con limite, y `null` en el
+  resto. Un saldo negativo en una tarjeta es deuda.
+
+  El escenario de `docs/database/test-data.sql` deja 6 cuentas: las 4 que salen aqui, `Nequi`
+  (desactivada) y `Davivienda` (borrada). Los saldos son los que el trigger calcula con los
+  movimientos del escenario, que no dependen del mes en curso.
+
+  Guarda los ids en `idsCuentasEscenario` para que "Cuentas de un usuario nuevo" compruebe que otro
+  usuario no ve ninguna.

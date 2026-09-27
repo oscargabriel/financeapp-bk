@@ -1,0 +1,51 @@
+info:
+  name: Lote con cuenta ajena
+  type: http
+  seq: 10
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "20000000-0000-7000-8000-000000000001",
+          "categoryId": "{{idMercado}}",
+          "amount": 1000,
+          "description": "Gasto contra la cuenta de otro",
+          "occurredAt": "2026-09-21T10:00:00-05:00"
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: "[0].accountId"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # La cuenta existe, pero es de otro usuario
+
+  `20000000-0000-7000-8000-000000000001` es `Efectivo` del usuario de `docs/database/test-data.sql`.
+  El error es el mismo que el de una cuenta inexistente: no dice que la cuenta existe en otra parte.

@@ -1,0 +1,44 @@
+info:
+  name: Gasto mensual sin credenciales
+  type: http
+  seq: 8
+
+http:
+  method: GET
+  url: "{{baseUrl}}/monthly-spending"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+  scripts:
+    - type: tests
+      code: |-
+        test("el rechazo no cuenta por que fallo", function() {
+          expect(res.getHeader("www-authenticate")).to.equal("Bearer");
+          expect(JSON.stringify(res.getBody())).to.not.contain("Jwt");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Sin Authorization
+
+  La ausencia de `http.auth` rompe a proposito la herencia del Bearer de la coleccion. Esta ruta no
+  es publica; si empieza a responder 200, alguien la abrio sin quererlo.
+
+  El reto es `Bearer` y no `Basic`: esta ruta la atiende la cadena del JWT, y cada cadena anuncia su
+  propio esquema. Que el reto cambie aqui querria decir que el `securityMatcher` se corrio.
+
+  Lo que este 401 no cubre —quien pide el mes de otro— dejo de ser expresable en FA-15: la ruta ya
+  no lleva usuario, sale del token. No hay un 403 que probar porque no hay forma de pedir un
+  recurso ajeno; lo que queda es comprobar que cada token ve lo suyo, y eso lo hace
+  "Gasto mensual de un usuario sin datos".

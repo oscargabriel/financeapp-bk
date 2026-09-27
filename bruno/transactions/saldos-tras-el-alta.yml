@@ -1,0 +1,47 @@
+info:
+  name: Saldos tras el alta
+  type: http
+  seq: 8
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts"
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const saldo = function (nombre) {
+          return res.getBody().find(function (c) { return c.name === nombre; }).currentBalance;
+        };
+
+        test("el origen refleja gasto, ingreso, transferencia y gasto", function() {
+          // 1.000.000 - 50.000 + 200.000 - 100.000 - 30.000,5
+          expect(saldo("Efectivo")).to.equal(1019999.5);
+        });
+
+        test("el destino recibe la transferencia", function() {
+          expect(saldo("Ahorros")).to.equal(100000);
+        });
+
+        bru.setVar("saldoOrigen", String(saldo("Efectivo")));
+        bru.setVar("saldoDestino", String(saldo("Ahorros")));
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El trigger aplico cada movimiento
+
+  El saldo lo mueve `trg_transactions_sync_balance`, nunca la aplicacion. Guarda los saldos para
+  que "Saldos sin cambios" compruebe que los lotes rechazados no tocaron nada.

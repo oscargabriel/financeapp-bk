@@ -1,0 +1,35 @@
+info:
+  name: Status con Bearer
+  type: http
+  seq: 4
+
+http:
+  method: GET
+  url: "{{baseUrl}}/status"
+  auth:
+    type: bearer
+    token: "{{accessToken}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # GET /api/status con un token valido
+
+  El token que dejo `auth/login` es impecable y aun asi no entra: esta ruta la atiende la cadena
+  del Basic, que no monta el resource server. Que el Bearer sirva aqui querria decir que las dos
+  cadenas se solapan y que el `securityMatcher` de FA-43 dejo de separarlas.
+
+  Es la mitad del par; la otra es `monthly-spending/Gasto mensual con Basic`.

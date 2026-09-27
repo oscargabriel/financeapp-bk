@@ -1,0 +1,82 @@
+info:
+  name: Lote de varios
+  type: http
+  seq: 7
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "INCOME",
+          "accountId": "{{idOrigen}}",
+          "categoryId": "{{idSalario}}",
+          "amount": 200000,
+          "currencyCode": "COP",
+          "description": "Pago quincena",
+          "occurredAt": "2026-09-15T08:00:00-05:00"
+        },
+        {
+          "type": "TRANSFER",
+          "accountId": "{{idOrigen}}",
+          "destinationAccountId": "{{idDestino}}",
+          "amount": 100000,
+          "description": "Ahorro del mes",
+          "occurredAt": "2026-09-15T09:00:00-05:00"
+        },
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idOrigen}}",
+          "categoryId": "{{idMercado}}",
+          "amount": 30000.5,
+          "description": "Fruta",
+          "occurredAt": "2026-09-16T18:30:00-05:00"
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body
+      operator: length
+      value: "3"
+  scripts:
+    - type: tests
+      code: |-
+        const cuerpo = res.getBody();
+
+        test("devuelve los movimientos en el orden del lote", function() {
+          expect(cuerpo.map(function (t) { return t.description; }))
+              .to.deep.equal(["Pago quincena", "Ahorro del mes", "Fruta"]);
+        });
+
+        test("la transferencia lleva destino y no lleva categoria", function() {
+          expect(cuerpo[1].type).to.equal("TRANSFER");
+          expect(cuerpo[1].destinationAccountId).to.equal(bru.getVar("idDestino"));
+          expect(cuerpo[1].categoryId).to.equal(null);
+        });
+
+        test("cada movimiento tiene su propio id", function() {
+          const ids = cuerpo.map(function (t) { return t.id; });
+          expect(new Set(ids).size).to.equal(3);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un ingreso, una transferencia y un gasto
+
+  Una transferencia es una sola fila con `destinationAccountId` y sin categoria. El gasto lleva
+  decimales para comprobar que la escala de `NUMERIC(18,4)` pasa entera.

@@ -1,0 +1,47 @@
+info:
+  name: Lote de 501
+  type: http
+  seq: 13
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: "[]"
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: body
+  scripts:
+    - type: before-request
+      code: |-
+        // Elementos vacios a proposito: si el tope no cortara antes, la respuesta traeria cientos de
+        // errores por elemento en vez de uno solo sobre el lote.
+        const lote = [];
+        for (let i = 0; i < 501; i++) {
+          lote.push({});
+        }
+        req.setBody(lote);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un elemento por encima del tope
+
+  El tope de 500 se revisa antes que los elementos (memoria `contrato-alta-lote`).

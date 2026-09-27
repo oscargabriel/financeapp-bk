@@ -1,0 +1,44 @@
+info:
+  name: Crear cuenta con moneda inexistente
+  type: http
+  seq: 12
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Cuenta en moneda rara",
+        "type": "CASH",
+        "currencyCode": "XYZ"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: currencyCode
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Moneda fuera del catalogo
+
+  `XYZ` tiene el formato de un codigo ISO pero no esta en `finance.currencies`: el error sale de la
+  consulta al catalogo, no de la validacion de formato. La consulta filtra tambien `is_active`,
+  pero `seed.sql` no trae ninguna moneda inactiva, asi que ese camino solo lo cubre la suite.
