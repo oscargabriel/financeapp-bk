@@ -28,7 +28,10 @@ docs:
 
     ## Ambientes
 
-    - `local` — `http://localhost:8080`, la app corriendo con el perfil `local`.
+    - `local` — `http://localhost:8080`, la app corriendo en la maquina. Con el perfil `local` va
+      contra la base local; con `prod`, contra Neon, y entonces valen las mismas advertencias que
+      en `prod`: la base es la real y el usuario de `test-data.sql` no existe alla, asi que el
+      login necesita `--env-var` con una cuenta registrada en Neon.
     - `prod` — el servicio de Cloud Run, contra Neon. La base es la real: **no correr la coleccion
       entera** (`auth/` registra usuarios y `accounts/` y `transactions/` escriben), y los reportes
       esperan `test-data.sql`, que en Neon no existe. `system/` es de solo lectura.

@@ -3,7 +3,8 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 Backend de finanzas personales. Java 25 + Spring Boot 4.1.1 (WebFlux), R2DBC contra PostgreSQL 18,
-Gradle 9.7.1 con wrapper. Arquitectura hexagonal. Se construye por etapas.
+Gradle 9.7.1 con wrapper. Arquitectura hexagonal. Se construye por etapas. En producción corre en
+Cloud Run contra Neon (PostgreSQL 18 administrado).
 
 ## Comandos
 
@@ -12,10 +13,12 @@ Shell habitual: PowerShell 7. En Git Bash, `./gradlew` equivalente.
 ```powershell
 .\gradlew.bat build                 # compila, corre la suite y exige el umbral de cobertura
 .\gradlew.bat test                  # solo tests — no necesita Docker ni base
-.\gradlew.bat bootRun               # levanta la app (perfil local por defecto)
+$env:SPRING_PROFILES_ACTIVE = 'local'; .\gradlew.bat bootRun   # levanta la app; sin perfil no arranca
 
 .\gradlew.bat test --tests "*MonthlySpendingIT"                        # una clase
 .\gradlew.bat test --tests "*MonthlySpendingIT.devuelve401*"           # un método
+
+docker build -f deployment/Dockerfile -t financeapp-bk .   # la imagen de Cloud Run, desde la raíz
 ```
 
 **No hay checkstyle ni linter configurado** en `build.gradle`. La verificación es la suite más la
@@ -25,12 +28,16 @@ Verificación contra la app real, desde `bruno/` con la app levantada:
 
 ```powershell
 bru run . -r --env local
+bru run system -r --env local --env-var baseUrl=http://localhost:8081/api --env-var host=http://localhost:8081
 ```
+
+El entorno `local` apunta al 8080. Contra la app en otro puerto hay que sobrescribir **las dos**
+variables: los requests que prueban el base-path usan `host`, no `baseUrl`.
 
 Toda etapa cierra con las dos cosas en verde, nunca una sola. El request Bruno de un endpoint nuevo
 se escribe en el mismo ciclo TDD que los tests JUnit, antes del endpoint y fallando.
 
-Desde el 12-09-2026 `bru run` dejó de ser un complemento. La estrategia es de **dos capas** —JUnit
+`bru run` no es un complemento. La estrategia es de **dos capas** —JUnit
 con mocks, integración desde Bruno contra la app y la base reales—, así que el SQL de las vistas, el
 cálculo de las metas y el corte de mes por zona horaria **no los verifica nada más**. Una etapa que
 cierre solo con Gradle en verde no está verificada.
@@ -73,8 +80,8 @@ que exista una excepción que el handler global pueda ver, así que su cuerpo lo
 `UnauthenticatedEntryPoint`. Si cambias el formato de error, hay que tocar los dos. Ese 401 no dice
 nunca por qué falló la autenticación: el motivo va al log, y `WWW-Authenticate` sale como el esquema
 pelado —`Basic` o `Bearer` según la cadena, sin `realm`— porque el entry point de Spring publicaría
-ahí el detalle técnico como `error_description`. Desde FA-43 el esquema es un parámetro del
-constructor y `SecurityConfig` crea una instancia por cadena: la clase ya no es un `@Component`.
+ahí el detalle técnico como `error_description`. El esquema es un parámetro del constructor y
+`SecurityConfig` crea una instancia por cadena, por eso la clase no es un `@Component`.
 
 Los códigos viven en el enum `ErrorCodes`, en SCREAMING_SNAKE_CASE describiendo la categoría, no el
 mensaje.
@@ -97,14 +104,34 @@ pasen por `boundedElastic`.
 
 ### Configuración y arranque
 
-- `application.yaml` lee los secretos como variables de entorno **sin default**: un despliegue sin
-  `DB_USERNAME` / `DB_PASSWORD` / `JWT_SECRET` / `BASIC_USERNAME` / `BASIC_PASSWORD` falla al
-  arrancar en vez de levantar con credenciales implícitas. `JWT_SECRET` además tiene que medir 32
-  bytes o más: `JwtConfig` lo comprueba al construir la clave, porque HS256 no firma con menos y el
-  fallo aparecería en el primer login en vez de en el arranque.
-- `spring.profiles.active` vale `${SPRING_PROFILES_ACTIVE:local}`: sin la variable se arranca en
-  local, así que **un despliegue tiene que definir `SPRING_PROFILES_ACTIVE=prod`**. No dejar esa
-  clave vacía: Boot 4 rechaza `profiles` vacía y el contexto ni se crea.
+- **`application.yaml` es la configuración de Cloud Run**: la imagen solo lleva ese archivo y el
+  servicio completa el resto con variables y Secret Manager. `application-local.yaml` sobrescribe
+  lo que difiere en desarrollo. `application-prod.yaml` tampoco se versiona y **Cloud Run nunca lo
+  lee**: es una copia de `application-local.yaml` que solo cambia la conexión R2DBC a Neon (y el
+  pool, con el idle por debajo de la suspensión), para levantar la app en local contra la base
+  real con `SPRING_PROFILES_ACTIVE=prod`. Una clave nueva en el local hay que copiarla también
+  ahí. Lo que el servicio necesite va en
+  `application.yaml`. Ahí están el puerto (`PORT`, que inyecta Cloud Run, antes que `SERVER_PORT`),
+  `sslMode=require` porque Neon exige TLS, y un pool dimensionado para Neon: 3 instancias × 10
+  frente a sus 901 conexiones, e idle por debajo de los 5 min en los que Neon suspende. Si sube el
+  máximo de instancias, rehacer esa cuenta.
+- Lee sin **default** los secretos y `CORS_ALLOWED_ORIGINS`: un despliegue sin `DB_USERNAME` /
+  `DB_PASSWORD` / `JWT_SECRET` / `BASIC_USERNAME` / `BASIC_PASSWORD` / `CORS_ALLOWED_ORIGINS` falla
+  al arrancar en vez de levantar con valores implícitos. Ojo con `DB_USERNAME` y `DB_PASSWORD`: el
+  binder de Boot deja pasar el placeholder sin resolver como texto literal, así que no fallan al
+  enlazar sino en `DatabaseStartupCheck`, cuando la base rechaza la autenticación. `JWT_SECRET`
+  además tiene que medir 32 bytes o más: `JwtConfig` lo comprueba al construir la clave, porque
+  HS256 no firma con menos y el fallo aparecería en el primer login en vez de en el arranque.
+- **El esquema `finance` lo fija `R2dbcSearchPathConfig`, no la URL.** Neon ignora `?schema=` y el
+  parámetro de arranque `search_path`; solo respeta `options=-c search_path=...`. Como el driver no
+  puede expresar `-c k=v` en la URL, un `ConnectionFactoryOptionsBuilderCustomizer` lo manda como
+  opción. Ese bean **reemplaza el mapa de opciones completo**: cualquier otra opción de arranque de
+  Postgres va ahí, no en la URL, o se pierde. El porqué está en `docs/database/modelo-datos.md`.
+- `spring.profiles.active` vale `${SPRING_PROFILES_ACTIVE}`, **sin default**: sin la variable la
+  app no arranca, porque Boot rechaza el placeholder sin resolver como nombre de perfil. En local
+  (bootRun, IDE, `java -jar`) hay que definir `SPRING_PROFILES_ACTIVE=local`. La imagen de
+  `deployment/Dockerfile` ya trae `prod`, y `CloudRunConfigTest` comprueba que la clave no tenga
+  default.
 - `DatabaseStartupCheck` hace `SELECT 1` antes de que Netty abra el puerto y aborta el contexto si
   la base no responde. Apagado en la suite (`startup.db-check.enabled: false`), así que ni Gradle
   ni Bruno lo ejercitan: al tocarlo, o tocar `PostgresHealthCheckAdapter` o las propiedades
@@ -112,7 +139,7 @@ pasen por `boundedElastic`.
   [`docs/verificaciones-manuales.md`](docs/verificaciones-manuales.md), que cubre los dos caminos.
 - El bean `Clock` (`ClockConfig`, zona `app.timezone`) existe para que los casos de uso que dependen
   de «hoy» se puedan probar con fecha fija. Inyéctalo en vez de llamar a `YearMonth.now()`.
-- **Dos cadenas y ninguna ruta pública**: desde FA-43 `SecurityConfig` expone dos
+- **Dos cadenas y ninguna ruta pública**: `SecurityConfig` expone dos
   `SecurityWebFilterChain`. La de `@Order(0)` lleva un `securityMatcher` con `POST /auth/register`,
   `POST /auth/login` y `GET /status`, y las autentica con `httpBasic` contra el único usuario del
   `MapReactiveUserDetailsService`; la de `@Order(1)` recoge todo lo demás con
@@ -137,7 +164,7 @@ cuando cambien:
 ```yaml
 spring:
   r2dbc:
-    url: r2dbc:postgresql://localhost:5432/financeapp?schema=finance   # el esquema no es public
+    url: r2dbc:postgresql://localhost:5432/financeapp   # sin TLS; el esquema lo pone R2dbcSearchPathConfig
     username: postgres
     password: ...
   security:
@@ -147,6 +174,8 @@ spring:
     basic:
       username: ...      # credencial compartida de /auth/* y /status
       password: ...      # la misma que BASIC_USERNAME/BASIC_PASSWORD de bruno/.env
+cors:
+  allowed-origins: "*"   # el base no trae default: sin esta clave local no arranca
 ```
 
 ## Tests
@@ -163,8 +192,12 @@ corre todos, y ninguno necesita base ni Docker.
 `src/test/resources/application.yaml` **reemplaza por completo** al de `main` en el classpath de
 test. Toda propiedad nueva que un bean exija con `@Value` hay que replicarla ahí o el contexto
 revienta con `PlaceholderResolutionException`. Su R2DBC apunta a `localhost:65535` a propósito, y
-desde que salió Testcontainers **nada sobrescribe esa URL**: cualquier test que intente hablar con
+**nada sobrescribe esa URL**: cualquier test que intente hablar con
 la base falla por diseño. Si necesitas ejercitar una consulta, el lugar es `bruno/`.
+
+Por lo mismo, ningún test ve el `application.yaml` de `main` por el classpath. `CloudRunConfigTest`
+lo lee del disco y lo resuelve contra variables simuladas del servicio: es el lugar para comprobar
+cualquier cambio en la configuración que va a Cloud Run.
 
 ### Cobertura
 
@@ -182,9 +215,9 @@ Quedan fuera del cálculo dos patrones, listados en `build.gradle` con el porqu�
 90 y el 100 %, y excluirlos, como suele hacerse por inercia, solo bajaría el número y escondería
 el dato.
 
-No leas el porcentaje de rama como si fuera el de línea: hoy está en 82 % frente al 94 % de línea, y
-lo que falta es casi todo `WebExceptionHandler`. No hay umbral de rama a propósito, hasta que esa
-clase tenga tests.
+No leas el porcentaje de rama como si fuera el de línea: va por debajo, y `WebExceptionHandler` es
+la clase que más ramas deja sin cubrir. No hay umbral de rama a propósito, hasta que esa clase
+tenga tests.
 
 ## Base de datos
 
@@ -202,6 +235,25 @@ suite: rompe `bru run`**, y solo si te acuerdas de correrlo. El escenario de la 
 conserva porque sus fechas absolutas y su segundo usuario son la base del escenario que falta
 montar en Bruno.
 
+**Producción es Neon, y ahí `test-data.sql` no se carga nunca.** Solo van `schema.sql`, `seed.sql`
+y los `update/`, aplicados a mano con psql, igual que en local.
+
+## Despliegue
+
+Rama de trabajo `dev`; **`main` es producción**. Cloud Run tiene un disparador de despliegue
+continuo sobre `main` que construye con `deployment/Dockerfile`, sin `cloudbuild.yaml`: un merge a
+`main` despliega.
+
+- El contexto del build es la **raíz del repo**, no `deployment/`. El `.dockerignore` de la raíz es
+  una **lista de lo permitido** (`gradlew`, `gradle/`, `build.gradle`, `settings.gradle`, `src/`),
+  que además excluye los dos yaml sin versionar. Un archivo nuevo que el build necesite fuera de
+  esas rutas hay que agregarlo ahí, o el `COPY` falla.
+- La etapa de compilación corre `./gradlew build`, no solo `bootJar`: un test rojo o la cobertura
+  por debajo del umbral no producen imagen, y nada se despliega.
+- La imagen usa el Java de Microsoft (`mcr.microsoft.com/openjdk`): compila en `jdk:25-ubuntu` y
+  corre en `jdk:25-distroless`. Es una decisión, no la opción por defecto: no cambiarla por Temurin
+  u otra por tamaño. La distroless **no tiene shell**. El usuario es el `app` que ya trae la imagen,
+  y para inspeccionarla se usa `docker export`, no `docker run --entrypoint sh`.
 ## Dónde viven las tareas
 
 En Notion, no en este repo ni en la memoria. El servidor MCP `notion` está declarado en `.mcp.json`
