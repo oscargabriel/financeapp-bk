@@ -3,12 +3,14 @@ package com.oscargabriel.financeapp.infrastructure.adapter.in.web;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import org.springframework.boot.autoconfigure.web.WebProperties;
 import org.springframework.boot.webflux.autoconfigure.error.AbstractErrorWebExceptionHandler;
 import org.springframework.boot.webflux.error.ErrorAttributes;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.MethodParameter;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -17,7 +19,11 @@ import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerCodecConfigurer;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.FieldError;
+import org.springframework.validation.method.ParameterErrors;
+import org.springframework.validation.method.ParameterValidationResult;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.support.WebExchangeBindException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.server.RequestPredicates;
 import org.springframework.web.reactive.function.server.RouterFunction;
@@ -89,6 +95,11 @@ public class WebExceptionHandler extends AbstractErrorWebExceptionHandler {
                 yield respond(new ErrorResponse(errors), HttpStatus.BAD_REQUEST);
             }
 
+            // Validacion de metodo: constraints sobre el parametro, como el lote de movimientos.
+            // Debe ir antes de ResponseStatusException, que es su supertipo.
+            case HandlerMethodValidationException hmve ->
+                    respond(new ErrorResponse(detallesDe(hmve)), HttpStatus.BAD_REQUEST);
+
             case ServerWebInputException swie -> {
                 String description = swie.getReason() != null && !swie.getReason().isBlank()
                         ? swie.getReason()
@@ -133,6 +144,46 @@ public class WebExceptionHandler extends AbstractErrorWebExceptionHandler {
                         "Ocurrio un error inesperado", "server"), HttpStatus.INTERNAL_SERVER_ERROR);
             }
         };
+    }
+
+    /**
+     * Si falla el parametro completo, como el tamano del lote, se reporta solo eso: los errores de sus
+     * elementos serian cientos de entradas por un unico problema, y el lote se rechaza igual.
+     */
+    private static List<ErrorDetail> detallesDe(HandlerMethodValidationException ex) {
+        List<ParameterValidationResult> resultados = ex.getParameterValidationResults();
+        List<ParameterValidationResult> completos = resultados.stream()
+                .filter(resultado -> resultado.getContainerIndex() == null)
+                .toList();
+        return (completos.isEmpty() ? resultados : completos).stream()
+                .flatMap(WebExceptionHandler::detallesDe)
+                .toList();
+    }
+
+    /**
+     * Un elemento de una lista lleva su indice: los campos del record salen como [3].amount y el
+     * elemento entero, si es nulo, como [3]. Lo que se valida sobre el parametro completo sale como
+     * body si es el cuerpo, o con el nombre del parametro.
+     */
+    private static Stream<ErrorDetail> detallesDe(ParameterValidationResult resultado) {
+        Integer indice = resultado.getContainerIndex();
+        String elemento = indice == null ? null : "[" + indice + "]";
+        if (resultado instanceof ParameterErrors errores) {
+            return errores.getAllErrors().stream().map(error -> validacion(error.getDefaultMessage(),
+                    error instanceof FieldError fe ? prefijo(elemento) + fe.getField() : elemento));
+        }
+        MethodParameter parametro = resultado.getMethodParameter();
+        String campo = elemento != null ? elemento
+                : parametro.hasParameterAnnotation(RequestBody.class) ? "body" : parametro.getParameterName();
+        return resultado.getResolvableErrors().stream().map(error -> validacion(error.getDefaultMessage(), campo));
+    }
+
+    private static String prefijo(String elemento) {
+        return elemento == null ? "" : elemento + ".";
+    }
+
+    private static ErrorDetail validacion(String description, String field) {
+        return ErrorDetail.of(ErrorCodes.VALIDATION_ERROR.getCode(), description, field);
     }
 
     private static ErrorResponse single(ErrorCodes code, String description, String field) {

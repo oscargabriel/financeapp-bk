@@ -5,7 +5,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -136,37 +135,6 @@ class RegisterUserUseCaseTest {
                         .containsExactly("baseCurrencyCode"));
 
         verify(usuarios, never()).createWithDefaultCategories(any());
-    }
-
-    @Test
-    void reportaTodosLosCamposInvalidosEnUnaSolaRespuesta() {
-        StepVerifier.create(useCase().register(new RegistrationCommand(
-                        "no-es-un-email", "corta", "  ", null, "US", "Marte/Olympus")))
-                .verifyErrorSatisfies(error -> {
-                    assertThat(((BadRequestException) error).getHttpStatus().value()).isEqualTo(400);
-                    assertThat(campos(error)).containsExactlyInAnyOrder(
-                            "email", "password", "firstName", "baseCurrencyCode", "timezone");
-                });
-    }
-
-    /** Sin consultar nada: una validacion de formato no justifica ir a la base. */
-    @Test
-    void noTocaLaBaseCuandoElPayloadNiSiquieraEsValido() {
-        StepVerifier.create(useCase().register(conEmail("no-es-un-email")))
-                .verifyError(BadRequestException.class);
-
-        verifyNoInteractions(usuarios, monedas, hasher);
-    }
-
-    /**
-     * BCrypt trunca en silencio a partir de 72 bytes: sin el tope, dos claves que compartan el
-     * prefijo entrarian como la misma.
-     */
-    @Test
-    void rechazaLaClaveQueSuperaElLimiteDeBcrypt() {
-        StepVerifier.create(useCase().register(new RegistrationCommand(
-                        UserMother.EMAIL, "a".repeat(73), "Ana", null, null, null)))
-                .verifyErrorSatisfies(error -> assertThat(campos(error)).containsExactly("password"));
     }
 
     private void altaPosible() {

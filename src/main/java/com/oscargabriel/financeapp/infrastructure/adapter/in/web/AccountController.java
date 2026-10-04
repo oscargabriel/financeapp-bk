@@ -1,5 +1,6 @@
 package com.oscargabriel.financeapp.infrastructure.adapter.in.web;
 
+import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -42,7 +43,7 @@ public class AccountController {
     @ResponseStatus(HttpStatus.CREATED)
     public Mono<AccountResponse> create(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestBody CreateAccountRequest request) {
+            @Valid @RequestBody CreateAccountRequest request) {
         return Mono.defer(() -> createAccount.create(UsuarioDelToken.de(jwt), request.toCommand()))
                 .map(AccountResponse::from);
     }

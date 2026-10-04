@@ -107,6 +107,19 @@ Dos patrones que se repiten y conviene imitar:
 - **La validación se lanza dentro de un `Flux.defer`**, para que un rango inválido salga como señal
   de error del Flux y no como excepción al ensamblar la cadena.
 
+**Dónde va cada validación de un cuerpo** (FA-55). El formato y las reglas cruzadas que se deciden
+mirando solo el cuerpo van como anotaciones en el **record de request** de `adapter/in/web/dto/`:
+Bean Validation sobre el componente, o una constraint de clase si la regla cruza campos
+(`@CamposDeCredito`, `@ReglasDeTransferencia`), con cada error sobre su propio campo. Las constraints
+propias viven en `dto/validation/`, y las de formato aceptan vacío para que un campo vacío dé solo el
+error de `@NotBlank`. El controlador recibe `@Valid @RequestBody`. Lo que necesita la base (que la
+moneda exista, el correo esté libre, la cuenta o la categoría sean del usuario) y la normalización
+(`trim`, `toLowerCase`) se quedan en el caso de uso; los Command no se validan. Una lista como cuerpo
+lleva las constraints en el parámetro (`@Size`, `List<@NotNull @Valid …>`), lo que activa la
+validación de método de Spring: sus errores llegan como `HandlerMethodValidationException`, que el
+handler traduce con el índice (`[3].amount`). Los path y query params siguen el primer patrón de
+arriba, no este. El orden de los errores no está garantizado: los tests comparan por contenido.
+
 ### Trazabilidad
 
 `LoggingFilter` mete un `requestId` en el Reactor Context; `ReactorMdcHook` lo copia al MDC de SLF4J

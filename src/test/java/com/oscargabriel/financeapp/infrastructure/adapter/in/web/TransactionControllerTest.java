@@ -52,7 +52,7 @@ class TransactionControllerTest {
               "description": "Mercado", "notes": "Pagado en efectivo", "occurredAt": "2026-09-20T10:15:00-05:00"},
              {"type": "TRANSFER", "accountId": "30000000-0000-7000-8000-000000000001",
               "destinationAccountId": "30000000-0000-7000-8000-000000000002", "amount": 100000,
-              "destinationAmount": 1, "currencyCode": "COP", "description": "Ahorro",
+              "currencyCode": "COP", "description": "Ahorro",
               "occurredAt": "2026-09-20T11:00:00-05:00"}]
             """;
 
@@ -126,14 +126,102 @@ class TransactionControllerTest {
                         "Mercado", "Pagado en efectivo", "2026-09-20T10:15:00-05:00"),
                 new CreateTransactionCommand("TRANSFER", "30000000-0000-7000-8000-000000000001",
                         "30000000-0000-7000-8000-000000000002", null, new BigDecimal("100000"),
-                        BigDecimal.ONE, "COP", "Ahorro", null, "2026-09-20T11:00:00-05:00"));
+                        null, "COP", "Ahorro", null, "2026-09-20T11:00:00-05:00"));
     }
 
+    /** Las reglas de cada elemento viven en el record: el lote invalido no llega al caso de uso. */
+    @Test
+    void devuelve400ConLosErroresDeCadaElementoIndexadosSinLlamarAlCasoDeUso() {
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        [{"type": "EXPENSE", "accountId": "30000000-0000-7000-8000-000000000001",
+                          "categoryId": "40000000-0000-7000-8000-000000000001", "amount": 50000,
+                          "description": "Mercado", "occurredAt": "2026-09-20T10:15:00-05:00"},
+                         {"type": "TRANSFER", "accountId": "30000000-0000-7000-8000-000000000001",
+                          "amount": -5, "currencyCode": "USD", "description": "Ahorro",
+                          "occurredAt": "2026-09-20T11:00:00-05:00"}]
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors.length()").isEqualTo(3)
+                .jsonPath("$.errors[?(@.field == '[1].amount')].description")
+                .isEqualTo("El monto debe ser mayor que cero: el signo lo da el tipo")
+                .jsonPath("$.errors[?(@.field == '[1].currencyCode')].description")
+                .isEqualTo("Por ahora solo se admiten movimientos en COP")
+                .jsonPath("$.errors[?(@.field == '[1].destinationAccountId')].description")
+                .isEqualTo("La cuenta destino es obligatoria")
+                .jsonPath("$.errors[?(@.code != 'VALIDATION_ERROR')]").isEmpty();
+
+        verifyNoInteractions(createTransactions);
+    }
+
+    @Test
+    void unElementoNuloEsUnErrorDeEseIndice() {
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        [{"type": "EXPENSE", "accountId": "30000000-0000-7000-8000-000000000001",
+                          "categoryId": "40000000-0000-7000-8000-000000000001", "amount": 50000,
+                          "description": "Mercado", "occurredAt": "2026-09-20T10:15:00-05:00"},
+                         null]
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors.length()").isEqualTo(1)
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
+                .jsonPath("$.errors[0].description").isEqualTo("El elemento no puede ser nulo")
+                .jsonPath("$.errors[0].field").isEqualTo("[1]");
+
+        verifyNoInteractions(createTransactions);
+    }
+
+    @Test
+    void rechazaUnLoteVacio() {
+        rechazaElTamano("[]");
+    }
+
+    @Test
+    void rechazaUnLoteDeMasDeQuinientos() {
+        String elemento = """
+                {"type": "EXPENSE", "accountId": "30000000-0000-7000-8000-000000000001",
+                 "categoryId": "40000000-0000-7000-8000-000000000001", "amount": 1,
+                 "description": "x", "occurredAt": "2026-09-20T10:15:00-05:00"}""";
+        rechazaElTamano("[" + String.join(",", java.util.Collections.nCopies(501, elemento)) + "]");
+    }
+
+    /**
+     * Con el tamano fuera del tope el lote se rechaza entero: reportar ademas los errores de 501
+     * elementos devolveria miles de entradas por un unico problema.
+     */
+    @Test
+    void elTamanoInvalidoTapaLosErroresDeLosElementos() {
+        rechazaElTamano("[" + String.join(",", java.util.Collections.nCopies(501, "{}")) + "]");
+    }
+
+    private void rechazaElTamano(String lote) {
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(lote)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors.length()").isEqualTo(1)
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
+                .jsonPath("$.errors[0].description").isEqualTo("El lote debe tener entre 1 y 500 movimientos")
+                .jsonPath("$.errors[0].field").isEqualTo("body");
+
+        verifyNoInteractions(createTransactions);
+    }
+
+    /** Que las cuentas y categorias existan y sean del usuario lo sigue reportando el caso de uso. */
     @Test
     void devuelveLosErroresIndexadosDelCasoDeUso() {
         when(createTransactions.create(eq(TransactionMother.USER_ID), anyList()))
                 .thenReturn(Flux.error(new BadRequestException(HttpStatus.BAD_REQUEST,
-                        ErrorCodes.VALIDATION_ERROR, "El monto debe ser mayor que cero", "[1].amount")));
+                        ErrorCodes.VALIDATION_ERROR, "La cuenta no existe", "[1].accountId")));
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -142,7 +230,7 @@ class TransactionControllerTest {
                 .expectStatus().isBadRequest()
                 .expectBody()
                 .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
-                .jsonPath("$.errors[0].field").isEqualTo("[1].amount");
+                .jsonPath("$.errors[0].field").isEqualTo("[1].accountId");
     }
 
     /**

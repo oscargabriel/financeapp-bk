@@ -213,7 +213,7 @@ class AccountControllerTest {
                 .bodyValue("""
                         {"name": "Mastercard", "type": "CREDIT", "currencyCode": "COP",
                          "initialBalance": -200000, "creditLimit": 3000000, "statementDay": 20,
-                         "paymentDueDay": 5, "currentBalance": 1}
+                         "paymentDueDay": 5}
                         """)
                 .exchange()
                 .expectStatus().isCreated();
@@ -221,14 +221,37 @@ class AccountControllerTest {
         ArgumentCaptor<CreateAccountCommand> comando = ArgumentCaptor.forClass(CreateAccountCommand.class);
         verify(createAccount).create(eq(AccountMother.USER_ID), comando.capture());
         assertThat(comando.getValue()).isEqualTo(new CreateAccountCommand("Mastercard", "CREDIT", "COP",
-                new BigDecimal("-200000"), new BigDecimal("3000000"), 20, 5, BigDecimal.ONE));
+                new BigDecimal("-200000"), new BigDecimal("3000000"), 20, 5, null));
     }
 
+    /** Las reglas viven en el record: un cuerpo invalido no llega al caso de uso. */
+    @Test
+    void devuelve400ConLosCamposInvalidosSinLlamarAlCasoDeUso() {
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name": "Debito", "type": "DEBIT", "currencyCode": "COP",
+                         "creditLimit": 1000, "currentBalance": 1}
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors.length()").isEqualTo(2)
+                .jsonPath("$.errors[?(@.field == 'creditLimit')].description")
+                .isEqualTo("Solo una cuenta CREDIT tiene cupo")
+                .jsonPath("$.errors[?(@.field == 'currentBalance')].description")
+                .isEqualTo("El saldo vigente lo calcula el sistema; envia initialBalance")
+                .jsonPath("$.errors[?(@.code != 'VALIDATION_ERROR')]").isEmpty();
+
+        verifyNoInteractions(createAccount);
+    }
+
+    /** Lo que necesita la base, como que la moneda este activa, lo sigue reportando el caso de uso. */
     @Test
     void devuelveElErrorDeValidacionDelCasoDeUso() {
         when(createAccount.create(eq(AccountMother.USER_ID), any()))
-                .thenReturn(Mono.error(new BadRequestException(HttpStatus.BAD_REQUEST,
-                        ErrorCodes.VALIDATION_ERROR, "Solo una cuenta CREDIT tiene cupo", "creditLimit")));
+                .thenReturn(Mono.error(new BadRequestException(HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR,
+                        "La moneda no existe en el catalogo o no esta activa", "currencyCode")));
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -237,7 +260,7 @@ class AccountControllerTest {
                 .expectStatus().isBadRequest()
                 .expectBody()
                 .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
-                .jsonPath("$.errors[0].field").isEqualTo("creditLimit");
+                .jsonPath("$.errors[0].field").isEqualTo("currencyCode");
     }
 
     @Test

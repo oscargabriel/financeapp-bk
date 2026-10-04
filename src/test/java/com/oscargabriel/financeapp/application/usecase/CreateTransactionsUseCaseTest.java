@@ -9,11 +9,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -166,47 +164,15 @@ class CreateTransactionsUseCaseTest {
                 .verifyComplete();
     }
 
-    static Stream<Arguments> lotesFueraDeTamano() {
-        List<CreateTransactionCommand> quinientosUno = new ArrayList<>(
-                Collections.nCopies(501, TransactionMother.unGasto().type(null).build()));
-        return Stream.of(
-                Arguments.of("vacio", List.of()),
-                Arguments.of("nulo", null),
-                Arguments.of("de 501", quinientosUno));
-    }
-
-    @ParameterizedTest(name = "lote {0}")
-    @MethodSource("lotesFueraDeTamano")
-    void rechazaElTamanoDelLoteAntesDeMirarLosElementos(String caso, List<CreateTransactionCommand> lote) {
-        StepVerifier.create(useCase().create(TransactionMother.USER_ID, lote))
-                .expectErrorSatisfies(error -> {
-                    BadRequestException bre = (BadRequestException) error;
-                    assertThat(bre.getHttpStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
-                    assertThat(bre.getErrorResponse().getErrors())
-                            .extracting(ErrorDetail::getField)
-                            .containsExactly("body");
-                })
-                .verify();
-
-        verifyNoInteractions(cuentas, categorias, repositorio);
-    }
-
-    static Stream<Arguments> unCampoInvalido() {
+    /**
+     * Lo que se decide con las cuentas y categorias del usuario. El formato de cada elemento lo prueba
+     * CreateTransactionRequestTest, y el tamano del lote y los elementos nulos TransactionControllerTest.
+     */
+    static Stream<Arguments> unaReferenciaInvalida() {
         String ajena = TransactionMother.AJENA_ID.toString();
         String mercado = TransactionMother.MERCADO_ID.toString();
         String salario = TransactionMother.SALARIO_ID.toString();
-        String origen = TransactionMother.ORIGEN_ID.toString();
         return Stream.of(
-                Arguments.of("sin tipo", TransactionMother.unGasto().type(null), "type"),
-                Arguments.of("tipo desconocido", TransactionMother.unGasto().type("REFUND"), "type"),
-                Arguments.of("sin monto", TransactionMother.unGasto().amount(null), "amount"),
-                Arguments.of("monto en cero", TransactionMother.unGasto().amount(BigDecimal.ZERO), "amount"),
-                Arguments.of("monto negativo", TransactionMother.unGasto().amount(new BigDecimal("-1")), "amount"),
-                Arguments.of("monto con cinco decimales",
-                        TransactionMother.unGasto().amount(new BigDecimal("1.00001")), "amount"),
-                Arguments.of("monto que desborda NUMERIC(18,4)",
-                        TransactionMother.unGasto().amount(new BigDecimal("100000000000000")), "amount"),
-                Arguments.of("sin cuenta", TransactionMother.unGasto().accountId(null), "accountId"),
                 Arguments.of("cuenta que no es UUID", TransactionMother.unGasto().accountId("abc"), "accountId"),
                 Arguments.of("cuenta ajena", TransactionMother.unGasto().accountId(ajena), "accountId"),
                 Arguments.of("cuenta desactivada",
@@ -214,46 +180,24 @@ class CreateTransactionsUseCaseTest {
                         "accountId"),
                 Arguments.of("cuenta en USD",
                         TransactionMother.unGasto().accountId(TransactionMother.USD_ID.toString()), "accountId"),
-                Arguments.of("gasto sin categoria", TransactionMother.unGasto().categoryId(null), "categoryId"),
                 Arguments.of("categoria que no es UUID", TransactionMother.unGasto().categoryId("x"), "categoryId"),
                 Arguments.of("categoria ajena", TransactionMother.unGasto().categoryId(ajena), "categoryId"),
                 Arguments.of("gasto con categoria de ingreso",
                         TransactionMother.unGasto().categoryId(salario), "categoryId"),
                 Arguments.of("ingreso con categoria de gasto",
                         TransactionMother.unIngreso().categoryId(mercado), "categoryId"),
-                Arguments.of("gasto con cuenta destino",
-                        TransactionMother.unGasto().destinationAccountId(TransactionMother.DESTINO_ID.toString()),
-                        "destinationAccountId"),
-                Arguments.of("transferencia sin destino",
-                        TransactionMother.unaTransferencia().destinationAccountId(null), "destinationAccountId"),
-                Arguments.of("transferencia a la misma cuenta",
-                        TransactionMother.unaTransferencia().destinationAccountId(origen), "destinationAccountId"),
                 Arguments.of("transferencia a cuenta ajena",
                         TransactionMother.unaTransferencia().destinationAccountId(ajena), "destinationAccountId"),
                 Arguments.of("transferencia a cuenta en USD",
                         TransactionMother.unaTransferencia()
                                 .destinationAccountId(TransactionMother.USD_ID.toString()),
-                        "destinationAccountId"),
-                Arguments.of("transferencia con categoria",
-                        TransactionMother.unaTransferencia().categoryId(mercado), "categoryId"),
-                Arguments.of("monto de destino",
-                        TransactionMother.unaTransferencia().destinationAmount(BigDecimal.TEN), "destinationAmount"),
-                Arguments.of("moneda distinta de COP", TransactionMother.unGasto().currencyCode("USD"),
-                        "currencyCode"),
-                Arguments.of("sin descripcion", TransactionMother.unGasto().description(null), "description"),
-                Arguments.of("descripcion en blanco", TransactionMother.unGasto().description("  "), "description"),
-                Arguments.of("descripcion de 256",
-                        TransactionMother.unGasto().description("x".repeat(256)), "description"),
-                Arguments.of("notas de 1001", TransactionMother.unGasto().notes("x".repeat(1001)), "notes"),
-                Arguments.of("sin fecha", TransactionMother.unGasto().occurredAt(null), "occurredAt"),
-                Arguments.of("fecha sin offset",
-                        TransactionMother.unGasto().occurredAt("2026-09-20T10:15:00"), "occurredAt"),
-                Arguments.of("fecha que no es fecha", TransactionMother.unGasto().occurredAt("ayer"), "occurredAt"));
+                        "destinationAccountId"));
     }
 
     @ParameterizedTest(name = "{0}")
-    @MethodSource("unCampoInvalido")
-    void rechazaElCampoConSuIndiceSinGuardarNada(String caso, TransactionMother.Elemento elemento, String campo) {
+    @MethodSource("unaReferenciaInvalida")
+    void rechazaLaReferenciaConSuIndiceSinGuardarNada(String caso, TransactionMother.Elemento elemento,
+            String campo) {
         List<CreateTransactionCommand> lote = List.of(TransactionMother.unIngreso().build(), elemento.build());
 
         StepVerifier.create(useCase().create(TransactionMother.USER_ID, lote))
@@ -273,58 +217,30 @@ class CreateTransactionsUseCaseTest {
     }
 
     @Test
-    void aceptaNotasDeMilCaracteres() {
-        StepVerifier.create(useCase().create(TransactionMother.USER_ID,
-                        List.of(TransactionMother.unGasto().notes("x".repeat(1000)).build())))
-                .expectNextCount(1)
-                .verifyComplete();
-    }
-
-    @Test
     void reportaTodosLosErroresDeTodosLosElementosJuntos() {
         List<CreateTransactionCommand> lote = List.of(
                 TransactionMother.unGasto().build(),
-                TransactionMother.unGasto().amount(new BigDecimal("-5")).build(),
-                TransactionMother.unaTransferencia().categoryId(TransactionMother.MERCADO_ID.toString()).build(),
-                TransactionMother.unIngreso().currencyCode("USD").build(),
-                TransactionMother.unGasto().occurredAt("2026-09-21T10:00:00").description(" ").build());
+                TransactionMother.unGasto().accountId(TransactionMother.AJENA_ID.toString()).build(),
+                TransactionMother.unaTransferencia().destinationAccountId(TransactionMother.USD_ID.toString()).build(),
+                TransactionMother.unIngreso().categoryId(TransactionMother.MERCADO_ID.toString()).build());
 
         StepVerifier.create(useCase().create(TransactionMother.USER_ID, lote))
                 .expectErrorSatisfies(error -> assertThat(((BadRequestException) error)
                         .getErrorResponse().getErrors())
                         .extracting(ErrorDetail::getField)
-                        .containsExactly("[1].amount", "[2].categoryId", "[3].currencyCode",
-                                "[4].description", "[4].occurredAt"))
+                        .containsExactly("[1].accountId", "[2].destinationAccountId", "[3].categoryId"))
                 .verify();
 
         verify(repositorio, never()).saveAll(any());
     }
 
+    /** La descripcion se guarda recortada: los espacios del borde no son parte de ella. */
     @Test
-    void unElementoNuloEsUnErrorDeEseIndice() {
-        List<CreateTransactionCommand> lote = new ArrayList<>();
-        lote.add(TransactionMother.unGasto().build());
-        lote.add(null);
-
-        StepVerifier.create(useCase().create(TransactionMother.USER_ID, lote))
-                .expectErrorSatisfies(error -> assertThat(((BadRequestException) error)
-                        .getErrorResponse().getErrors())
-                        .extracting(ErrorDetail::getField)
-                        .containsExactly("[1]"))
-                .verify();
-    }
-
-    @Test
-    void conElTipoInvalidoNoOpinaSobreCategoriaNiDestino() {
-        CreateTransactionCommand raro = TransactionMother.unGasto().type("REFUND")
-                .destinationAccountId(TransactionMother.DESTINO_ID.toString()).build();
-
-        StepVerifier.create(useCase().create(TransactionMother.USER_ID, List.of(raro)))
-                .expectErrorSatisfies(error -> assertThat(((BadRequestException) error)
-                        .getErrorResponse().getErrors())
-                        .extracting(ErrorDetail::getField)
-                        .containsExactly("[0].type"))
-                .verify();
+    void guardaLaDescripcionRecortada() {
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID,
+                        List.of(TransactionMother.unGasto().description("  Mercado  ").build())))
+                .assertNext(movimiento -> assertThat(movimiento.description()).isEqualTo("Mercado"))
+                .verifyComplete();
     }
 
     @Test

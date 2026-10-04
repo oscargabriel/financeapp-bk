@@ -9,6 +9,7 @@ import com.oscargabriel.financeapp.domain.model.AccountType;
 import com.oscargabriel.financeapp.domain.model.Category;
 import com.oscargabriel.financeapp.domain.model.CategoryScope;
 import com.oscargabriel.financeapp.domain.model.CreateTransactionCommand;
+import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.CreateTransactionRequest;
 
 /** Cuentas, categorias y elementos de lote para las pruebas del alta de transacciones. */
 public final class TransactionMother {
@@ -134,6 +135,12 @@ public final class TransactionMother {
 
         public CreateTransactionCommand build() {
             return new CreateTransactionCommand(type, accountId, destinationAccountId, categoryId, amount,
+                    destinationAmount, currencyCode, description, notes, occurredAt);
+        }
+
+        /** El mismo elemento como llega en el cuerpo, para validar sus reglas de formato. */
+        public CreateTransactionRequest request() {
+            return new CreateTransactionRequest(type, accountId, destinationAccountId, categoryId, amount,
                     destinationAmount, currencyCode, description, notes, occurredAt);
         }
     }
