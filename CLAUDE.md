@@ -34,6 +34,12 @@ bru run system -r --env local --env-var baseUrl=http://localhost:8081/api --env-
 El entorno `local` apunta al 8080. Contra la app en otro puerto hay que sobrescribir **las dos**
 variables: los requests que prueban el base-path usan `host`, no `baseUrl`.
 
+`bruno-personal/` es una segunda colección, **ignorada por git**, para el uso real de la app con
+datos propios contra Neon (app local con `SPRING_PROFILES_ACTIVE=prod`). No tiene tests y no se
+corre con `bru run`. **Todo cambio de un endpoint que toque `bruno/` se replica también ahí**
+(ruta, cuerpo, autenticación), y el endpoint nuevo recibe su request; como no está versionada, el
+PR no lo muestra y nadie más lo va a notar.
+
 Toda etapa cierra con las dos cosas en verde, nunca una sola. El request Bruno de un endpoint nuevo
 se escribe en el mismo ciclo TDD que los tests JUnit, antes del endpoint y fallando.
 
