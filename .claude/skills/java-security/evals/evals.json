@@ -1,0 +1,23 @@
+{
+  "skill_name": "java-security",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Tengo un proyecto Spring Boot con WebFlux y necesito crear la clase SecurityConfig desde cero. El paquete es mx.com.miempresa.api.config. Quiero que el endpoint /v1/health sea público, Swagger también público, y todo lo demás requiera autenticación básica. Las credenciales van en el application.properties.",
+      "expected_output": "Clase SecurityConfig.java completa con @EnableWebFluxSecurity, SecurityWebFilterChain con ServerHttpSecurity, rutas públicas configuradas, MapReactiveUserDetailsService con BCrypt, y las properties necesarias en application.properties",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Analiza el SecurityConfig.java de mi proyecto y dime qué problemas de seguridad tiene. El archivo está en src/main/java/mx/com/segurossura/catalogos/core/config/SecurityConfig.java",
+      "expected_output": "Análisis con formato ✅/⚠️/❌ identificando: CORS con wildcard en producción, credenciales en properties en texto plano, solo un usuario en memoria, y puntos positivos como BCrypt y CSRF deshabilitado correctamente",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Quiero migrar mi SecurityConfig de HTTP Basic Auth a JWT. El proyecto ya tiene la dependencia de spring-security pero no tiene JJWT. ¿Cómo lo hago con WebFlux reactivo?",
+      "expected_output": "Pasos completos: dependencias JJWT en build.gradle, JwtService.java, JwtAuthenticationFilter.java como WebFilter reactivo, SecurityConfig.java actualizado sin httpBasic(), y properties jwt.secret y jwt.expiration-ms",
+      "files": []
+    }
+  ]
+}
