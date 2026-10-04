@@ -7,11 +7,8 @@ import java.util.Map;
 import java.util.UUID;
 
 import lombok.AllArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
-import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
-import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.model.Account;
 import com.oscargabriel.financeapp.domain.model.Category;
 import com.oscargabriel.financeapp.domain.model.CategoryScope;
@@ -30,12 +27,6 @@ import reactor.core.publisher.Mono;
 @AllArgsConstructor
 public class CreateTransactionsUseCase implements CreateTransactionsPort {
 
-    /**
-     * El tope de FA-26: varios meses de extracto y, con elementos tipicos, bien por debajo del MB
-     * del codec. Pasarlo corta el lote antes de mirar sus elementos.
-     */
-    static final int TOPE_LOTE = 500;
-
     private final AccountQueryPort cuentas;
     private final CategoryQueryPort categorias;
     private final TransactionRepositoryPort repositorio;
@@ -44,13 +35,12 @@ public class CreateTransactionsUseCase implements CreateTransactionsPort {
     /**
      * Lee una sola vez las cuentas y categorias del usuario, valida el lote entero contra ellas y solo
      * entonces escribe. Leer todas las del usuario, en vez de las del lote, cuesta dos consultas fijas
-     * sea cual sea el tamano del lote.
+     * sea cual sea el tamano del lote. El tamano y el formato de cada elemento ya vienen validados por
+     * el controlador y CreateTransactionRequest.
      */
     @Override
     public Flux<Transaction> create(UUID userId, List<CreateTransactionCommand> lote) {
         return Flux.defer(() -> {
-            validarTamano(lote);
-
             Mono<Map<UUID, Account>> suyas = cuentas.findByUser(userId, true)
                     .collectMap(Account::id);
             Mono<Map<UUID, Category>> vivas = categorias
@@ -62,12 +52,5 @@ public class CreateTransactionsUseCase implements CreateTransactionsPort {
                             referencias.getT2(), () -> UuidV7.from(clock.instant())).aMovimientos(lote))
                     .flatMapMany(repositorio::saveAll);
         });
-    }
-
-    private static void validarTamano(List<CreateTransactionCommand> lote) {
-        if (lote == null || lote.isEmpty() || lote.size() > TOPE_LOTE) {
-            throw new BadRequestException(HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR,
-                    "El lote debe tener entre 1 y " + TOPE_LOTE + " movimientos", "body");
-        }
     }
 }
