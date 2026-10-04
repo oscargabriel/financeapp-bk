@@ -395,7 +395,7 @@ arreglo de un elemento.
 | `currencyCode` | string | no | Si se manda, tiene que ser `COP` |
 | `description` | string | sí | Hasta 255 caracteres. Se recortan los espacios de los extremos |
 | `notes` | string | no | Hasta 1000 caracteres |
-| `occurredAt` | string | sí | ISO-8601 con offset |
+| `occurredAt` | string | no | ISO-8601 con offset. Sin fecha (ausente, `null` o vacío), el instante en que el servidor atiende la petición, el mismo para todo el lote |
 | `destinationAmount` | — | **no se envía** | Reservado para transferencias entre monedas. Hoy es 400 |
 
 Una cuenta que no existe y una de otro usuario responden lo mismo ("La cuenta no existe"). El API
@@ -416,8 +416,7 @@ no confirma que un id exista fuera de tus datos.
     "accountId": "0199a1b3-...",
     "destinationAccountId": "0199a1b4-...",
     "amount": 100000,
-    "description": "Ahorro del mes",
-    "occurredAt": "2026-09-21T08:00:00-05:00"
+    "description": "Ahorro del mes"
   }
 ]
 ```

@@ -1,5 +1,6 @@
 package com.oscargabriel.financeapp.application.usecase;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,12 +35,16 @@ final class TransactionBatchValidator {
     private final Map<UUID, Category> categorias;
     private final Supplier<UUID> ids;
 
+    /** El de los elementos que llegan sin fecha. */
+    private final Instant ahora;
+
     TransactionBatchValidator(UUID userId, Map<UUID, Account> cuentas, Map<UUID, Category> categorias,
-            Supplier<UUID> ids) {
+            Supplier<UUID> ids, Instant ahora) {
         this.userId = userId;
         this.cuentas = cuentas;
         this.categorias = categorias;
         this.ids = ids;
+        this.ahora = ahora;
     }
 
     List<Transaction> aMovimientos(List<CreateTransactionCommand> lote) {
@@ -79,7 +84,7 @@ final class TransactionBatchValidator {
         }
         return new Transaction(ids.get(), userId, tipo, cuenta, destino, categoria, elemento.amount(),
                 MONEDA_UNICA, elemento.description().trim(), elemento.notes(),
-                OffsetDateTime.parse(elemento.occurredAt().trim()).toInstant());
+                instante(elemento.occurredAt()));
     }
 
     /**
@@ -117,6 +122,11 @@ final class TransactionBatchValidator {
             return null;
         }
         return id;
+    }
+
+    /** El formato ya lo valido CreateTransactionRequest; aqui solo falta decidir el de los vacios. */
+    private Instant instante(String fecha) {
+        return fecha == null || fecha.isBlank() ? ahora : OffsetDateTime.parse(fecha.trim()).toInstant();
     }
 
     private static UUID uuid(String valor) {

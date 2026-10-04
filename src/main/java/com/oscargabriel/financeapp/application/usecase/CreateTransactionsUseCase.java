@@ -1,6 +1,7 @@
 package com.oscargabriel.financeapp.application.usecase;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +38,8 @@ public class CreateTransactionsUseCase implements CreateTransactionsPort {
      * entonces escribe. Leer todas las del usuario, en vez de las del lote, cuesta dos consultas fijas
      * sea cual sea el tamano del lote. El tamano y el formato de cada elemento ya vienen validados por
      * el controlador y CreateTransactionRequest.
+     *
+     * El reloj se lee una vez por lote: los elementos sin fecha comparten el instante de la peticion.
      */
     @Override
     public Flux<Transaction> create(UUID userId, List<CreateTransactionCommand> lote) {
@@ -47,9 +50,10 @@ public class CreateTransactionsUseCase implements CreateTransactionsPort {
                     .findActiveByUser(userId, EnumSet.allOf(CategoryScope.class))
                     .collectMap(Category::id);
 
+            Instant ahora = clock.instant();
             return Mono.zip(suyas, vivas)
                     .map(referencias -> new TransactionBatchValidator(userId, referencias.getT1(),
-                            referencias.getT2(), () -> UuidV7.from(clock.instant())).aMovimientos(lote))
+                            referencias.getT2(), () -> UuidV7.from(clock.instant()), ahora).aMovimientos(lote))
                     .flatMapMany(repositorio::saveAll);
         });
     }

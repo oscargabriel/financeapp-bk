@@ -57,7 +57,7 @@ public record CreateTransactionRequest(
         @Size(max = 1000, message = "Las notas no pueden superar los 1000 caracteres")
         String notes,
 
-        @NotBlank(message = "La fecha es obligatoria")
+        /** Opcional: sin fecha, el caso de uso pone el instante de la peticion (FA-60). */
         @FechaConOffset
         String occurredAt) {
 

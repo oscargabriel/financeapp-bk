@@ -129,6 +129,28 @@ class TransactionControllerTest {
                         null, "COP", "Ahorro", null, "2026-09-20T11:00:00-05:00"));
     }
 
+    /** La fecha la pone el caso de uso: el controlador no la exige ni la inventa (FA-60). */
+    @Test
+    void unElementoSinFechaLlegaAlCasoDeUsoSinFecha() {
+        when(createTransactions.create(eq(TransactionMother.USER_ID), anyList())).thenReturn(Flux.just(gasto()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        [{"type": "EXPENSE", "accountId": "30000000-0000-7000-8000-000000000001",
+                          "categoryId": "40000000-0000-7000-8000-000000000001", "amount": 50000,
+                          "description": "Mercado"}]
+                        """)
+                .exchange()
+                .expectStatus().isCreated();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<CreateTransactionCommand>> lote = ArgumentCaptor.forClass(List.class);
+        verify(createTransactions).create(eq(TransactionMother.USER_ID), lote.capture());
+        assertThat(lote.getValue()).singleElement()
+                .extracting(CreateTransactionCommand::occurredAt).isNull();
+    }
+
     /** Las reglas de cada elemento viven en el record: el lote invalido no llega al caso de uso. */
     @Test
     void devuelve400ConLosErroresDeCadaElementoIndexadosSinLlamarAlCasoDeUso() {
