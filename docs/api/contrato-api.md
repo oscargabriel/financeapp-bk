@@ -14,6 +14,10 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | `GET` | `/api/accounts` | Bearer | Listar las cuentas del usuario |
 | `POST` | `/api/accounts` | Bearer | Crear una cuenta |
 | `GET` | `/api/categories` | Bearer | Listar las categorías del usuario |
+| `GET` | `/api/catalogs/account-types` | Bearer | Tipos de cuenta válidos |
+| `GET` | `/api/catalogs/transaction-types` | Bearer | Tipos de movimiento válidos |
+| `GET` | `/api/catalogs/currencies` | Bearer | Monedas activas |
+| `GET` | `/api/catalogs/categories` | Bearer | Categorías del usuario para elegir `categoryId` |
 | `POST` | `/api/transactions` | Bearer | Registrar un lote de movimientos |
 | `GET` | `/api/monthly-spending` | Bearer | Gasto mensual contra la meta |
 
@@ -366,6 +370,48 @@ mayúsculas: `expense` es 400 `VALIDATION_ERROR` en `appliesTo`.
 
 Para el selector de categoría de un movimiento, pide `appliesTo=EXPENSE` en un gasto e
 `appliesTo=INCOME` en un ingreso. Así solo aparecen las que el alta va a aceptar.
+
+### Catálogos — `GET /api/catalogs/*`
+
+Los valores que aceptan los formularios de cuenta y de movimiento, para que el cliente no los copie
+de este documento. **Bearer** en las cuatro rutas. Ninguna tiene parámetros salvo `categories`.
+
+**`GET /api/catalogs/account-types`** y **`GET /api/catalogs/transaction-types`** — 200 OK, en este
+orden:
+
+```json
+[{ "code": "CASH", "description": "Efectivo" }]
+```
+
+| Catálogo | `code` | `description` |
+|---|---|---|
+| account-types | `CASH` | Efectivo |
+| account-types | `DEBIT` | Cuenta débito |
+| account-types | `CREDIT` | Tarjeta de crédito |
+| account-types | `SAVINGS` | Cuenta de ahorros |
+| account-types | `INVESTMENT` | Inversión |
+| account-types | `OTHER` | Otra |
+| transaction-types | `EXPENSE` | Gasto |
+| transaction-types | `INCOME` | Ingreso |
+| transaction-types | `TRANSFER` | Transferencia |
+
+El API recibe y devuelve siempre el `code`; `description` es solo para mostrar.
+
+**`GET /api/catalogs/currencies`** — 200 OK, las monedas activas ordenadas por código. Son las que
+acepta `currencyCode` en `POST /api/accounts`; el alta de movimientos, por ahora, solo admite COP.
+
+```json
+[{ "code": "COP", "name": "Peso colombiano", "symbol": "$" }]
+```
+
+**`GET /api/catalogs/categories`** — 200 OK, las categorías del usuario del token como
+`{ "id", "name" }`, con el mismo orden y el mismo filtro `appliesTo` que
+[`GET /api/categories`](#get-apicategories), y el mismo 400 si el valor no es válido. Para mostrar
+ícono o color, usa ese endpoint.
+
+```json
+[{ "id": "0199a1c0-...", "name": "Mercado" }]
+```
 
 ### `POST /api/transactions`
 

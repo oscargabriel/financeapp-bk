@@ -1,0 +1,47 @@
+info:
+  name: Tipos de cuenta
+  type: http
+  seq: 1
+
+http:
+  method: GET
+  url: "{{baseUrl}}/catalogs/account-types"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: length
+      value: "6"
+  scripts:
+    - type: tests
+      code: |-
+        test("los seis tipos en el orden del enum, con su etiqueta", function() {
+          expect(res.getBody()).to.deep.equal([
+            { code: "CASH", description: "Efectivo" },
+            { code: "DEBIT", description: "Cuenta débito" },
+            { code: "CREDIT", description: "Tarjeta de crédito" },
+            { code: "SAVINGS", description: "Cuenta de ahorros" },
+            { code: "INVESTMENT", description: "Inversión" },
+            { code: "OTHER", description: "Otra" }
+          ]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # GET /api/catalogs/account-types
+
+  Los valores que acepta `type` en `POST /api/accounts`, con la etiqueta en español para mostrar:
+
+      [{ "code": "CASH", "description": "Efectivo" }, ...]
+
+  `deep.equal` compara la lista completa: un tipo nuevo, una etiqueta cambiada o una clave de mas
+  rompen este request a proposito.

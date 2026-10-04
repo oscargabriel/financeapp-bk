@@ -28,6 +28,7 @@ rules:
   tasks:
     - "Cada tarea nombra cómo se verifica: la clase de test (y el método si aplica) o el request de bruno/ que la prueba."
     - El request de Bruno de un endpoint nuevo o cambiado va en el mismo grupo que el endpoint y se escribe antes, fallando.
+    - "Si el change agrega o cambia un request de bruno/, una tarea lo replica en bruno-personal/ (ruta, cuerpo, autenticación) sin ejecutarlo: esa colección apunta a Neon y está fuera de git, así que el PR no muestra si se hizo."
     - "Indica en cada grupo qué skills de dominio cargar según la tabla del paso 5 de tareas-notion (java-architect, java-exceptions, java-security, java-logging, java-debugging, bruno-cli)."
     - "El último grupo es de verificación: gradlew build y bru run . -r --env local, con los conteos reales."
 

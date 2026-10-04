@@ -73,7 +73,9 @@ El cableado que importa: un controlador depende del **puerto de entrada**
 (`GetMonthlySpendingPort`), nunca de la clase del caso de uso. El caso de uso
 (`GetMonthlySpendingUseCase`, `@Service`) implementa ese puerto y consume un **puerto de salida**
 (`MonthlySpendingQueryPort`), que implementa un adapter de persistencia. Para un endpoint nuevo se
-tocan los cuatro archivos en ese orden.
+tocan los cuatro archivos en ese orden. La excepción es un endpoint que solo expone los valores de un
+enum del dominio, como `GET /api/catalogs/account-types` (FA-59): no hay persistencia ni regla que
+orquestar, así que el controlador lee el enum sin puerto ni caso de uso.
 
 Los beans (controladores, casos de uso, adapters) inyectan por constructor con `@AllArgsConstructor`
 de Lombok sobre campos `private final`; el constructor explícito queda solo para los que reciben

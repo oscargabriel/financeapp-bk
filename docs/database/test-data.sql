@@ -123,6 +123,17 @@ ON CONFLICT (from_currency_code, to_currency_code, rate_date) DO UPDATE SET rate
 
 
 -- -----------------------------------------------------------------------------
+-- Moneda inactiva
+-- -----------------------------------------------------------------------------
+-- La semilla solo trae monedas activas: sin esta, nada en bruno/catalogs/ probaria que
+-- GET /api/catalogs/currencies filtra por is_active. XTS es el codigo que ISO 4217 reserva para
+-- pruebas, y va aqui y no en seed.sql porque en Neon no debe existir.
+INSERT INTO finance.currencies (code, name, symbol, decimal_places, is_active)
+VALUES ('XTS', 'Moneda de prueba', 'XTS', 2, FALSE)
+ON CONFLICT (code) DO UPDATE SET is_active = FALSE;
+
+
+-- -----------------------------------------------------------------------------
 -- Gastos e ingresos del mes en curso
 --
 -- El offset se suma al primer día del mes en hora de Bogotá. El último
