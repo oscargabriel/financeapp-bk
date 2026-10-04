@@ -1,0 +1,28 @@
+info:
+  name: Eliminar
+  type: http
+  seq: 33
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/transactions/{{idFruta}}"
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Borrado fisico
+
+  Los movimientos no tienen borrado logico. El trigger revierte su efecto en el saldo.

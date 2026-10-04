@@ -1,0 +1,41 @@
+info:
+  name: Modificar movimiento ajeno
+  type: http
+  seq: 29
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/transactions/{{idFruta}}"
+  body:
+    type: json
+    data: |-
+      {
+        "description": "No es mio"
+      }
+  auth:
+    type: bearer
+    token: "{{accessToken}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "404"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: NOT_FOUND
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: id
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El movimiento es de otro usuario
+
+  Con el `accessToken` de `auth/` (el usuario del escenario) contra un movimiento del usuario de
+  esta carpeta. Mismo 404 que un id inexistente: no confirma que exista para otro.

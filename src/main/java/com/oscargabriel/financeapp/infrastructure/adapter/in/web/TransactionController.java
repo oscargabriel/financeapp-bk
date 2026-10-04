@@ -1,6 +1,7 @@
 package com.oscargabriel.financeapp.infrastructure.adapter.in.web;
 
 import java.util.List;
+import java.util.UUID;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -9,15 +10,23 @@ import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
+import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.port.in.CreateTransactionsPort;
+import com.oscargabriel.financeapp.domain.port.in.DeleteTransactionPort;
+import com.oscargabriel.financeapp.domain.port.in.UpdateTransactionPort;
 import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.CreateTransactionRequest;
 import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.TransactionResponse;
+import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.UpdateTransactionRequest;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -34,6 +43,8 @@ public class TransactionController {
     static final int TOPE_LOTE = 500;
 
     private final CreateTransactionsPort createTransactions;
+    private final UpdateTransactionPort updateTransaction;
+    private final DeleteTransactionPort deleteTransaction;
 
     /**
      * Mono de la lista y no Flux: transmitir el Flux mandaria el 201 y los primeros elementos antes de
@@ -53,5 +64,37 @@ public class TransactionController {
                         lote.stream().map(CreateTransactionRequest::toCommand).toList()))
                 .map(TransactionResponse::from)
                 .collectList();
+    }
+
+    @PatchMapping("/{id}")
+    public Mono<TransactionResponse> update(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String id,
+            @Valid @RequestBody UpdateTransactionRequest parche) {
+        return Mono.defer(() -> {
+                    UUID movimiento = parseId(id);
+                    if (parche.sinCambios()) {
+                        throw new BadRequestException(HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR,
+                                "El parche no trae ningun campo para modificar", "body");
+                    }
+                    return updateTransaction.update(UsuarioDelToken.de(jwt), movimiento, parche.toCommand());
+                })
+                .map(TransactionResponse::from);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public Mono<Void> delete(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
+        return Mono.defer(() -> deleteTransaction.delete(UsuarioDelToken.de(jwt), parseId(id)));
+    }
+
+    /** A mano y no como UUID de Spring: su conversion fallida saldria como JSON_PARSING_ERROR del cuerpo. */
+    private static UUID parseId(String valor) {
+        try {
+            return UUID.fromString(valor);
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException(HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR,
+                    "El id del movimiento debe ser un UUID", "id", e);
+        }
     }
 }

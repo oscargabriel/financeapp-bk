@@ -1,0 +1,54 @@
+info:
+  name: Modificar monto y descripcion
+  type: http
+  seq: 19
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/transactions/{{idFruta}}"
+  body:
+    type: json
+    data: |-
+      {
+        "amount": 45000,
+        "description": "Fruta y verdura"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.amount
+      operator: eq
+      value: "45000"
+    - expression: res.body.description
+      operator: eq
+      value: Fruta y verdura
+  scripts:
+    - type: tests
+      code: |-
+        const cuerpo = res.getBody();
+
+        test("conserva lo que el parche no trae", function() {
+          expect(cuerpo.id).to.equal(bru.getVar("idFruta"));
+          expect(cuerpo.type).to.equal("EXPENSE");
+          expect(cuerpo.accountId).to.equal(bru.getVar("idOrigen"));
+          expect(cuerpo.categoryId).to.equal(bru.getVar("idMercado"));
+          expect(cuerpo.destinationAccountId).to.equal(null);
+          expect(cuerpo.occurredAt).to.equal("2026-09-16T23:30:00Z");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # PATCH parcial
+
+  Solo cambia lo que viaja en el cuerpo; el resto se queda como lo dejo `Lote de varios`.

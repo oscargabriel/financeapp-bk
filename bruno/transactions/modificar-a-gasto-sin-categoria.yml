@@ -1,0 +1,40 @@
+info:
+  name: Modificar a gasto sin categoria
+  type: http
+  seq: 26
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/transactions/{{idFruta}}"
+  body:
+    type: json
+    data: |-
+      {
+        "type": "EXPENSE"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: categoryId
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Transferencia a gasto sin categoria
+
+  La transferencia no tiene categoria que conservar.

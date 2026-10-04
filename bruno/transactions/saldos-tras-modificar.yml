@@ -1,0 +1,41 @@
+info:
+  name: Saldos tras modificar
+  type: http
+  seq: 20
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts"
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const saldo = function (nombre) {
+          return res.getBody().find(function (c) { return c.name === nombre; }).currentBalance;
+        };
+
+        test("el origen descuenta la diferencia del monto", function() {
+          // 30.000,5 pasaron a 45.000: 14.999,5 mas de gasto
+          expect(saldo("Efectivo")).to.equal(Number(bru.getVar("saldoOrigenAntes")) - 14999.5);
+        });
+
+        test("el destino no cambia", function() {
+          expect(saldo("Ahorros")).to.equal(Number(bru.getVar("saldoDestinoAntes")));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El trigger revirtio el gasto viejo y aplico el nuevo
