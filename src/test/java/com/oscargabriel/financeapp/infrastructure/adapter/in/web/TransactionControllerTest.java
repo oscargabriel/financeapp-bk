@@ -2,6 +2,7 @@ package com.oscargabriel.financeapp.infrastructure.adapter.in.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -29,12 +30,16 @@ import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.model.CreateTransactionCommand;
 import com.oscargabriel.financeapp.domain.model.Transaction;
 import com.oscargabriel.financeapp.domain.model.TransactionType;
+import com.oscargabriel.financeapp.domain.model.UpdateTransactionCommand;
 import com.oscargabriel.financeapp.domain.port.in.CreateTransactionsPort;
+import com.oscargabriel.financeapp.domain.port.in.DeleteTransactionPort;
+import com.oscargabriel.financeapp.domain.port.in.UpdateTransactionPort;
 import com.oscargabriel.financeapp.infrastructure.config.JwtConfig;
 import com.oscargabriel.financeapp.infrastructure.config.SecurityConfig;
 import com.oscargabriel.financeapp.support.TransactionMother;
 
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /** Sin el base-path /api, igual que el resto de slices: la ruta completa la cubre TransactionsIT. */
 @WebFluxTest(TransactionController.class)
@@ -61,6 +66,12 @@ class TransactionControllerTest {
 
     @MockitoBean
     private CreateTransactionsPort createTransactions;
+
+    @MockitoBean
+    private UpdateTransactionPort updateTransaction;
+
+    @MockitoBean
+    private DeleteTransactionPort deleteTransaction;
 
     private static JwtMutator tokenDelUsuario() {
         return mockJwt().jwt(jwt -> jwt.subject(TransactionMother.USER_ID.toString()));
@@ -286,6 +297,157 @@ class TransactionControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.UNAUTHENTICATED.getCode());
 
         verifyNoInteractions(createTransactions);
+    }
+
+    @Test
+    void modificaElMovimientoDelUsuarioYLoDevuelveCompleto() {
+        when(updateTransaction.update(eq(TransactionMother.USER_ID), eq(GASTO_ID), any()))
+                .thenReturn(Mono.just(gasto()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/" + GASTO_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"amount": 50000, "description": "Mercado", "notes": "se ignora"}
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.id").isEqualTo(GASTO_ID.toString())
+                .jsonPath("$.type").isEqualTo("EXPENSE")
+                .jsonPath("$.amount").isEqualTo(50000)
+                .jsonPath("$.occurredAt").isEqualTo("2026-09-20T15:15:00Z")
+                .jsonPath("$.userId").doesNotExist();
+
+        verify(updateTransaction).update(TransactionMother.USER_ID, GASTO_ID,
+                new UpdateTransactionCommand(null, null, null, null, new BigDecimal("50000"), "Mercado", null));
+    }
+
+    @Test
+    void unParcheVacioEsUn400SobreElCuerpoSinLlamarAlCasoDeUso() {
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/" + GASTO_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"description": null}
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors.length()").isEqualTo(1)
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("body");
+
+        verifyNoInteractions(updateTransaction);
+    }
+
+    @Test
+    void unCampoDelParcheConFormatoInvalidoEsUn400SobreEseCampo() {
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/" + GASTO_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"amount": 0}
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors.length()").isEqualTo(1)
+                .jsonPath("$.errors[0].field").isEqualTo("amount");
+
+        verifyNoInteractions(updateTransaction);
+    }
+
+    @Test
+    void unIdMalFormadoEnElPatchEsUn400SobreElId() {
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/abc")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"description": "Mercado"}
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("id");
+
+        verifyNoInteractions(updateTransaction);
+    }
+
+    @Test
+    void elPatchPropagaElNoEncontradoDelCasoDeUso() {
+        when(updateTransaction.update(eq(TransactionMother.USER_ID), eq(GASTO_ID), any()))
+                .thenReturn(Mono.error(noEncontrado()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/" + GASTO_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"description": "Mercado"}
+                        """)
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.NOT_FOUND.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("id");
+    }
+
+    @Test
+    void elPatchSinCredencialesEsUn401() {
+        webTestClient.patch().uri(URI_BASE + "/" + GASTO_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"description": "Mercado"}
+                        """)
+                .exchange()
+                .expectStatus().isUnauthorized();
+
+        verifyNoInteractions(updateTransaction);
+    }
+
+    @Test
+    void eliminaElMovimientoYRespondeSinContenido() {
+        when(deleteTransaction.delete(TransactionMother.USER_ID, GASTO_ID)).thenReturn(Mono.empty());
+
+        webTestClient.mutateWith(tokenDelUsuario()).delete().uri(URI_BASE + "/" + GASTO_ID)
+                .exchange()
+                .expectStatus().isNoContent()
+                .expectBody().isEmpty();
+
+        verify(deleteTransaction).delete(TransactionMother.USER_ID, GASTO_ID);
+    }
+
+    @Test
+    void unIdMalFormadoEnElDeleteEsUn400SobreElId() {
+        webTestClient.mutateWith(tokenDelUsuario()).delete().uri(URI_BASE + "/abc")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("id");
+
+        verifyNoInteractions(deleteTransaction);
+    }
+
+    @Test
+    void elDeletePropagaElNoEncontradoDelCasoDeUso() {
+        when(deleteTransaction.delete(TransactionMother.USER_ID, GASTO_ID)).thenReturn(Mono.error(noEncontrado()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).delete().uri(URI_BASE + "/" + GASTO_ID)
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.NOT_FOUND.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("id");
+    }
+
+    @Test
+    void elDeleteSinCredencialesEsUn401() {
+        webTestClient.delete().uri(URI_BASE + "/" + GASTO_ID)
+                .exchange()
+                .expectStatus().isUnauthorized();
+
+        verifyNoInteractions(deleteTransaction);
+    }
+
+    private static BadRequestException noEncontrado() {
+        return new BadRequestException(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, "El movimiento no existe", "id");
     }
 
     private static Transaction gasto() {

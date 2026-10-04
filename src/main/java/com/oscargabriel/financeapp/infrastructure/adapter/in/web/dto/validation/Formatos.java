@@ -15,6 +15,12 @@ public final class Formatos {
     /** Vacio, o al menos 8 caracteres de cualquier tipo, espacios incluidos. */
     public static final String AL_MENOS_8 = "^\\s*$|^[\\s\\S]{8,}$";
 
+    /**
+     * La excepcion a la regla de arriba: para los campos de un parche, donde null es "no cambia" y no
+     * hay @NotBlank que reporte el vacio. @Pattern deja pasar el null, asi que solo cae el texto en blanco.
+     */
+    public static final String NO_EN_BLANCO = "^[\\s\\S]*\\S[\\s\\S]*$";
+
     private Formatos() {
     }
 }

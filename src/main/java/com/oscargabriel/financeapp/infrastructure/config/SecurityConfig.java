@@ -132,7 +132,7 @@ public class SecurityConfig {
                     .map(String::trim)
                     .forEach(configuration::addAllowedOrigin);
         }
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
 

@@ -11,11 +11,9 @@ import java.util.function.Supplier;
 import org.springframework.http.HttpStatus;
 
 import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
-import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.exceptions.responses.ErrorDetail;
 import com.oscargabriel.financeapp.domain.model.Account;
 import com.oscargabriel.financeapp.domain.model.Category;
-import com.oscargabriel.financeapp.domain.model.CategoryScope;
 import com.oscargabriel.financeapp.domain.model.CreateTransactionCommand;
 import com.oscargabriel.financeapp.domain.model.Transaction;
 import com.oscargabriel.financeapp.domain.model.TransactionType;
@@ -27,12 +25,8 @@ import com.oscargabriel.financeapp.domain.model.TransactionType;
  */
 final class TransactionBatchValidator {
 
-    /** Solo COP hasta que la etapa 9 cargue tasas: con eso amount_base = amount y exchange_rate = 1. */
-    static final String MONEDA_UNICA = "COP";
-
     private final UUID userId;
-    private final Map<UUID, Account> cuentas;
-    private final Map<UUID, Category> categorias;
+    private final ReferenciasDelUsuario referencias;
     private final Supplier<UUID> ids;
 
     /** El de los elementos que llegan sin fecha. */
@@ -41,8 +35,7 @@ final class TransactionBatchValidator {
     TransactionBatchValidator(UUID userId, Map<UUID, Account> cuentas, Map<UUID, Category> categorias,
             Supplier<UUID> ids, Instant ahora) {
         this.userId = userId;
-        this.cuentas = cuentas;
-        this.categorias = categorias;
+        this.referencias = new ReferenciasDelUsuario(cuentas, categorias);
         this.ids = ids;
         this.ahora = ahora;
     }
@@ -70,74 +63,25 @@ final class TransactionBatchValidator {
         int erroresPrevios = errores.size();
 
         TransactionType tipo = TransactionType.valueOf(elemento.type().trim().toUpperCase());
-        UUID cuenta = cuentaPropia(elemento.accountId(), indice + ".accountId", "La cuenta", errores);
+        UUID cuenta = referencias.cuentaPropia(elemento.accountId(), indice + ".accountId", "La cuenta", errores);
         UUID destino = tipo == TransactionType.TRANSFER
-                ? cuentaPropia(elemento.destinationAccountId(), indice + ".destinationAccountId", "La cuenta destino",
-                        errores)
+                ? referencias.cuentaPropia(elemento.destinationAccountId(), indice + ".destinationAccountId",
+                        "La cuenta destino", errores)
                 : null;
         UUID categoria = tipo == TransactionType.TRANSFER
                 ? null
-                : categoria(elemento.categoryId(), tipo, indice + ".categoryId", errores);
+                : referencias.categoria(elemento.categoryId(), tipo, indice + ".categoryId", errores);
 
         if (errores.size() > erroresPrevios) {
             return null;
         }
         return new Transaction(ids.get(), userId, tipo, cuenta, destino, categoria, elemento.amount(),
-                MONEDA_UNICA, elemento.description().trim(), elemento.notes(),
+                ReferenciasDelUsuario.MONEDA_UNICA, elemento.description().trim(), elemento.notes(),
                 instante(elemento.occurredAt()));
-    }
-
-    /**
-     * Una cuenta ajena, una inexistente y un id mal formado dan el mismo mensaje: distinguirlas le
-     * diria a un usuario que ese id existe en otra parte.
-     */
-    private UUID cuentaPropia(String valor, String campo, String sujeto, List<ErrorDetail> errores) {
-        UUID id = uuid(valor);
-        Account cuenta = id == null ? null : cuentas.get(id);
-        if (cuenta == null) {
-            errores.add(detalle(sujeto + " no existe", campo));
-            return null;
-        }
-        if (!cuenta.active()) {
-            errores.add(detalle(sujeto + " esta desactivada", campo));
-            return null;
-        }
-        if (!MONEDA_UNICA.equals(cuenta.currencyCode())) {
-            errores.add(detalle(sujeto + " no es en COP: por ahora solo se admiten movimientos en COP", campo));
-            return null;
-        }
-        return id;
-    }
-
-    private UUID categoria(String valor, TransactionType tipo, String campo, List<ErrorDetail> errores) {
-        UUID id = uuid(valor);
-        Category categoria = id == null ? null : categorias.get(id);
-        if (categoria == null) {
-            errores.add(detalle("La categoria no existe", campo));
-            return null;
-        }
-        CategoryScope alcance = tipo == TransactionType.EXPENSE ? CategoryScope.EXPENSE : CategoryScope.INCOME;
-        if (!alcance.compatibles().contains(categoria.appliesTo())) {
-            errores.add(detalle("La categoria no aplica a un movimiento de tipo " + tipo, campo));
-            return null;
-        }
-        return id;
     }
 
     /** El formato ya lo valido CreateTransactionRequest; aqui solo falta decidir el de los vacios. */
     private Instant instante(String fecha) {
         return fecha == null || fecha.isBlank() ? ahora : OffsetDateTime.parse(fecha.trim()).toInstant();
-    }
-
-    private static UUID uuid(String valor) {
-        try {
-            return UUID.fromString(valor.trim());
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
-    }
-
-    private static ErrorDetail detalle(String descripcion, String campo) {
-        return ErrorDetail.of(ErrorCodes.VALIDATION_ERROR.getCode(), descripcion, campo);
     }
 }

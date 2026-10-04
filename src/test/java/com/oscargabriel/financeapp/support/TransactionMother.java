@@ -1,6 +1,7 @@
 package com.oscargabriel.financeapp.support;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -9,7 +10,11 @@ import com.oscargabriel.financeapp.domain.model.AccountType;
 import com.oscargabriel.financeapp.domain.model.Category;
 import com.oscargabriel.financeapp.domain.model.CategoryScope;
 import com.oscargabriel.financeapp.domain.model.CreateTransactionCommand;
+import com.oscargabriel.financeapp.domain.model.Transaction;
+import com.oscargabriel.financeapp.domain.model.TransactionType;
+import com.oscargabriel.financeapp.domain.model.UpdateTransactionCommand;
 import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.CreateTransactionRequest;
+import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.UpdateTransactionRequest;
 
 /** Cuentas, categorias y elementos de lote para las pruebas del alta de transacciones. */
 public final class TransactionMother {
@@ -67,6 +72,90 @@ public final class TransactionMother {
         return new Elemento().type("TRANSFER").accountId(ORIGEN_ID.toString())
                 .destinationAccountId(DESTINO_ID.toString()).amount(new BigDecimal("100000"))
                 .description("Ahorro del mes").occurredAt(FECHA);
+    }
+
+    public static final UUID GASTO_GUARDADO_ID = UUID.fromString("50000000-0000-7000-8000-000000000001");
+    public static final UUID TRANSFERENCIA_GUARDADA_ID = UUID.fromString("50000000-0000-7000-8000-000000000002");
+
+    /** "2026-09-20T10:15:00-05:00" en UTC, como vuelve de la base. */
+    public static final Instant INSTANTE = Instant.parse("2026-09-20T15:15:00Z");
+
+    public static Transaction unGastoGuardado() {
+        return new Transaction(GASTO_GUARDADO_ID, USER_ID, TransactionType.EXPENSE, ORIGEN_ID, null, MERCADO_ID,
+                new BigDecimal("30000.5000"), "COP", "Fruta", "En la plaza", INSTANTE);
+    }
+
+    public static Transaction unGastoGuardadoEn(UUID cuenta) {
+        Transaction gasto = unGastoGuardado();
+        return new Transaction(gasto.id(), gasto.userId(), gasto.type(), cuenta, null, gasto.categoryId(),
+                gasto.amount(), gasto.currencyCode(), gasto.description(), gasto.notes(), gasto.occurredAt());
+    }
+
+    public static Transaction unaTransferenciaGuardada() {
+        return new Transaction(TRANSFERENCIA_GUARDADA_ID, USER_ID, TransactionType.TRANSFER, ORIGEN_ID, DESTINO_ID,
+                null, new BigDecimal("100000.0000"), "COP", "Ahorro del mes", null, INSTANTE);
+    }
+
+    public static Parche unParche() {
+        return new Parche();
+    }
+
+    /** Builder del parche de un movimiento: todo en null, que es "no cambia". */
+    public static final class Parche {
+
+        private String type;
+        private String accountId;
+        private String destinationAccountId;
+        private String categoryId;
+        private BigDecimal amount;
+        private String description;
+        private String occurredAt;
+
+        public Parche type(String valor) {
+            this.type = valor;
+            return this;
+        }
+
+        public Parche accountId(String valor) {
+            this.accountId = valor;
+            return this;
+        }
+
+        public Parche destinationAccountId(String valor) {
+            this.destinationAccountId = valor;
+            return this;
+        }
+
+        public Parche categoryId(String valor) {
+            this.categoryId = valor;
+            return this;
+        }
+
+        public Parche amount(BigDecimal valor) {
+            this.amount = valor;
+            return this;
+        }
+
+        public Parche description(String valor) {
+            this.description = valor;
+            return this;
+        }
+
+        public Parche occurredAt(String valor) {
+            this.occurredAt = valor;
+            return this;
+        }
+
+        public UpdateTransactionCommand build() {
+            return new UpdateTransactionCommand(type, accountId, destinationAccountId, categoryId, amount,
+                    description, occurredAt);
+        }
+
+        /** El mismo parche como llega en el cuerpo, para validar sus reglas de formato. */
+        public UpdateTransactionRequest request() {
+            return new UpdateTransactionRequest(type, accountId, destinationAccountId, categoryId, amount,
+                    description, occurredAt);
+        }
     }
 
     /** Builder de un elemento del lote: los records no traen withers. */

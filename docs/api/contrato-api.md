@@ -19,6 +19,8 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | `GET` | `/api/catalogs/currencies` | Bearer | Monedas activas |
 | `GET` | `/api/catalogs/categories` | Bearer | Categorías del usuario para elegir `categoryId` |
 | `POST` | `/api/transactions` | Bearer | Registrar un lote de movimientos |
+| `PATCH` | `/api/transactions/{id}` | Bearer | Modificar un movimiento |
+| `DELETE` | `/api/transactions/{id}` | Bearer | Eliminar un movimiento |
 | `GET` | `/api/monthly-spending` | Bearer | Gasto mensual contra la meta |
 
 ## Generalidades
@@ -39,8 +41,8 @@ Una ruta sin el prefijo `/api` no existe: responde 404.
 - Cuerpos en JSON, con `Content-Type: application/json`. Los campos van en `camelCase`.
 - Los identificadores son UUID en texto (versión 7, ordenables por fecha de creación).
 - Los campos sin valor salen como `null`. No se omiten.
-- Los enums se escriben en mayúsculas (`EXPENSE`, `CREDIT`…). En el cuerpo de un `POST`, el API
-  acepta minúsculas y espacios alrededor y los normaliza. En los query params tiene que llegar exacto.
+- Los enums se escriben en mayúsculas (`EXPENSE`, `CREDIT`…). En el cuerpo de un `POST` o un `PATCH`, el
+  API acepta minúsculas y espacios alrededor y los normaliza. En los query params tiene que llegar exacto.
 - El cuerpo de una petición no puede pasar de **1 MB**. Si lo supera, la respuesta es 413
   (ver [Errores](#errores)).
 
@@ -140,7 +142,7 @@ Todos los errores salen con la misma forma:
 | 400 | `JSON_PARSING_ERROR` | El cuerpo no es JSON válido o un campo tiene un tipo incompatible (`"amount": "abc"`) |
 | 401 | `UNAUTHENTICATED` | Falta la credencial o no es válida para esa ruta |
 | 401 | `INVALID_CREDENTIALS` | Login con correo o contraseña incorrectos |
-| 404 | `NOT_FOUND` | La ruta no existe (con token válido) |
+| 404 | `NOT_FOUND` | La ruta no existe (con token válido), o el recurso de la ruta no existe o es de otro usuario (`field`: `id`) |
 | 405 | `VALIDATION_ERROR` | Método no soportado en esa ruta (`description`: "La peticion no pudo ser procesada") |
 | 409 | `DUPLICATE_RESOURCE` | Ya existe: correo registrado o nombre de cuenta repetido |
 | 413 | `PAYLOAD_TOO_LARGE` | El cuerpo pasa de 1 MB |
@@ -427,7 +429,8 @@ arreglo de un elemento.
   errores de **todos** los elementos, cada uno con su índice (`[0].amount`, `[3].categoryId`). El
   cliente puede marcarlos todos de una vez.
 - **No es idempotente.** Reenviar el mismo lote crea los movimientos otra vez. Si la petición
-  falla por red sin respuesta, revisa los saldos antes de reintentar.
+  falla por red sin respuesta, revisa los saldos antes de reintentar. Un duplicado se borra con
+  [`DELETE /api/transactions/{id}`](#delete-apitransactionsid).
 
 **Elemento**
 
@@ -509,6 +512,69 @@ no confirma que un id exista fuera de tus datos.
 Un `null` dentro del arreglo es un error de ese índice ("El elemento no puede ser nulo"), no del
 lote completo.
 
+### `PATCH /api/transactions/{id}`
+
+Modifica un movimiento del usuario del token. **Bearer.** Se envían solo los campos que cambian.
+
+**Parche**
+
+| Campo | Tipo | Reglas |
+|---|---|---|
+| `type` | string | `EXPENSE`, `INCOME` o `TRANSFER` |
+| `accountId` | string (UUID) | Cuenta del usuario, activa y en COP |
+| `destinationAccountId` | string (UUID) | Solo si el movimiento queda como `TRANSFER`. Cuenta del usuario, activa, en COP y distinta del origen |
+| `categoryId` | string (UUID) | Solo si el movimiento queda como `EXPENSE` o `INCOME`. Categoría activa del usuario y compatible con el tipo |
+| `amount` | number | Mayor que cero, hasta 4 decimales |
+| `description` | string | Hasta 255 caracteres, no en blanco. Se recortan los espacios de los extremos |
+| `occurredAt` | string | ISO-8601 con offset, no en blanco. A diferencia del alta, vacío no significa "ahora" |
+
+- **Ausente o `null` es "no cambia".** No hay forma de vaciar un campo enviándolo en `null`.
+- Un parche sin ningún campo (`{}`, o todo en `null`) es 400 en `body`.
+- `notes`, `currencyCode` y `destinationAmount` **no se modifican**: si vienen en el cuerpo, se
+  ignoran sin error.
+- Las reglas del tipo se miran sobre **cómo queda** el movimiento, no sobre el parche:
+  - Pasar a `TRANSFER` exige `destinationAccountId`, salvo que ya fuera transferencia. La categoría
+    se vacía sola.
+  - Pasar de `TRANSFER` a `EXPENSE` o `INCOME` exige `categoryId`. La cuenta destino se vacía sola.
+  - Pasar entre `EXPENSE` e `INCOME` sin `categoryId` revisa que la categoría que ya tenía sirva
+    para el tipo nuevo.
+- Lo que el parche no trae no se vuelve a validar: una cuenta desactivada después del alta no
+  impide corregir la descripción de un movimiento viejo.
+
+```json
+{
+  "type": "TRANSFER",
+  "destinationAccountId": "0199a1b4-...",
+  "amount": 120000
+}
+```
+
+**200 OK** — el movimiento completo como quedó, con la misma forma que un elemento de la respuesta
+del alta.
+
+**Efecto en los saldos.** La base revierte el movimiento anterior y aplica el nuevo en la misma
+operación, también si cambian la cuenta, el tipo o el monto.
+
+**Errores propios**
+
+| HTTP | `field` | Cuándo |
+|---|---|---|
+| 400 | `id` | El id de la ruta no es un UUID |
+| 400 | `body` | El parche no trae ningún campo |
+| 400 | el campo | Formato inválido, o una regla del tipo resultante, sin índice (`amount`, `categoryId`) |
+| 404 | `id` | El movimiento no existe o es de otro usuario: la respuesta es la misma |
+
+### `DELETE /api/transactions/{id}`
+
+Borra un movimiento del usuario del token. **Bearer.** El borrado es físico: no hay papelera.
+
+**204 No Content**, sin cuerpo. La base revierte su efecto en los saldos.
+
+| HTTP | `field` | Cuándo |
+|---|---|---|
+| 400 | `id` | El id de la ruta no es un UUID |
+| 404 | `id` | El movimiento no existe, ya se borró, o es de otro usuario |
+
 ### `GET /api/monthly-spending`
 
 Gasto por mes del usuario del token comparado con su meta mensual. **Bearer.**
@@ -576,15 +642,15 @@ extremos. Errores 400 `VALIDATION_ERROR`:
 
 El servicio acepta los orígenes que declare su configuración (`CORS_ALLOWED_ORIGINS`). Mientras no
 exista frontend está en `*`, una decisión provisional. Cuando haya frontend, se cambia por su URL.
-Permite los métodos `GET`, `POST`, `PUT` y `DELETE`, cualquier cabecera y credenciales. Para
+Permite los métodos `GET`, `POST`, `PUT`, `PATCH` y `DELETE`, cualquier cabecera y credenciales. Para
 desplegar un frontend en un dominio nuevo, hay que pedir que se agregue a la lista.
 
 ## Lo que el API todavía no tiene
 
 Para que el frontend no lo busque:
 
-- Editar o borrar cuentas, categorías o movimientos.
-- Listar movimientos.
+- Editar o borrar cuentas o categorías.
+- Listar movimientos o consultar uno por su id.
 - Crear categorías propias o metas de gasto.
 - Refresh token o logout. El token simplemente vence.
 - Movimientos en monedas distintas de COP.
