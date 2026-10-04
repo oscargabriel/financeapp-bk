@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import com.oscargabriel.financeapp.support.TransactionMother;
 import com.oscargabriel.financeapp.support.Violaciones;
@@ -35,6 +37,14 @@ class CreateTransactionRequestTest {
     void aceptaNotasDeMilCaracteresYLaMonedaCopEnCualquierCaja() {
         assertThat(Violaciones.de(TransactionMother.unGasto().notes("x".repeat(1000)).currencyCode(" cop ")
                 .request())).isEmpty();
+    }
+
+    /** Sin fecha no es un error: el caso de uso le pone el instante de la peticion (FA-60). */
+    @ParameterizedTest(name = "occurredAt = [{0}]")
+    @NullSource
+    @ValueSource(strings = {"", "   "})
+    void aceptaUnElementoSinFecha(String fecha) {
+        assertThat(Violaciones.de(TransactionMother.unGasto().occurredAt(fecha).request())).isEmpty();
     }
 
     static Stream<Arguments> unCampoInvalido() {
@@ -80,8 +90,6 @@ class CreateTransactionRequestTest {
                         "description", "La descripcion no puede superar los 255 caracteres"),
                 Arguments.of("notas de 1001", TransactionMother.unGasto().notes("x".repeat(1001)), "notes",
                         "Las notas no pueden superar los 1000 caracteres"),
-                Arguments.of("sin fecha", TransactionMother.unGasto().occurredAt(null), "occurredAt",
-                        "La fecha es obligatoria"),
                 Arguments.of("fecha sin offset", TransactionMother.unGasto().occurredAt("2026-09-20T10:15:00"),
                         "occurredAt", "La fecha debe ser ISO-8601 con offset, por ejemplo 2026-09-20T10:15:00-05:00"),
                 Arguments.of("fecha que no es fecha", TransactionMother.unGasto().occurredAt("ayer"), "occurredAt",

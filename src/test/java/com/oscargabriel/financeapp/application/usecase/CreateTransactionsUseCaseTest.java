@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -23,6 +24,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -122,6 +125,46 @@ class CreateTransactionsUseCaseTest {
                     assertThat(t.destinationAccountId()).isEqualTo(TransactionMother.DESTINO_ID);
                     assertThat(t.categoryId()).isNull();
                 })
+                .verifyComplete();
+    }
+
+    @ParameterizedTest(name = "occurredAt = [{0}]")
+    @NullSource
+    @ValueSource(strings = {"", "   "})
+    void unElementoSinFechaQuedaConElInstanteDelReloj(String fecha) {
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID,
+                        List.of(TransactionMother.unGasto().occurredAt(fecha).build())))
+                .assertNext(t -> assertThat(t.occurredAt()).isEqualTo(RELOJ.instant()))
+                .verifyComplete();
+    }
+
+    /**
+     * Con un reloj que avanza en cada lectura, leerlo por elemento daria tres instantes distintos: la
+     * prueba es que se lee una vez por lote.
+     */
+    @Test
+    void losElementosSinFechaDelLoteCompartenElMismoInstante() {
+        Clock queAvanza = new RelojQueAvanza(RELOJ.instant());
+        List<CreateTransactionCommand> lote = List.of(
+                TransactionMother.unGasto().occurredAt(null).build(),
+                TransactionMother.unIngreso().occurredAt(null).build(),
+                TransactionMother.unGasto().occurredAt(null).build());
+
+        StepVerifier.create(new CreateTransactionsUseCase(cuentas, categorias, repositorio, queAvanza)
+                        .create(TransactionMother.USER_ID, lote).map(Transaction::occurredAt).distinct())
+                .expectNextCount(1)
+                .verifyComplete();
+    }
+
+    @Test
+    void unLoteMixtoConservaLaFechaExplicita() {
+        List<CreateTransactionCommand> lote = List.of(
+                TransactionMother.unGasto().build(),
+                TransactionMother.unGasto().occurredAt(null).build());
+
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, lote))
+                .assertNext(t -> assertThat(t.occurredAt()).isEqualTo(Instant.parse("2026-09-20T15:15:00Z")))
+                .assertNext(t -> assertThat(t.occurredAt()).isEqualTo(RELOJ.instant()))
                 .verifyComplete();
     }
 
@@ -262,5 +305,32 @@ class CreateTransactionsUseCaseTest {
 
     private CreateTransactionsUseCase useCase() {
         return new CreateTransactionsUseCase(cuentas, categorias, repositorio, RELOJ);
+    }
+
+    /** Avanza un milisegundo en cada lectura. */
+    private static final class RelojQueAvanza extends Clock {
+
+        private Instant ahora;
+
+        RelojQueAvanza(Instant inicio) {
+            this.ahora = inicio;
+        }
+
+        @Override
+        public Instant instant() {
+            Instant leido = ahora;
+            ahora = ahora.plus(1, ChronoUnit.MILLIS);
+            return leido;
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return RELOJ.getZone();
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            throw new UnsupportedOperationException();
+        }
     }
 }

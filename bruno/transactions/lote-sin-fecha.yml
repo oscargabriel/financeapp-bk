@@ -1,0 +1,92 @@
+info:
+  name: Lote sin fecha
+  type: http
+  seq: 16
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idOrigen}}",
+          "categoryId": "{{idMercado}}",
+          "amount": 1000,
+          "description": "Sin occurredAt"
+        },
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idOrigen}}",
+          "categoryId": "{{idMercado}}",
+          "amount": 1000,
+          "description": "occurredAt nulo",
+          "occurredAt": null
+        },
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idOrigen}}",
+          "categoryId": "{{idMercado}}",
+          "amount": 1000,
+          "description": "occurredAt vacio",
+          "occurredAt": ""
+        },
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idOrigen}}",
+          "categoryId": "{{idMercado}}",
+          "amount": 1000,
+          "description": "Con fecha",
+          "occurredAt": "2026-09-20T10:15:00-05:00"
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body
+      operator: length
+      value: "4"
+  scripts:
+    - type: before-request
+      code: |-
+        bru.setVar("enviadoEn", Date.now());
+    - type: tests
+      code: |-
+        const lote = res.getBody();
+
+        test("los elementos sin fecha comparten el mismo instante", function() {
+          expect(lote[1].occurredAt).to.equal(lote[0].occurredAt);
+          expect(lote[2].occurredAt).to.equal(lote[0].occurredAt);
+        });
+
+        test("ese instante es el de la peticion", function() {
+          const asignado = Date.parse(lote[0].occurredAt);
+          expect(Math.abs(asignado - bru.getVar("enviadoEn"))).to.be.below(60000);
+        });
+
+        test("la fecha explicita se respeta", function() {
+          expect(lote[3].occurredAt).to.equal("2026-09-20T15:15:00Z");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # POST /api/transactions sin occurredAt
+
+  Un elemento sin fecha (ausente, `null` o vacio) se guarda con el instante en que el servidor
+  atiende la peticion, y todos los del lote comparten ese instante. La ventana de 60 s compara
+  contra el reloj de quien corre Bruno, que no es el de la app.
+
+  Va al final de la carpeta: los checks de saldo anteriores no cuentan estos movimientos.

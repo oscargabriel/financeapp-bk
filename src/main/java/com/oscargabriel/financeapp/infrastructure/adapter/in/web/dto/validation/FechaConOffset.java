@@ -17,7 +17,7 @@ import jakarta.validation.Payload;
 
 /**
  * Fecha ISO-8601 con offset. Sin offset la hora es ambigua, y el corte de mes de los reportes depende
- * de la zona. Vacia es valida: de exigir el campo se encarga @NotBlank.
+ * de la zona. Vacia es valida: si el campo es obligatorio, lo exige un @NotBlank aparte.
  */
 @Retention(RUNTIME)
 @Target({FIELD, PARAMETER, RECORD_COMPONENT})
