@@ -1,0 +1,44 @@
+schema: spec-driven
+
+context: |
+  Language: es
+  All artifacts must be written in es.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+
+  Proyecto: backend de finanzas personales. Java 25, Spring Boot 4 WebFlux, R2DBC sobre PostgreSQL,
+  arquitectura hexagonal. La guía completa —arquitectura, errores, validación, configuración,
+  pruebas y despliegue— está en AGENTS.md: léela antes de proponer y no la copies en los artefactos.
+  Las tareas vienen del tablero de Notion con ID FA-n; el change se llama fa-<n>-<slug>.
+  Toda ruta del API se pide con el prefijo /api, y todo error sale como
+  {"errors":[{code, description, field}]} con el code tomado del enum ErrorCodes.
+  La verificación tiene dos capas que se exigen juntas: gradlew build (JUnit con mocks, cobertura
+  de línea >= 85 %) y bru run desde bruno/ contra la app y la base reales.
+
+rules:
+  proposal:
+    - "Abre con el origen: el ID de la tarea (FA-n) y, si el encargo llegó por fuera del tablero, el texto o el resumen de cómo llegó."
+    - Incluye una sección Fuera de alcance; lo que aparezca y no quepa en la tarea va a una tarea nueva del tablero, no a este change.
+  specs:
+    - "Las capacidades se nombran por recurso o área del sistema (auth, cuentas, categorias, transacciones, reportes, errores), no por la tarea."
+    - Cada endpoint tocado lleva escenarios del camino feliz, de cada error de validación con su campo, y del 401 sin credencial o con la credencial de la otra cadena.
+    - Los escenarios de error nombran el status HTTP, el code y el field esperados.
+  design:
+    - Créalo solo si la tarea toma una decisión con alternativas reales; cada decisión dice qué se descartó y por qué.
+    - Si la decisión contradice algo de AGENTS.md, dilo explícitamente y propón el cambio a AGENTS.md como tarea del change.
+  tasks:
+    - "Cada tarea nombra cómo se verifica: la clase de test (y el método si aplica) o el request de bruno/ que la prueba."
+    - El request de Bruno de un endpoint nuevo o cambiado va en el mismo grupo que el endpoint y se escribe antes, fallando.
+    - "Indica en cada grupo qué skills de dominio cargar según la tabla del paso 5 de tareas-notion (java-architect, java-exceptions, java-security, java-logging, java-debugging, bruno-cli)."
+    - "El último grupo es de verificación: gradlew build y bru run . -r --env local, con los conteos reales."
+
+operations:
+  apply:
+    guidance:
+      - Antes de la primera tarea, carga las skills de dominio que indiquen los grupos de tasks.md.
+      - Cada tarea se hace con TDD siguiendo java-testing; el test se ve fallar por la razón correcta antes de escribir el código.
+      - No marques una tarea sin haber corrido su verificación; el último grupo exige gradlew build y bru run en verde.
+      - "No agregues al commit cambios del working tree que no sean de la tarea: el usuario suele tener archivos propios sin commitear."
+  archive:
+    guidance:
+      - Archiva en la misma rama de la tarea, antes de abrir el PR, para que el PR lleve juntos el código, la spec y el change archivado.
+      - Si la delta toca una capacidad que una memoria de Claude describía, dilo al terminar para que esa memoria se borre.
