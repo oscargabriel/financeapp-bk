@@ -143,11 +143,11 @@ salió de ignorar `java-architect`, que pedía `@AllArgsConstructor` desde antes
 | `ErrorCodes`, `BadRequestException`, `WebExceptionHandler` o errores en la cadena reactiva | `java-exceptions` |
 | `SecurityConfig`, JWT, Basic, CORS o rutas protegidas | `java-security` |
 | `LoggingFilter`, `ReactorMdcHook`, MDC o niveles de log | `java-logging` |
-| Un bug en un pipeline `Mono`/`Flux` | `java-debugging` |
+| Un bug, un test que falla sin causa evidente o un pipeline `Mono`/`Flux` que no se comporta | `java-debugging` |
 | Cualquier archivo de `bruno/` | `bruno-cli` |
 
 Si la tarea no toca nada de la tabla, no se carga ninguna; si toca varias filas, se cargan todas.
-Las reglas de la skill ceden ante `AGENTS.md` y `CLAUDE.md` cuando chocan.
+Las reglas de la skill ceden ante `AGENTS.md` y `.claude/rules/` cuando chocan.
 
 ### 6. Verificar
 

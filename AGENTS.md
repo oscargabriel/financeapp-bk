@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Guía del proyecto para cualquier agente de código y para quien lo lea. Lo propio de una herramienta
-va en su archivo (`CLAUDE.md` para Claude Code), que importa este; aquí solo lo que vale para todas.
+va en su carpeta (`.claude/rules/` para Claude Code); aquí solo lo que vale para todas.
 
 Backend de finanzas personales. Java 25 + Spring Boot 4.1.1 (WebFlux), R2DBC contra PostgreSQL 18,
 Gradle 9.7.1 con wrapper. Arquitectura hexagonal. Se construye por etapas. En producción corre en
