@@ -1,0 +1,16 @@
+{
+  "enabledMcpjsonServers": ["notion"],
+  "permissions": {
+    "allow": [
+      "mcp__notion__notion-search",
+      "mcp__notion__notion-fetch",
+      "mcp__notion__notion-query-data-sources",
+      "mcp__notion__notion-get-comments",
+      "mcp__notion__notion-create-pages",
+      "mcp__notion__notion-create-comment",
+      "mcp__notion__notion-update-page",
+      "Bash(pwsh -NoProfile -File .claude/scripts/merge-pr-dev.ps1 *)",
+      "PowerShell(pwsh -NoProfile -File .claude/scripts/merge-pr-dev.ps1 *)"
+    ]
+  }
+}
