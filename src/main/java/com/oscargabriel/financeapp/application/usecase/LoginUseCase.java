@@ -3,6 +3,7 @@ package com.oscargabriel.financeapp.application.usecase;
 import java.util.ArrayList;
 import java.util.List;
 
+import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -19,18 +20,12 @@ import com.oscargabriel.financeapp.domain.port.out.UserRepositoryPort;
 import reactor.core.publisher.Mono;
 
 @Service
+@AllArgsConstructor
 public class LoginUseCase implements LoginPort {
 
     private final UserRepositoryPort usuarios;
     private final PasswordHasherPort hasher;
     private final TokenIssuerPort emisor;
-
-    public LoginUseCase(UserRepositoryPort usuarios, PasswordHasherPort hasher,
-            TokenIssuerPort emisor) {
-        this.usuarios = usuarios;
-        this.hasher = hasher;
-        this.emisor = emisor;
-    }
 
     /**
      * Correo desconocido, usuario inactivo, usuario borrado y contrasena incorrecta terminan en el

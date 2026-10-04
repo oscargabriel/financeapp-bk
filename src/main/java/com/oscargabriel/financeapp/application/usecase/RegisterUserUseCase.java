@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -26,6 +27,7 @@ import com.oscargabriel.financeapp.domain.port.out.UserRepositoryPort;
 import reactor.core.publisher.Mono;
 
 @Service
+@AllArgsConstructor
 public class RegisterUserUseCase implements RegisterUserPort {
 
     /** El mismo patron que el CHECK ck_users_email, para no aceptar aqui lo que la base rechaza. */
@@ -43,14 +45,6 @@ public class RegisterUserUseCase implements RegisterUserPort {
     private final CurrencyQueryPort monedas;
     private final PasswordHasherPort hasher;
     private final Clock clock;
-
-    public RegisterUserUseCase(UserRepositoryPort usuarios, CurrencyQueryPort monedas,
-            PasswordHasherPort hasher, Clock clock) {
-        this.usuarios = usuarios;
-        this.monedas = monedas;
-        this.hasher = hasher;
-        this.clock = clock;
-    }
 
     /**
      * El defer mantiene el contrato reactivo: un payload invalido sale como senal de error del Mono,

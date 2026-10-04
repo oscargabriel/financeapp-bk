@@ -3,6 +3,7 @@ package com.oscargabriel.financeapp.infrastructure.adapter.out.persistence;
 import java.util.Set;
 import java.util.UUID;
 
+import lombok.AllArgsConstructor;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Component;
 
@@ -14,6 +15,7 @@ import io.r2dbc.spi.Row;
 import reactor.core.publisher.Flux;
 
 @Component
+@AllArgsConstructor
 public class CategoryR2dbcAdapter implements CategoryQueryPort {
 
     private static final String SQL = """
@@ -31,10 +33,6 @@ public class CategoryR2dbcAdapter implements CategoryQueryPort {
             """;
 
     private final DatabaseClient databaseClient;
-
-    public CategoryR2dbcAdapter(DatabaseClient databaseClient) {
-        this.databaseClient = databaseClient;
-    }
 
     @Override
     public Flux<Category> findActiveByUser(UUID userId, Set<CategoryScope> scopes) {

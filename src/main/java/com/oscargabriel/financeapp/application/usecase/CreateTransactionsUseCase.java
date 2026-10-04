@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -26,6 +27,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Service
+@AllArgsConstructor
 public class CreateTransactionsUseCase implements CreateTransactionsPort {
 
     /**
@@ -38,14 +40,6 @@ public class CreateTransactionsUseCase implements CreateTransactionsPort {
     private final CategoryQueryPort categorias;
     private final TransactionRepositoryPort repositorio;
     private final Clock clock;
-
-    public CreateTransactionsUseCase(AccountQueryPort cuentas, CategoryQueryPort categorias,
-            TransactionRepositoryPort repositorio, Clock clock) {
-        this.cuentas = cuentas;
-        this.categorias = categorias;
-        this.repositorio = repositorio;
-        this.clock = clock;
-    }
 
     /**
      * Lee una sola vez las cuentas y categorias del usuario, valida el lote entero contra ellas y solo

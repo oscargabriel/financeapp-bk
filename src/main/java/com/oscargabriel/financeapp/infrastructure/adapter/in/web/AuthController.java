@@ -1,5 +1,6 @@
 package com.oscargabriel.financeapp.infrastructure.adapter.in.web;
 
+import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -18,15 +19,11 @@ import reactor.core.publisher.Mono;
 
 @RestController
 @RequestMapping("/auth")
+@AllArgsConstructor
 public class AuthController {
 
     private final RegisterUserPort registerUser;
     private final LoginPort login;
-
-    public AuthController(RegisterUserPort registerUser, LoginPort login) {
-        this.registerUser = registerUser;
-        this.login = login;
-    }
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)

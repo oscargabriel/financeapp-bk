@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -25,6 +26,7 @@ import com.oscargabriel.financeapp.domain.port.out.CurrencyQueryPort;
 import reactor.core.publisher.Mono;
 
 @Service
+@AllArgsConstructor
 public class CreateAccountUseCase implements CreateAccountPort {
 
     private static final Pattern FORMATO_MONEDA = Pattern.compile("^[A-Za-z]{3}$");
@@ -39,12 +41,6 @@ public class CreateAccountUseCase implements CreateAccountPort {
     private final AccountRepositoryPort cuentas;
     private final CurrencyQueryPort monedas;
     private final Clock clock;
-
-    public CreateAccountUseCase(AccountRepositoryPort cuentas, CurrencyQueryPort monedas, Clock clock) {
-        this.cuentas = cuentas;
-        this.monedas = monedas;
-        this.clock = clock;
-    }
 
     /**
      * El formato se valida entero antes de ir a la base: los campos de credito mal puestos tienen que

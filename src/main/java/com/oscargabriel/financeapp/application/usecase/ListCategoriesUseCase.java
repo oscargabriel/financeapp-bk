@@ -4,6 +4,7 @@ import java.util.EnumSet;
 import java.util.Set;
 import java.util.UUID;
 
+import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import com.oscargabriel.financeapp.domain.model.Category;
@@ -14,13 +15,10 @@ import com.oscargabriel.financeapp.domain.port.out.CategoryQueryPort;
 import reactor.core.publisher.Flux;
 
 @Service
+@AllArgsConstructor
 public class ListCategoriesUseCase implements ListCategoriesPort {
 
     private final CategoryQueryPort query;
-
-    public ListCategoriesUseCase(CategoryQueryPort query) {
-        this.query = query;
-    }
 
     @Override
     public Flux<Category> list(UUID userId, CategoryScope appliesTo) {
