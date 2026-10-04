@@ -154,10 +154,11 @@ Las reglas de la skill ceden ante `AGENTS.md` y `.claude/rules/` cuando chocan.
 `.\gradlew.bat build` — la suite completa más el umbral de cobertura, que `test` no exige. No
 necesita Docker ni base.
 
-`bru run . -r --env local` desde `bruno/` con la app levantada — **siempre**, no solo cuando la
-tarea toca endpoints. Es la única capa que ejerce el SQL de las vistas y la base real, así que una
-tarea que cambie una consulta, el esquema o el escenario de datos sin pasar por aquí se cierra sin
-verificar. Si `bru` no está en el PATH, eso es un bloqueo que se reporta, no un paso que se omite.
+`pwsh -NoProfile -File .claude/scripts/verificar-bruno.ps1 -RecargarDatos`. El script comprueba
+que el puerto esté libre y que la base sea la local antes de levantar la app; si se detiene, ver
+`verificar`. Va **siempre**, no solo cuando la tarea toca endpoints. Es la única capa que ejerce
+el SQL de las vistas y la base real, así que una tarea que cambie una consulta, el esquema o el
+escenario de datos sin pasar por aquí se cierra sin verificar. Si `bru` no está en el PATH, eso es un bloqueo que se reporta, no un paso que se omite.
 
 Este proyecto **no tiene checkstyle ni linter**: no reportes un paso de lint que no corrió.
 

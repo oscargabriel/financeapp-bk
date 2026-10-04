@@ -28,14 +28,30 @@ ni linter**: no se reporta un paso de lint que no existe.
 
 ## 2. Bruno
 
-Desde `bruno/`, con la app levantada (`SPRING_PROFILES_ACTIVE=local`):
+Desde la raíz del repo, con el script que valida el entorno, levanta la app, corre la colección y
+la apaga:
 
 ```powershell
-bru run . -r --env local
+pwsh -NoProfile -File .claude/scripts/verificar-bruno.ps1 -RecargarDatos
 ```
 
-Si `bru` no está en el PATH o la app no levanta, es un bloqueo que se reporta, no un paso que se
-omite.
+No levantes la app a mano ni corras `bru run` suelto para verificar: si en el puerto hay una app
+apuntando a Neon, la colección y la recarga de `test-data.sql` escriben en producción (FA-61). El
+script se detiene con código 2 antes de tocar nada si:
+
+- **El puerto de `bruno/environments/local.yml` está ocupado.** Reporta el PID y el proceso al
+  usuario y espera a que lo apague él: nunca matar un proceso que no levantaste.
+- **La base resuelta no es `localhost/financeapp`.** Mira `application-local.yaml` junto con las
+  variables `DB_*` y `SPRING_R2DBC_URL` de la terminal. Dile al usuario cuál variable o línea
+  apunta a otra parte; no las limpies ni edites el archivo por tu cuenta.
+
+`-RecargarDatos` carga el escenario de `test-data.sql` antes de correr; omítelo solo si el
+escenario ya está recién cargado. `-Objetivo transactions` corre una sola carpeta, y cada argumento
+`nombre=valor` llega a `bru` como `--env-var`.
+
+Código 3: la app no arrancó o no se pudo apagar, y el script muestra el final del log. Cualquier
+otro código distinto de 0 es el de `bru`. Si `bru` no está en el PATH (FA-39) o la app no levanta,
+es un bloqueo que se reporta, no un paso que se omite.
 
 ## 3. Reportar
 

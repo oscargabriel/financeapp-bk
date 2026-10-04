@@ -25,7 +25,17 @@ docker build -f deployment/Dockerfile -t financeapp-bk .   # la imagen de Cloud 
 **No hay checkstyle ni linter configurado** en `build.gradle`. La verificación es la suite más la
 colección Bruno; no prometas un paso de lint que no existe.
 
-Verificación contra la app real, desde `bruno/` con la app levantada:
+Verificación contra la app real. El script se detiene si el puerto está ocupado o si la base
+resuelta, con las variables `DB_*` y `SPRING_R2DBC_URL` de la terminal, no es `localhost/financeapp`.
+Si pasa, levanta la app de la rama con el perfil `local`, recarga `test-data.sql`, corre la
+colección y apaga la app (FA-61):
+
+```powershell
+pwsh -NoProfile -File .claude/scripts/verificar-bruno.ps1 -RecargarDatos
+```
+
+Para depurar un request suelto, desde `bruno/` y con una app que hayas levantado tú contra la base
+local:
 
 ```powershell
 bru run . -r --env local
