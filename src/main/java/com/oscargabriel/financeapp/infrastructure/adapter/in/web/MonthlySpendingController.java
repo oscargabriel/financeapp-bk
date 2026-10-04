@@ -4,6 +4,7 @@ import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
 import java.util.regex.Pattern;
 
+import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -21,15 +22,12 @@ import reactor.core.publisher.Flux;
 
 @RestController
 @RequestMapping("/monthly-spending")
+@AllArgsConstructor
 public class MonthlySpendingController {
 
     private static final Pattern FORMATO_MES = Pattern.compile("[0-9]{4}-[0-9]{2}");
 
     private final GetMonthlySpendingPort getMonthlySpending;
-
-    public MonthlySpendingController(GetMonthlySpendingPort getMonthlySpending) {
-        this.getMonthlySpending = getMonthlySpending;
-    }
 
     @GetMapping
     public Flux<MonthlySpendingResponse> monthlySpending(

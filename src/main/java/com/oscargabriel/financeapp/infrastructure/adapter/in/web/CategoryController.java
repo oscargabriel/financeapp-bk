@@ -2,6 +2,7 @@ package com.oscargabriel.financeapp.infrastructure.adapter.in.web;
 
 import java.util.Arrays;
 
+import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -20,13 +21,10 @@ import reactor.core.publisher.Flux;
 
 @RestController
 @RequestMapping("/categories")
+@AllArgsConstructor
 public class CategoryController {
 
     private final ListCategoriesPort listCategories;
-
-    public CategoryController(ListCategoriesPort listCategories) {
-        this.listCategories = listCategories;
-    }
 
     @GetMapping
     public Flux<CategoryResponse> categories(

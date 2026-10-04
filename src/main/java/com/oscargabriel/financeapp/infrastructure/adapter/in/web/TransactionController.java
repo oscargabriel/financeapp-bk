@@ -2,6 +2,7 @@ package com.oscargabriel.financeapp.infrastructure.adapter.in.web;
 
 import java.util.List;
 
+import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -20,13 +21,10 @@ import reactor.core.publisher.Mono;
 
 @RestController
 @RequestMapping("/transactions")
+@AllArgsConstructor
 public class TransactionController {
 
     private final CreateTransactionsPort createTransactions;
-
-    public TransactionController(CreateTransactionsPort createTransactions) {
-        this.createTransactions = createTransactions;
-    }
 
     /**
      * Mono de la lista y no Flux: transmitir el Flux mandaria el 201 y los primeros elementos antes de

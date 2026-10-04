@@ -1,5 +1,6 @@
 package com.oscargabriel.financeapp.infrastructure.adapter.in.web;
 
+import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,13 +16,10 @@ import reactor.core.publisher.Mono;
 
 @RestController
 @RequestMapping("/status")
+@AllArgsConstructor
 public class StatusController {
 
     private final CheckSystemStatusPort checkSystemStatus;
-
-    public StatusController(CheckSystemStatusPort checkSystemStatus) {
-        this.checkSystemStatus = checkSystemStatus;
-    }
 
     @GetMapping
     public Mono<ResponseEntity<StatusResponse>> status() {

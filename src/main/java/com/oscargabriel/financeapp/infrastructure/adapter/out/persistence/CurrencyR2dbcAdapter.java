@@ -1,5 +1,6 @@
 package com.oscargabriel.financeapp.infrastructure.adapter.out.persistence;
 
+import lombok.AllArgsConstructor;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Component;
 
@@ -8,6 +9,7 @@ import com.oscargabriel.financeapp.domain.port.out.CurrencyQueryPort;
 import reactor.core.publisher.Mono;
 
 @Component
+@AllArgsConstructor
 public class CurrencyR2dbcAdapter implements CurrencyQueryPort {
 
     private static final String EXISTE = """
@@ -20,10 +22,6 @@ public class CurrencyR2dbcAdapter implements CurrencyQueryPort {
             """;
 
     private final DatabaseClient databaseClient;
-
-    public CurrencyR2dbcAdapter(DatabaseClient databaseClient) {
-        this.databaseClient = databaseClient;
-    }
 
     @Override
     public Mono<Boolean> exists(String code) {

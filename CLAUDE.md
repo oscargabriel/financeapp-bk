@@ -64,6 +64,12 @@ El cableado que importa: un controlador depende del **puerto de entrada**
 (`MonthlySpendingQueryPort`), que implementa un adapter de persistencia. Para un endpoint nuevo se
 tocan los cuatro archivos en ese orden.
 
+Los beans (controladores, casos de uso, adapters) inyectan por constructor con `@AllArgsConstructor`
+de Lombok sobre campos `private final`; el constructor explícito queda solo para los que reciben
+un `@Value`, construyen algo con la dependencia (`TransactionalOperator.create(txManager)` en
+`TransactionR2dbcAdapter` y `UserR2dbcAdapter`) o necesitan `@Qualifier` por haber varias
+implementaciones de un mismo puerto.
+
 El dominio sí usa `Flux`/`Mono` en las firmas de los puertos: acoplamiento aceptado en este
 proyecto, no un descuido.
 

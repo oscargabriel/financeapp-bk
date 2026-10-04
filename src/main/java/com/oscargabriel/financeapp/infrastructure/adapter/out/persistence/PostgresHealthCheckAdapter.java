@@ -1,5 +1,6 @@
 package com.oscargabriel.financeapp.infrastructure.adapter.out.persistence;
 
+import lombok.AllArgsConstructor;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Component;
 
@@ -8,15 +9,12 @@ import com.oscargabriel.financeapp.domain.port.out.HealthCheckPort;
 import reactor.core.publisher.Mono;
 
 @Component
+@AllArgsConstructor
 public class PostgresHealthCheckAdapter implements HealthCheckPort {
 
     private static final String SERVICE_NAME = "postgres";
 
     private final DatabaseClient databaseClient;
-
-    public PostgresHealthCheckAdapter(DatabaseClient databaseClient) {
-        this.databaseClient = databaseClient;
-    }
 
     @Override
     public String serviceName() {
