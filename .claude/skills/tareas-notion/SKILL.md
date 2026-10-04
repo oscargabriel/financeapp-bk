@@ -180,13 +180,17 @@ borra en este paso y su índice se actualiza: la spec la reemplaza.
 
 Con los pasos 6 y 7 hechos, sin preguntar ni esperar revisión:
 
-1. `git add` **solo** de los archivos de la tarea, incluido todo `openspec/` que la tarea tocó: el
+1. Si la tarea tocó `bruno/`, leer en `bruno-personal/` los requests que su `tasks.md` mandó
+   replicar y compararlos con los de `bruno/` en ruta, cuerpo y autenticación. Esa carpeta está en
+   `.gitignore`: el PR no la muestra y nadie más va a notar que falta. No se ejecutan, porque
+   apuntan a Neon.
+2. `git add` **solo** de los archivos de la tarea, incluido todo `openspec/` que la tarea tocó: el
    working tree suele tener cambios del usuario que no son de la entrega.
-2. Commit con el `ID` en el título (`FA-<n> …`) y push.
-3. `gh pr create --base dev`. El cuerpo empieza por la ruta del change archivado y el porqué de su
+3. Commit con el `ID` en el título (`FA-<n> …`) y push.
+4. `gh pr create --base dev`. El cuerpo empieza por la ruta del change archivado y el porqué de su
    `proposal.md`, sigue con los requisitos que cambiaron en `openspec/specs/` y cierra con la
    evidencia del paso 6: quien revise lee primero qué debía hacer el cambio y después el código.
-4. `pwsh -NoProfile -File .claude/scripts/merge-pr-dev.ps1 <número>`: comprueba que la base sea
+5. `pwsh -NoProfile -File .claude/scripts/merge-pr-dev.ps1 <número>`: comprueba que la base sea
    `dev`, mergea con merge commit, vuelve a `dev` con `pull --ff-only` y aparta y repone los
    cambios locales que estorben al checkout. No usar `gh pr merge` directo: el permiso del proyecto
    autoriza el script, no el comando suelto.

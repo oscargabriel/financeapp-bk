@@ -1,0 +1,48 @@
+info:
+  name: Categorias
+  type: http
+  seq: 4
+
+http:
+  method: GET
+  url: "{{baseUrl}}/catalogs/categories"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("los mismos ids y el mismo orden que GET /api/categories", function() {
+          const esperados = JSON.parse(bru.getVar("idsCategoriasEscenario"));
+          expect(res.getBody().map(function (c) { return c.id; })).to.deep.equal(esperados);
+        });
+
+        test("cada categoria trae exactamente id y name", function() {
+          res.getBody().forEach(function (c) {
+            expect(c).to.have.all.keys("id", "name");
+          });
+        });
+
+        test("no trae la categoria borrada logicamente", function() {
+          expect(res.getBody().map(function (c) { return c.name; })).to.not.include("Cigarrillos");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # GET /api/catalogs/categories
+
+  Las categorias del usuario del token como `{id, name}`, para el selector de `categoryId`.
+
+  Compara contra `idsCategoriasEscenario`, que guarda `categories/Listar categorias` en la misma
+  corrida: si los dos endpoints devuelven los mismos ids en el mismo orden, el catalogo hereda el
+  filtro por usuario, el de borradas y el orden sin repetir aqui sus pruebas. Por eso esta carpeta
+  va despues de `categories/`, y corrida sola falla en este request.

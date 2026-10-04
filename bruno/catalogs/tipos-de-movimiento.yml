@@ -1,0 +1,36 @@
+info:
+  name: Tipos de movimiento
+  type: http
+  seq: 2
+
+http:
+  method: GET
+  url: "{{baseUrl}}/catalogs/transaction-types"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("los tres tipos en el orden del enum, con su etiqueta", function() {
+          expect(res.getBody()).to.deep.equal([
+            { code: "EXPENSE", description: "Gasto" },
+            { code: "INCOME", description: "Ingreso" },
+            { code: "TRANSFER", description: "Transferencia" }
+          ]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # GET /api/catalogs/transaction-types
+
+  Los valores que acepta `type` en cada elemento de `POST /api/transactions`.

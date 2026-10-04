@@ -1,0 +1,32 @@
+info:
+  name: Categorias con filtro invalido
+  type: http
+  seq: 6
+
+http:
+  method: GET
+  url: "{{baseUrl}}/catalogs/categories?appliesTo=GASTO"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: appliesTo
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Filtro fuera de EXPENSE, INCOME y BOTH
+
+  El mismo 400 que `categories/Listar categorias con filtro invalido`.
