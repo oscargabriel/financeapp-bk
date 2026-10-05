@@ -4,11 +4,98 @@ Cloud Run (`financeapp-bk-git`, región `europe-west1`) contra Neon. Los dos en 
 escala a 0: hay un solo usuario.
 
 **Estado al 04-10-2026:** el servicio existe con sus secretos y su escalado, pero corre
-`gcr.io/cloudrun/placeholder`, no la app. El pipeline que construye y despliega la imagen es FA-46.
-Hasta entonces el uso real es la app en local con `SPRING_PROFILES_ACTIVE=prod` contra Neon.
+`gcr.io/cloudrun/placeholder`, no la app. El pipeline ya está en `deployment/cloudbuild.yaml` (FA-46); el
+primer despliegue real es el del merge de `dev` a `main`. Hasta entonces el uso real es la app en
+local con `SPRING_PROFILES_ACTIVE=prod` contra Neon.
 
 Pendiente de este documento (FA-49): creación del proyecto en Neon, carga del esquema y de los
-`update/`, respaldo del plan, comandos de `gcloud` para desplegar y revertir a la imagen anterior.
+`update/`, y el respaldo del plan.
+
+## Pipeline
+
+`deployment/cloudbuild.yaml` lo ejecuta un disparador de Cloud Build en cada push a `main`. Tres
+pasos, y si uno falla los siguientes no corren:
+
+1. **imagen**: `docker build -f deployment/Dockerfile`. La etapa de compilación corre
+   `./gradlew build`: un test rojo o la cobertura bajo el 85 % terminan aquí.
+2. **publicar**: sube la imagen a `europe-west1-docker.pkg.dev/<proyecto>/cloud-run-source-deploy/financeapp-bk-git`
+   con dos etiquetas, el SHA corto del commit y `latest`.
+3. **desplegar**: `gcloud run deploy` con la imagen del SHA. Solo cambia la imagen: variables,
+   secretos, cuenta y escalado se quedan como están en el servicio. La revisión lleva la etiqueta
+   `commit-sha`, así que `gcloud run revisions list --service financeapp-bk-git --region europe-west1`
+   dice qué commit corre cada una.
+
+Región, repositorio y servicio son sustituciones con default (`_REGION`, `_REPOSITORY`,
+`_SERVICE`); el proyecto sale de `PROJECT_ID`. Cada build corre la suite completa dentro de Docker,
+así que consume minutos de Cloud Build. Al ritmo de merges a `main` de este proyecto no debería
+salirse de la cuota gratuita; si cambia, revisar el consumo en **Facturación → Informes**.
+
+### Artifact Registry
+
+Repositorio `cloud-run-source-deploy` en `europe-west1`, la misma región del servicio: la descarga
+de la imagen hacia Cloud Run no sale de la región. Tiene una política de limpieza que **conserva
+solo la versión más reciente** (FA-46): unos 226 MB comprimida, dentro de los 0,5 GB gratuitos.
+
+```powershell
+gcloud artifacts repositories describe cloud-run-source-deploy --location europe-west1   # tamaño y política
+```
+
+La limpieza corre una vez al día, así que tras un despliegue la versión anterior puede durar unas
+horas.
+
+### Crear el disparador (una vez)
+
+La cuenta del disparador es la misma del servicio, `financeapp@` (decisión de FA-48). Además de
+`run.admin` e `iam.serviceAccountUser`, necesita publicar imágenes y escribir los logs del build:
+
+```powershell
+$p = gcloud config get project
+$sa = "serviceAccount:financeapp@$p.iam.gserviceaccount.com"
+gcloud projects add-iam-policy-binding $p --member=$sa --role=roles/artifactregistry.writer
+gcloud projects add-iam-policy-binding $p --member=$sa --role=roles/logging.logWriter
+```
+
+En la consola, **Cloud Build → Activadores → Crear activador**:
+
+| Campo | Valor |
+|---|---|
+| Región | `europe-west1` |
+| Evento | Enviar a una rama |
+| Repositorio | `oscargabriel/financeapp-bk` (la primera vez, *Conectar repositorio* con GitHub) |
+| Rama | `^main$` |
+| Configuración | Archivo de configuración de Cloud Build, ubicación *Repositorio*, `deployment/cloudbuild.yaml` |
+| Cuenta de servicio | `financeapp@<proyecto>.iam.gserviceaccount.com` |
+
+Comprobar que quedó: `gcloud builds triggers list --region europe-west1`.
+
+### Desplegar
+
+Lo normal es mergear a `main`. A mano, solo en una emergencia, porque despliega lo que haya en la
+copia local y no lo que está en `main`:
+
+```powershell
+gcloud builds submit --config deployment/cloudbuild.yaml --region europe-west1 `
+  --substitutions=SHORT_SHA=$(git rev-parse --short HEAD) `
+  --service-account="projects/$p/serviceAccounts/financeapp@$p.iam.gserviceaccount.com"
+```
+
+### Revertir
+
+Como solo se conserva una imagen, **revertir es revertir el commit en `main`** y dejar que el
+pipeline reconstruya. Con escala a 0, cada arranque en frío vuelve a descargar la imagen de la
+revisión, así que pasar el tráfico a una revisión cuya imagen ya se borró deja el servicio sin
+poder arrancar.
+
+Solo en las horas siguientes a un despliegue, mientras la limpieza no haya borrado la imagen
+anterior, se puede devolver el tráfico a la revisión previa:
+
+```powershell
+gcloud run revisions list --service financeapp-bk-git --region europe-west1
+gcloud run services update-traffic financeapp-bk-git --region europe-west1 --to-revisions=<revisión>=100
+```
+
+Eso fija el tráfico en esa revisión: los despliegues siguientes ya no lo reciben hasta volver con
+`gcloud run services update-traffic financeapp-bk-git --region europe-west1 --to-latest`.
 
 ## Secretos y configuración del servicio
 

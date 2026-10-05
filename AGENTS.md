@@ -281,10 +281,17 @@ y los `update/`, aplicados a mano con psql, igual que en local.
 
 Rama de trabajo `dev`; **`main` es producción**. El servicio `financeapp-bk-git` (Cloud Run,
 `europe-west1`) existe con sus secretos y su escalado (FA-48), pero al 04-10-2026 **corre
-`gcr.io/cloudrun/placeholder`, no la app**: ningún disparador ha construido la imagen todavía, así
-que un merge a `main` hoy no despliega nada. El pipeline (suite, imagen con
-`deployment/Dockerfile`, Artifact Registry y despliegue) es FA-46. Hasta entonces, el uso real es la
-app en local con el perfil `prod` contra Neon.
+`gcr.io/cloudrun/placeholder`, no la app**. El pipeline ya está en `deployment/cloudbuild.yaml` (FA-46) y su
+primera corrida es la del merge de `dev` a `main`; hasta verificarla, el uso real es la app en local
+con el perfil `prod` contra Neon.
+
+`deployment/cloudbuild.yaml` lo ejecuta un disparador de Cloud Build en cada push a `main`: construye con
+`deployment/Dockerfile`, publica en Artifact Registry (`europe-west1`) con el SHA corto y `latest`,
+y despliega por el SHA. **El despliegue solo cambia la imagen**: variables, secretos, cuenta y
+escalado viven en el servicio, no en el archivo, así que un cambio de configuración se hace en el
+servicio y se anota en `docs/despliegue.md`. Artifact Registry conserva una sola versión, así que
+revertir es revertir el commit en `main`, no mover el tráfico. El detalle, el disparador y los roles
+están en `docs/despliegue.md`.
 
 - El contexto del build es la **raíz del repo**, no `deployment/`. El `.dockerignore` de la raíz es
   una **lista de lo permitido** (`gradlew`, `gradle/`, `build.gradle`, `settings.gradle`, `src/`),
