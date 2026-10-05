@@ -155,9 +155,10 @@ pasen por `boundedElastic`.
   en los que Neon suspende. Si sube el máximo de instancias, rehacer esa cuenta.
 - Lee sin **default** los secretos y `CORS_ALLOWED_ORIGINS`: un despliegue sin `DB_USERNAME` /
   `DB_PASSWORD` / `JWT_SECRET` / `BASIC_USERNAME` / `BASIC_PASSWORD` / `CORS_ALLOWED_ORIGINS` falla
-  al arrancar en vez de levantar con valores implícitos. Ojo con `DB_USERNAME` y `DB_PASSWORD`: el
-  binder de Boot deja pasar el placeholder sin resolver como texto literal, así que no fallan al
-  enlazar sino en `DatabaseStartupCheck`, cuando la base rechaza la autenticación. `JWT_SECRET`
+  al arrancar en vez de levantar con valores implícitos. `DB_USERNAME` y `DB_PASSWORD` los enlaza el
+  binder de Boot, que deja pasar el placeholder sin resolver como texto literal. Lo que los hace
+  fallar en el acto, como a los demás, es `R2dbcCredentialsCheck`, que los vuelve a pedir con
+  `@Value` (FA-53): no lo borres por parecer vacío. `JWT_SECRET`
   además tiene que medir 32 bytes o más: `JwtConfig` lo comprueba al construir la clave, porque
   HS256 no firma con menos y el fallo aparecería en el primer login en vez de en el arranque.
 - **El esquema `finance` lo fija `R2dbcSearchPathConfig`, no la URL.** Neon ignora `?schema=` y el

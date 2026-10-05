@@ -92,9 +92,8 @@ class CloudRunConfigTest {
     }
 
     /**
-     * Comprueba que ninguno trae default. Ojo con DB_USERNAME y DB_PASSWORD: el binder de Spring
-     * Boot deja pasar el placeholder sin resolver como texto literal, asi que en un arranque real no
-     * fallan aqui sino en DatabaseStartupCheck, al rechazar Neon la autenticacion.
+     * Comprueba que ninguno trae default. Que la ausencia aborte el arranque real lo hace @Value; para
+     * DB_USERNAME y DB_PASSWORD, que enlaza el binder de Boot, lo prueba R2dbcCredentialsCheckTest.
      */
     @ParameterizedTest(name = "sin {0} no resuelve {1}")
     @CsvSource({

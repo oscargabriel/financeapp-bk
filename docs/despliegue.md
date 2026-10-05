@@ -117,8 +117,9 @@ la imagen de `deployment/Dockerfile`, ver abajo).
 | `basic-username` | `BASIC_USERNAME` | `spring.security.basic.username` | Usuario de la credencial compartida de `/auth/register`, `/auth/login` y `/status` |
 | `basic-password` | `BASIC_PASSWORD` | `spring.security.basic.password` | Su contraseña |
 
-`DB_USERNAME` y `DB_PASSWORD` no fallan al enlazar sino en `DatabaseStartupCheck`, cuando Neon
-rechaza la autenticación: Boot deja pasar el placeholder sin resolver como texto literal.
+Si falta cualquiera de estas variables, la revisión no arranca y el log dice
+`Could not resolve placeholder '<VARIABLE>'`. Con `DB_USERNAME` y `DB_PASSWORD` pasa lo mismo, aunque
+`STARTUP_DB_CHECK_ENABLED` esté en `false` (FA-53).
 
 Producción y local **no deben** compartir `JWT_SECRET` ni la credencial Basic: así un token emitido
 en local no vale en producción, y quien tenga la Basic de desarrollo no puede registrarse en
