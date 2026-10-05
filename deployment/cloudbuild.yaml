@@ -1,0 +1,58 @@
+# Pipeline de despliegue (FA-46). Lo ejecuta el disparador de Cloud Build en cada push a main;
+# como configurarlo esta en docs/despliegue.md, seccion Pipeline.
+#
+# Vive en deployment/ junto al Dockerfile, pero Cloud Build corre los pasos desde la raiz del repo:
+# por eso el contexto del build es "." y el Dockerfile va con su ruta, igual que en local.
+#
+# La suite no tiene paso propio: la etapa de compilacion de deployment/Dockerfile corre
+# ./gradlew build, asi que un test rojo o la cobertura bajo el umbral hacen fallar el primer paso,
+# y Cloud Build no ejecuta los siguientes: nada se publica ni se despliega.
+#
+# El despliegue solo cambia la imagen. Variables, secretos, cuenta de servicio y escalado viven en
+# el servicio (FA-48) y gcloud run deploy los conserva: aqui no aparece ningun secreto.
+
+substitutions:
+  _REGION: europe-west1
+  _REPOSITORY: cloud-run-source-deploy
+  _SERVICE: financeapp-bk-git
+  _IMAGE: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE}
+
+options:
+  # _IMAGE se arma con otras sustituciones.
+  dynamicSubstitutions: true
+  # Obligatorio cuando el disparador corre con una cuenta de servicio propia.
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  - id: imagen
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - deployment/Dockerfile
+      - -t
+      - ${_IMAGE}:${SHORT_SHA}
+      - -t
+      - ${_IMAGE}:latest
+      - .
+
+  - id: publicar
+    name: gcr.io/cloud-builders/docker
+    args: [push, --all-tags, "${_IMAGE}"]
+
+  # Por el SHA y no por latest: la revision apunta a una imagen concreta, y la etiqueta commit-sha
+  # la asocia a su commit en la consola y en gcloud run revisions list.
+  - id: desplegar
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_IMAGE}:${SHORT_SHA}
+      - --region=${_REGION}
+      - --update-labels=commit-sha=${SHORT_SHA}
+      - --quiet
+
+# La suite completa corre dentro del docker build.
+timeout: 1800s
