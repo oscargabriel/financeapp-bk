@@ -1,0 +1,36 @@
+info:
+  name: Cuentas del escenario
+  type: http
+  seq: 26
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const id = function (nombre) {
+          return res.getBody().find(function (c) { return c.name === nombre; }).id;
+        };
+        bru.setVar("idEfectivoEscenario", id("Efectivo"));
+        bru.setVar("idBancolombiaEscenario", id("Bancolombia"));
+        bru.setVar("idAhorrosUsdEscenario", id("Ahorros USD"));
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Ids de las cuentas para el filtro por cuenta
+
+  `test-data.sql` fija los ids de las cuentas en variables de psql, pero la coleccion no los conoce:
+  se toman por nombre, igual que las categorias en `Categorias del escenario`.

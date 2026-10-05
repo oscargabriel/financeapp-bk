@@ -11,7 +11,7 @@ import reactor.core.publisher.Mono;
 
 public interface GetTransactionReportPort {
 
-    /** categoryIds y types vacios significan "sin filtro". */
+    /** categoryIds, accountIds y types vacios significan "sin filtro". */
     Mono<TransactionReport> get(UUID userId, LocalDate from, LocalDate to, Set<UUID> categoryIds,
-            Set<TransactionType> types);
+            Set<UUID> accountIds, Set<TransactionType> types);
 }

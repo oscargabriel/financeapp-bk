@@ -1,0 +1,35 @@
+info:
+  name: Reporte con cuenta y categoria
+  type: http
+  seq: 31
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{primerDia}}&to={{ultimoDia}}&accountId={{idEfectivoEscenario}}&categoryId={{idMercadoEscenario}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.transactions
+      operator: length
+      value: "1"
+    - expression: res.body.transactions[0].description
+      operator: eq
+      value: Fruta
+    - expression: res.body.transactions[0].amountBase
+      operator: eq
+      value: "42500"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Efectivo y Mercado
+
+  Mercado tiene dos gastos en el mes: la Fruta se pago en Efectivo y la carne con la Visa.

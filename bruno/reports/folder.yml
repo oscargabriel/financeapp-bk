@@ -16,5 +16,11 @@ docs: |
   Mes en curso del escenario: 15 movimientos. 11 gastos por 1.905.500, 2 ingresos por 5.300.000 y
   2 transferencias por 710.000 en `amountBase` (la de dolares mueve 100 USD que valen 410.000 COP).
 
-  Los ultimos requests montan un segundo usuario (`reportes-<timestamp>@bruno.local`) con un gasto
+  Los requests siguientes montan un segundo usuario (`reportes-<timestamp>@bruno.local`) con un gasto
   propio en el mes, para probar que ninguno de los dos ve los movimientos del otro.
+
+  Los ultimos prueban el filtro por cuenta (FA-28), que toma una transferencia si la cuenta es su
+  origen o su destino. Por cuenta, en el mes: Efectivo 4 gastos por 227.500 mas el retiro de cajero
+  que le llega (300.000); Bancolombia 3 gastos por 1.470.000, 2 ingresos por 5.300.000, el retiro que
+  sale y el cambio de dolares que entra (410.000); Visa 4 gastos por 208.000; Ahorros USD solo el
+  cambio de dolares que sale.

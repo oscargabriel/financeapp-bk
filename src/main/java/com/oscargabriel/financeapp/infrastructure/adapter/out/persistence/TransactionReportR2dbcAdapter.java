@@ -42,7 +42,10 @@ public class TransactionReportR2dbcAdapter implements TransactionReportQueryPort
             """;
 
     private static final String FILTRO_CATEGORIAS = "   AND t.category_id = ANY(:categoryIds)\n";
-    private static final String FILTRO_TIPOS = "   AND t.type = ANY(:types)\n";
+    /** Origen o destino en el mismo WHERE: una transferencia entre dos cuentas filtradas sale una vez. */
+    private static final String FILTRO_CUENTAS =
+            "   AND (t.account_id = ANY(:accountIds) OR t.destination_account_id = ANY(:accountIds))\n";
+    private static final String FILTRO_TIPOS ="   AND t.type = ANY(:types)\n";
     private static final String ORDEN = " ORDER BY t.occurred_at DESC, t.id DESC";
 
     private final DatabaseClient databaseClient;
@@ -62,6 +65,9 @@ public class TransactionReportR2dbcAdapter implements TransactionReportQueryPort
         if (!filter.categoryIds().isEmpty()) {
             sql.append(FILTRO_CATEGORIAS);
         }
+        if (!filter.accountIds().isEmpty()) {
+            sql.append(FILTRO_CUENTAS);
+        }
         if (!filter.types().isEmpty()) {
             sql.append(FILTRO_TIPOS);
         }
@@ -73,6 +79,9 @@ public class TransactionReportR2dbcAdapter implements TransactionReportQueryPort
                 .bind("to", filter.to());
         if (!filter.categoryIds().isEmpty()) {
             spec = spec.bind("categoryIds", filter.categoryIds().toArray(UUID[]::new));
+        }
+        if (!filter.accountIds().isEmpty()) {
+            spec = spec.bind("accountIds", filter.accountIds().toArray(UUID[]::new));
         }
         if (!filter.types().isEmpty()) {
             spec = spec.bind("types", filter.types().stream().map(Enum::name).toArray(String[]::new));

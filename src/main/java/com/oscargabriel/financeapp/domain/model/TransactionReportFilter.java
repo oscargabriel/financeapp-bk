@@ -8,12 +8,13 @@ import java.util.UUID;
 
 /**
  * Rango de dias cerrado por ambos extremos, en la zona del usuario, y los filtros opcionales. Un
- * conjunto vacio significa "sin filtro", no "nada".
+ * conjunto vacio significa "sin filtro", no "nada". Una cuenta filtra por origen o por destino.
  */
 public record TransactionReportFilter(
         LocalDate from,
         LocalDate to,
         Set<UUID> categoryIds,
+        Set<UUID> accountIds,
         Set<TransactionType> types) {
 
     public TransactionReportFilter {
@@ -24,6 +25,7 @@ public record TransactionReportFilter(
                     "La fecha inicial (" + from + ") es posterior a la fecha final (" + to + ")");
         }
         categoryIds = categoryIds == null ? Set.of() : Set.copyOf(categoryIds);
+        accountIds = accountIds == null ? Set.of() : Set.copyOf(accountIds);
         types = types == null ? Set.of() : Set.copyOf(types);
     }
 
