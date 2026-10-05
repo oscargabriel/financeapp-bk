@@ -1,0 +1,20 @@
+info:
+  name: Reports
+  type: folder
+  seq: 8
+
+request:
+  auth: inherit
+
+docs: |
+  # Reportes
+
+  `GET /api/reports/transactions` contra el usuario del escenario (`{{accessToken}}` de `auth/`).
+  Las fechas se calculan en `Categorias del escenario`, el primer request: `test-data.sql` genera
+  los movimientos relativos al mes en curso, asi que la carpeta necesita correr completa y en orden.
+
+  Mes en curso del escenario: 15 movimientos. 11 gastos por 1.905.500, 2 ingresos por 5.300.000 y
+  2 transferencias por 710.000 en `amountBase` (la de dolares mueve 100 USD que valen 410.000 COP).
+
+  Los ultimos requests montan un segundo usuario (`reportes-<timestamp>@bruno.local`) con un gasto
+  propio en el mes, para probar que ninguno de los dos ve los movimientos del otro.

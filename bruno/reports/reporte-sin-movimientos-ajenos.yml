@@ -1,0 +1,36 @@
+info:
+  name: Reporte sin movimientos ajenos
+  type: http
+  seq: 25
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{primerDia}}&to={{ultimoDia}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.transactions
+      operator: length
+      value: "15"
+  scripts:
+    - type: tests
+      code: |-
+        test("el gasto del otro usuario no aparece", function() {
+          const descripciones = res.getBody().transactions.map(function (t) { return t.description; });
+          expect(descripciones).to.not.include(bru.getVar("descripcionAjena"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El usuario del escenario, despues del gasto del otro
+
+  Mismo rango que `Reporte del mes`: sigue en 15.

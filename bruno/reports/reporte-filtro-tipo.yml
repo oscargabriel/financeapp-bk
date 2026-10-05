@@ -1,0 +1,36 @@
+info:
+  name: Reporte filtrado por tipo
+  type: http
+  seq: 5
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{primerDia}}&to={{ultimoDia}}&type=income"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.transactions
+      operator: length
+      value: "2"
+  scripts:
+    - type: tests
+      code: |-
+        const r = res.getBody();
+
+        test("solo ingresos, aunque el tipo llegue en minusculas", function() {
+          r.transactions.forEach(function (t) { expect(t.type).to.equal("INCOME"); });
+        });
+
+        test("totalsByType trae solo el tipo pedido", function() {
+          expect(r.totalsByType).to.eql([{ type: "INCOME", total: 5300000, count: 2 }]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
