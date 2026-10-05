@@ -1,0 +1,45 @@
+info:
+  name: Modificar con campos invalidos
+  type: http
+  seq: 22
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/transactions/{{idFruta}}"
+  body:
+    type: json
+    data: |-
+      {
+        "amount": -1,
+        "occurredAt": "ayer"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors
+      operator: length
+      value: "2"
+  scripts:
+    - type: tests
+      code: |-
+        test("un error por campo, los dos juntos", function() {
+          const campos = res.getBody().errors.map(function (e) { return e.field; }).sort();
+          expect(campos).to.deep.equal(["amount", "occurredAt"]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Formato invalido en dos campos
+
+  Las mismas reglas de formato del alta; el orden de los errores no esta garantizado.

@@ -1,5 +1,7 @@
 package com.oscargabriel.financeapp.infrastructure.adapter.in.web;
 
+import jakarta.validation.Valid;
+import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -18,25 +20,21 @@ import reactor.core.publisher.Mono;
 
 @RestController
 @RequestMapping("/auth")
+@AllArgsConstructor
 public class AuthController {
 
     private final RegisterUserPort registerUser;
     private final LoginPort login;
 
-    public AuthController(RegisterUserPort registerUser, LoginPort login) {
-        this.registerUser = registerUser;
-        this.login = login;
-    }
-
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
-    public Mono<RegisterUserResponse> register(@RequestBody RegisterUserRequest request) {
+    public Mono<RegisterUserResponse> register(@Valid @RequestBody RegisterUserRequest request) {
         return registerUser.register(request.toCommand())
                 .map(RegisterUserResponse::from);
     }
 
     @PostMapping("/login")
-    public Mono<LoginResponse> login(@RequestBody LoginRequest request) {
+    public Mono<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
         return login.login(request.toCommand())
                 .map(LoginResponse::from);
     }

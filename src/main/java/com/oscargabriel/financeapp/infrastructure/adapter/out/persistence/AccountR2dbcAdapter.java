@@ -3,6 +3,7 @@ package com.oscargabriel.financeapp.infrastructure.adapter.out.persistence;
 import java.math.BigDecimal;
 import java.util.UUID;
 
+import lombok.AllArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.r2dbc.core.DatabaseClient;
@@ -21,6 +22,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Component
+@AllArgsConstructor
 public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryPort {
 
     private static final String SQL = """
@@ -52,10 +54,6 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
             """;
 
     private final DatabaseClient databaseClient;
-
-    public AccountR2dbcAdapter(DatabaseClient databaseClient) {
-        this.databaseClient = databaseClient;
-    }
 
     @Override
     public Flux<Account> findByUser(UUID userId, boolean includeInactive) {

@@ -28,11 +28,25 @@ docs:
 
     ## Ambientes
 
-    - `local` — `http://localhost:8080`, la app corriendo con el perfil `local`.
-    - `prod` — URL publica. Todavia no hay despliegue: `PROD_HOST` se define cuando lo haya.
+    - `local` — `http://localhost:8080`, la app corriendo en la maquina. Con el perfil `local` va
+      contra la base local; con `prod`, contra Neon, y entonces valen las mismas advertencias que
+      en `prod`: la base es la real y el usuario de `test-data.sql` no existe alla, asi que el
+      login necesita `--env-var` con una cuenta registrada en Neon.
+    - `prod` — el servicio de Cloud Run, contra Neon. La base es la real: **no correr la coleccion
+      entera** (`auth/` registra usuarios y `accounts/` y `transactions/` escriben), y los reportes
+      esperan `test-data.sql`, que en Neon no existe. `system/` es de solo lectura.
 
-    Los secretos no se versionan. Copiar `.env.sample` a `.env` (ignorado por git) y llenar los
-    valores; los ambientes los leen con `{{process.env....}}`.
+    Los secretos no se versionan. `local` los lee de `.env` (copiar `.env.sample`, ignorado por
+    git) con `{{process.env....}}`.
+
+    `prod` no usa `.env`: `host` (la URL de Cloud Run), `userId`, `basicUser`, `basicPass`,
+    `testUserEmail` y `testUserPassword` van con `secret: true` y se escriben en la app, en
+    Environments > prod. Bruno los guarda cifrados y no comparten clave con local; `baseUrl` se
+    deriva de `host`. El CLI no ve ese almacen, asi que desde la terminal se pasan con `--env-var`,
+    pidiendo las credenciales en el momento para que no queden en el historial:
+
+        $c = Get-Credential -Message "Basic de prod"
+        bru run system -r --env prod --env-var "host=https://<servicio>.run.app" --env-var "basicUser=$($c.UserName)" --env-var "basicPass=$($c.GetNetworkCredential().Password)"
 
     ## Convencion
 

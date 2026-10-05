@@ -1,0 +1,23 @@
+{
+  "skill_name": "java-exceptions",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Estoy empezando un nuevo microservicio en Spring Boot con WebFlux. El paquete base es mx.com.miempresa.pedidos. Necesito la estructura completa de manejo de excepciones: el enum de errores, la excepción personalizada, los DTOs de respuesta y el handler global. Genera todos los archivos.",
+      "expected_output": "5 archivos completos adaptados al paquete mx.com.miempresa.pedidos: ErrorDetail.java, ErrorResponse.java, ErrorCodes.java, BadRequestException.java y WebExceptionHandler.java con todas las importaciones correctas",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "En mi servicio necesito lanzar un error cuando el usuario manda un ID de producto que no existe en la base de datos. El campo es 'productoId'. ¿Cómo lanzo la excepción correctamente siguiendo el patrón del proyecto?",
+      "expected_output": "Ejemplo de código con throw new BadRequestException usando HttpStatus.NOT_FOUND o BAD_REQUEST, con ErrorCodes.DATA_EMPTY o similar, descripción clara y field='productoId'",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Necesito agregar soporte en el WebExceptionHandler para manejar una excepción de tipo DuplicateKeyException de MongoDB (org.springframework.dao.DuplicateKeyException). Cuando ocurra debe retornar un 409 CONFLICT con el código DUPLICATE_ENTRY.",
+      "expected_output": "Instrucciones para agregar el case en el switch del WebExceptionHandler, el método fromDuplicateKeyException(), y el uso del ErrorCode DUPLICATE_ENTRY con HttpStatus.CONFLICT",
+      "files": []
+    }
+  ]
+}

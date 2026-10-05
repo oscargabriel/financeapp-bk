@@ -69,6 +69,9 @@ runtime:
           expect(new Set(ids).size).to.equal(3);
         });
 
+        bru.setVar("idTransferencia", cuerpo[1].id);
+        bru.setVar("idFruta", cuerpo[2].id);
+
 settings:
   encodeUrl: true
   timeout: 0

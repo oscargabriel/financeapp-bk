@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.YearMonth;
 import java.util.UUID;
 
+import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -17,15 +18,11 @@ import com.oscargabriel.financeapp.domain.port.out.MonthlySpendingQueryPort;
 import reactor.core.publisher.Flux;
 
 @Service
+@AllArgsConstructor
 public class GetMonthlySpendingUseCase implements GetMonthlySpendingPort {
 
     private final MonthlySpendingQueryPort query;
     private final Clock clock;
-
-    public GetMonthlySpendingUseCase(MonthlySpendingQueryPort query, Clock clock) {
-        this.query = query;
-        this.clock = clock;
-    }
 
     /**
      * El defer mantiene el contrato reactivo: un rango invalido sale como senal de error del Flux,

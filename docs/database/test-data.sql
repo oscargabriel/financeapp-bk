@@ -30,8 +30,9 @@ DELETE FROM finance.users WHERE email IN ('prueba@financeapp.local', 'inactivo@f
 
 -- Los requests de alta de bruno/ crean un usuario nuevo en cada corrida: auth/ con el correo
 -- registro-<timestamp>@bruno.local, monthly-spending/ con sin-datos-<timestamp>@bruno.local,
--- categories/ con categorias-<timestamp>@bruno.local, accounts/ con cuentas-<timestamp>@bruno.local y
--- transactions/ con transacciones-<timestamp>@bruno.local. Sus cuentas y movimientos caen en cascada.
+-- categories/ con categorias-<timestamp>@bruno.local, accounts/ con cuentas-<timestamp>@bruno.local,
+-- transactions/ con transacciones-<timestamp>@bruno.local y reports/ con reportes-<timestamp>@bruno.local.
+-- Sus cuentas y movimientos caen en cascada.
 -- Recargar este escenario es lo que los limpia.
 DELETE FROM finance.users WHERE email LIKE '%@bruno.local';
 
@@ -120,6 +121,17 @@ VALUES (gen_random_uuid(), :'uid'::uuid, 'Davivienda', 'SAVINGS', 'COP', 150000,
 INSERT INTO finance.exchange_rates (from_currency_code, to_currency_code, rate, rate_date)
 VALUES ('USD', 'COP', 4100.0000000000, CURRENT_DATE)
 ON CONFLICT (from_currency_code, to_currency_code, rate_date) DO UPDATE SET rate = EXCLUDED.rate;
+
+
+-- -----------------------------------------------------------------------------
+-- Moneda inactiva
+-- -----------------------------------------------------------------------------
+-- La semilla solo trae monedas activas: sin esta, nada en bruno/catalogs/ probaria que
+-- GET /api/catalogs/currencies filtra por is_active. XTS es el codigo que ISO 4217 reserva para
+-- pruebas, y va aqui y no en seed.sql porque en Neon no debe existir.
+INSERT INTO finance.currencies (code, name, symbol, decimal_places, is_active)
+VALUES ('XTS', 'Moneda de prueba', 'XTS', 2, FALSE)
+ON CONFLICT (code) DO UPDATE SET is_active = FALSE;
 
 
 -- -----------------------------------------------------------------------------

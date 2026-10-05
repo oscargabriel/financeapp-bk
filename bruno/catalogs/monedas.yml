@@ -1,0 +1,56 @@
+info:
+  name: Monedas
+  type: http
+  seq: 3
+
+http:
+  method: GET
+  url: "{{baseUrl}}/catalogs/currencies"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: isArray
+  scripts:
+    - type: tests
+      code: |-
+        const codigos = function () {
+          return res.getBody().map(function (m) { return m.code; });
+        };
+
+        test("trae COP con el nombre y el simbolo de la semilla", function() {
+          const cop = res.getBody().find(function (m) { return m.code === "COP"; });
+          expect(cop).to.deep.equal({ code: "COP", name: "Peso colombiano", symbol: "$" });
+        });
+
+        test("cada moneda trae exactamente code, name y symbol", function() {
+          res.getBody().forEach(function (m) {
+            expect(m).to.have.all.keys("code", "name", "symbol");
+          });
+        });
+
+        test("ordena por codigo", function() {
+          const lista = codigos();
+          expect(lista).to.deep.equal(lista.slice().sort());
+        });
+
+        test("no trae la moneda inactiva del escenario", function() {
+          expect(codigos()).to.not.include("XTS");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # GET /api/catalogs/currencies
+
+  Las monedas activas de `finance.currencies`, que son las que acepta `currencyCode` en
+  `POST /api/accounts`. `docs/database/test-data.sql` deja `XTS` inactiva: es la que prueba el
+  filtro. No se cuenta el total, porque depende de la semilla y no de este endpoint.

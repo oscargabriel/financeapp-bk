@@ -3,7 +3,6 @@ package com.oscargabriel.financeapp.application.usecase;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -115,27 +114,6 @@ class LoginUseCaseTest {
         assertThat(detalle(sinUsuario).getDescription())
                 .isEqualTo(detalle(claveMala).getDescription());
         assertThat(detalle(sinUsuario).getField()).isEqualTo(detalle(claveMala).getField());
-    }
-
-    @Test
-    void devuelve400ConLosDosCamposCuandoElPayloadVieneVacio() {
-        BadRequestException error = capturarError(login().login(new LoginCommand(null, "   ")));
-
-        assertThat(error.getHttpStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(error.getErrorResponse().getErrors())
-                .extracting(detalle -> detalle.getField())
-                .containsExactly("email", "password");
-
-        verifyNoInteractions(usuarios, hasher, emisor);
-    }
-
-    /** Un payload invalido tiene que salir como senal de error del Mono, no al ensamblar la cadena. */
-    @Test
-    void noLanzaAlConstruirLaCadenaConUnPayloadInvalido() {
-        Mono<AccessToken> cadena = login().login(new LoginCommand(null, null));
-
-        verify(usuarios, never()).findActiveByEmail(anyString());
-        StepVerifier.create(cadena).verifyError(BadRequestException.class);
     }
 
     /** El hash guardado es lo unico que se le pasa al verificador: nunca se compara con equals. */

@@ -13,3 +13,7 @@ docs: |
   su token en `tokenTransacciones`. Dar de alta movimientos cambia saldos, y los saldos del usuario
   del escenario los verifican accounts/ y monthly-spending/: escribir sobre el obligaria a recargar
   `test-data.sql` entre corridas. Recargarlo es lo que limpia a estos usuarios.
+
+  Los requests de movimiento ajeno (`Modificar movimiento ajeno`, `Eliminar movimiento ajeno`) usan
+  el `accessToken` de `auth/`, el usuario del escenario, contra un movimiento de esta carpeta: la
+  carpeta sola, sin `auth/` antes, los deja en 401.

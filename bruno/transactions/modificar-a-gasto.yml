@@ -1,0 +1,46 @@
+info:
+  name: Modificar a gasto
+  type: http
+  seq: 27
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/transactions/{{idFruta}}"
+  body:
+    type: json
+    data: |-
+      {
+        "type": "EXPENSE",
+        "categoryId": "{{idMercado}}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.type
+      operator: eq
+      value: EXPENSE
+    - expression: res.body.destinationAccountId
+      operator: isNull
+  scripts:
+    - type: tests
+      code: |-
+        test("lleva la categoria enviada", function() {
+          expect(res.getBody().categoryId).to.equal(bru.getVar("idMercado"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Transferencia a gasto
+
+  La cuenta destino se vacia sola.

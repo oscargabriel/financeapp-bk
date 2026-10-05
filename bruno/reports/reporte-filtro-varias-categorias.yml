@@ -1,0 +1,36 @@
+info:
+  name: Reporte con varias categorias
+  type: http
+  seq: 4
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{primerDia}}&to={{ultimoDia}}&categoryId={{idMercadoEscenario}}&categoryId={{idRestaurantesEscenario}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.transactions
+      operator: length
+      value: "4"
+  scripts:
+    - type: tests
+      code: |-
+        test("una entrada de totales por cada categoria pedida, de mayor a menor", function() {
+          const nombres = res.getBody().totalsByCategory.map(function (c) { return c.categoryName; });
+          expect(nombres).to.eql(["Mercado", "Restaurantes"]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # categoryId repetido
+
+  Mercado suma 127.500 y Restaurantes 88.000 en el mes.

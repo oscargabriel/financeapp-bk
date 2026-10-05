@@ -1,0 +1,44 @@
+info:
+  name: Modificar con Basic
+  type: http
+  seq: 31
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/transactions/{{idFruta}}"
+  body:
+    type: json
+    data: |-
+      {
+        "description": "No llega"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+  scripts:
+    - type: tests
+      code: |-
+        test("el reto es el de la cadena del JWT", function() {
+          expect(res.getHeader("www-authenticate")).to.equal("Bearer");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # PATCH con la credencial compartida
+
+  El Basic abre `/auth/*` y `/status`, no los movimientos.

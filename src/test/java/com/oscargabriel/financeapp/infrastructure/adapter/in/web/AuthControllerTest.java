@@ -148,6 +148,47 @@ class AuthControllerTest {
                 .jsonPath("$.errors[0].field").isEqualTo("email");
     }
 
+    /** Las reglas viven en el record: un payload invalido no llega al caso de uso. */
+    @Test
+    void devuelve400ConTodosLosCamposInvalidosSinLlamarAlCasoDeUso() {
+        webTestClient.post().uri(URI_REGISTRO)
+                .headers(BasicMother.cabecera())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("email", "no-es-un-email", "password", "corta", "firstName", " "))
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors.length()").isEqualTo(3)
+                .jsonPath("$.errors[*].code").value(codigos -> assertThat(codigos)
+                        .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
+                        .containsOnly("VALIDATION_ERROR"))
+                .jsonPath("$.errors[?(@.field == 'email')].description")
+                .isEqualTo("El correo no tiene un formato valido")
+                .jsonPath("$.errors[?(@.field == 'password')].description")
+                .isEqualTo("La contrasena debe tener al menos 8 caracteres")
+                .jsonPath("$.errors[?(@.field == 'firstName')].description")
+                .isEqualTo("El nombre es obligatorio");
+
+        verifyNoInteractions(registerUser);
+    }
+
+    @Test
+    void elLoginDevuelve400SinLlamarAlCasoDeUsoCuandoFaltanLasCredenciales() {
+        webTestClient.post().uri(URI_LOGIN)
+                .headers(BasicMother.cabecera())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("email", " "))
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors.length()").isEqualTo(2)
+                .jsonPath("$.errors[?(@.field == 'email')].description").isEqualTo("El correo es obligatorio")
+                .jsonPath("$.errors[?(@.field == 'password')].description")
+                .isEqualTo("La contrasena es obligatoria");
+
+        verifyNoInteractions(login);
+    }
+
     @Test
     void devuelve400CuandoElCuerpoNoEsJsonValido() {
         webTestClient.post().uri(URI_REGISTRO)

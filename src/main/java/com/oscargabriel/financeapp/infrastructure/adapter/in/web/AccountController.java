@@ -1,5 +1,7 @@
 package com.oscargabriel.financeapp.infrastructure.adapter.in.web;
 
+import jakarta.validation.Valid;
+import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -23,15 +25,11 @@ import reactor.core.publisher.Mono;
 
 @RestController
 @RequestMapping("/accounts")
+@AllArgsConstructor
 public class AccountController {
 
     private final ListAccountsPort listAccounts;
     private final CreateAccountPort createAccount;
-
-    public AccountController(ListAccountsPort listAccounts, CreateAccountPort createAccount) {
-        this.listAccounts = listAccounts;
-        this.createAccount = createAccount;
-    }
 
     @GetMapping
     public Flux<AccountResponse> accounts(
@@ -45,7 +43,7 @@ public class AccountController {
     @ResponseStatus(HttpStatus.CREATED)
     public Mono<AccountResponse> create(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestBody CreateAccountRequest request) {
+            @Valid @RequestBody CreateAccountRequest request) {
         return Mono.defer(() -> createAccount.create(UsuarioDelToken.de(jwt), request.toCommand()))
                 .map(AccountResponse::from);
     }

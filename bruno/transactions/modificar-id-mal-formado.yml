@@ -1,0 +1,40 @@
+info:
+  name: Modificar con id mal formado
+  type: http
+  seq: 28
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/transactions/abc"
+  body:
+    type: json
+    data: |-
+      {
+        "description": "No llega"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: id
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El id de la ruta no es un UUID
+
+  Error sobre `id`, no un `JSON_PARSING_ERROR` sobre el cuerpo.

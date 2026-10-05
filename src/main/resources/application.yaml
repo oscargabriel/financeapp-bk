@@ -1,7 +1,8 @@
 # Este archivo es la configuracion de Cloud Run: la imagen solo lleva application.yaml, y el
 # servicio completa el resto con variables de entorno y Secret Manager. application-local.yaml y
-# application-prod.yaml no se versionan: el primero es el desarrollo diario y el segundo simula la
-# nube en local para reproducir una falla puntual. Los dos sobrescriben lo que difiere de aqui.
+# application-prod.yaml no se versionan: el primero es el desarrollo diario y el segundo es su
+# copia apuntando a Neon, para correr en local contra la base real. Los dos sobrescriben lo que
+# difiere de aqui.
 server:
   # Cloud Run inyecta el puerto en PORT; SERVER_PORT queda para correr la imagen fuera de Run.
   port: ${PORT:${SERVER_PORT:8080}}
@@ -41,7 +42,7 @@ spring:
     password: ${DB_PASSWORD}
     pool:
       enabled: true
-      # Maximo 3 instancias de Cloud Run x 10 = 30 conexiones, frente a las 901 de max_connections
+      # Maximo 1 instancia de Cloud Run x 10 = 10 conexiones, frente a las 901 de max_connections
       # del plan Free de Neon (computo de 2 CU). Con R2DBC, 10 conexiones sirven a las 80
       # peticiones concurrentes por instancia. Si sube el maximo de instancias, rehacer la cuenta.
       # initial-size 1: el arranque en frio (Cloud Run escala a 0) no abre conexiones de mas.

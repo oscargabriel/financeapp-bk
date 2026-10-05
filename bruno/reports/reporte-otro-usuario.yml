@@ -1,0 +1,32 @@
+info:
+  name: Reporte del otro usuario
+  type: http
+  seq: 24
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{primerDia}}&to={{ultimoDia}}"
+  auth:
+    type: bearer
+    token: "{{tokenReportes}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.transactions
+      operator: length
+      value: "1"
+  scripts:
+    - type: tests
+      code: |-
+        test("trae solo su gasto, nada del usuario del escenario", function() {
+          expect(res.getBody().transactions[0].description).to.equal(bru.getVar("descripcionAjena"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
