@@ -5,8 +5,7 @@ va en su carpeta (`.claude/rules/` para Claude Code); aquí solo lo que vale par
 
 Backend de finanzas personales. Java 25 + Spring Boot 4.1.1 (WebFlux), R2DBC contra PostgreSQL 18,
 Gradle 9.7.1 con wrapper. Arquitectura hexagonal. Se construye por etapas. La base de producción es
-Neon (PostgreSQL 18 administrado), y el destino es Cloud Run: **todavía no despliega**, ver
-*Despliegue*.
+Neon (PostgreSQL 18 administrado), y la app corre en Cloud Run: ver *Despliegue*.
 
 ## Comandos
 
@@ -280,10 +279,8 @@ y los `update/`, aplicados a mano con psql, igual que en local.
 ## Despliegue
 
 Rama de trabajo `dev`; **`main` es producción**. El servicio `financeapp-bk-git` (Cloud Run,
-`europe-west1`) existe con sus secretos y su escalado (FA-48), pero al 04-10-2026 **corre
-`gcr.io/cloudrun/placeholder`, no la app**. El pipeline ya está en `deployment/cloudbuild.yaml` (FA-46) y su
-primera corrida es la del merge de `dev` a `main`; hasta verificarla, el uso real es la app en local
-con el perfil `prod` contra Neon.
+`europe-west1`) corre la app desde el 05-10-2026, desplegada por el pipeline (FA-46) con los
+secretos y el escalado del servicio (FA-48).
 
 `deployment/cloudbuild.yaml` lo ejecuta un disparador de Cloud Build en cada push a `main`: construye con
 `deployment/Dockerfile`, publica en Artifact Registry (`europe-west1`) con el SHA corto y `latest`,
