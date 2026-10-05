@@ -42,7 +42,7 @@ spring:
     password: ${DB_PASSWORD}
     pool:
       enabled: true
-      # Maximo 3 instancias de Cloud Run x 10 = 30 conexiones, frente a las 901 de max_connections
+      # Maximo 1 instancia de Cloud Run x 10 = 10 conexiones, frente a las 901 de max_connections
       # del plan Free de Neon (computo de 2 CU). Con R2DBC, 10 conexiones sirven a las 80
       # peticiones concurrentes por instancia. Si sube el maximo de instancias, rehacer la cuenta.
       # initial-size 1: el arranque en frio (Cloud Run escala a 0) no abre conexiones de mas.
