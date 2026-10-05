@@ -1,0 +1,40 @@
+info:
+  name: Otro usuario — gasto del mes
+  type: http
+  seq: 23
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCuentaReportes}}",
+          "categoryId": "{{idMercadoReportes}}",
+          "amount": 12345,
+          "description": "{{descripcionAjena}}",
+          "occurredAt": "{{primerDia}}T12:00:00-05:00"
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenReportes}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: before-request
+      code: |-
+        bru.setVar("descripcionAjena", "Gasto ajeno " + Date.now());
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

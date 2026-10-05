@@ -1,0 +1,30 @@
+info:
+  name: Reporte con fecha mal formada
+  type: http
+  seq: 12
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{primerDia}}&to=2026-10-1"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: to
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  El formato es `YYYY-MM-DD`, con dos digitos de mes y de dia.

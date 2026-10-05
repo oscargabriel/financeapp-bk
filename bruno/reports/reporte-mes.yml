@@ -1,0 +1,91 @@
+info:
+  name: Reporte del mes
+  type: http
+  seq: 2
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{primerDia}}&to={{ultimoDia}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.transactions
+      operator: length
+      value: "15"
+  scripts:
+    - type: tests
+      code: |-
+        const r = res.getBody();
+        const porDescripcion = function (d) {
+          return r.transactions.find(function (t) { return t.description === d; });
+        };
+
+        test("devuelve el contrato del reporte", function() {
+          expect(r).to.have.all.keys("from", "to", "currencyCode", "transactions", "totalsByType",
+              "totalsByCategory");
+          expect(r.from).to.equal(bru.getVar("primerDia"));
+          expect(r.to).to.equal(bru.getVar("ultimoDia"));
+          expect(r.currencyCode).to.equal("COP");
+          expect(r.transactions[0]).to.have.all.keys("id", "type", "accountId", "destinationAccountId",
+              "categoryId", "categoryName", "amount", "currencyCode", "amountBase", "description",
+              "notes", "occurredAt");
+        });
+
+        test("ordena del mas reciente al mas antiguo", function() {
+          const fechas = r.transactions.map(function (t) { return t.occurredAt; });
+          expect(fechas).to.eql(fechas.slice().sort().reverse());
+          expect(r.transactions[0].description).to.equal("Cena de fin de mes");
+        });
+
+        test("un gasto trae su categoria y ninguna cuenta destino", function() {
+          const fruta = porDescripcion("Fruta");
+          expect(fruta.categoryName).to.equal("Mercado");
+          expect(fruta.categoryId).to.equal(bru.getVar("idMercadoEscenario"));
+          expect(fruta.destinationAccountId).to.equal(null);
+        });
+
+        test("una transferencia no trae categoria y el monto base esta en la moneda del usuario", function() {
+          const cambio = porDescripcion("Cambio de dólares");
+          expect(cambio.type).to.equal("TRANSFER");
+          expect(cambio.categoryId).to.equal(null);
+          expect(cambio.categoryName).to.equal(null);
+          expect(cambio.destinationAccountId).to.not.equal(null);
+          expect(cambio.amount).to.equal(100);
+          expect(cambio.currencyCode).to.equal("USD");
+          expect(cambio.amountBase).to.equal(410000);
+        });
+
+        test("los totales por tipo suman amountBase", function() {
+          expect(r.totalsByType).to.eql([
+            { type: "EXPENSE", total: 1905500, count: 11 },
+            { type: "INCOME", total: 5300000, count: 2 },
+            { type: "TRANSFER", total: 710000, count: 2 }
+          ]);
+        });
+
+        test("los totales por categoria dejan fuera las transferencias y van de mayor a menor", function() {
+          const totales = r.totalsByCategory.map(function (c) { return c.total; });
+          const suma = totales.reduce(function (a, b) { return a + b; }, 0);
+          expect(suma).to.equal(1905500 + 5300000);
+          expect(totales).to.eql(totales.slice().sort(function (a, b) { return b - a; }));
+          const mercado = r.totalsByCategory.find(function (c) { return c.categoryName === "Mercado"; });
+          expect(mercado).to.eql({ categoryId: bru.getVar("idMercadoEscenario"), categoryName: "Mercado",
+              total: 127500, count: 2 });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # GET /api/reports/transactions?from=&to=
+
+  Primer y ultimo dia del mes en curso, sin filtros: los gastos, ingresos y transferencias del
+  escenario. La transferencia en dolares es la que distingue `amountBase` de `amount`: si los
+  totales sumaran `amount`, TRANSFER daria 300.100 y no 710.000.

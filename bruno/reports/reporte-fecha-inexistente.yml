@@ -1,0 +1,30 @@
+info:
+  name: Reporte con fecha inexistente
+  type: http
+  seq: 13
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from=2026-02-30&to=2026-03-31"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: from
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  El formato es correcto, pero el 30 de febrero no existe.

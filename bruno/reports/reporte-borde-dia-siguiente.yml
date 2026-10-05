@@ -1,0 +1,28 @@
+info:
+  name: Reporte del primer dia del mes siguiente
+  type: http
+  seq: 10
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{primerDiaSiguiente}}&to={{primerDiaSiguiente}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("no incluye la cena, aunque en UTC sea de este dia", function() {
+          const descripciones = res.getBody().transactions.map(function (t) { return t.description; });
+          expect(descripciones).to.not.include("Cena de fin de mes");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

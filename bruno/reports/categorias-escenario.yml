@@ -1,0 +1,47 @@
+info:
+  name: Categorias del escenario
+  type: http
+  seq: 1
+
+http:
+  method: GET
+  url: "{{baseUrl}}/categories"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: before-request
+      code: |-
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const comoDia = function (f) {
+          return f.getFullYear() + "-" + dos(f.getMonth() + 1) + "-" + dos(f.getDate());
+        };
+        const hoy = new Date();
+        bru.setVar("primerDia", comoDia(new Date(hoy.getFullYear(), hoy.getMonth(), 1)));
+        bru.setVar("ultimoDia", comoDia(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0)));
+        bru.setVar("primerDiaSiguiente", comoDia(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1)));
+    - type: tests
+      code: |-
+        const id = function (nombre) {
+          return res.getBody().find(function (c) { return c.name === nombre; }).id;
+        };
+        bru.setVar("idMercadoEscenario", id("Mercado"));
+        bru.setVar("idRestaurantesEscenario", id("Restaurantes"));
+        bru.setVar("idSalarioEscenario", id("Salario"));
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Ids y fechas de la carpeta
+
+  Las categorias del escenario se crean con `gen_random_uuid()`: el id cambia en cada recarga de
+  `test-data.sql`, asi que se toma por nombre. Las fechas salen de la hora local de la maquina,
+  igual que en `monthly-spending/`.

@@ -1,0 +1,30 @@
+info:
+  name: Reporte con tipo invalido
+  type: http
+  seq: 16
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{primerDia}}&to={{ultimoDia}}&type=PAGO"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: type
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  `type` admite EXPENSE, INCOME y TRANSFER.

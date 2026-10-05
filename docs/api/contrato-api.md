@@ -22,6 +22,7 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | `PATCH` | `/api/transactions/{id}` | Bearer | Modificar un movimiento |
 | `DELETE` | `/api/transactions/{id}` | Bearer | Eliminar un movimiento |
 | `GET` | `/api/monthly-spending` | Bearer | Gasto mensual contra la meta |
+| `GET` | `/api/reports/transactions` | Bearer | Movimientos y totales de un rango de días |
 
 ## Generalidades
 
@@ -638,6 +639,96 @@ extremos. Errores 400 `VALIDATION_ERROR`:
 - Hoy el API no tiene endpoint para crear metas, así que `budgetAmount` llega `null` hasta que se
   carguen por base.
 
+### `GET /api/reports/transactions`
+
+Movimientos del usuario del token en un rango de días, con sus totales por tipo y por categoría.
+**Bearer.**
+
+**Query params**
+
+| Param | Formato | Obligatorio |
+|---|---|---|
+| `from` | `YYYY-MM-DD` | Sí |
+| `to` | `YYYY-MM-DD` | Sí |
+| `categoryId` | UUID, uno o varios | No |
+| `type` | `EXPENSE`, `INCOME` o `TRANSFER`, uno o varios, sin distinguir mayúsculas | No |
+
+Los dos filtros admiten varios valores repitiendo el parámetro (`?type=EXPENSE&type=INCOME`) o
+separados por coma (`?type=EXPENSE,INCOME`). Los dos juntos se combinan con Y. El rango incluye los
+dos extremos. Errores 400 `VALIDATION_ERROR`, en el campo del parámetro:
+
+- Falta `from` o `to`, o no viene como `YYYY-MM-DD` (`2026-10-1`, `2026/10/01`), o el día no existe
+  (`2026-02-30`).
+- `from` posterior a `to`, en el campo `from`.
+- Un `categoryId` que no es UUID, o un `type` fuera de los tres valores.
+
+**200 OK** — `transactions` del más reciente al más antiguo:
+
+```json
+{
+  "from": "2026-10-01",
+  "to": "2026-10-31",
+  "currencyCode": "COP",
+  "transactions": [
+    {
+      "id": "0192a3b4-...",
+      "type": "TRANSFER",
+      "accountId": "0192a3b4-...",
+      "destinationAccountId": "0192a3b4-...",
+      "categoryId": null,
+      "categoryName": null,
+      "amount": 100.0000,
+      "currencyCode": "USD",
+      "amountBase": 410000.0000,
+      "description": "Cambio de dólares",
+      "notes": null,
+      "occurredAt": "2026-10-10T20:00:00Z"
+    },
+    {
+      "id": "0192a3b4-...",
+      "type": "EXPENSE",
+      "accountId": "0192a3b4-...",
+      "destinationAccountId": null,
+      "categoryId": "0192a3b4-...",
+      "categoryName": "Mercado",
+      "amount": 85000.0000,
+      "currencyCode": "COP",
+      "amountBase": 85000.0000,
+      "description": "Carne y verduras",
+      "notes": null,
+      "occurredAt": "2026-10-02T15:00:00Z"
+    }
+  ],
+  "totalsByType": [
+    { "type": "EXPENSE", "total": 85000.0000, "count": 1 },
+    { "type": "INCOME", "total": 0, "count": 0 },
+    { "type": "TRANSFER", "total": 410000.0000, "count": 1 }
+  ],
+  "totalsByCategory": [
+    { "categoryId": "0192a3b4-...", "categoryName": "Mercado", "total": 85000.0000, "count": 1 }
+  ]
+}
+```
+
+| Campo | Significado |
+|---|---|
+| `currencyCode` | La moneda base del usuario: la de `amountBase` y la de todos los totales |
+| `amount` / `currencyCode` del movimiento | El monto en la moneda de la cuenta origen |
+| `amountBase` | El mismo monto en la moneda base. Es lo que suman los totales |
+| `totalsByType` | Una entrada por tipo consultado (los tres sin filtro de tipo), aunque sea en cero |
+| `totalsByCategory` | Solo las categorías con movimientos, de mayor a menor total |
+
+**A tener en cuenta**
+
+- **Un rango sin movimientos no es 404**: responde 200 con `transactions` vacía, los tipos en cero
+  y `totalsByCategory` vacía.
+- **Las transferencias no tienen categoría.** Con filtro de categoría quedan fuera, y nunca entran
+  en `totalsByCategory`.
+- Un `categoryId` bien formado que no es del usuario no da error: el reporte sale vacío.
+- El día de cada movimiento se decide con la **zona horaria del usuario**, igual que el mes en
+  `monthly-spending`: un gasto del 31 a las 21:30 en Bogotá es del 31 aunque en UTC ya sea el 1.
+- No hay paginación: el rango entero viene en una respuesta.
+
 ## CORS
 
 El servicio acepta los orígenes que declare su configuración (`CORS_ALLOWED_ORIGINS`). Mientras no
@@ -650,7 +741,7 @@ desplegar un frontend en un dominio nuevo, hay que pedir que se agregue a la lis
 Para que el frontend no lo busque:
 
 - Editar o borrar cuentas o categorías.
-- Listar movimientos o consultar uno por su id.
+- Consultar un movimiento por su id. Para listarlos está `GET /api/reports/transactions`.
 - Crear categorías propias o metas de gasto.
 - Refresh token o logout. El token simplemente vence.
 - Movimientos en monedas distintas de COP.
