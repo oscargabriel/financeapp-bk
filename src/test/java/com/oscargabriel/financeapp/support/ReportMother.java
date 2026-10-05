@@ -28,11 +28,15 @@ public final class ReportMother {
     }
 
     public static TransactionReportFilter sinFiltros() {
-        return new TransactionReportFilter(DESDE, HASTA, Set.of(), Set.of());
+        return new TransactionReportFilter(DESDE, HASTA, Set.of(), Set.of(), Set.of());
     }
 
     public static TransactionReportFilter conTipos(TransactionType... tipos) {
-        return new TransactionReportFilter(DESDE, HASTA, Set.of(), Set.of(tipos));
+        return new TransactionReportFilter(DESDE, HASTA, Set.of(), Set.of(), Set.of(tipos));
+    }
+
+    public static TransactionReportFilter conCuentas(UUID... cuentas) {
+        return new TransactionReportFilter(DESDE, HASTA, Set.of(), Set.of(cuentas), Set.of());
     }
 
     public static ReportedTransaction unGasto(UUID categoria, String nombre, String montoBase, String instante) {

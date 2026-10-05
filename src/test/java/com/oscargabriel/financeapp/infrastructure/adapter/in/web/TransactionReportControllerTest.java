@@ -1,6 +1,8 @@
 package com.oscargabriel.financeapp.infrastructure.adapter.in.web;
 
+import static com.oscargabriel.financeapp.support.ReportMother.CUENTA_ID;
 import static com.oscargabriel.financeapp.support.ReportMother.DESDE;
+import static com.oscargabriel.financeapp.support.ReportMother.DESTINO_ID;
 import static com.oscargabriel.financeapp.support.ReportMother.HASTA;
 import static com.oscargabriel.financeapp.support.ReportMother.MERCADO_ID;
 import static com.oscargabriel.financeapp.support.ReportMother.RESTAURANTES_ID;
@@ -58,19 +60,19 @@ class TransactionReportControllerTest {
     }
 
     private void respondeVacio() {
-        when(getTransactionReport.get(eq(USER_ID), any(), any(), any(), any()))
+        when(getTransactionReport.get(eq(USER_ID), any(), any(), any(), any(), any()))
                 .thenReturn(Mono.just(TransactionReport.of("COP", sinFiltros(), List.of())));
     }
 
     @Test
-    void sinFiltrosPasaElRangoYDosConjuntosVacios() {
+    void sinFiltrosPasaElRangoYTresConjuntosVacios() {
         respondeVacio();
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(RANGO)
                 .exchange()
                 .expectStatus().isOk();
 
-        verify(getTransactionReport).get(USER_ID, DESDE, HASTA, Set.of(), Set.of());
+        verify(getTransactionReport).get(USER_ID, DESDE, HASTA, Set.of(), Set.of(), Set.of());
     }
 
     @Test
@@ -85,7 +87,20 @@ class TransactionReportControllerTest {
                 .expectStatus().isOk();
 
         verify(getTransactionReport).get(USER_ID, DESDE, HASTA, Set.of(MERCADO_ID, SALARIO_ID, RESTAURANTES_ID),
-                Set.of(TransactionType.EXPENSE, TransactionType.INCOME));
+                Set.of(), Set.of(TransactionType.EXPENSE, TransactionType.INCOME));
+    }
+
+    @Test
+    void aceptaLasCuentasRepetidasOSeparadasPorComaYIgnoraLosBlancos() {
+        respondeVacio();
+
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(RANGO
+                        + "&accountId=" + CUENTA_ID + ", " + DESTINO_ID
+                        + "&accountId=" + CUENTA_ID + "&accountId=")
+                .exchange()
+                .expectStatus().isOk();
+
+        verify(getTransactionReport).get(USER_ID, DESDE, HASTA, Set.of(), Set.of(CUENTA_ID, DESTINO_ID), Set.of());
     }
 
     @Test
@@ -93,7 +108,7 @@ class TransactionReportControllerTest {
         TransactionReport reporte = TransactionReport.of("COP", sinFiltros(), List.of(
                 unGasto(MERCADO_ID, "Mercado", "85000.0000", "2026-09-02T15:00:00Z"),
                 unaTransferenciaEnDolares("2026-09-10T20:00:00Z")));
-        when(getTransactionReport.get(eq(USER_ID), any(), any(), any(), any())).thenReturn(Mono.just(reporte));
+        when(getTransactionReport.get(eq(USER_ID), any(), any(), any(), any(), any())).thenReturn(Mono.just(reporte));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(RANGO)
                 .exchange()
@@ -133,6 +148,8 @@ class TransactionReportControllerTest {
                 Arguments.of(RUTA + "?from=2026-02-30&to=2026-03-31", "from"),
                 Arguments.of(RANGO + "&categoryId=abc", "categoryId"),
                 Arguments.of(RANGO + "&categoryId=" + MERCADO_ID + ",abc", "categoryId"),
+                Arguments.of(RANGO + "&accountId=abc", "accountId"),
+                Arguments.of(RANGO + "&accountId=" + CUENTA_ID + ",abc", "accountId"),
                 Arguments.of(RANGO + "&type=PAGO", "type"));
     }
 

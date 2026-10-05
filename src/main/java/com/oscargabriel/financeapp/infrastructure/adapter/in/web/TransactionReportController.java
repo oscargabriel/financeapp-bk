@@ -47,12 +47,14 @@ public class TransactionReportController {
             @RequestParam(required = false) String from,
             @RequestParam(required = false) String to,
             @RequestParam(name = "categoryId", required = false) List<String> categoryIds,
+            @RequestParam(name = "accountId", required = false) List<String> accountIds,
             @RequestParam(name = "type", required = false) List<String> types) {
         return Mono.defer(() -> getTransactionReport.get(
                         UsuarioDelToken.de(jwt),
                         parseDay(from, "from"),
                         parseDay(to, "to"),
                         parseAll(categoryIds, "categoryId", "Cada categoryId debe ser un UUID", UUID::fromString),
+                        parseAll(accountIds, "accountId", "Cada accountId debe ser un UUID", UUID::fromString),
                         parseAll(types, "type", "El tipo debe ser EXPENSE, INCOME o TRANSFER",
                                 v -> TransactionType.valueOf(v.toUpperCase(Locale.ROOT)))))
                 .map(TransactionReportResponse::from);

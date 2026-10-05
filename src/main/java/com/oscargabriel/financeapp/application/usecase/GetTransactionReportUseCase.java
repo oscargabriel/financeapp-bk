@@ -27,18 +27,18 @@ public class GetTransactionReportUseCase implements GetTransactionReportPort {
     /** El defer hace que un rango invertido salga como senal de error, no al ensamblar la cadena. */
     @Override
     public Mono<TransactionReport> get(UUID userId, LocalDate from, LocalDate to, Set<UUID> categoryIds,
-            Set<TransactionType> types) {
+            Set<UUID> accountIds, Set<TransactionType> types) {
         return Mono.defer(() -> {
-            TransactionReportFilter filtro = filtro(from, to, categoryIds, types);
+            TransactionReportFilter filtro = filtro(from, to, categoryIds, accountIds, types);
             return Mono.zip(query.findBaseCurrency(userId), query.findByUser(userId, filtro).collectList())
                     .map(t -> TransactionReport.of(t.getT1(), filtro, t.getT2()));
         });
     }
 
     private static TransactionReportFilter filtro(LocalDate from, LocalDate to, Set<UUID> categoryIds,
-            Set<TransactionType> types) {
+            Set<UUID> accountIds, Set<TransactionType> types) {
         try {
-            return new TransactionReportFilter(from, to, categoryIds, types);
+            return new TransactionReportFilter(from, to, categoryIds, accountIds, types);
         } catch (IllegalArgumentException e) {
             throw new BadRequestException(HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR,
                     e.getMessage(), "from", e);

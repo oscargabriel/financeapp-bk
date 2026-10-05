@@ -1,0 +1,57 @@
+info:
+  name: Reporte con filtro de cuenta
+  type: http
+  seq: 27
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{primerDia}}&to={{ultimoDia}}&accountId={{idEfectivoEscenario}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.transactions
+      operator: length
+      value: "5"
+  scripts:
+    - type: tests
+      code: |-
+        const r = res.getBody();
+        const efectivo = bru.getVar("idEfectivoEscenario");
+
+        test("todos los movimientos tocan Efectivo", function() {
+          r.transactions.forEach(function (t) {
+            expect([t.accountId, t.destinationAccountId]).to.include(efectivo);
+          });
+        });
+
+        test("trae el retiro de cajero que entra a Efectivo", function() {
+          const retiro = r.transactions.find(function (t) { return t.description === "Retiro de cajero"; });
+          expect(retiro.type).to.equal("TRANSFER");
+          expect(retiro.destinationAccountId).to.equal(efectivo);
+          expect(retiro.accountId).to.equal(bru.getVar("idBancolombiaEscenario"));
+        });
+
+        test("los totales salen de la lista filtrada, sin signo", function() {
+          expect(r.totalsByType).to.eql([
+            { type: "EXPENSE", total: 227500, count: 4 },
+            { type: "INCOME", total: 0, count: 0 },
+            { type: "TRANSFER", total: 300000, count: 1 }
+          ]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Una cuenta: origen o destino
+
+  Efectivo en el mes: Taxi 15.000, Fruta 42.500, Mensualidad 120.000 y Cena de fin de mes 50.000, mas
+  el retiro de cajero de 300.000 que llega desde Bancolombia. Si el filtro mirara solo la cuenta de
+  origen, el retiro no apareceria.

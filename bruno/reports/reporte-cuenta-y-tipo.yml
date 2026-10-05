@@ -1,0 +1,51 @@
+info:
+  name: Reporte con cuenta y tipo
+  type: http
+  seq: 30
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{primerDia}}&to={{ultimoDia}}&accountId={{idBancolombiaEscenario}}&type=EXPENSE,TRANSFER"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.transactions
+      operator: length
+      value: "5"
+  scripts:
+    - type: tests
+      code: |-
+        const r = res.getBody();
+        const bancolombia = bru.getVar("idBancolombiaEscenario");
+        const transferencias = r.transactions.filter(function (t) { return t.type === "TRANSFER"; });
+
+        test("una transferencia sale de Bancolombia y la otra entra", function() {
+          const sale = transferencias.find(function (t) { return t.accountId === bancolombia; });
+          const entra = transferencias.find(function (t) { return t.destinationAccountId === bancolombia; });
+          expect(sale.description).to.equal("Retiro de cajero");
+          expect(entra.description).to.equal("Cambio de dólares");
+        });
+
+        test("totaliza solo los tipos pedidos, sobre Bancolombia", function() {
+          expect(r.totalsByType).to.eql([
+            { type: "EXPENSE", total: 1470000, count: 3 },
+            { type: "TRANSFER", total: 710000, count: 2 }
+          ]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Bancolombia, gastos y transferencias
+
+  Los dos filtros se combinan con Y. Sin el de cuenta, los mismos tipos traen 13 movimientos: los
+  11 gastos del mes y las 2 transferencias. Con el de Bancolombia quedan sus 3 gastos (Arriendo, Luz
+  y agua, Consulta medica) y las dos transferencias, una que sale y otra que entra.

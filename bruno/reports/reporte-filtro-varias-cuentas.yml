@@ -1,0 +1,49 @@
+info:
+  name: Reporte con varias cuentas
+  type: http
+  seq: 29
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{primerDia}}&to={{ultimoDia}}&accountId={{idEfectivoEscenario}},{{idBancolombiaEscenario}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.transactions
+      operator: length
+      value: "11"
+  scripts:
+    - type: tests
+      code: |-
+        const r = res.getBody();
+
+        test("el retiro de cajero entre las dos cuentas sale una sola vez", function() {
+          const ids = r.transactions.map(function (t) { return t.id; });
+          expect(new Set(ids).size).to.equal(ids.length);
+          const retiros = r.transactions.filter(function (t) { return t.description === "Retiro de cajero"; });
+          expect(retiros).to.have.length(1);
+        });
+
+        test("los totales son los de las dos cuentas", function() {
+          expect(r.totalsByType).to.eql([
+            { type: "EXPENSE", total: 1697500, count: 7 },
+            { type: "INCOME", total: 5300000, count: 2 },
+            { type: "TRANSFER", total: 710000, count: 2 }
+          ]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Efectivo y Bancolombia, separados por coma
+
+  Efectivo tiene 5 movimientos y Bancolombia 7: Arriendo, Salario, Luz y agua, Proyecto externo,
+  Consulta medica y las dos transferencias. El retiro de cajero es de las dos, asi que son 11, no 12.

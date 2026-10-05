@@ -651,16 +651,17 @@ Movimientos del usuario del token en un rango de días, con sus totales por tipo
 | `from` | `YYYY-MM-DD` | Sí |
 | `to` | `YYYY-MM-DD` | Sí |
 | `categoryId` | UUID, uno o varios | No |
+| `accountId` | UUID, uno o varios | No |
 | `type` | `EXPENSE`, `INCOME` o `TRANSFER`, uno o varios, sin distinguir mayúsculas | No |
 
-Los dos filtros admiten varios valores repitiendo el parámetro (`?type=EXPENSE&type=INCOME`) o
-separados por coma (`?type=EXPENSE,INCOME`). Los dos juntos se combinan con Y. El rango incluye los
+Los filtros admiten varios valores repitiendo el parámetro (`?type=EXPENSE&type=INCOME`) o
+separados por coma (`?type=EXPENSE,INCOME`). Varios juntos se combinan con Y. El rango incluye los
 dos extremos. Errores 400 `VALIDATION_ERROR`, en el campo del parámetro:
 
 - Falta `from` o `to`, o no viene como `YYYY-MM-DD` (`2026-10-1`, `2026/10/01`), o el día no existe
   (`2026-02-30`).
 - `from` posterior a `to`, en el campo `from`.
-- Un `categoryId` que no es UUID, o un `type` fuera de los tres valores.
+- Un `categoryId` o un `accountId` que no es UUID, o un `type` fuera de los tres valores.
 
 **200 OK** — `transactions` del más reciente al más antiguo:
 
@@ -725,6 +726,12 @@ dos extremos. Errores 400 `VALIDATION_ERROR`, en el campo del parámetro:
 - **Las transferencias no tienen categoría.** Con filtro de categoría quedan fuera, y nunca entran
   en `totalsByCategory`.
 - Un `categoryId` bien formado que no es del usuario no da error: el reporte sale vacío.
+- **`accountId` toma la cuenta como origen o como destino.** El filtro de una cuenta trae también
+  las transferencias que le llegan, y una transferencia entre dos cuentas filtradas sale una sola
+  vez. Un `accountId` bien formado que no es del usuario, igual que una categoría ajena, deja el
+  reporte vacío.
+- **Los totales no llevan signo.** Con filtro de cuenta, `TRANSFER` suma lo que entró y lo que
+  salió por ella: mide cuánto se movió, no su saldo neto.
 - El día de cada movimiento se decide con la **zona horaria del usuario**, igual que el mes en
   `monthly-spending`: un gasto del 31 a las 21:30 en Bogotá es del 31 aunque en UTC ya sea el 1.
 - No hay paginación: el rango entero viene en una respuesta.

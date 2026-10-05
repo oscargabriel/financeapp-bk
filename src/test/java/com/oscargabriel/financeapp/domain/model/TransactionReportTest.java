@@ -1,7 +1,10 @@
 package com.oscargabriel.financeapp.domain.model;
 
+import static com.oscargabriel.financeapp.support.ReportMother.CUENTA_ID;
+import static com.oscargabriel.financeapp.support.ReportMother.DESTINO_ID;
 import static com.oscargabriel.financeapp.support.ReportMother.MERCADO_ID;
 import static com.oscargabriel.financeapp.support.ReportMother.RESTAURANTES_ID;
+import static com.oscargabriel.financeapp.support.ReportMother.conCuentas;
 import static com.oscargabriel.financeapp.support.ReportMother.conTipos;
 import static com.oscargabriel.financeapp.support.ReportMother.sinFiltros;
 import static com.oscargabriel.financeapp.support.ReportMother.unGasto;
@@ -89,7 +92,7 @@ class TransactionReportTest {
     @Test
     void elFiltroRechazaUnRangoInvertido() {
         assertThatThrownBy(() -> new TransactionReportFilter(
-                LocalDate.of(2026, 9, 30), LocalDate.of(2026, 9, 1), Set.of(), Set.of()))
+                LocalDate.of(2026, 9, 30), LocalDate.of(2026, 9, 1), Set.of(), Set.of(), Set.of()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("2026-09-30");
     }
@@ -98,9 +101,15 @@ class TransactionReportTest {
     void unSoloDiaEsUnRangoValidoYLosFiltrosNulosQuedanVacios() {
         LocalDate dia = LocalDate.of(2026, 9, 15);
 
-        TransactionReportFilter filtro = new TransactionReportFilter(dia, dia, null, null);
+        TransactionReportFilter filtro = new TransactionReportFilter(dia, dia, null, null, null);
 
         assertThat(filtro.categoryIds()).isEmpty();
+        assertThat(filtro.accountIds()).isEmpty();
         assertThat(filtro.types()).isEmpty();
+    }
+
+    @Test
+    void elFiltroConservaLasCuentasPedidas() {
+        assertThat(conCuentas(CUENTA_ID, DESTINO_ID).accountIds()).containsExactlyInAnyOrder(CUENTA_ID, DESTINO_ID);
     }
 }
