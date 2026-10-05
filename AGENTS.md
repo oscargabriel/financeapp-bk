@@ -4,8 +4,9 @@ Guía del proyecto para cualquier agente de código y para quien lo lea. Lo prop
 va en su carpeta (`.claude/rules/` para Claude Code); aquí solo lo que vale para todas.
 
 Backend de finanzas personales. Java 25 + Spring Boot 4.1.1 (WebFlux), R2DBC contra PostgreSQL 18,
-Gradle 9.7.1 con wrapper. Arquitectura hexagonal. Se construye por etapas. En producción corre en
-Cloud Run contra Neon (PostgreSQL 18 administrado).
+Gradle 9.7.1 con wrapper. Arquitectura hexagonal. Se construye por etapas. La base de producción es
+Neon (PostgreSQL 18 administrado), y el destino es Cloud Run: **todavía no despliega**, ver
+*Despliegue*.
 
 ## Comandos
 
@@ -150,9 +151,9 @@ pasen por `boundedElastic`.
   real con `SPRING_PROFILES_ACTIVE=prod`. Una clave nueva en el local hay que copiarla también
   ahí. Lo que el servicio necesite va en
   `application.yaml`. Ahí están el puerto (`PORT`, que inyecta Cloud Run, antes que `SERVER_PORT`),
-  `sslMode=require` porque Neon exige TLS, y un pool dimensionado para Neon: 3 instancias × 10
-  frente a sus 901 conexiones, e idle por debajo de los 5 min en los que Neon suspende. Si sube el
-  máximo de instancias, rehacer esa cuenta.
+  `sslMode=require` porque Neon exige TLS, y un pool dimensionado para Neon: 1 instancia × 10
+  frente a sus 901 conexiones (el servicio escala de 0 a 1, FA-48), e idle por debajo de los 5 min
+  en los que Neon suspende. Si sube el máximo de instancias, rehacer esa cuenta.
 - Lee sin **default** los secretos y `CORS_ALLOWED_ORIGINS`: un despliegue sin `DB_USERNAME` /
   `DB_PASSWORD` / `JWT_SECRET` / `BASIC_USERNAME` / `BASIC_PASSWORD` / `CORS_ALLOWED_ORIGINS` falla
   al arrancar en vez de levantar con valores implícitos. Ojo con `DB_USERNAME` y `DB_PASSWORD`: el
@@ -278,9 +279,12 @@ y los `update/`, aplicados a mano con psql, igual que en local.
 
 ## Despliegue
 
-Rama de trabajo `dev`; **`main` es producción**. Cloud Run tiene un disparador de despliegue
-continuo sobre `main` que construye con `deployment/Dockerfile`, sin `cloudbuild.yaml`: un merge a
-`main` despliega.
+Rama de trabajo `dev`; **`main` es producción**. El servicio `financeapp-bk-git` (Cloud Run,
+`europe-west1`) existe con sus secretos y su escalado (FA-48), pero al 04-10-2026 **corre
+`gcr.io/cloudrun/placeholder`, no la app**: ningún disparador ha construido la imagen todavía, así
+que un merge a `main` hoy no despliega nada. El pipeline (suite, imagen con
+`deployment/Dockerfile`, Artifact Registry y despliegue) es FA-46. Hasta entonces, el uso real es la
+app en local con el perfil `prod` contra Neon.
 
 - El contexto del build es la **raíz del repo**, no `deployment/`. El `.dockerignore` de la raíz es
   una **lista de lo permitido** (`gradlew`, `gradle/`, `build.gradle`, `settings.gradle`, `src/`),
