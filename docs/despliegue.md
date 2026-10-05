@@ -3,10 +3,8 @@
 Cloud Run (`financeapp-bk-git`, región `europe-west1`) contra Neon. Los dos en plan gratuito y con
 escala a 0: hay un solo usuario.
 
-**Estado al 04-10-2026:** el servicio existe con sus secretos y su escalado, pero corre
-`gcr.io/cloudrun/placeholder`, no la app. El pipeline ya está en `deployment/cloudbuild.yaml` (FA-46); el
-primer despliegue real es el del merge de `dev` a `main`. Hasta entonces el uso real es la app en
-local con `SPRING_PROFILES_ACTIVE=prod` contra Neon.
+**Estado al 05-10-2026:** el servicio corre la app. El primer despliegue fue el del merge de `dev`
+a `main` (PR #29, commit `b163a65`, revisión `financeapp-bk-git-00006-dqs`).
 
 Pendiente de este documento (FA-49): creación del proyecto en Neon, carga del esquema y de los
 `update/`, y el respaldo del plan.
@@ -34,7 +32,7 @@ salirse de la cuota gratuita; si cambia, revisar el consumo en **Facturación �
 
 Repositorio `cloud-run-source-deploy` en `europe-west1`, la misma región del servicio: la descarga
 de la imagen hacia Cloud Run no sale de la región. Tiene una política de limpieza que **conserva
-solo la versión más reciente** (FA-46): unos 226 MB comprimida, dentro de los 0,5 GB gratuitos.
+solo la versión más reciente** (FA-46): unos 227 MB comprimida (medido el 05-10-2026), dentro de los 0,5 GB gratuitos.
 
 ```powershell
 gcloud artifacts repositories describe cloud-run-source-deploy --location europe-west1   # tamaño y política
