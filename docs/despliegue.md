@@ -4,10 +4,165 @@ Cloud Run (`financeapp-bk-git`, región `europe-west1`) contra Neon. Los dos en 
 escala a 0: hay un solo usuario.
 
 **Estado al 05-10-2026:** el servicio corre la app. El primer despliegue fue el del merge de `dev`
-a `main` (PR #29, commit `b163a65`, revisión `financeapp-bk-git-00006-dqs`).
+a `main` (PR #29, commit `b163a65`, revisión `financeapp-bk-git-00006-dqs`). Neon tiene el esquema
+de `schema.sql` con todos los `update/` hasta `20261005_02` (ver el registro).
 
-Pendiente de este documento (FA-49): creación del proyecto en Neon, carga del esquema y de los
-`update/`, y el respaldo del plan.
+## Base de datos (Neon)
+
+Sin Flyway (decisión y porqué en `docs/database/modelo-datos.md`; su reevaluación es FA-71), la base
+de producción se mantiene a mano con psql. Esta sección es el procedimiento.
+
+### El proyecto
+
+| | |
+|---|---|
+| Plan | Gratuito |
+| Región | AWS `us-east-1`. Cloud Run está en `europe-west1`: cada consulta cruza el Atlántico (FA-70) |
+| PostgreSQL | 18 (18.6 al 05-10-2026) |
+| Base | `neondb`, esquema `finance` |
+| Rol | `neondb_owner`, el dueño del proyecto. La app usa el mismo rol (FA-69) |
+| Host | El **directo**, sin `-pooler` (FA-44). Es el secreto `db-host` |
+
+### Conectarse
+
+Los valores salen de Secret Manager, los mismos que lee Cloud Run, así que la contraseña no se
+escribe ni se imprime:
+
+```powershell
+$env:PGHOST     = gcloud secrets versions access latest --secret=db-host
+$env:PGDATABASE = gcloud secrets versions access latest --secret=db-name
+$env:PGUSER     = gcloud secrets versions access latest --secret=db-username
+$env:PGPASSWORD = gcloud secrets versions access latest --secret=db-password
+$env:PGSSLMODE  = 'require'
+$env:PGOPTIONS  = '-c default_transaction_read_only=on'   # solo lectura: quítalo solo para aplicar un update
+```
+
+Con `PGOPTIONS` así, la sesión rechaza cualquier escritura, aunque se pegue un `UPDATE` por error.
+Para inspeccionar, se deja puesto. Al terminar, `Remove-Item env:PGPASSWORD`.
+
+### Crear la base desde cero
+
+Solo si se recrea el proyecto. En la consola de Neon, **New project**, con PostgreSQL 18. De
+**Connect**, con *Connection pooling* apagado, se toman host, base, rol y contraseña. Después:
+
+```powershell
+psql -X -v ON_ERROR_STOP=1 -f docs/database/schema.sql
+psql -X -v ON_ERROR_STOP=1 -f docs/database/seed.sql
+```
+
+- **`seed.sql` es obligatorio.** Trae las monedas y las 22 `default_categories`, y sin ellas el
+  registro de usuario falla, porque las copia dentro de su transacción.
+- **`test-data.sql` no se carga nunca.** Es el escenario de Bruno, con usuarios y movimientos falsos.
+- El `schema.sql` del día ya incluye todos los `update/` emitidos hasta entonces: **no se
+  aplican**. El registro de abajo se reinicia, con el commit del `schema.sql` cargado.
+- Después, actualizar los secretos `db-*` que cambiaron y forzar una revisión (ver *Rotar un
+  secreto*).
+
+Para comprobar que no hay datos de `test-data.sql`, en solo lectura:
+
+```powershell
+psql -X -c "SELECT count(*) AS de_prueba FROM finance.users WHERE email LIKE '%@financeapp.local' OR email LIKE '%@bruno.local'"
+```
+
+Tiene que dar `0`.
+
+### Comparar Neon con el esquema esperado
+
+Construye en un `postgres:18` desechable la línea base más los `update/` hasta el último aplicado,
+y compara su estructura con la de Neon. Con `$hasta` en el último update del registro, el
+resultado es el `schema.sql` que Neon debería tener. Necesita Docker y la conexión de arriba.
+
+```powershell
+$hasta = '20261005_02'   # AAAAMMDD_NN del último update aplicado en Neon, según el registro
+$ruido = 'restrict |Dumped from database version'   # cambia en cada volcado o según el build del servidor
+function Volcar($db) {
+    pg_dump --schema-only --no-owner --no-privileges -n finance $db |
+        Where-Object { $_ -notmatch $ruido -and $_.Trim() -ne '' }
+}
+$neon = Volcar $env:PGDATABASE
+
+$guardadas = 'PGHOST','PGPORT','PGDATABASE','PGUSER','PGPASSWORD','PGSSLMODE','PGOPTIONS' |
+    ForEach-Object { [pscustomobject]@{ n = $_; v = [Environment]::GetEnvironmentVariable($_) } }
+$clave = [guid]::NewGuid().ToString('N')
+$cid = docker run --rm -d -e POSTGRES_PASSWORD=$clave -p 127.0.0.1:55432:5432 postgres:18
+$env:PGHOST = '127.0.0.1'; $env:PGPORT = '55432'; $env:PGUSER = 'postgres'; $env:PGPASSWORD = $clave
+Remove-Item env:PGSSLMODE, env:PGOPTIONS, env:PGDATABASE -ErrorAction SilentlyContinue
+do { Start-Sleep 1; psql -X -q -d postgres -c 'SELECT 1' *> $null } until ($LASTEXITCODE -eq 0)
+
+$tmp = New-Item -ItemType Directory -Path (Join-Path $env:TEMP "neon-$(Get-Random)")
+git show 00c3b63:docs/database/schema.sql | Set-Content "$tmp\b.sql"
+git show 00c3b63:docs/database/seed.sql   | Set-Content "$tmp\s.sql"
+psql -X -q -d postgres -c 'CREATE DATABASE esperado'
+psql -X -q -v ON_ERROR_STOP=1 -d esperado -f "$tmp\b.sql"
+psql -X -q -v ON_ERROR_STOP=1 -d esperado -f "$tmp\s.sql"
+Get-ChildItem docs/database/update/*.sql |
+    Where-Object { $_.Name -notlike '*baseline*' -and $_.Name.Substring(0, 11) -le $hasta } |
+    Sort-Object Name | ForEach-Object { psql -X -q -v ON_ERROR_STOP=1 -d esperado -f $_.FullName }
+$esperado = Volcar esperado
+
+docker stop $cid | Out-Null
+$guardadas | ForEach-Object { [Environment]::SetEnvironmentVariable($_.n, $_.v) }
+
+"Neon: $($neon.Count) líneas · esperado: $($esperado.Count) líneas"
+$dif = Compare-Object $esperado $neon
+if ($dif) { 'HAY DIFERENCIAS (=> solo en Neon)'; $dif } else { 'sin diferencias' }
+```
+
+La línea base es `00c3b63`, igual que en la comprobación de `modelo-datos.md`. Si sale una
+diferencia, hay un update aplicado que no está en el registro, o uno del registro que no se aplicó.
+
+### Aplicar un `update/` nuevo
+
+1. **Elegir el momento.** El encabezado del script dice si va *antes* o *después* del despliegue de
+   su app:
+   - *Antes*: se aplica antes del merge a `main`.
+   - *Después*: se aplica cuando el pipeline haya desplegado el commit.
+     `gcloud run revisions list --service financeapp-bk-git --region europe-west1` muestra la
+     etiqueta `commit-sha` de cada revisión.
+2. **Snapshot.** En la consola de Neon, en el branch de producción, **Backup & Restore → Create
+   snapshot**. Reemplaza al anterior (ver *Respaldo*).
+3. **Conectarse** como arriba y quitar la solo lectura: `Remove-Item env:PGOPTIONS`.
+4. **Aplicar:**
+
+   ```powershell
+   psql -X -v ON_ERROR_STOP=1 -f docs/database/update/<archivo>.sql
+   ```
+
+   Cada script trae su `BEGIN`/`COMMIT`. `ON_ERROR_STOP` corta en el primer error, dentro de la
+   transacción, y la base queda como estaba. La salida tiene que terminar en `COMMIT`.
+5. **Comparar**, con la solo lectura de vuelta y `$hasta` en el update recién aplicado:
+   `sin diferencias`.
+6. **Anotarlo** en el registro, en el mismo PR que lo emitió si ya estaba aplicado, o en uno
+   posterior.
+
+Para deshacer un update, cada script trae al final su reversión comentada. Si eso no alcanza, se
+restaura el snapshot del paso 2.
+
+### Registro de updates aplicados
+
+Es la única tabla de control que existe. La comparación de arriba es la que comprueba que dice la
+verdad.
+
+| Update | Aplicado en Neon | Notas |
+|---|---|---|
+| Línea base (`schema.sql` y `seed.sql` de `00c3b63`) | Antes del primer despliegue (05-10-2026) | Comparada el 05-10-2026: sin diferencias. Sin datos de `test-data.sql` |
+| `20261005_02_cuentas_saldo_inicial_editable.sql` | 05-10-2026 (FA-49) | Antes de promover FA-24, como pide su encabezado |
+| `20261005_01_categorias_icono_color_obligatorios.sql` | 05-10-2026 (FA-49) | Antes de FA-66 en `main`, aunque su encabezado dice "después": el riesgo que nombra es un alta de categorías sin icono, y la app de `main` no da de alta categorías. No cambió filas |
+
+### Respaldo
+
+Lo que da el plan gratuito, según la documentación de Neon consultada el 05-10-2026
+([precios](https://neon.com/pricing), [ventana de historia](https://neon.com/docs/postgres/backup-restore/history-window),
+[backup y restore](https://neon.com/docs/guides/backup-restore)):
+
+- **Ventana de historia de 6 horas**, con tope de 1 GB de WAL. Dentro de ella, el branch se
+  restaura a cualquier instante (*instant restore*). Cubre **0,25 días**: un error que se note al
+  día siguiente ya no se recupera así.
+- **1 snapshot manual.** Sin snapshots programados. Uno nuevo reemplaza al anterior.
+
+Por eso el paso 2 de *Aplicar un update*: el snapshot es lo único que cubre más de 6 horas, y solo
+hasta el último que se tomó. Si algún día hay que sacar los datos de Neon, el camino es `pg_dump`
+con la conexión de arriba, sabiendo que el archivo contiene los datos financieros reales.
 
 ## Pipeline
 

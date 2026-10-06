@@ -275,7 +275,10 @@ conserva porque sus fechas absolutas y su segundo usuario son la base del escena
 montar en Bruno.
 
 **Producción es Neon, y ahí `test-data.sql` no se carga nunca.** Solo van `schema.sql`, `seed.sql`
-y los `update/`, aplicados a mano con psql, igual que en local.
+y los `update/`, aplicados a mano con psql, igual que en local. Cómo se aplica un update ahí, el
+registro de los ya aplicados y el respaldo del plan están en
+[`docs/despliegue.md`](docs/despliegue.md#base-de-datos-neon). El encabezado de cada update dice
+si va antes o después del despliegue de su app; ese orden es el que sigue el procedimiento.
 
 ## Despliegue
 

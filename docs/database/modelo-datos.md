@@ -288,9 +288,8 @@ JDBC solo para migrar. Gana la convención manual, y el porqué importa más que
 conclusión:
 
 - El beneficio de Flyway —aplicar migraciones sin que nadie mire, en orden, con
-  checksums, sobre entornos que no tocas a mano— **no tiene consumidor todavía**.
-  No hay despliegue: `PROD_HOST` está vacío y `SPRING_PROFILES_ACTIVE=prod` no se
-  ha ejecutado nunca.
+  checksums, sobre entornos que no tocas a mano— **no tenía consumidor**: en esa
+  fecha no había despliegue ni base de producción.
 - Adoptarlo obliga a reescribir `20260905_01_baseline.sql` para que cargue las 509
   líneas de DDL, cuando hoy dice explícitamente que no las duplica, y a degradar
   `schema.sql` de fuente de verdad a archivo derivado. Es churn contra un
@@ -305,6 +304,12 @@ Para eso está la comprobación de abajo.
 **Cuándo volver a mirar esto:** cuando exista el primer despliegue real. Ahí la
 migración desatendida empieza a valer, y el precio de cambiar será reconciliar los
 updates acumulados contra lo que tenga esa base.
+
+**La condición se cumplió el 05-10-2026**: Neon es producción desde el primer
+despliegue, y FA-49 aplicó ahí dos updates a mano. La reevaluación es FA-71.
+Mientras tanto, la base de producción se mantiene con el procedimiento de
+[`docs/despliegue.md`](../despliegue.md#base-de-datos-neon), que incluye el registro
+de los updates aplicados.
 
 ### Comprobar que `schema.sql` y `update/` no han divergido
 
