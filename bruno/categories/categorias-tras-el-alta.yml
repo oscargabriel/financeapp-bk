@@ -1,0 +1,52 @@
+info:
+  name: Categorias tras el alta
+  type: http
+  seq: 12
+
+http:
+  method: GET
+  url: "{{baseUrl}}/categories"
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: length
+      value: "24"
+  scripts:
+    - type: tests
+      code: |-
+        const lista = res.getBody();
+
+        test("las nuevas quedan al final, en el orden en que se crearon", function() {
+          expect(lista[22].id).to.equal(bru.getVar("idPlantas"));
+          expect(lista[23].id).to.equal(bru.getVar("idBonos"));
+        });
+
+        test("el listado trae lo mismo que devolvio el alta", function() {
+          expect(lista[22]).to.deep.equal({
+            id: bru.getVar("idPlantas"), name: "Plantas", appliesTo: "EXPENSE",
+            icon: "sprout", color: "#7CB342", isSystem: false
+          });
+          expect(lista[23]).to.deep.equal({
+            id: bru.getVar("idBonos"), name: "Bonos", appliesTo: "INCOME",
+            icon: null, color: null, isSystem: false
+          });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # La categoria nueva va al final
+
+  El alta le da el mayor `sort_order` vivo del usuario mas 10, asi que sale despues de las 22 de la
+  semilla, y la segunda despues de la primera.

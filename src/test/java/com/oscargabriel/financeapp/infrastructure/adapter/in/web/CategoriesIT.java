@@ -6,8 +6,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
+import com.oscargabriel.financeapp.support.BasicMother;
 import com.oscargabriel.financeapp.support.TokenMother;
 
 /**
@@ -45,5 +47,32 @@ class CategoriesIT {
                 .headers(headers -> headers.setBearerAuth(TokenMother.valido()))
                 .exchange()
                 .expectStatus().isNotFound();
+    }
+
+    @Test
+    void elAltaSinCredencialesEsUn401ConElRetoDelJwt() {
+        webTestClient.post().uri("/api/categories")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"name\": \"Plantas\", \"appliesTo\": \"EXPENSE\"}")
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().valueEquals("WWW-Authenticate", "Bearer")
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED")
+                .jsonPath("$.errors[0].field").isEqualTo("authorization");
+    }
+
+    @Test
+    void elAltaConElBasicCompartidoEsUn401() {
+        webTestClient.post().uri("/api/categories")
+                .headers(BasicMother.cabecera())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"name\": \"Plantas\", \"appliesTo\": \"EXPENSE\"}")
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().valueEquals("WWW-Authenticate", "Bearer")
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED")
+                .jsonPath("$.errors[0].field").isEqualTo("authorization");
     }
 }

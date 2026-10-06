@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import com.oscargabriel.financeapp.domain.model.Category;
 import com.oscargabriel.financeapp.domain.model.CategoryScope;
+import com.oscargabriel.financeapp.domain.model.CreateCategoryCommand;
 
 /** Categorias para los tests. Cada metodo devuelve una fila valida y completa. */
 public final class CategoryMother {
@@ -29,5 +30,15 @@ public final class CategoryMother {
     public static Category propiaSinIconoNiColor() {
         return new Category(UUID.fromString("30000000-0000-7000-8000-000000000003"),
                 "Ajustes", CategoryScope.BOTH, null, null, false);
+    }
+
+    public static CreateCategoryCommand altaPlantas() {
+        return new CreateCategoryCommand("Plantas", "EXPENSE", "sprout", "#7CB342");
+    }
+
+    /** Como la vuelve a leer el INSERT ... RETURNING. */
+    public static Category plantasCreada() {
+        return new Category(UUID.fromString("30000000-0000-7000-8000-000000000004"),
+                "Plantas", CategoryScope.EXPENSE, "sprout", "#7CB342", false);
     }
 }

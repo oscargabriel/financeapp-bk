@@ -1,0 +1,41 @@
+info:
+  name: Crear categoria que repite la semilla
+  type: http
+  seq: 14
+
+http:
+  method: POST
+  url: "{{baseUrl}}/categories"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "mercado",
+        "appliesTo": "EXPENSE"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: DUPLICATE_RESOURCE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: name
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Nombre de una categoria de la semilla
+
+  Las que copio el registro son del usuario igual que las propias: `mercado` choca con `Mercado`.

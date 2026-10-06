@@ -1,0 +1,42 @@
+info:
+  name: Crear categoria con nombre repetido
+  type: http
+  seq: 13
+
+http:
+  method: POST
+  url: "{{baseUrl}}/categories"
+  body:
+    type: json
+    data: |-
+      {
+        "name": " PLANTAS ",
+        "appliesTo": "BOTH"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: DUPLICATE_RESOURCE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: name
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Nombre ya usado por otra categoria viva del usuario
+
+  `ux_categories_user_name` es unico sobre `lower(name)` entre las no borradas, y el nombre se
+  recorta antes del INSERT: ` PLANTAS ` choca con la `Plantas` de "Crear categoria".
