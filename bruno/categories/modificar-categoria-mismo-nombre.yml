@@ -1,0 +1,37 @@
+info:
+  name: Modificar categoria con su mismo nombre
+  type: http
+  seq: 25
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/categories/{{idPlantas}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "HUERTA"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.name
+      operator: eq
+      value: HUERTA
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Cambiar solo las mayusculas del propio nombre
+
+  El indice unico compara `lower(name)`, pero la fila no choca consigo misma.

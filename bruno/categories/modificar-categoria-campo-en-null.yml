@@ -1,0 +1,44 @@
+info:
+  name: Modificar categoria con campo en null
+  type: http
+  seq: 21
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/categories/{{idPlantas}}"
+  body:
+    type: json
+    data: |-
+      {
+        "color": "#33691E",
+        "icon": null
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.color
+      operator: eq
+      value: "#33691E"
+    - expression: res.body.icon
+      operator: eq
+      value: leaf
+    - expression: res.body.name
+      operator: eq
+      value: Huerta
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # null es "no cambia"
+
+  El icono en `null` se conserva: el parche no vacia campos.

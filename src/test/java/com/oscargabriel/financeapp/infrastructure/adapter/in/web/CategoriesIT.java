@@ -75,4 +75,31 @@ class CategoriesIT {
                 .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED")
                 .jsonPath("$.errors[0].field").isEqualTo("authorization");
     }
+
+    @Test
+    void elPatchSinCredencialesEsUn401ConElRetoDelJwt() {
+        webTestClient.patch().uri("/api/categories/30000000-0000-7000-8000-000000000004")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"name\": \"Huerta\"}")
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().valueEquals("WWW-Authenticate", "Bearer")
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED")
+                .jsonPath("$.errors[0].field").isEqualTo("authorization");
+    }
+
+    @Test
+    void elPatchConElBasicCompartidoEsUn401() {
+        webTestClient.patch().uri("/api/categories/30000000-0000-7000-8000-000000000004")
+                .headers(BasicMother.cabecera())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"name\": \"Huerta\"}")
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().valueEquals("WWW-Authenticate", "Bearer")
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED")
+                .jsonPath("$.errors[0].field").isEqualTo("authorization");
+    }
 }

@@ -22,6 +22,7 @@ SET search_path TO finance, public;
 \set credit   '20000000-0000-7000-8000-000000000003'
 \set usd      '20000000-0000-7000-8000-000000000004'
 \set nequi    '20000000-0000-7000-8000-000000000005'
+\set cigarrillos '30000000-0000-7000-8000-000000000170'
 
 BEGIN;
 
@@ -85,9 +86,10 @@ VALUES (gen_random_uuid(), :'uid'::uuid, 'Gimnasio', 'EXPENSE', 'dumbbell', '#00
 INSERT INTO finance.categories (id, user_id, name, applies_to, sort_order)
 VALUES (gen_random_uuid(), :'uid'::uuid, 'Ajustes', 'BOTH', 260);
 
--- Borrada logicamente: GET /api/categories no la puede devolver.
+-- Borrada logicamente: GET /api/categories no la puede devolver. Id fijo para que
+-- bruno/categories/ pueda pedirla y comprobar el 404 del PATCH.
 INSERT INTO finance.categories (id, user_id, name, applies_to, icon, color, sort_order, deleted_at)
-VALUES (gen_random_uuid(), :'uid'::uuid, 'Cigarrillos', 'EXPENSE', 'flame', '#BF360C', 170, now());
+VALUES (:'cigarrillos'::uuid, :'uid'::uuid, 'Cigarrillos', 'EXPENSE', 'flame', '#BF360C', 170, now());
 
 
 -- -----------------------------------------------------------------------------

@@ -22,6 +22,7 @@ runtime:
     - type: tests
       code: |-
         const lista = res.getBody();
+        bru.setVar("idMercadoUsuarioNuevo", lista[0].id);
 
         test("las nuevas quedan al final, en el orden en que se crearon", function() {
           expect(lista[22].id).to.equal(bru.getVar("idPlantas"));

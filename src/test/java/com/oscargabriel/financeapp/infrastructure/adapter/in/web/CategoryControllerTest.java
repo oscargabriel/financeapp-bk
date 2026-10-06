@@ -8,6 +8,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockJwt;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,9 +23,12 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 
 import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
+import com.oscargabriel.financeapp.domain.exceptions.responses.ErrorDetail;
 import com.oscargabriel.financeapp.domain.model.CategoryScope;
 import com.oscargabriel.financeapp.domain.model.CreateCategoryCommand;
+import com.oscargabriel.financeapp.domain.model.UpdateCategoryCommand;
 import com.oscargabriel.financeapp.domain.port.in.CreateCategoryPort;
+import com.oscargabriel.financeapp.domain.port.in.UpdateCategoryPort;
 import com.oscargabriel.financeapp.domain.port.in.ListCategoriesPort;
 import com.oscargabriel.financeapp.infrastructure.config.JwtConfig;
 import com.oscargabriel.financeapp.infrastructure.config.SecurityConfig;
@@ -47,6 +52,9 @@ class CategoryControllerTest {
 
     @MockitoBean
     private CreateCategoryPort createCategory;
+
+    @MockitoBean
+    private UpdateCategoryPort updateCategory;
 
     private static JwtMutator tokenDelUsuario() {
         return mockJwt().jwt(jwt -> jwt.subject(CategoryMother.USER_ID.toString()));
@@ -268,5 +276,161 @@ class CategoryControllerTest {
                 .expectStatus().isUnauthorized();
 
         verifyNoInteractions(createCategory);
+    }
+
+    private static final String URI_PLANTAS = URI_BASE + "/" + CategoryMother.PLANTAS_ID;
+
+    @Test
+    void modificaLaCategoriaYRespondeConElMismoContratoQueElListado() {
+        when(updateCategory.update(eq(CategoryMother.USER_ID), eq(CategoryMother.PLANTAS_ID), any()))
+                .thenReturn(Mono.just(CategoryMother.plantasCreada()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_PLANTAS)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"color": "#7CB342"}
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.id").isEqualTo(CategoryMother.PLANTAS_ID.toString())
+                .jsonPath("$.name").isEqualTo("Plantas")
+                .jsonPath("$.appliesTo").isEqualTo("EXPENSE")
+                .jsonPath("$.color").isEqualTo("#7CB342")
+                .jsonPath("$.isSystem").isEqualTo(false)
+                .jsonPath("$.userId").doesNotExist();
+    }
+
+    @Test
+    void pasaAlCasoDeUsoElUsuarioElIdYElParcheTalCualLlega() {
+        when(updateCategory.update(eq(CategoryMother.USER_ID), eq(CategoryMother.PLANTAS_ID), any()))
+                .thenReturn(Mono.just(CategoryMother.plantasCreada()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_PLANTAS)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name": " Huerta ", "appliesTo": "both", "icon": null}
+                        """)
+                .exchange()
+                .expectStatus().isOk();
+
+        ArgumentCaptor<UpdateCategoryCommand> comando = ArgumentCaptor.forClass(UpdateCategoryCommand.class);
+        verify(updateCategory).update(eq(CategoryMother.USER_ID), eq(CategoryMother.PLANTAS_ID), comando.capture());
+        assertThat(comando.getValue()).isEqualTo(new UpdateCategoryCommand(" Huerta ", "both", null, null));
+    }
+
+    @Test
+    void devuelve400SobreElBodyCuandoElParcheNoTraeCambios() {
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_PLANTAS)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name": null}
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("body");
+
+        verifyNoInteractions(updateCategory);
+    }
+
+    @Test
+    void devuelve400ConLosCamposDelParcheInvalidosSinLlamarAlCasoDeUso() {
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_PLANTAS)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name": " ", "appliesTo": "GASTO", "icon": "", "color": "rojo"}
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors.length()").isEqualTo(4)
+                .jsonPath("$.errors[?(@.code != 'VALIDATION_ERROR')]").isEmpty();
+
+        verifyNoInteractions(updateCategory);
+    }
+
+    @Test
+    void devuelve400SobreElIdCuandoNoEsUnUuid() {
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/abc")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name": "Huerta"}
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("id");
+
+        verifyNoInteractions(updateCategory);
+    }
+
+    @Test
+    void devuelve404CuandoLaCategoriaNoEsDelUsuario() {
+        when(updateCategory.update(eq(CategoryMother.USER_ID), eq(CategoryMother.PLANTAS_ID), any()))
+                .thenReturn(Mono.error(new BadRequestException(HttpStatus.NOT_FOUND, List.of(
+                        ErrorDetail.of(ErrorCodes.NOT_FOUND.getCode(), "La categoria no existe", "id")))));
+
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_PLANTAS)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name": "Huerta"}
+                        """)
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.NOT_FOUND.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("id");
+    }
+
+    @Test
+    void devuelve409CuandoElNombreNuevoYaLoUsaOtraCategoria() {
+        when(updateCategory.update(eq(CategoryMother.USER_ID), eq(CategoryMother.PLANTAS_ID), any()))
+                .thenReturn(Mono.error(new BadRequestException(HttpStatus.CONFLICT, ErrorCodes.DUPLICATE_RESOURCE,
+                        "Ya hay una categoria con ese nombre", "name")));
+
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_PLANTAS)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name": "Bonos"}
+                        """)
+                .exchange()
+                .expectStatus().isEqualTo(HttpStatus.CONFLICT)
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.DUPLICATE_RESOURCE.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("name");
+    }
+
+    @Test
+    void devuelve409CuandoElAlcanceNoAdmiteLosMovimientosDeLaCategoria() {
+        when(updateCategory.update(eq(CategoryMother.USER_ID), eq(CategoryMother.PLANTAS_ID), any()))
+                .thenReturn(Mono.error(new BadRequestException(HttpStatus.CONFLICT, ErrorCodes.RESOURCE_IN_USE,
+                        "La categoria tiene movimientos de un tipo que el nuevo alcance no admite", "appliesTo")));
+
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_PLANTAS)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"appliesTo": "INCOME"}
+                        """)
+                .exchange()
+                .expectStatus().isEqualTo(HttpStatus.CONFLICT)
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.RESOURCE_IN_USE.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("appliesTo");
+    }
+
+    @Test
+    void devuelve401AlModificarSinCredenciales() {
+        webTestClient.patch().uri(URI_PLANTAS)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name": "Huerta"}
+                        """)
+                .exchange()
+                .expectStatus().isUnauthorized();
+
+        verifyNoInteractions(updateCategory);
     }
 }

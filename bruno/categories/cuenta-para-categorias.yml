@@ -1,0 +1,41 @@
+info:
+  name: Cuenta para categorias
+  type: http
+  seq: 33
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Caja",
+        "type": "CASH",
+        "currencyCode": "COP"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idCuentaCategorias", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Una cuenta para registrar un gasto
+
+  El registro no crea cuentas. Hace falta una para que `Huerta` tenga un movimiento y el cambio de
+  alcance choque con el.

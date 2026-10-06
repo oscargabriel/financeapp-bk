@@ -1,0 +1,37 @@
+info:
+  name: Categoria ajena intacta
+  type: http
+  seq: 32
+
+http:
+  method: GET
+  url: "{{baseUrl}}/categories"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: length
+      value: "24"
+  scripts:
+    - type: tests
+      code: |-
+        test("el Gimnasio del escenario no cambio de nombre", function() {
+          const gimnasio = res.getBody().find(function (c) { return c.id === bru.getVar("idGimnasioEscenario"); });
+          expect(gimnasio.name).to.equal("Gimnasio");
+          expect(res.getBody().map(function (c) { return c.name; })).to.not.include("Robada");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El 404 no escribio nada
+
+  Con el `accessToken` del usuario del escenario, despues de "Modificar categoria ajena".

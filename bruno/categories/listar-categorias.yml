@@ -63,6 +63,7 @@ runtime:
         });
 
         bru.setVar("idsCategoriasEscenario", JSON.stringify(res.getBody().map(function (c) { return c.id; })));
+        bru.setVar("idGimnasioEscenario", porNombre("Gimnasio").id);
 
 settings:
   encodeUrl: true

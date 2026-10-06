@@ -1,0 +1,43 @@
+info:
+  name: Modificar categoria de la semilla
+  type: http
+  seq: 22
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/categories/{{idMercadoUsuarioNuevo}}"
+  body:
+    type: json
+    data: |-
+      {
+        "color": "#1B5E20"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.name
+      operator: eq
+      value: Mercado
+    - expression: res.body.color
+      operator: eq
+      value: "#1B5E20"
+    - expression: res.body.isSystem
+      operator: eq
+      value: "true"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Las de la semilla se editan igual
+
+  `is_system` marca el origen de la fila, no que sea intocable: tras el cambio sigue en `true`.

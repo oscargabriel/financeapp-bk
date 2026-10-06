@@ -1,0 +1,49 @@
+info:
+  name: Modificar categoria con campos invalidos
+  type: http
+  seq: 27
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/categories/{{idPlantas}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": " ",
+        "appliesTo": "GASTO",
+        "icon": "",
+        "color": "rojo"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors
+      operator: length
+      value: "4"
+  scripts:
+    - type: tests
+      code: |-
+        test("un error por campo, los cuatro juntos", function() {
+          const campos = res.getBody().errors.map(function (e) { return e.field; }).sort();
+          expect(campos).to.deep.equal(["appliesTo", "color", "icon", "name"]);
+          res.getBody().errors.forEach(function (e) { expect(e.code).to.equal("VALIDATION_ERROR"); });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Ningun campo del parche puede ir en blanco
+
+  A diferencia del alta, el icono vacio no se guarda como `null`: el parche no vacia campos. El
+  orden de los errores no esta garantizado: se comparan por contenido.

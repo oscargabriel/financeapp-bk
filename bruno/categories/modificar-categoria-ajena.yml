@@ -1,0 +1,41 @@
+info:
+  name: Modificar categoria ajena
+  type: http
+  seq: 31
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/categories/{{idGimnasioEscenario}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Robada"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "404"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: NOT_FOUND
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: id
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # La categoria de otro usuario
+
+  404 y no 403: la respuesta no confirma que la categoria exista. `idGimnasioEscenario` lo deja
+  "Listar categorias".

@@ -1,0 +1,37 @@
+info:
+  name: Modificar alcance sin movimientos
+  type: http
+  seq: 37
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/categories/{{idBonos}}"
+  body:
+    type: json
+    data: |-
+      {
+        "appliesTo": "EXPENSE"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.appliesTo
+      operator: eq
+      value: EXPENSE
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Una categoria sin movimientos cambia de alcance libremente
+
+  `Bonos` era de ingreso y no tiene movimientos.

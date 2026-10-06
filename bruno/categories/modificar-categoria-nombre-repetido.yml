@@ -1,0 +1,40 @@
+info:
+  name: Modificar categoria con nombre repetido
+  type: http
+  seq: 24
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/categories/{{idPlantas}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "BONOS"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: DUPLICATE_RESOURCE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: name
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Renombrar a un nombre que ya usa otra categoria viva
+
+  `BONOS` choca con la `Bonos` de "Crear categoria sin icono ni color".
