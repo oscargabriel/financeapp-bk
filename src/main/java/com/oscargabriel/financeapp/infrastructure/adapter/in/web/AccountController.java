@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.port.in.CreateAccountPort;
+import com.oscargabriel.financeapp.domain.port.in.DeleteAccountPort;
 import com.oscargabriel.financeapp.domain.port.in.ListAccountsPort;
 import com.oscargabriel.financeapp.domain.port.in.UpdateAccountPort;
 import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.AccountResponse;
@@ -37,6 +39,7 @@ public class AccountController {
     private final ListAccountsPort listAccounts;
     private final CreateAccountPort createAccount;
     private final UpdateAccountPort updateAccount;
+    private final DeleteAccountPort deleteAccount;
 
     @GetMapping
     public Flux<AccountResponse> accounts(
@@ -69,6 +72,12 @@ public class AccountController {
                     return updateAccount.update(UsuarioDelToken.de(jwt), cuenta, parche.toCommand());
                 })
                 .map(AccountResponse::from);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public Mono<Void> delete(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
+        return Mono.defer(() -> deleteAccount.delete(UsuarioDelToken.de(jwt), parseId(id)));
     }
 
     /** A mano y no como UUID de Spring: su conversion fallida saldria como JSON_PARSING_ERROR del cuerpo. */

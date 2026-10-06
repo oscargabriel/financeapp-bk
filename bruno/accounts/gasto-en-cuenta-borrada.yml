@@ -1,0 +1,46 @@
+info:
+  name: Gasto en cuenta borrada
+  type: http
+  seq: 50
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCajaChica}}",
+          "categoryId": "{{idMercadoCuentas}}",
+          "amount": 1000,
+          "description": "No deberia entrar"
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: "[0].accountId"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Una cuenta borrada no recibe movimientos nuevos
+
+  Responde como con una cuenta que no existe.

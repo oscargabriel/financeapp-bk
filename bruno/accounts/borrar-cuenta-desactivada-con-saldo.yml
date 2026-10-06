@@ -1,0 +1,33 @@
+info:
+  name: Borrar cuenta desactivada con saldo
+  type: http
+  seq: 54
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/accounts/20000000-0000-7000-8000-000000000005"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: RESOURCE_IN_USE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: currentBalance
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Nequi, la desactivada del escenario
+
+  Una desactivada se puede borrar, pero con la misma regla del saldo: tiene 80000, asi que es 409 y
+  el escenario no cambia.

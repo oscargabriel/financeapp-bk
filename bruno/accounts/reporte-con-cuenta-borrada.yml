@@ -1,0 +1,56 @@
+info:
+  name: Reporte con cuenta borrada
+  type: http
+  seq: 48
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{ayerCuentas}}&to={{mananaCuentas}}&accountId={{idCajaChica}}"
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.transactions
+      operator: length
+      value: "1"
+  scripts:
+    - type: before-request
+      code: |-
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const comoDia = function (f) {
+          return f.getFullYear() + "-" + dos(f.getMonth() + 1) + "-" + dos(f.getDate());
+        };
+        const hoy = new Date();
+        bru.setVar("ayerCuentas", comoDia(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - 1)));
+        bru.setVar("mananaCuentas", comoDia(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + 1)));
+    - type: tests
+      code: |-
+        const r = res.getBody();
+
+        test("el gasto sigue con la cuenta borrada", function() {
+          expect(r.transactions[0].id).to.equal(bru.getVar("idGastoCajaChica"));
+          expect(r.transactions[0].accountId).to.equal(bru.getVar("idCajaChica"));
+        });
+
+        test("y cuenta en los totales", function() {
+          const gastos = r.totalsByType.find(function (t) { return t.type === "EXPENSE"; });
+          expect(gastos.total).to.equal(30000);
+          expect(gastos.count).to.equal(1);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # La historia no cambia al borrar
+
+  Filtrado por la cuenta borrada, de ayer a manana para no depender de la hora de la corrida frente
+  a la zona del usuario.

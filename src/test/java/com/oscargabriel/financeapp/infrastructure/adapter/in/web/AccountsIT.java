@@ -79,6 +79,29 @@ class AccountsIT {
     }
 
     @Test
+    void elBorradoSinCredencialesEsUn401ConElRetoDelJwt() {
+        webTestClient.delete().uri("/api/accounts/20000000-0000-7000-8000-000000000001")
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().valueEquals("WWW-Authenticate", "Bearer")
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED")
+                .jsonPath("$.errors[0].field").isEqualTo("authorization");
+    }
+
+    @Test
+    void elBorradoConElBasicCompartidoEsUn401() {
+        webTestClient.delete().uri("/api/accounts/20000000-0000-7000-8000-000000000001")
+                .headers(BasicMother.cabecera())
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().valueEquals("WWW-Authenticate", "Bearer")
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED")
+                .jsonPath("$.errors[0].field").isEqualTo("authorization");
+    }
+
+    @Test
     void noExponeElEndpointFueraDelBasePath() {
         webTestClient.get().uri("/accounts")
                 .headers(headers -> headers.setBearerAuth(TokenMother.valido()))

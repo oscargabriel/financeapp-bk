@@ -85,6 +85,15 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
             RETURNING %s
             """.formatted(COLUMNAS);
 
+    /** La fila se queda: los movimientos la siguen referenciando por la FK. */
+    private static final String BORRAR = """
+            UPDATE finance.accounts
+               SET deleted_at = now()
+             WHERE id = :id
+               AND user_id = :userId
+               AND deleted_at IS NULL
+            """;
+
     private final DatabaseClient databaseClient;
 
     @Override
@@ -142,6 +151,15 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
                 .map((row, metadata) -> toDomain(row))
                 .one()
                 .onErrorMap(DuplicateKeyException.class, AccountR2dbcAdapter::comoConflicto);
+    }
+
+    @Override
+    public Mono<Boolean> softDelete(UUID accountId, UUID userId) {
+        return databaseClient.sql(BORRAR)
+                .bind("id", accountId)
+                .bind("userId", userId)
+                .fetch().rowsUpdated()
+                .map(filas -> filas > 0);
     }
 
     /** Los tres son null fuera de una CREDIT, y R2DBC exige el tipo para enlazar un null. */

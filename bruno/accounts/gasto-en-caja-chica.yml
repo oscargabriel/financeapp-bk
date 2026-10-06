@@ -1,0 +1,45 @@
+info:
+  name: Gasto en Caja chica
+  type: http
+  seq: 42
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCajaChica}}",
+          "categoryId": "{{idMercadoCuentas}}",
+          "amount": 30000,
+          "description": "Tinto"
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idGastoCajaChica", res.getBody()[0].id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Historia y saldo en la cuenta
+
+  Con este gasto `Caja chica` queda en -30000 y tiene un movimiento que el borrado no puede tocar.
+  Guarda su id en `idGastoCajaChica`.

@@ -1,0 +1,34 @@
+info:
+  name: Borrar cuenta ya borrada
+  type: http
+  seq: 47
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/accounts/{{idCajaChica}}"
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "404"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: NOT_FOUND
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: id
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # La misma cuenta otra vez
+
+  Ya borrada responde como una inexistente.

@@ -1,0 +1,43 @@
+info:
+  name: Cuenta para borrar
+  type: http
+  seq: 41
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Caja chica",
+        "type": "CASH",
+        "currencyCode": "COP"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.currentBalance
+      operator: eq
+      value: 0
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idCajaChica", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Una cuenta en cero para el borrado
+
+  Guarda su id en `idCajaChica`.
