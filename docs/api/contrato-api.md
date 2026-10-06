@@ -16,6 +16,7 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | `GET` | `/api/categories` | Bearer | Listar las categorías del usuario |
 | `POST` | `/api/categories` | Bearer | Crear una categoría |
 | `PATCH` | `/api/categories/{id}` | Bearer | Modificar una categoría |
+| `DELETE` | `/api/categories/{id}` | Bearer | Borrar una categoría |
 | `GET` | `/api/catalogs/account-types` | Bearer | Tipos de cuenta válidos |
 | `GET` | `/api/catalogs/transaction-types` | Bearer | Tipos de movimiento válidos |
 | `GET` | `/api/catalogs/currencies` | Bearer | Monedas activas |
@@ -451,6 +452,27 @@ Las categorías de la semilla se modifican igual que las propias, y siguen con `
 | 409 | `DUPLICATE_RESOURCE` | `name` | Otra categoría viva del usuario ya usa ese nombre |
 | 409 | `RESOURCE_IN_USE` | `appliesTo` | La categoría tiene movimientos del tipo que el alcance nuevo dejaría fuera |
 
+### `DELETE /api/categories/{id}`
+
+Borra una categoría del usuario del token. **Bearer.** El borrado es lógico: la categoría deja de
+aparecer en `GET /categories` y en el catálogo, pero no desaparece de la historia. No hay forma de
+recuperarla desde el API.
+
+**204 No Content**, sin cuerpo.
+
+- Se puede borrar aunque tenga movimientos, y también una de la semilla.
+- Sus movimientos no cambian: conservan su `categoryId`, y el reporte de movimientos los sigue
+  mostrando con el `categoryName` que tenía.
+- Un PATCH de uno de esos movimientos que no cambie su categoría ni su tipo se acepta. Ningún
+  movimiento nuevo, ni un PATCH que la elija, puede usarla: es el mismo 400 de una categoría que no
+  existe.
+- Su nombre queda libre para crear o renombrar otra.
+
+| HTTP | `code` | `field` | Cuándo |
+|---|---|---|---|
+| 400 | `VALIDATION_ERROR` | `id` | El id de la ruta no es un UUID |
+| 404 | `NOT_FOUND` | `id` | La categoría no existe, ya está borrada o es de otro usuario: la respuesta es la misma |
+
 ### Catálogos — `GET /api/catalogs/*`
 
 Los valores que aceptan los formularios de cuenta y de movimiento, para que el cliente no los copie
@@ -803,6 +825,8 @@ dos extremos. Errores 400 `VALIDATION_ERROR`, en el campo del parámetro:
 - **Las transferencias no tienen categoría.** Con filtro de categoría quedan fuera, y nunca entran
   en `totalsByCategory`.
 - Un `categoryId` bien formado que no es del usuario no da error: el reporte sale vacío.
+- Los movimientos de una categoría borrada siguen saliendo, con su nombre, en `transactions` y en
+  `totalsByCategory`.
 - **`accountId` toma la cuenta como origen o como destino.** El filtro de una cuenta trae también
   las transferencias que le llegan, y una transferencia entre dos cuentas filtradas sale una sola
   vez. Un `accountId` bien formado que no es del usuario, igual que una categoría ajena, deja el
@@ -824,7 +848,8 @@ desplegar un frontend en un dominio nuevo, hay que pedir que se agregue a la lis
 
 Para que el frontend no lo busque:
 
-- Editar o borrar cuentas, o borrar categorías.
+- Editar o borrar cuentas.
+- Recuperar o listar las categorías borradas.
 - Consultar un movimiento por su id. Para listarlos está `GET /api/reports/transactions`.
 - Crear metas de gasto.
 - Refresh token o logout. El token simplemente vence.

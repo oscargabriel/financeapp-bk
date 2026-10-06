@@ -1,0 +1,28 @@
+info:
+  name: Borrar categoria de la semilla
+  type: http
+  seq: 43
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/categories/{{idMercadoUsuarioNuevo}}"
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Una categoria copiada de la semilla
+
+  Se borra igual que una propia: `is_system` solo marca el origen de la fila.

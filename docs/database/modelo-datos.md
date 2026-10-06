@@ -234,6 +234,11 @@ currency_code | total_spent | category_budget | remaining | percent_used | share
 `share_of_month` es el peso porcentual de la categoría sobre el total gastado ese
 mes. `category_budget` solo tiene valor si se definió un tope para esa categoría.
 
+Una categoría borrada sigue apareciendo, con su nombre, icono y color, en los
+meses en que tuvo gasto: la vista no filtra `deleted_at`, y es a propósito
+(FA-21). Ocultarla haría que el desglose dejara de sumar el `total_spent` de
+`v_monthly_spending` y que `share_of_month` no llegara a 100.
+
 ### Metas
 
 La meta global de un mes es la fila de `budgets` con `category_id IS NULL`:

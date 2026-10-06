@@ -1,7 +1,7 @@
 info:
-  name: Gasto en Huerta
+  name: Gasto con categoria borrada
   type: http
-  seq: 36
+  seq: 52
 
 http:
   method: POST
@@ -14,8 +14,8 @@ http:
           "type": "EXPENSE",
           "accountId": "{{idCuentaCategorias}}",
           "categoryId": "{{idPlantas}}",
-          "amount": 20000,
-          "description": "Abono"
+          "amount": 1000,
+          "description": "Semillas"
         }
       ]
   auth:
@@ -26,11 +26,13 @@ runtime:
   assertions:
     - expression: res.status
       operator: eq
-      value: "201"
-  scripts:
-    - type: tests
-      code: |-
-        bru.setVar("idGastoHuerta", res.getBody()[0].id);
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: "[0].categoryId"
 
 settings:
   encodeUrl: true
@@ -39,7 +41,6 @@ settings:
   maxRedirects: 5
 
 docs: |
-  # Un gasto con la categoria
+  # Una categoria borrada no recibe movimientos
 
-  Desde aqui `Huerta` tiene un gasto, y dejar de servir para gastos se rechaza. Su id queda en
-  `idGastoHuerta` para modificarlo despues de borrar la categoria.
+  El mismo 400 que una categoria que no existe.

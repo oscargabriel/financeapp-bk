@@ -27,4 +27,7 @@ public interface CategoryRepositoryPort {
      * como quedo, o vacio si ya no esta. El nombre repetido sale como en create.
      */
     Mono<Category> update(UUID userId, Category category);
+
+    /** Marca como borrada la categoria viva del usuario; false si no existe, ya estaba borrada o es de otro. */
+    Mono<Boolean> softDelete(UUID categoryId, UUID userId);
 }

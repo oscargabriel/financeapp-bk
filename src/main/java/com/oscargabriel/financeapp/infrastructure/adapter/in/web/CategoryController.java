@@ -8,6 +8,7 @@ import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,6 +23,7 @@ import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.model.CategoryScope;
 import com.oscargabriel.financeapp.domain.port.in.CreateCategoryPort;
+import com.oscargabriel.financeapp.domain.port.in.DeleteCategoryPort;
 import com.oscargabriel.financeapp.domain.port.in.ListCategoriesPort;
 import com.oscargabriel.financeapp.domain.port.in.UpdateCategoryPort;
 import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.CategoryResponse;
@@ -39,6 +41,7 @@ public class CategoryController {
     private final ListCategoriesPort listCategories;
     private final CreateCategoryPort createCategory;
     private final UpdateCategoryPort updateCategory;
+    private final DeleteCategoryPort deleteCategory;
 
     @GetMapping
     public Flux<CategoryResponse> categories(
@@ -71,6 +74,12 @@ public class CategoryController {
                     return updateCategory.update(UsuarioDelToken.de(jwt), categoria, parche.toCommand());
                 })
                 .map(CategoryResponse::from);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public Mono<Void> delete(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
+        return Mono.defer(() -> deleteCategory.delete(UsuarioDelToken.de(jwt), parseId(id)));
     }
 
     /** A mano y no como UUID de Spring: su conversion fallida saldria como JSON_PARSING_ERROR del cuerpo. */

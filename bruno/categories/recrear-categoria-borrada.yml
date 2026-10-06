@@ -1,0 +1,49 @@
+info:
+  name: Recrear categoria borrada
+  type: http
+  seq: 53
+
+http:
+  method: POST
+  url: "{{baseUrl}}/categories"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "huerta",
+        "appliesTo": "EXPENSE",
+        "icon": "leaf",
+        "color": "#558B2F"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.name
+      operator: eq
+      value: huerta
+  scripts:
+    - type: tests
+      code: |-
+        test("es otra categoria, no la borrada", function() {
+          expect(res.getBody().id).to.not.equal(bru.getVar("idPlantas"));
+        });
+
+        bru.setVar("idHuertaNueva", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El nombre de una borrada queda libre
+
+  `HUERTA` esta borrada: el indice unico del nombre solo mira las vivas. Es el escenario "El nombre
+  lo usa una categoria borrada" de `openspec/specs/categorias/`.

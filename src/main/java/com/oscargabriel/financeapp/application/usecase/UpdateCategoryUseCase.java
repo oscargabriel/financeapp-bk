@@ -71,7 +71,7 @@ public class UpdateCategoryUseCase implements UpdateCategoryPort {
     }
 
     /** Inexistente, borrada y ajena dan lo mismo: distinguirlas confirmaria que el id existe. */
-    private static BadRequestException noEncontrada() {
+    static BadRequestException noEncontrada() {
         return new BadRequestException(HttpStatus.NOT_FOUND, List.of(
                 ErrorDetail.of(ErrorCodes.NOT_FOUND.getCode(), "La categoria no existe", "id")));
     }
