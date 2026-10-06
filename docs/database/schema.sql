@@ -160,8 +160,8 @@ CREATE TABLE finance.accounts (
 );
 
 COMMENT ON TABLE  finance.accounts IS 'Origen o destino del dinero: efectivo, cuenta bancaria, tarjeta de crédito, etc.';
-COMMENT ON COLUMN finance.accounts.current_balance IS 'Saldo vigente. Lo mantiene el trigger trg_transactions_sync_balance; la aplicación NUNCA lo escribe directamente. En una tarjeta de crédito un valor negativo es la deuda, y el cupo disponible es credit_limit + current_balance.';
-COMMENT ON COLUMN finance.accounts.initial_balance IS 'Saldo con el que la cuenta entra al sistema. Se copia a current_balance al crearla.';
+COMMENT ON COLUMN finance.accounts.current_balance IS 'Saldo vigente: initial_balance más el efecto de los movimientos. Lo mantienen los triggers trg_transactions_sync_balance y trg_accounts_shift_balance; la aplicación NUNCA lo escribe directamente. En una tarjeta de crédito un valor negativo es la deuda, y el cupo disponible es credit_limit + current_balance.';
+COMMENT ON COLUMN finance.accounts.initial_balance IS 'Saldo con el que la cuenta entra al sistema. Se copia a current_balance al crearla, y si después cambia, current_balance se corre en la misma diferencia.';
 
 CREATE UNIQUE INDEX ux_accounts_user_name
     ON finance.accounts (user_id, lower(name)) WHERE deleted_at IS NULL;
@@ -187,6 +187,25 @@ $$;
 CREATE TRIGGER trg_accounts_seed_balance
     BEFORE INSERT ON finance.accounts
     FOR EACH ROW EXECUTE FUNCTION finance.seed_account_balance();
+
+-- Corregir el saldo inicial corre el vigente en la misma diferencia, haya o no
+-- movimientos: así current_balance sigue siendo el inicial más los movimientos.
+-- Suma sobre NEW, no sobre OLD, para no pisar otro cambio de la misma sentencia.
+CREATE OR REPLACE FUNCTION finance.shift_account_balance()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    NEW.current_balance := NEW.current_balance + (NEW.initial_balance - OLD.initial_balance);
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_accounts_shift_balance
+    BEFORE UPDATE OF initial_balance ON finance.accounts
+    FOR EACH ROW
+    WHEN (NEW.initial_balance IS DISTINCT FROM OLD.initial_balance)
+    EXECUTE FUNCTION finance.shift_account_balance();
 
 
 -- =============================================================================

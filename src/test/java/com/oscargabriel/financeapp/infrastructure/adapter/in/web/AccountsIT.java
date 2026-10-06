@@ -9,6 +9,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
+import com.oscargabriel.financeapp.support.BasicMother;
 import com.oscargabriel.financeapp.support.TokenMother;
 
 /**
@@ -48,6 +49,33 @@ class AccountsIT {
                 .exchange()
                 .expectStatus().isUnauthorized()
                 .expectHeader().valueEquals("WWW-Authenticate", "Bearer");
+    }
+
+    @Test
+    void elPatchSinCredencialesEsUn401ConElRetoDelJwt() {
+        webTestClient.patch().uri("/api/accounts/20000000-0000-7000-8000-000000000001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"name\": \"Bolsillo\"}")
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().valueEquals("WWW-Authenticate", "Bearer")
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED")
+                .jsonPath("$.errors[0].field").isEqualTo("authorization");
+    }
+
+    @Test
+    void elPatchConElBasicCompartidoEsUn401() {
+        webTestClient.patch().uri("/api/accounts/20000000-0000-7000-8000-000000000001")
+                .headers(BasicMother.cabecera())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"name\": \"Bolsillo\"}")
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().valueEquals("WWW-Authenticate", "Bearer")
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED")
+                .jsonPath("$.errors[0].field").isEqualTo("authorization");
     }
 
     @Test

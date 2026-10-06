@@ -1,0 +1,48 @@
+info:
+  name: Modificar campos que el parche no admite
+  type: http
+  seq: 28
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/{{idCuentaEfectivo}}"
+  body:
+    type: json
+    data: |-
+      {
+        "currentBalance": 1,
+        "type": "CASH",
+        "isActive": false
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors
+      operator: length
+      value: "3"
+  scripts:
+    - type: tests
+      code: |-
+        test("un error por campo, todos juntos", function() {
+          const campos = res.getBody().errors.map(function (e) { return e.field; }).sort();
+          expect(campos).to.deep.equal(["currentBalance", "isActive", "type"]);
+          res.getBody().errors.forEach(function (e) { expect(e.code).to.equal("VALIDATION_ERROR"); });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Saldo vigente, tipo y estado no se tocan por aqui
+
+  El saldo vigente lo calcula la base, el tipo no se cambia y desactivar es otro endpoint (FA-25).
+  Mandarlos es un error, no algo que se ignora en silencio.

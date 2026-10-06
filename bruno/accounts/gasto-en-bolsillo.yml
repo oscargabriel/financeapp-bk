@@ -1,0 +1,41 @@
+info:
+  name: Gasto en Bolsillo
+  type: http
+  seq: 22
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCuentaEfectivo}}",
+          "categoryId": "{{idMercadoCuentas}}",
+          "amount": 50000,
+          "description": "Mercado"
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un movimiento en la cuenta
+
+  Con este gasto `Bolsillo` pasa a tener historial: su saldo vigente baja a 150000 y su moneda ya no
+  se puede cambiar.

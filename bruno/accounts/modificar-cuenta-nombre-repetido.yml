@@ -1,0 +1,40 @@
+info:
+  name: Modificar cuenta con nombre repetido
+  type: http
+  seq: 30
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/{{idCuentaEfectivo}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "MASTERCARD"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: DUPLICATE_RESOURCE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: name
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Otra cuenta viva del usuario ya se llama asi
+
+  Sin distinguir mayusculas, como el indice `ux_accounts_user_name`.

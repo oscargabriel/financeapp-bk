@@ -28,8 +28,9 @@ runtime:
         test("cada cuenta trae el contrato completo y nada mas", function() {
           res.getBody().forEach(function (c) {
             expect(c.id).to.match(/^[0-9a-f-]{36}$/);
-            expect(c).to.have.all.keys("id", "name", "type", "currencyCode", "currentBalance",
-                "availableCredit", "isActive");
+            expect(c).to.have.all.keys("id", "name", "type", "currencyCode", "initialBalance",
+                "currentBalance", "creditLimit", "availableCredit", "statementDay", "paymentDueDay",
+                "isActive");
             expect(c.isActive).to.equal(true);
           });
         });
@@ -46,10 +47,27 @@ runtime:
           expect(visa.availableCredit).to.equal(4342000);
         });
 
-        test("las cuentas que no son de credito no tienen cupo", function() {
+        test("la tarjeta trae su cupo y sus fechas", function() {
+          const visa = porNombre("Visa");
+          expect(visa.initialBalance).to.equal(0);
+          expect(visa.creditLimit).to.equal(5000000);
+          expect(visa.statementDay).to.equal(15);
+          expect(visa.paymentDueDay).to.equal(5);
+        });
+
+        test("las cuentas que no son de credito no tienen cupo ni fechas", function() {
           ["Ahorros USD", "Bancolombia", "Efectivo"].forEach(function (nombre) {
-            expect(porNombre(nombre).availableCredit).to.equal(null);
+            const cuenta = porNombre(nombre);
+            expect(cuenta.availableCredit).to.equal(null);
+            expect(cuenta.creditLimit).to.equal(null);
+            expect(cuenta.statementDay).to.equal(null);
+            expect(cuenta.paymentDueDay).to.equal(null);
           });
+        });
+
+        test("el saldo inicial es el de arranque, no el vigente", function() {
+          expect(porNombre("Efectivo").initialBalance).to.equal(500000);
+          expect(porNombre("Ahorros USD").initialBalance).to.equal(1200);
         });
 
         test("saldo y moneda salen de la base, con los movimientos del escenario aplicados", function() {
@@ -73,10 +91,11 @@ docs: |
   Cuentas activas y no borradas del usuario del token, por nombre:
 
       [{ "id": "...", "name": "Visa", "type": "CREDIT", "currencyCode": "COP",
-         "currentBalance": -658000.0000, "availableCredit": 4342000.0000, "isActive": true }]
+         "initialBalance": 0.0000, "currentBalance": -658000.0000, "creditLimit": 5000000.0000,
+         "availableCredit": 4342000.0000, "statementDay": 15, "paymentDueDay": 5, "isActive": true }]
 
   `availableCredit` es `credit_limit + current_balance` en las `CREDIT` con limite, y `null` en el
-  resto. Un saldo negativo en una tarjeta es deuda.
+  resto, igual que el cupo y las fechas. Un saldo negativo en una tarjeta es deuda.
 
   El escenario de `docs/database/test-data.sql` deja 6 cuentas: las 4 que salen aqui, `Nequi`
   (desactivada) y `Davivienda` (borrada). Los saldos son los que el trigger calcula con los

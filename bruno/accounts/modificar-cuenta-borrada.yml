@@ -1,0 +1,38 @@
+info:
+  name: Modificar cuenta borrada
+  type: http
+  seq: 35
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/20000000-0000-7000-8000-000000000006"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Revivida"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "404"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: NOT_FOUND
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: id
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Davivienda, la borrada del escenario
+
+  Con el `accessToken` del usuario del escenario. Un 404 no escribe, asi que el escenario no cambia.

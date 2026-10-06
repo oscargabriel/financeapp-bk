@@ -22,6 +22,7 @@ SET search_path TO finance, public;
 \set credit   '20000000-0000-7000-8000-000000000003'
 \set usd      '20000000-0000-7000-8000-000000000004'
 \set nequi    '20000000-0000-7000-8000-000000000005'
+\set davivienda '20000000-0000-7000-8000-000000000006'
 \set cigarrillos '30000000-0000-7000-8000-000000000170'
 
 BEGIN;
@@ -111,9 +112,10 @@ VALUES
 INSERT INTO finance.accounts (id, user_id, name, type, currency_code, initial_balance, is_active)
 VALUES (:'nequi'::uuid, :'uid'::uuid, 'Nequi', 'DEBIT', 'COP', 80000, FALSE);
 
--- Borrada logicamente: GET /api/accounts no la devuelve nunca, ni con includeInactive=true.
+-- Borrada logicamente: GET /api/accounts no la devuelve nunca, ni con includeInactive=true. Id
+-- fijo para que bruno/accounts/ pueda pedirla y comprobar el 404 del PATCH.
 INSERT INTO finance.accounts (id, user_id, name, type, currency_code, initial_balance, deleted_at)
-VALUES (gen_random_uuid(), :'uid'::uuid, 'Davivienda', 'SAVINGS', 'COP', 150000, now());
+VALUES (:'davivienda'::uuid, :'uid'::uuid, 'Davivienda', 'SAVINGS', 'COP', 150000, now());
 
 
 -- -----------------------------------------------------------------------------

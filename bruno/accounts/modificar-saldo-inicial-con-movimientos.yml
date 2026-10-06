@@ -1,0 +1,41 @@
+info:
+  name: Modificar saldo inicial con movimientos
+  type: http
+  seq: 23
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/{{idCuentaEfectivo}}"
+  body:
+    type: json
+    data: |-
+      {
+        "initialBalance": 300000
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.initialBalance
+      operator: eq
+      value: 300000
+    - expression: res.body.currentBalance
+      operator: eq
+      value: 250000
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El saldo inicial se corrige con historial
+
+  Inicial 200000 y un gasto de 50000 dejan 150000. Subir el inicial a 300000 corre el vigente los
+  mismos 100000: 250000, el inicial mas el efecto del gasto. No hay descuadre.

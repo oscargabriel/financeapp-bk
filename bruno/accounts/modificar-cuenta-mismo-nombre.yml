@@ -1,0 +1,35 @@
+info:
+  name: Modificar cuenta con su propio nombre
+  type: http
+  seq: 31
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/{{idCuentaEfectivo}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "BOLSILLO"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.name
+      operator: eq
+      value: BOLSILLO
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Cambiar solo las mayusculas del propio nombre no es un choque

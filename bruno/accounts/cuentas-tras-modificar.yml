@@ -1,0 +1,53 @@
+info:
+  name: Cuentas tras modificar
+  type: http
+  seq: 32
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts?includeInactive=true"
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: length
+      value: "2"
+  scripts:
+    - type: tests
+      code: |-
+        const porId = function (id) {
+          return res.getBody().find(function (c) { return c.id === bru.getVar(id); });
+        };
+
+        test("la cuenta de efectivo quedo como la dejaron los PATCH validos", function() {
+          const bolsillo = porId("idCuentaEfectivo");
+          expect(bolsillo.name).to.equal("BOLSILLO");
+          expect(bolsillo.currencyCode).to.equal("COP");
+          expect(bolsillo.initialBalance).to.equal(300000);
+          expect(bolsillo.currentBalance).to.equal(250000);
+        });
+
+        test("la tarjeta quedo con la moneda, el cupo y las fechas nuevas", function() {
+          const tarjeta = porId("idCuentaCredito");
+          expect(tarjeta.currencyCode).to.equal("USD");
+          expect(tarjeta.creditLimit).to.equal(4000000);
+          expect(tarjeta.statementDay).to.equal(25);
+          expect(tarjeta.paymentDueDay).to.equal(12);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Lo que quedo en la base
+
+  Relee con el listado: persistio lo de los 200, y ninguno de los 400 ni de los 409 escribio nada.

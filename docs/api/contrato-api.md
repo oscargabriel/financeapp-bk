@@ -13,6 +13,7 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | `GET` | `/api/status` | Basic | Estado del servicio y de la base |
 | `GET` | `/api/accounts` | Bearer | Listar las cuentas del usuario |
 | `POST` | `/api/accounts` | Bearer | Crear una cuenta |
+| `PATCH` | `/api/accounts/{id}` | Bearer | Modificar una cuenta |
 | `GET` | `/api/categories` | Bearer | Listar las categorías del usuario |
 | `POST` | `/api/categories` | Bearer | Crear una categoría |
 | `PATCH` | `/api/categories/{id}` | Bearer | Modificar una categoría |
@@ -149,7 +150,7 @@ Todos los errores salen con la misma forma:
 | 404 | `NOT_FOUND` | La ruta no existe (con token válido), o el recurso de la ruta no existe o es de otro usuario (`field`: `id`) |
 | 405 | `VALIDATION_ERROR` | Método no soportado en esa ruta (`description`: "La peticion no pudo ser procesada") |
 | 409 | `DUPLICATE_RESOURCE` | Ya existe: correo registrado, o nombre de cuenta o de categoría repetido |
-| 409 | `RESOURCE_IN_USE` | El cambio dejaría inconsistentes otros datos que usan el recurso: el alcance de una categoría con movimientos que no admitiría (`field`: `appliesTo`) |
+| 409 | `RESOURCE_IN_USE` | El cambio dejaría inconsistentes otros datos que usan el recurso: el alcance de una categoría con movimientos que no admitiría (`field`: `appliesTo`), o la moneda de una cuenta con movimientos (`field`: `currencyCode`) |
 | 413 | `PAYLOAD_TOO_LARGE` | El cuerpo pasa de 1 MB |
 | 500 | `INTERNAL_SERVER_ERROR` | Error inesperado. Nunca trae detalle técnico |
 | 503 | — | Solo en `/status`, cuando la base no responde (ver su sección) |
@@ -280,8 +281,12 @@ sin distinguir mayúsculas.
     "name": "Tarjeta Visa",
     "type": "CREDIT",
     "currencyCode": "COP",
+    "initialBalance": 0.0000,
     "currentBalance": -350000.0000,
+    "creditLimit": 5000000.0000,
     "availableCredit": 4650000.0000,
+    "statementDay": 15,
+    "paymentDueDay": 30,
     "isActive": true
   },
   {
@@ -289,8 +294,12 @@ sin distinguir mayúsculas.
     "name": "Efectivo",
     "type": "CASH",
     "currencyCode": "COP",
+    "initialBalance": 100000.0000,
     "currentBalance": 120000.0000,
+    "creditLimit": null,
     "availableCredit": null,
+    "statementDay": null,
+    "paymentDueDay": null,
     "isActive": true
   }
 ]
@@ -299,8 +308,11 @@ sin distinguir mayúsculas.
 | Campo | Significado |
 |---|---|
 | `type` | `CASH`, `DEBIT`, `CREDIT`, `SAVINGS`, `INVESTMENT` u `OTHER` |
-| `currentBalance` | Saldo vigente. Lo calcula la base con cada movimiento y el cliente nunca lo escribe. **En una tarjeta de crédito, negativo es deuda** |
+| `initialBalance` | Saldo con el que la cuenta entró al sistema |
+| `currentBalance` | Saldo vigente: `initialBalance` más el efecto de los movimientos. Lo calcula la base y el cliente nunca lo escribe. **En una tarjeta de crédito, negativo es deuda** |
+| `creditLimit` | Solo en `CREDIT`: el cupo. `null` en los demás tipos o si la tarjeta no lo tiene |
 | `availableCredit` | Solo en `CREDIT`: `creditLimit + currentBalance`. `null` en los demás tipos o si la tarjeta no tiene cupo |
+| `statementDay`, `paymentDueDay` | Solo en `CREDIT`: día de corte y día de pago, 1 a 31. `null` en los demás tipos |
 
 ### `POST /api/accounts`
 
@@ -339,6 +351,56 @@ arranca igual a `initialBalance`.
 
 **Errores:** 400 `VALIDATION_ERROR` por campo, 409 `DUPLICATE_RESOURCE` en `name` si ya existe una
 cuenta del usuario con ese nombre.
+
+### `PATCH /api/accounts/{id}`
+
+Modifica una cuenta del usuario del token. **Bearer.** Se envían solo los campos que cambian. Una
+cuenta desactivada se modifica igual que una activa.
+
+**Parche**
+
+| Campo | Tipo | Reglas |
+|---|---|---|
+| `name` | string | Hasta 80 caracteres, no en blanco. Se recorta. Único entre las cuentas vivas del usuario sin distinguir mayúsculas |
+| `currencyCode` | string | 3 letras, debe existir y estar activa. **Solo si la cuenta no tiene movimientos** |
+| `initialBalance` | number | Hasta 4 decimales. **Corre `currentBalance` en la misma diferencia**, con o sin movimientos |
+| `creditLimit` | number | **Solo `CREDIT`.** Mayor que cero |
+| `statementDay` | integer | **Solo `CREDIT`.** 1 a 31 |
+| `paymentDueDay` | integer | **Solo `CREDIT`.** 1 a 31 |
+| `currentBalance`, `type`, `isActive` | — | **No se envían.** Si llegan con valor, 400 en su campo |
+
+- **Ausente o `null` es "no cambia".** El parche no vacía campos: no hay forma de quitarle el cupo
+  o las fechas a una tarjeta.
+- Un parche sin ningún campo modificable (`{}`, o todo en `null`) es 400 en `body`.
+- El tipo es el de la cuenta guardada: `creditLimit`, `statementDay` o `paymentDueDay` sobre una
+  cuenta que no es `CREDIT` son 400, uno por campo.
+- Corregir el saldo inicial no descuadra nada: si la cuenta arrancó en 200000 y gastó 50000 (saldo
+  150000), pasar el inicial a 300000 deja el saldo en 250000.
+- Mandar la moneda que la cuenta ya tiene, en cualquier caja, no es un cambio y no da 409.
+- Cambiar solo las mayúsculas del nombre de la propia cuenta no es un choque.
+
+```json
+{
+  "name": "Tarjeta Visa Oro",
+  "creditLimit": 8000000,
+  "paymentDueDay": 28
+}
+```
+
+**200 OK** — la cuenta completa como quedó, con la misma forma que un elemento de
+`GET /accounts`.
+
+**Errores propios**
+
+| HTTP | `code` | `field` | Cuándo |
+|---|---|---|---|
+| 400 | `VALIDATION_ERROR` | `id` | El id de la ruta no es un UUID |
+| 400 | `VALIDATION_ERROR` | `body` | El parche no trae ningún campo modificable |
+| 400 | `VALIDATION_ERROR` | el campo | Formato inválido, campo en blanco, campo de crédito en una cuenta que no es `CREDIT`, o `currentBalance`, `type` o `isActive` en el cuerpo |
+| 400 | `VALIDATION_ERROR` | `currencyCode` | La moneda nueva no existe o no está activa |
+| 404 | `NOT_FOUND` | `id` | La cuenta no existe, está borrada o es de otro usuario: la respuesta es la misma |
+| 409 | `DUPLICATE_RESOURCE` | `name` | Otra cuenta viva del usuario ya usa ese nombre |
+| 409 | `RESOURCE_IN_USE` | `currencyCode` | La cuenta tiene movimientos, como origen o destino. No cambia nada del parche |
 
 ### `GET /api/categories`
 
@@ -848,7 +910,7 @@ desplegar un frontend en un dominio nuevo, hay que pedir que se agregue a la lis
 
 Para que el frontend no lo busque:
 
-- Editar o borrar cuentas.
+- Borrar o desactivar cuentas.
 - Recuperar o listar las categorías borradas.
 - Consultar un movimiento por su id. Para listarlos está `GET /api/reports/transactions`.
 - Crear metas de gasto.

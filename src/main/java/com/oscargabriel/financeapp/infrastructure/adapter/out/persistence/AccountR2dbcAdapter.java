@@ -25,20 +25,18 @@ import reactor.core.publisher.Mono;
 @AllArgsConstructor
 public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryPort {
 
+    private static final String COLUMNAS = """
+            id, name, type, currency_code, initial_balance, current_balance,
+                   credit_limit, statement_day, payment_due_day, is_active""";
+
     private static final String SQL = """
-            SELECT id,
-                   name,
-                   type,
-                   currency_code,
-                   current_balance,
-                   credit_limit,
-                   is_active
+            SELECT %s
               FROM finance.accounts
              WHERE user_id = :userId
                AND deleted_at IS NULL
                AND (is_active OR :includeInactive)
              ORDER BY is_active DESC, lower(name)
-            """;
+            """.formatted(COLUMNAS);
 
     /**
      * current_balance no esta en la lista de columnas: lo siembra trg_accounts_seed_balance a partir
@@ -50,8 +48,42 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
                     credit_limit, statement_day, payment_due_day)
             VALUES (:id, :userId, :name, :type, :currencyCode, :initialBalance,
                     :creditLimit, :statementDay, :paymentDueDay)
-            RETURNING id, name, type, currency_code, current_balance, credit_limit, is_active
+            RETURNING %s
+            """.formatted(COLUMNAS);
+
+    private static final String POR_ID = """
+            SELECT %s
+              FROM finance.accounts
+             WHERE id = :id
+               AND user_id = :userId
+               AND deleted_at IS NULL
+            """.formatted(COLUMNAS);
+
+    private static final String TIENE_MOVIMIENTOS = """
+            SELECT EXISTS (SELECT 1
+                             FROM finance.transactions
+                            WHERE account_id = :accountId
+                               OR destination_account_id = :accountId) AS tiene
             """;
+
+    /**
+     * current_balance tampoco se escribe aqui: si cambia initial_balance, trg_accounts_shift_balance lo
+     * corre en la misma diferencia. Mismo filtro que POR_ID: borrada entre la lectura y la escritura,
+     * el RETURNING sale vacio.
+     */
+    private static final String ACTUALIZAR = """
+            UPDATE finance.accounts
+               SET name = :name,
+                   currency_code = :currencyCode,
+                   initial_balance = :initialBalance,
+                   credit_limit = :creditLimit,
+                   statement_day = :statementDay,
+                   payment_due_day = :paymentDueDay
+             WHERE id = :id
+               AND user_id = :userId
+               AND deleted_at IS NULL
+            RETURNING %s
+            """.formatted(COLUMNAS);
 
     private final DatabaseClient databaseClient;
 
@@ -74,19 +106,56 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
                 .bind("currencyCode", account.currencyCode())
                 .bind("initialBalance", account.initialBalance());
 
-        sentencia = account.creditLimit() == null
-                ? sentencia.bindNull("creditLimit", BigDecimal.class)
-                : sentencia.bind("creditLimit", account.creditLimit());
-        sentencia = account.statementDay() == null
-                ? sentencia.bindNull("statementDay", Short.class)
-                : sentencia.bind("statementDay", account.statementDay().shortValue());
-        sentencia = account.paymentDueDay() == null
-                ? sentencia.bindNull("paymentDueDay", Short.class)
-                : sentencia.bind("paymentDueDay", account.paymentDueDay().shortValue());
-
-        return sentencia.map((row, metadata) -> toDomain(row))
+        return camposDeCredito(sentencia, account.creditLimit(), account.statementDay(), account.paymentDueDay())
+                .map((row, metadata) -> toDomain(row))
                 .one()
                 .onErrorMap(DuplicateKeyException.class, AccountR2dbcAdapter::comoConflicto);
+    }
+
+    @Override
+    public Mono<Account> findActiveByIdAndUser(UUID accountId, UUID userId) {
+        return databaseClient.sql(POR_ID)
+                .bind("id", accountId)
+                .bind("userId", userId)
+                .map((row, metadata) -> toDomain(row))
+                .one();
+    }
+
+    @Override
+    public Mono<Boolean> hasTransactions(UUID accountId) {
+        return databaseClient.sql(TIENE_MOVIMIENTOS)
+                .bind("accountId", accountId)
+                .map((row, metadata) -> Boolean.TRUE.equals(row.get("tiene", Boolean.class)))
+                .one();
+    }
+
+    @Override
+    public Mono<Account> update(UUID userId, Account account) {
+        DatabaseClient.GenericExecuteSpec sentencia = databaseClient.sql(ACTUALIZAR)
+                .bind("id", account.id())
+                .bind("userId", userId)
+                .bind("name", account.name())
+                .bind("currencyCode", account.currencyCode())
+                .bind("initialBalance", account.initialBalance());
+
+        return camposDeCredito(sentencia, account.creditLimit(), account.statementDay(), account.paymentDueDay())
+                .map((row, metadata) -> toDomain(row))
+                .one()
+                .onErrorMap(DuplicateKeyException.class, AccountR2dbcAdapter::comoConflicto);
+    }
+
+    /** Los tres son null fuera de una CREDIT, y R2DBC exige el tipo para enlazar un null. */
+    private static DatabaseClient.GenericExecuteSpec camposDeCredito(DatabaseClient.GenericExecuteSpec sentencia,
+            BigDecimal creditLimit, Integer statementDay, Integer paymentDueDay) {
+        sentencia = creditLimit == null
+                ? sentencia.bindNull("creditLimit", BigDecimal.class)
+                : sentencia.bind("creditLimit", creditLimit);
+        sentencia = statementDay == null
+                ? sentencia.bindNull("statementDay", Short.class)
+                : sentencia.bind("statementDay", statementDay.shortValue());
+        return paymentDueDay == null
+                ? sentencia.bindNull("paymentDueDay", Short.class)
+                : sentencia.bind("paymentDueDay", paymentDueDay.shortValue());
     }
 
     private static Account toDomain(Row row) {
@@ -95,14 +164,21 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
                 row.get("name", String.class),
                 AccountType.valueOf(row.get("type", String.class)),
                 row.get("currency_code", String.class),
+                row.get("initial_balance", BigDecimal.class),
                 row.get("current_balance", BigDecimal.class),
                 row.get("credit_limit", BigDecimal.class),
+                comoEntero(row.get("statement_day", Short.class)),
+                comoEntero(row.get("payment_due_day", Short.class)),
                 Boolean.TRUE.equals(row.get("is_active", Boolean.class)));
     }
 
+    private static Integer comoEntero(Short dia) {
+        return dia == null ? null : dia.intValue();
+    }
+
     /**
-     * El unico indice unico de la tabla ademas de la PK es ux_accounts_user_name, y la PK es un v7 recien
-     * generado: un duplicado aqui es un nombre que ya usa otra cuenta no borrada del usuario.
+     * El unico indice unico de la tabla ademas de la PK es ux_accounts_user_name, y en el alta la PK es
+     * un v7 recien generado: un duplicado aqui es un nombre que ya usa otra cuenta no borrada del usuario.
      */
     private static BadRequestException comoConflicto(DuplicateKeyException e) {
         return new BadRequestException(HttpStatus.CONFLICT, ErrorCodes.DUPLICATE_RESOURCE,
