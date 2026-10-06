@@ -14,6 +14,7 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | `GET` | `/api/accounts` | Bearer | Listar las cuentas del usuario |
 | `POST` | `/api/accounts` | Bearer | Crear una cuenta |
 | `PATCH` | `/api/accounts/{id}` | Bearer | Modificar una cuenta |
+| `DELETE` | `/api/accounts/{id}` | Bearer | Borrar una cuenta |
 | `GET` | `/api/categories` | Bearer | Listar las categorías del usuario |
 | `POST` | `/api/categories` | Bearer | Crear una categoría |
 | `PATCH` | `/api/categories/{id}` | Bearer | Modificar una categoría |
@@ -150,7 +151,7 @@ Todos los errores salen con la misma forma:
 | 404 | `NOT_FOUND` | La ruta no existe (con token válido), o el recurso de la ruta no existe o es de otro usuario (`field`: `id`) |
 | 405 | `VALIDATION_ERROR` | Método no soportado en esa ruta (`description`: "La peticion no pudo ser procesada") |
 | 409 | `DUPLICATE_RESOURCE` | Ya existe: correo registrado, o nombre de cuenta o de categoría repetido |
-| 409 | `RESOURCE_IN_USE` | El cambio dejaría inconsistentes otros datos que usan el recurso: el alcance de una categoría con movimientos que no admitiría (`field`: `appliesTo`), o la moneda de una cuenta con movimientos (`field`: `currencyCode`) |
+| 409 | `RESOURCE_IN_USE` | El cambio dejaría inconsistentes otros datos que usan el recurso: el alcance de una categoría con movimientos que no admitiría (`field`: `appliesTo`), la moneda de una cuenta con movimientos (`field`: `currencyCode`), o borrar una cuenta con saldo (`field`: `currentBalance`) |
 | 413 | `PAYLOAD_TOO_LARGE` | El cuerpo pasa de 1 MB |
 | 500 | `INTERNAL_SERVER_ERROR` | Error inesperado. Nunca trae detalle técnico |
 | 503 | — | Solo en `/status`, cuando la base no responde (ver su sección) |
@@ -401,6 +402,35 @@ cuenta desactivada se modifica igual que una activa.
 | 404 | `NOT_FOUND` | `id` | La cuenta no existe, está borrada o es de otro usuario: la respuesta es la misma |
 | 409 | `DUPLICATE_RESOURCE` | `name` | Otra cuenta viva del usuario ya usa ese nombre |
 | 409 | `RESOURCE_IN_USE` | `currencyCode` | La cuenta tiene movimientos, como origen o destino. No cambia nada del parche |
+
+### `DELETE /api/accounts/{id}`
+
+Borra una cuenta del usuario del token. **Bearer.** Es un borrado lógico: la fila se queda, con
+todos sus movimientos. Una cuenta desactivada se borra igual que una activa.
+
+**Solo una cuenta en cero.** Con `currentBalance` distinto de cero, a favor o en deuda, responde 409
+y no borra nada. Para dejarla en cero: una transferencia a otra cuenta, o corregir su
+`initialBalance` con `PATCH /api/accounts/{id}`.
+
+Lo que pasa después:
+
+- Deja de aparecer en `GET /api/accounts`, también con `includeInactive=true`.
+- Su nombre queda libre para otra cuenta.
+- Sus movimientos no cambian. `GET /api/reports/transactions` los sigue mostrando, también
+  filtrando con `accountId` por la cuenta borrada.
+- Un `PATCH /api/transactions/{id}` de uno de esos movimientos que no elige cuenta se acepta.
+- Ningún movimiento nuevo, ni un PATCH, puede elegirla: es 400 en `accountId` o
+  `destinationAccountId`, como con una cuenta que no existe.
+
+**204 No Content** — sin cuerpo.
+
+**Errores propios**
+
+| HTTP | `code` | `field` | Cuándo |
+|---|---|---|---|
+| 400 | `VALIDATION_ERROR` | `id` | El id de la ruta no es un UUID |
+| 404 | `NOT_FOUND` | `id` | La cuenta no existe, ya está borrada o es de otro usuario: la respuesta es la misma |
+| 409 | `RESOURCE_IN_USE` | `currentBalance` | La cuenta tiene saldo distinto de cero |
 
 ### `GET /api/categories`
 
@@ -910,7 +940,8 @@ desplegar un frontend en un dominio nuevo, hay que pedir que se agregue a la lis
 
 Para que el frontend no lo busque:
 
-- Borrar o desactivar cuentas.
+- Desactivar o reactivar cuentas (`isActive`).
+- Recuperar o listar las cuentas borradas.
 - Recuperar o listar las categorías borradas.
 - Consultar un movimiento por su id. Para listarlos está `GET /api/reports/transactions`.
 - Crear metas de gasto.

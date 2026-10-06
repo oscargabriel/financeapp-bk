@@ -1,0 +1,47 @@
+info:
+  name: Recrear cuenta borrada
+  type: http
+  seq: 51
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "caja chica",
+        "type": "CASH",
+        "currencyCode": "COP"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.name
+      operator: eq
+      value: caja chica
+  scripts:
+    - type: tests
+      code: |-
+        test("es otra cuenta", function() {
+          expect(res.getBody().id).to.not.equal(bru.getVar("idCajaChica"));
+        });
+
+        bru.setVar("idCajaChicaNueva", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El nombre de la borrada queda libre
+
+  `ux_accounts_user_name` es parcial (`WHERE deleted_at IS NULL`): la borrada ya no lo ocupa.

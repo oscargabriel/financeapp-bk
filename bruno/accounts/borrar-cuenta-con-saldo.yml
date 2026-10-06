@@ -1,0 +1,35 @@
+info:
+  name: Borrar cuenta con saldo
+  type: http
+  seq: 43
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/accounts/{{idCajaChica}}"
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: RESOURCE_IN_USE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: currentBalance
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Una cuenta con saldo no se borra
+
+  El saldo vigente es -30000. Borrarla sacaria esa deuda del listado sin que el usuario lo haya
+  decidido: primero hay que dejarla en cero.

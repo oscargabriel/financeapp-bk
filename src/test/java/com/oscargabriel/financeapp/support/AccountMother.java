@@ -49,6 +49,19 @@ public final class AccountMother {
                 null, null, null, false);
     }
 
+    public static final UUID CAJA_CHICA_ID = UUID.fromString("20000000-0000-7000-8000-000000000008");
+
+    /** Arranco en cero y un gasto la dejo en -30000, hasta que se corrigio el saldo inicial: en cero, con historia. */
+    public static Account cajaChicaEnCero() {
+        return new Account(CAJA_CHICA_ID, "Caja chica", AccountType.CASH, "COP", new BigDecimal("30000.0000"),
+                new BigDecimal("0.0000"), null, null, null, true);
+    }
+
+    public static Account inactivaEnCero() {
+        return new Account(UUID.fromString("20000000-0000-7000-8000-000000000009"), "Daviplata",
+                AccountType.DEBIT, "COP", BigDecimal.ZERO, BigDecimal.ZERO, null, null, null, false);
+    }
+
     public static CreateAccountCommand altaEfectivo() {
         return new CreateAccountCommand("Billetera", "CASH", "COP", new BigDecimal("150000"),
                 null, null, null, null);

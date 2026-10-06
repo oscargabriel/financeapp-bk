@@ -1,0 +1,34 @@
+info:
+  name: Borrar cuenta ajena
+  type: http
+  seq: 55
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/accounts/20000000-0000-7000-8000-000000000001"
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "404"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: NOT_FOUND
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: id
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El Efectivo del escenario, pedido por otro usuario
+
+  Responde lo mismo que una inexistente.

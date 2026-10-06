@@ -1,0 +1,33 @@
+info:
+  name: Cuenta ajena no borrada
+  type: http
+  seq: 56
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("el Efectivo del escenario sigue en el listado de su dueno", function() {
+          const ids = res.getBody().map(function (c) { return c.id; });
+          expect(ids).to.include("20000000-0000-7000-8000-000000000001");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El 404 no borro nada
+
+  Con el `accessToken` del usuario del escenario, despues de "Borrar cuenta ajena".

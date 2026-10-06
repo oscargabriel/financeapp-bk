@@ -31,6 +31,7 @@ import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.model.CreateAccountCommand;
 import com.oscargabriel.financeapp.domain.model.UpdateAccountCommand;
 import com.oscargabriel.financeapp.domain.port.in.CreateAccountPort;
+import com.oscargabriel.financeapp.domain.port.in.DeleteAccountPort;
 import com.oscargabriel.financeapp.domain.port.in.ListAccountsPort;
 import com.oscargabriel.financeapp.domain.port.in.UpdateAccountPort;
 import com.oscargabriel.financeapp.infrastructure.config.JwtConfig;
@@ -67,6 +68,9 @@ class AccountControllerTest {
 
     @MockitoBean
     private UpdateAccountPort updateAccount;
+
+    @MockitoBean
+    private DeleteAccountPort deleteAccount;
 
     private static JwtMutator tokenDelUsuario() {
         return mockJwt().jwt(jwt -> jwt.subject(AccountMother.USER_ID.toString()));
@@ -390,6 +394,59 @@ class AccountControllerTest {
                 .expectStatus().isUnauthorized();
 
         verifyNoInteractions(updateAccount);
+    }
+
+    @Test
+    void borraLaCuentaConElUsuarioDelTokenYElIdYRespondeSinCuerpo() {
+        when(deleteAccount.delete(AccountMother.USER_ID, AccountMother.CAJA_CHICA_ID)).thenReturn(Mono.empty());
+
+        webTestClient.mutateWith(tokenDelUsuario()).delete().uri(URI_BASE + "/" + AccountMother.CAJA_CHICA_ID)
+                .exchange()
+                .expectStatus().isNoContent()
+                .expectBody().isEmpty();
+
+        verify(deleteAccount).delete(AccountMother.USER_ID, AccountMother.CAJA_CHICA_ID);
+    }
+
+    @Test
+    void alBorrarRechazaUnIdQueNoEsUuidSobreElId() {
+        webTestClient.mutateWith(tokenDelUsuario()).delete().uri(URI_BASE + "/abc")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("id");
+
+        verifyNoInteractions(deleteAccount);
+    }
+
+    static Stream<Arguments> erroresDelBorrado() {
+        return Stream.of(
+                Arguments.of(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, "id"),
+                Arguments.of(HttpStatus.CONFLICT, ErrorCodes.RESOURCE_IN_USE, "currentBalance"));
+    }
+
+    @ParameterizedTest(name = "{1} en {2}")
+    @MethodSource("erroresDelBorrado")
+    void propagaElErrorDelBorradoConSuCodigoYCampo(HttpStatus status, ErrorCodes codigo, String campo) {
+        when(deleteAccount.delete(AccountMother.USER_ID, AccountMother.CAJA_CHICA_ID))
+                .thenReturn(Mono.error(new BadRequestException(status, codigo, "error del caso de uso", campo)));
+
+        webTestClient.mutateWith(tokenDelUsuario()).delete().uri(URI_BASE + "/" + AccountMother.CAJA_CHICA_ID)
+                .exchange()
+                .expectStatus().isEqualTo(status)
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(codigo.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo(campo);
+    }
+
+    @Test
+    void devuelve401AlBorrarCuandoNoHayCredenciales() {
+        webTestClient.delete().uri(URI_BASE + "/" + AccountMother.CAJA_CHICA_ID)
+                .exchange()
+                .expectStatus().isUnauthorized();
+
+        verifyNoInteractions(deleteAccount);
     }
 
     @Test

@@ -1,0 +1,44 @@
+info:
+  name: Modificar gasto de cuenta borrada
+  type: http
+  seq: 49
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/transactions/{{idGastoCajaChica}}"
+  body:
+    type: json
+    data: |-
+      {
+        "description": "Corregido"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.description
+      operator: eq
+      value: Corregido
+  scripts:
+    - type: tests
+      code: |-
+        test("conserva la cuenta borrada", function() {
+          expect(res.getBody().accountId).to.equal(bru.getVar("idCajaChica"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un movimiento viejo se sigue corrigiendo
+
+  El parche no elige cuenta, asi que se conserva la guardada aunque este borrada. No toca el monto:
+  el saldo de la cuenta borrada sigue en 0.
