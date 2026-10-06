@@ -1,0 +1,46 @@
+info:
+  name: Modificar campos de credito en efectivo
+  type: http
+  seq: 26
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/{{idCuentaEfectivo}}"
+  body:
+    type: json
+    data: |-
+      {
+        "creditLimit": 1000000,
+        "statementDay": 3
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors
+      operator: length
+      value: "2"
+  scripts:
+    - type: tests
+      code: |-
+        test("un error por campo, todos juntos", function() {
+          const campos = res.getBody().errors.map(function (e) { return e.field; }).sort();
+          expect(campos).to.deep.equal(["creditLimit", "statementDay"]);
+          res.getBody().errors.forEach(function (e) { expect(e.code).to.equal("VALIDATION_ERROR"); });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Solo una CREDIT tiene cupo y fechas
+
+  El tipo no viene en el parche: se decide con el de la cuenta guardada, que es `CASH`.

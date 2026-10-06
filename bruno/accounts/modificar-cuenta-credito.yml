@@ -1,0 +1,53 @@
+info:
+  name: Modificar tarjeta de credito
+  type: http
+  seq: 17
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/{{idCuentaCredito}}"
+  body:
+    type: json
+    data: |-
+      {
+        "creditLimit": 4000000,
+        "statementDay": 25,
+        "paymentDueDay": 10
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.creditLimit
+      operator: eq
+      value: 4000000
+    - expression: res.body.statementDay
+      operator: eq
+      value: 25
+    - expression: res.body.paymentDueDay
+      operator: eq
+      value: 10
+  scripts:
+    - type: tests
+      code: |-
+        test("el cupo disponible se recalcula con el limite nuevo", function() {
+          expect(res.getBody().availableCredit).to.equal(3800000);
+          expect(res.getBody().initialBalance).to.equal(-200000);
+          expect(res.getBody().currentBalance).to.equal(-200000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Cupo y fechas de una tarjeta
+
+  `Mastercard` debe 200000: con el cupo nuevo le quedan 3800000 disponibles.

@@ -1,0 +1,51 @@
+info:
+  name: Modificar cuenta con campos invalidos
+  type: http
+  seq: 27
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/{{idCuentaEfectivo}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": " ",
+        "currencyCode": "us",
+        "initialBalance": 1.23456,
+        "creditLimit": 0,
+        "statementDay": 32,
+        "paymentDueDay": 0
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors
+      operator: length
+      value: "6"
+  scripts:
+    - type: tests
+      code: |-
+        test("un error por campo, todos juntos", function() {
+          const campos = res.getBody().errors.map(function (e) { return e.field; }).sort();
+          expect(campos).to.deep.equal(["creditLimit", "currencyCode", "initialBalance", "name", "paymentDueDay", "statementDay"]);
+          res.getBody().errors.forEach(function (e) { expect(e.code).to.equal("VALIDATION_ERROR"); });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Formato del parche
+
+  Ningun campo puede ir en blanco, y cada uno cumple el formato del alta. El orden de los errores no
+  esta garantizado: se comparan por contenido.

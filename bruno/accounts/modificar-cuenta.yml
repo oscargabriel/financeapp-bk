@@ -1,0 +1,65 @@
+info:
+  name: Modificar cuenta
+  type: http
+  seq: 16
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/{{idCuentaEfectivo}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": " Bolsillo ",
+        "initialBalance": 200000
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.name
+      operator: eq
+      value: Bolsillo
+  scripts:
+    - type: tests
+      code: |-
+        const cuenta = res.getBody();
+
+        test("devuelve la cuenta completa", function() {
+          expect(cuenta).to.have.all.keys("id", "name", "type", "currencyCode", "initialBalance", "currentBalance",
+              "creditLimit", "availableCredit", "statementDay", "paymentDueDay", "isActive");
+          expect(cuenta.id).to.equal(bru.getVar("idCuentaEfectivo"));
+        });
+
+        test("el saldo vigente se corre con el inicial", function() {
+          expect(cuenta.initialBalance).to.equal(200000);
+          expect(cuenta.currentBalance).to.equal(200000);
+        });
+
+        test("lo que no venia en el parche se conserva", function() {
+          expect(cuenta.type).to.equal("CASH");
+          expect(cuenta.currencyCode).to.equal("COP");
+          expect(cuenta.isActive).to.equal(true);
+          expect(cuenta.creditLimit).to.equal(null);
+          expect(cuenta.availableCredit).to.equal(null);
+          expect(cuenta.statementDay).to.equal(null);
+          expect(cuenta.paymentDueDay).to.equal(null);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # PATCH /api/accounts/{id}
+
+  Renombra `Billetera` (sin movimientos, saldo inicial 150000) y corrige su saldo inicial. El nombre
+  se recorta como en el alta. `trg_accounts_shift_balance` corre el saldo vigente en la misma
+  diferencia: sin movimientos, queda igual al inicial.

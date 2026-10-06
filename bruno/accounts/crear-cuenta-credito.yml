@@ -41,6 +41,13 @@ runtime:
           expect(res.getBody().availableCredit).to.equal(2800000);
         });
 
+        test("devuelve el saldo inicial, el cupo y las fechas", function() {
+          expect(res.getBody().initialBalance).to.equal(-200000);
+          expect(res.getBody().creditLimit).to.equal(3000000);
+          expect(res.getBody().statementDay).to.equal(20);
+          expect(res.getBody().paymentDueDay).to.equal(5);
+        });
+
         bru.setVar("idCuentaCredito", res.getBody().id);
 
 settings:

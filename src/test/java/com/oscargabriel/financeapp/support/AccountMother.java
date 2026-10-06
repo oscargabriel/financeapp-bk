@@ -20,31 +20,33 @@ public final class AccountMother {
     }
 
     public static Account efectivo() {
-        return new Account(EFECTIVO_ID, "Efectivo", AccountType.CASH, "COP",
-                new BigDecimal("322500.0000"), null, true);
+        return new Account(EFECTIVO_ID, "Efectivo", AccountType.CASH, "COP", new BigDecimal("500000.0000"),
+                new BigDecimal("322500.0000"), null, null, null, true);
     }
 
     /** Saldo negativo: la tarjeta debe 658.000 de un cupo de 5.000.000. */
     public static Account visa() {
-        return new Account(VISA_ID, "Visa", AccountType.CREDIT, "COP",
-                new BigDecimal("-658000.0000"), new BigDecimal("5000000.0000"), true);
+        return new Account(VISA_ID, "Visa", AccountType.CREDIT, "COP", BigDecimal.ZERO,
+                new BigDecimal("-658000.0000"), new BigDecimal("5000000.0000"), 15, 5, true);
     }
 
     /** Saldo a favor: se pago de mas y el cupo disponible supera el limite. */
     public static Account visaConSaldoAFavor() {
-        return new Account(VISA_ID, "Visa", AccountType.CREDIT, "COP",
-                new BigDecimal("120000.0000"), new BigDecimal("5000000.0000"), true);
+        return new Account(VISA_ID, "Visa", AccountType.CREDIT, "COP", BigDecimal.ZERO,
+                new BigDecimal("120000.0000"), new BigDecimal("5000000.0000"), 15, 5, true);
     }
 
     /** La tabla admite una CREDIT sin credit_limit: no hay cupo que calcular. */
     public static Account creditoSinLimite() {
         return new Account(UUID.fromString("20000000-0000-7000-8000-000000000005"), "Tarjeta nueva",
-                AccountType.CREDIT, "COP", new BigDecimal("-10000.0000"), null, true);
+                AccountType.CREDIT, "COP", new BigDecimal("-10000.0000"), new BigDecimal("-10000.0000"),
+                null, null, null, true);
     }
 
     public static Account inactiva() {
         return new Account(UUID.fromString("20000000-0000-7000-8000-000000000006"), "Nequi",
-                AccountType.DEBIT, "COP", new BigDecimal("80000.0000"), null, false);
+                AccountType.DEBIT, "COP", new BigDecimal("80000.0000"), new BigDecimal("80000.0000"),
+                null, null, null, false);
     }
 
     public static CreateAccountCommand altaEfectivo() {
@@ -60,7 +62,7 @@ public final class AccountMother {
     /** Como la vuelve a leer el INSERT ... RETURNING: con el saldo que sembro el trigger. */
     public static Account tarjetaCreada() {
         return new Account(UUID.fromString("20000000-0000-7000-8000-000000000007"), "Mastercard",
-                AccountType.CREDIT, "COP", new BigDecimal("-200000.0000"),
-                new BigDecimal("3000000.0000"), true);
+                AccountType.CREDIT, "COP", new BigDecimal("-200000.0000"), new BigDecimal("-200000.0000"),
+                new BigDecimal("3000000.0000"), 20, 5, true);
     }
 }

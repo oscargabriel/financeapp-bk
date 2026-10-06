@@ -8,8 +8,11 @@ public record Account(
         String name,
         AccountType type,
         String currencyCode,
+        BigDecimal initialBalance,
         BigDecimal currentBalance,
         BigDecimal creditLimit,
+        Integer statementDay,
+        Integer paymentDueDay,
         boolean active) {
 
     /** Un saldo negativo es deuda, asi que sumarlo al limite ya resta lo usado. */

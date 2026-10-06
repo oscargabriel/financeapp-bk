@@ -1,0 +1,41 @@
+info:
+  name: Modificar cuenta con un campo en null
+  type: http
+  seq: 18
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/{{idCuentaCredito}}"
+  body:
+    type: json
+    data: |-
+      {
+        "paymentDueDay": 12,
+        "creditLimit": null
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.paymentDueDay
+      operator: eq
+      value: 12
+    - expression: res.body.creditLimit
+      operator: eq
+      value: 4000000
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # null es "no cambia"
+
+  El parche no vacia campos: `creditLimit` en `null` conserva el cupo que dejo el request anterior.
