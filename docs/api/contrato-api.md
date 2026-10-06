@@ -370,8 +370,8 @@ mayúsculas: `expense` es 400 `VALIDATION_ERROR` en `appliesTo`.
 
 | Campo | Significado |
 |---|---|
-| `icon` | Nombre de un ícono, o `null`. Las categorías por defecto usan nombres del set [Lucide](https://lucide.dev/icons) (`shopping-cart`, `heart-pulse`, `wallet`); el API no los valida |
-| `color` | `#RRGGBB`, o `null` |
+| `icon` | Nombre de un ícono. Nunca es `null`. Las categorías por defecto usan nombres del set [Lucide](https://lucide.dev/icons) (`shopping-cart`, `heart-pulse`, `wallet`); el API no los valida |
+| `color` | `#RRGGBB`. Nunca es `null` |
 | `isSystem` | `true` si vino de las categorías por defecto al registrarse |
 
 Para el selector de categoría de un movimiento, pide `appliesTo=EXPENSE` en un gasto e
@@ -387,8 +387,8 @@ Crea una categoría del usuario del token. **Bearer.**
 |---|---|---|---|
 | `name` | string | sí | Hasta 60 caracteres. Se recorta. Único entre las categorías vivas del usuario sin distinguir mayúsculas |
 | `appliesTo` | string | sí | `EXPENSE`, `INCOME` o `BOTH`. Aquí, a diferencia del filtro de `GET`, se acepta en minúsculas |
-| `icon` | string | no | Hasta 40 caracteres. En blanco se guarda como `null` |
-| `color` | string | no | `#RRGGBB`. Se guarda en mayúsculas. En blanco se guarda como `null` |
+| `icon` | string | sí | Hasta 40 caracteres, no en blanco. Se recorta |
+| `color` | string | sí | `#RRGGBB`, no en blanco. Se guarda en mayúsculas |
 
 ```json
 {
@@ -421,8 +421,8 @@ Las categorías de la semilla se modifican igual que las propias, y siguen con `
 | `icon` | string | Hasta 40 caracteres, no en blanco |
 | `color` | string | `#RRGGBB`, no en blanco. Se guarda en mayúsculas |
 
-- **Ausente o `null` es "no cambia".** Ningún campo se puede vaciar: a diferencia del alta, un
-  `icon` o un `color` en blanco son 400, no `null`.
+- **Ausente o `null` es "no cambia".** Ningún campo se puede vaciar: un `icon` o un `color` en
+  blanco son 400, igual que en el alta.
 - Un parche sin ningún campo (`{}`, o todo en `null`) es 400 en `body`.
 - Cambiar solo las mayúsculas del nombre de la propia categoría no es un choque.
 - Pasar `appliesTo` a `EXPENSE` cuando la categoría tiene ingresos, o a `INCOME` cuando tiene gastos,

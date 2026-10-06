@@ -1,7 +1,7 @@
 info:
   name: Modificar categoria con nombre repetido
   type: http
-  seq: 24
+  seq: 26
 
 http:
   method: PATCH

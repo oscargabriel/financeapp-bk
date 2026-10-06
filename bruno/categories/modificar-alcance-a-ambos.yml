@@ -1,7 +1,7 @@
 info:
   name: Modificar alcance a ambos
   type: http
-  seq: 36
+  seq: 38
 
 http:
   method: PATCH

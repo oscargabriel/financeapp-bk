@@ -1,0 +1,51 @@
+info:
+  name: Crear categoria Bonos
+  type: http
+  seq: 11
+
+http:
+  method: POST
+  url: "{{baseUrl}}/categories"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Bonos",
+        "appliesTo": "INCOME",
+        "icon": " gift ",
+        "color": "#ad1457"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.icon
+      operator: eq
+      value: gift
+    - expression: res.body.color
+      operator: eq
+      value: "#AD1457"
+    - expression: res.body.appliesTo
+      operator: eq
+      value: INCOME
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idBonos", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Icono con espacios y color en minusculas
+
+  El icono se recorta y el color se guarda en mayusculas. `Bonos` lo usan despues los requests del
+  PATCH.

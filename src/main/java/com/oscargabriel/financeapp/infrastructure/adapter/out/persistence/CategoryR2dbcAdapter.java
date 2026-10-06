@@ -102,20 +102,14 @@ public class CategoryR2dbcAdapter implements CategoryQueryPort, CategoryReposito
 
     @Override
     public Mono<Category> create(NewCategory category) {
-        DatabaseClient.GenericExecuteSpec sentencia = databaseClient.sql(INSERTAR)
+        return databaseClient.sql(INSERTAR)
                 .bind("id", category.id())
                 .bind("userId", category.userId())
                 .bind("name", category.name())
-                .bind("appliesTo", category.appliesTo().name());
-
-        sentencia = category.icon() == null
-                ? sentencia.bindNull("icon", String.class)
-                : sentencia.bind("icon", category.icon());
-        sentencia = category.color() == null
-                ? sentencia.bindNull("color", String.class)
-                : sentencia.bind("color", category.color());
-
-        return sentencia.map((row, metadata) -> toDomain(row))
+                .bind("appliesTo", category.appliesTo().name())
+                .bind("icon", category.icon())
+                .bind("color", category.color())
+                .map((row, metadata) -> toDomain(row))
                 .one()
                 .onErrorMap(DuplicateKeyException.class, CategoryR2dbcAdapter::comoConflicto);
     }
@@ -138,23 +132,16 @@ public class CategoryR2dbcAdapter implements CategoryQueryPort, CategoryReposito
                 .one();
     }
 
-    /** icon y color pueden seguir en null: una categoria que nunca los tuvo y el parche no los trae. */
     @Override
     public Mono<Category> update(UUID userId, Category category) {
-        DatabaseClient.GenericExecuteSpec sentencia = databaseClient.sql(ACTUALIZAR)
+        return databaseClient.sql(ACTUALIZAR)
                 .bind("id", category.id())
                 .bind("userId", userId)
                 .bind("name", category.name())
-                .bind("appliesTo", category.appliesTo().name());
-
-        sentencia = category.icon() == null
-                ? sentencia.bindNull("icon", String.class)
-                : sentencia.bind("icon", category.icon());
-        sentencia = category.color() == null
-                ? sentencia.bindNull("color", String.class)
-                : sentencia.bind("color", category.color());
-
-        return sentencia.map((row, metadata) -> toDomain(row))
+                .bind("appliesTo", category.appliesTo().name())
+                .bind("icon", category.icon())
+                .bind("color", category.color())
+                .map((row, metadata) -> toDomain(row))
                 .one()
                 .onErrorMap(DuplicateKeyException.class, CategoryR2dbcAdapter::comoConflicto);
     }

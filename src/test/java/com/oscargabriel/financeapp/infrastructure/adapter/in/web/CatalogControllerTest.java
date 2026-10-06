@@ -101,7 +101,7 @@ class CatalogControllerTest {
     @Test
     void devuelveLasCategoriasDelUsuarioDelTokenSoloConIdYNombre() {
         when(listCategories.list(eq(CategoryMother.USER_ID), any()))
-                .thenReturn(Flux.just(CategoryMother.mercado(), CategoryMother.propiaSinIconoNiColor()));
+                .thenReturn(Flux.just(CategoryMother.mercado(), CategoryMother.ajustes()));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "/categories")
                 .exchange()

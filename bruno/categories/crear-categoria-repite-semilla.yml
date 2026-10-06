@@ -11,7 +11,9 @@ http:
     data: |-
       {
         "name": "mercado",
-        "appliesTo": "EXPENSE"
+        "appliesTo": "EXPENSE",
+        "icon": "tag",
+        "color": "#455A64"
       }
   auth:
     type: bearer

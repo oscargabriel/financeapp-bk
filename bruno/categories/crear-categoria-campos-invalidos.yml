@@ -24,13 +24,13 @@ runtime:
       value: "400"
     - expression: res.body.errors
       operator: length
-      value: "3"
+      value: "4"
   scripts:
     - type: tests
       code: |-
-        test("un error por campo, los tres juntos", function() {
+        test("un error por campo, los cuatro juntos", function() {
           const campos = res.getBody().errors.map(function (e) { return e.field; }).sort();
-          expect(campos).to.deep.equal(["appliesTo", "color", "name"]);
+          expect(campos).to.deep.equal(["appliesTo", "color", "icon", "name"]);
           res.getBody().errors.forEach(function (e) { expect(e.code).to.equal("VALIDATION_ERROR"); });
         });
 
@@ -43,5 +43,5 @@ settings:
 docs: |
   # Todos los errores de formato en una respuesta
 
-  Sin `name`, con `appliesTo` fuera del enum y un color que no es `#RRGGBB`. El orden de los
+  Sin `name` ni `icon`, con `appliesTo` fuera del enum y un color que no es `#RRGGBB`. El orden de los
   errores no esta garantizado: se comparan por contenido.

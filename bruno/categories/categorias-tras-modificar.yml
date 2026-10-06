@@ -1,7 +1,7 @@
 info:
   name: Categorias tras modificar
   type: http
-  seq: 23
+  seq: 25
 
 http:
   method: GET

@@ -1,7 +1,7 @@
 info:
   name: Categoria ajena intacta
   type: http
-  seq: 32
+  seq: 34
 
 http:
   method: GET

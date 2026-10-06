@@ -1,7 +1,7 @@
 info:
   name: Modificar categoria con su mismo nombre
   type: http
-  seq: 25
+  seq: 27
 
 http:
   method: PATCH

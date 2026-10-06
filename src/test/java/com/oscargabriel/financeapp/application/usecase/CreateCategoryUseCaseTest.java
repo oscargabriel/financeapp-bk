@@ -74,35 +74,6 @@ class CreateCategoryUseCaseTest {
     }
 
     @Test
-    void guardaComoNullElIconoYElColorEnBlanco() {
-        altaPosible();
-
-        StepVerifier.create(useCase().create(CategoryMother.USER_ID,
-                        new CreateCategoryCommand("Bonos", "INCOME", "  ", "")))
-                .expectNextCount(1)
-                .verifyComplete();
-
-        verify(categorias).create(categoriaGuardada.capture());
-        assertThat(categoriaGuardada.getValue().icon()).isNull();
-        assertThat(categoriaGuardada.getValue().color()).isNull();
-    }
-
-    @Test
-    void guardaComoNullElIconoYElColorAusentes() {
-        altaPosible();
-
-        StepVerifier.create(useCase().create(CategoryMother.USER_ID,
-                        new CreateCategoryCommand("Bonos", "BOTH", null, null)))
-                .expectNextCount(1)
-                .verifyComplete();
-
-        verify(categorias).create(categoriaGuardada.capture());
-        assertThat(categoriaGuardada.getValue().appliesTo()).isEqualTo(CategoryScope.BOTH);
-        assertThat(categoriaGuardada.getValue().icon()).isNull();
-        assertThat(categoriaGuardada.getValue().color()).isNull();
-    }
-
-    @Test
     void devuelveLaCategoriaComoLaDejoLaBase() {
         altaPosible();
 

@@ -1,7 +1,7 @@
 info:
   name: Modificar categoria inexistente
   type: http
-  seq: 29
+  seq: 31
 
 http:
   method: PATCH

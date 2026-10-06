@@ -55,11 +55,18 @@ runtime:
           expect(porNombre("Ajustes").isSystem).to.equal(false);
         });
 
-        test("icono y color viajan tal cual, y en null cuando la categoria no los tiene", function() {
+        test("icono y color viajan tal cual", function() {
           expect(porNombre("Mercado").icon).to.equal("shopping-cart");
           expect(porNombre("Mercado").color).to.equal("#2E7D32");
-          expect(porNombre("Ajustes").icon).to.equal(null);
-          expect(porNombre("Ajustes").color).to.equal(null);
+          expect(porNombre("Ajustes").icon).to.equal("sliders-horizontal");
+          expect(porNombre("Ajustes").color).to.equal("#607D8B");
+        });
+
+        test("ninguna categoria trae icono ni color en null", function() {
+          res.getBody().forEach(function (c) {
+            expect(c.icon).to.be.a("string");
+            expect(c.color).to.match(/^#[0-9A-F]{6}$/);
+          });
         });
 
         bru.setVar("idsCategoriasEscenario", JSON.stringify(res.getBody().map(function (c) { return c.id; })));

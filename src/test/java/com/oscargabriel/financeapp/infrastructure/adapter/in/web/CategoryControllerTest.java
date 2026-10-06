@@ -89,16 +89,16 @@ class CategoryControllerTest {
     }
 
     @Test
-    void mantieneEnNullElIconoYElColorQueNoTieneLaCategoria() {
+    void devuelveUnaCategoriaPropiaConSuAlcanceIconoYColor() {
         when(listCategories.list(eq(CategoryMother.USER_ID), any()))
-                .thenReturn(Flux.just(CategoryMother.propiaSinIconoNiColor()));
+                .thenReturn(Flux.just(CategoryMother.ajustes()));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$[0].icon").isEqualTo(null)
-                .jsonPath("$[0].color").isEqualTo(null)
+                .jsonPath("$[0].icon").isEqualTo("sliders-horizontal")
+                .jsonPath("$[0].color").isEqualTo("#607D8B")
                 .jsonPath("$[0].appliesTo").isEqualTo("BOTH")
                 .jsonPath("$[0].isSystem").isEqualTo(false);
     }
@@ -202,14 +202,14 @@ class CategoryControllerTest {
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("""
-                        {"name": "  Plantas  ", "appliesTo": "expense", "icon": " ", "color": "#7cb342"}
+                        {"name": "  Plantas  ", "appliesTo": "expense", "icon": " sprout ", "color": "#7cb342"}
                         """)
                 .exchange()
                 .expectStatus().isCreated();
 
         ArgumentCaptor<CreateCategoryCommand> comando = ArgumentCaptor.forClass(CreateCategoryCommand.class);
         verify(createCategory).create(eq(CategoryMother.USER_ID), comando.capture());
-        assertThat(comando.getValue()).isEqualTo(new CreateCategoryCommand("  Plantas  ", "expense", " ", "#7cb342"));
+        assertThat(comando.getValue()).isEqualTo(new CreateCategoryCommand("  Plantas  ", "expense", " sprout ", "#7cb342"));
     }
 
     /** Las reglas de formato viven en el record: un cuerpo invalido no llega al caso de uso. */
@@ -223,8 +223,9 @@ class CategoryControllerTest {
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()
-                .jsonPath("$.errors.length()").isEqualTo(3)
+                .jsonPath("$.errors.length()").isEqualTo(4)
                 .jsonPath("$.errors[?(@.field == 'name')].description").isEqualTo("El nombre es obligatorio")
+                .jsonPath("$.errors[?(@.field == 'icon')].description").isEqualTo("El icono es obligatorio")
                 .jsonPath("$.errors[?(@.field == 'appliesTo')].description")
                 .isEqualTo("appliesTo debe ser EXPENSE, INCOME o BOTH")
                 .jsonPath("$.errors[?(@.field == 'color')].description")
@@ -243,7 +244,7 @@ class CategoryControllerTest {
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("""
-                        {"name": "Mercado", "appliesTo": "EXPENSE"}
+                        {"name": "Mercado", "appliesTo": "EXPENSE", "icon": "tag", "color": "#455A64"}
                         """)
                 .exchange()
                 .expectStatus().isEqualTo(HttpStatus.CONFLICT)
@@ -270,7 +271,7 @@ class CategoryControllerTest {
         webTestClient.post().uri(URI_BASE)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("""
-                        {"name": "Plantas", "appliesTo": "EXPENSE"}
+                        {"name": "Plantas", "appliesTo": "EXPENSE", "icon": "sprout", "color": "#7CB342"}
                         """)
                 .exchange()
                 .expectStatus().isUnauthorized();

@@ -11,7 +11,9 @@ http:
     data: |-
       {
         "name": " PLANTAS ",
-        "appliesTo": "BOTH"
+        "appliesTo": "BOTH",
+        "icon": "tag",
+        "color": "#455A64"
       }
   auth:
     type: bearer

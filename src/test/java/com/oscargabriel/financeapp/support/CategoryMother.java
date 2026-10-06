@@ -30,10 +30,10 @@ public final class CategoryMother {
                 "Salario", CategoryScope.INCOME, "wallet", "#1B5E20", true);
     }
 
-    /** Creada por el usuario, sin icono ni color: los dos campos son opcionales en la tabla. */
-    public static Category propiaSinIconoNiColor() {
+    /** Creada por el usuario y para los dos tipos de movimiento, como la del escenario de pruebas. */
+    public static Category ajustes() {
         return new Category(UUID.fromString("30000000-0000-7000-8000-000000000003"),
-                "Ajustes", CategoryScope.BOTH, null, null, false);
+                "Ajustes", CategoryScope.BOTH, "sliders-horizontal", "#607D8B", false);
     }
 
     public static CreateCategoryCommand altaPlantas() {

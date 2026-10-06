@@ -1,7 +1,7 @@
 info:
   name: Modificar categoria con parche vacio
   type: http
-  seq: 26
+  seq: 28
 
 http:
   method: PATCH

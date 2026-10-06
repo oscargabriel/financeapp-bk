@@ -23,9 +23,11 @@ public record CreateCategoryRequest(
         @ValorDeEnum(value = CategoryScope.class, message = "appliesTo debe ser EXPENSE, INCOME o BOTH")
         String appliesTo,
 
+        @NotBlank(message = "El icono es obligatorio")
         @Size(max = 40, message = "El icono no puede superar los 40 caracteres")
         String icon,
 
+        @NotBlank(message = "El color es obligatorio")
         @Pattern(regexp = Formatos.COLOR_HEX, message = "El color debe tener la forma #RRGGBB")
         String color) {
 
