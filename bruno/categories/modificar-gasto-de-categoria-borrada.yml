@@ -1,0 +1,44 @@
+info:
+  name: Modificar gasto de categoria borrada
+  type: http
+  seq: 51
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/transactions/{{idGastoHuerta}}"
+  body:
+    type: json
+    data: |-
+      {
+        "amount": 25000
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.amount
+      operator: eq
+      value: "25000"
+  scripts:
+    - type: tests
+      code: |-
+        test("conserva la categoria borrada", function() {
+          expect(res.getBody().categoryId).to.equal(bru.getVar("idPlantas"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El movimiento sigue editable
+
+  Un PATCH que no cambia ni la categoria ni el tipo conserva la guardada sin revalidarla, aunque
+  este borrada.

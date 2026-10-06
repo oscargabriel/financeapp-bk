@@ -89,6 +89,15 @@ public class CategoryR2dbcAdapter implements CategoryQueryPort, CategoryReposito
             RETURNING id, name, applies_to, icon, color, is_system
             """;
 
+    /** Ya borrada no cuenta como fila afectada: borrarla otra vez es el mismo 404 que una inexistente. */
+    private static final String BORRAR = """
+            UPDATE finance.categories
+               SET deleted_at = now()
+             WHERE id = :id
+               AND user_id = :userId
+               AND deleted_at IS NULL
+            """;
+
     private final DatabaseClient databaseClient;
 
     @Override
@@ -144,6 +153,15 @@ public class CategoryR2dbcAdapter implements CategoryQueryPort, CategoryReposito
                 .map((row, metadata) -> toDomain(row))
                 .one()
                 .onErrorMap(DuplicateKeyException.class, CategoryR2dbcAdapter::comoConflicto);
+    }
+
+    @Override
+    public Mono<Boolean> softDelete(UUID categoryId, UUID userId) {
+        return databaseClient.sql(BORRAR)
+                .bind("id", categoryId)
+                .bind("userId", userId)
+                .fetch().rowsUpdated()
+                .map(filas -> filas > 0);
     }
 
     private static Category toDomain(Row row) {

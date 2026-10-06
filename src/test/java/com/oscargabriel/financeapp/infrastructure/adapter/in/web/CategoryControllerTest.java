@@ -28,6 +28,7 @@ import com.oscargabriel.financeapp.domain.model.CategoryScope;
 import com.oscargabriel.financeapp.domain.model.CreateCategoryCommand;
 import com.oscargabriel.financeapp.domain.model.UpdateCategoryCommand;
 import com.oscargabriel.financeapp.domain.port.in.CreateCategoryPort;
+import com.oscargabriel.financeapp.domain.port.in.DeleteCategoryPort;
 import com.oscargabriel.financeapp.domain.port.in.UpdateCategoryPort;
 import com.oscargabriel.financeapp.domain.port.in.ListCategoriesPort;
 import com.oscargabriel.financeapp.infrastructure.config.JwtConfig;
@@ -55,6 +56,9 @@ class CategoryControllerTest {
 
     @MockitoBean
     private UpdateCategoryPort updateCategory;
+
+    @MockitoBean
+    private DeleteCategoryPort deleteCategory;
 
     private static JwtMutator tokenDelUsuario() {
         return mockJwt().jwt(jwt -> jwt.subject(CategoryMother.USER_ID.toString()));
@@ -433,5 +437,52 @@ class CategoryControllerTest {
                 .expectStatus().isUnauthorized();
 
         verifyNoInteractions(updateCategory);
+    }
+
+    @Test
+    void borraLaCategoriaDelUsuarioDelTokenYRespondeSinCuerpo() {
+        when(deleteCategory.delete(CategoryMother.USER_ID, CategoryMother.PLANTAS_ID)).thenReturn(Mono.empty());
+
+        webTestClient.mutateWith(tokenDelUsuario()).delete().uri(URI_PLANTAS)
+                .exchange()
+                .expectStatus().isNoContent()
+                .expectBody().isEmpty();
+
+        verify(deleteCategory).delete(CategoryMother.USER_ID, CategoryMother.PLANTAS_ID);
+    }
+
+    @Test
+    void devuelve400SobreElIdAlBorrarCuandoNoEsUnUuid() {
+        webTestClient.mutateWith(tokenDelUsuario()).delete().uri(URI_BASE + "/abc")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("id");
+
+        verifyNoInteractions(deleteCategory);
+    }
+
+    @Test
+    void devuelve404AlBorrarUnaCategoriaQueNoEsDelUsuario() {
+        when(deleteCategory.delete(CategoryMother.USER_ID, CategoryMother.PLANTAS_ID))
+                .thenReturn(Mono.error(new BadRequestException(HttpStatus.NOT_FOUND, List.of(
+                        ErrorDetail.of(ErrorCodes.NOT_FOUND.getCode(), "La categoria no existe", "id")))));
+
+        webTestClient.mutateWith(tokenDelUsuario()).delete().uri(URI_PLANTAS)
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.NOT_FOUND.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("id");
+    }
+
+    @Test
+    void devuelve401AlBorrarSinCredenciales() {
+        webTestClient.delete().uri(URI_PLANTAS)
+                .exchange()
+                .expectStatus().isUnauthorized();
+
+        verifyNoInteractions(deleteCategory);
     }
 }

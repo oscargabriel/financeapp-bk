@@ -1,0 +1,39 @@
+info:
+  name: Categorias tras borrar
+  type: http
+  seq: 44
+
+http:
+  method: GET
+  url: "{{baseUrl}}/categories"
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: length
+      value: "23"
+  scripts:
+    - type: tests
+      code: |-
+        test("las borradas ya no aparecen", function() {
+          const ids = res.getBody().map(function (c) { return c.id; });
+          expect(ids).to.not.include(bru.getVar("idPlantas"));
+          expect(ids).to.not.include(bru.getVar("idMercadoUsuarioNuevo"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El listado sin las borradas
+
+  Eran 25 en "Categorias tras modificar"; quedan 23.
