@@ -1,0 +1,41 @@
+info:
+  name: Modificar alcance a ambos
+  type: http
+  seq: 36
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/categories/{{idPlantas}}"
+  body:
+    type: json
+    data: |-
+      {
+        "appliesTo": "BOTH"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.appliesTo
+      operator: eq
+      value: BOTH
+    - expression: res.body.color
+      operator: eq
+      value: "#33691E"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Ampliar a BOTH siempre se permite
+
+  Una categoria BOTH sirve para gastos e ingresos. El color sigue siendo el de antes del 409 de
+  "Modificar alcance incompatible".

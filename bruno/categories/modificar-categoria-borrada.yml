@@ -1,0 +1,40 @@
+info:
+  name: Modificar categoria borrada
+  type: http
+  seq: 30
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/categories/30000000-0000-7000-8000-000000000170"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Cigarrillos de nuevo"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "404"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: NOT_FOUND
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: id
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Una categoria propia pero borrada
+
+  `Cigarrillos` es del usuario del escenario y esta borrada logicamente; su id es fijo en
+  `test-data.sql`. Corre con el `accessToken` heredado de la coleccion, el de ese usuario: un 404
+  no escribe nada, asi que el escenario sigue intacto.

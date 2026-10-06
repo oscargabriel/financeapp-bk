@@ -1,0 +1,54 @@
+info:
+  name: Modificar categoria
+  type: http
+  seq: 20
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/categories/{{idPlantas}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": " Huerta ",
+        "icon": "leaf",
+        "color": "#558b2f"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const categoria = res.getBody();
+
+        test("cambia lo enviado, normalizado como en el alta", function() {
+          expect(categoria.name).to.equal("Huerta");
+          expect(categoria.icon).to.equal("leaf");
+          expect(categoria.color).to.equal("#558B2F");
+        });
+
+        test("conserva lo que no se envio", function() {
+          expect(categoria.id).to.equal(bru.getVar("idPlantas"));
+          expect(categoria.appliesTo).to.equal("EXPENSE");
+          expect(categoria.isSystem).to.equal(false);
+          expect(categoria).to.have.all.keys("id", "name", "appliesTo", "icon", "color", "isSystem");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # PATCH /api/categories/{id}
+
+  Modifica cualquier subconjunto de `name`, `appliesTo`, `icon` y `color`. Corre sobre la `Plantas`
+  que creo "Crear categoria" con el usuario nuevo de la corrida.

@@ -14,6 +14,7 @@ import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.model.Category;
 import com.oscargabriel.financeapp.domain.model.CategoryScope;
 import com.oscargabriel.financeapp.domain.model.NewCategory;
+import com.oscargabriel.financeapp.domain.model.TransactionType;
 import com.oscargabriel.financeapp.domain.port.out.CategoryQueryPort;
 import com.oscargabriel.financeapp.domain.port.out.CategoryRepositoryPort;
 
@@ -55,6 +56,39 @@ public class CategoryR2dbcAdapter implements CategoryQueryPort, CategoryReposito
             RETURNING id, name, applies_to, icon, color, is_system
             """;
 
+    private static final String POR_ID = """
+            SELECT id,
+                   name,
+                   applies_to,
+                   icon,
+                   color,
+                   is_system
+              FROM finance.categories
+             WHERE id = :id
+               AND user_id = :userId
+               AND deleted_at IS NULL
+            """;
+
+    private static final String TIENE_MOVIMIENTOS = """
+            SELECT EXISTS (SELECT 1
+                             FROM finance.transactions
+                            WHERE category_id = :categoryId
+                              AND type = :type) AS tiene
+            """;
+
+    /** Mismo filtro que POR_ID: borrada entre la lectura y la escritura, el RETURNING sale vacio. */
+    private static final String ACTUALIZAR = """
+            UPDATE finance.categories
+               SET name = :name,
+                   applies_to = :appliesTo,
+                   icon = :icon,
+                   color = :color
+             WHERE id = :id
+               AND user_id = :userId
+               AND deleted_at IS NULL
+            RETURNING id, name, applies_to, icon, color, is_system
+            """;
+
     private final DatabaseClient databaseClient;
 
     @Override
@@ -71,6 +105,45 @@ public class CategoryR2dbcAdapter implements CategoryQueryPort, CategoryReposito
         DatabaseClient.GenericExecuteSpec sentencia = databaseClient.sql(INSERTAR)
                 .bind("id", category.id())
                 .bind("userId", category.userId())
+                .bind("name", category.name())
+                .bind("appliesTo", category.appliesTo().name());
+
+        sentencia = category.icon() == null
+                ? sentencia.bindNull("icon", String.class)
+                : sentencia.bind("icon", category.icon());
+        sentencia = category.color() == null
+                ? sentencia.bindNull("color", String.class)
+                : sentencia.bind("color", category.color());
+
+        return sentencia.map((row, metadata) -> toDomain(row))
+                .one()
+                .onErrorMap(DuplicateKeyException.class, CategoryR2dbcAdapter::comoConflicto);
+    }
+
+    @Override
+    public Mono<Category> findActiveByIdAndUser(UUID categoryId, UUID userId) {
+        return databaseClient.sql(POR_ID)
+                .bind("id", categoryId)
+                .bind("userId", userId)
+                .map((row, metadata) -> toDomain(row))
+                .one();
+    }
+
+    @Override
+    public Mono<Boolean> hasTransactionsOfType(UUID categoryId, TransactionType type) {
+        return databaseClient.sql(TIENE_MOVIMIENTOS)
+                .bind("categoryId", categoryId)
+                .bind("type", type.name())
+                .map((row, metadata) -> Boolean.TRUE.equals(row.get("tiene", Boolean.class)))
+                .one();
+    }
+
+    /** icon y color pueden seguir en null: una categoria que nunca los tuvo y el parche no los trae. */
+    @Override
+    public Mono<Category> update(UUID userId, Category category) {
+        DatabaseClient.GenericExecuteSpec sentencia = databaseClient.sql(ACTUALIZAR)
+                .bind("id", category.id())
+                .bind("userId", userId)
                 .bind("name", category.name())
                 .bind("appliesTo", category.appliesTo().name());
 

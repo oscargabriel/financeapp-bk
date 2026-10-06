@@ -1,0 +1,42 @@
+info:
+  name: Modificar alcance incompatible
+  type: http
+  seq: 35
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/categories/{{idPlantas}}"
+  body:
+    type: json
+    data: |-
+      {
+        "appliesTo": "INCOME",
+        "color": "#000000"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: RESOURCE_IN_USE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: appliesTo
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Pasar a INCOME una categoria con gastos
+
+  Los gastos quedarian con una categoria que no les sirve, asi que se rechaza todo el parche: el
+  color tampoco cambia, como comprueba "Modificar alcance a ambos".

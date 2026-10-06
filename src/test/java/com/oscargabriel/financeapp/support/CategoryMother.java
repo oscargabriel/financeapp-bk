@@ -13,6 +13,10 @@ public final class CategoryMother {
 
     public static final UUID MERCADO_ID = UUID.fromString("30000000-0000-7000-8000-000000000001");
 
+    public static final UUID SALARIO_ID = UUID.fromString("30000000-0000-7000-8000-000000000002");
+
+    public static final UUID PLANTAS_ID = UUID.fromString("30000000-0000-7000-8000-000000000004");
+
     private CategoryMother() {
     }
 
@@ -22,7 +26,7 @@ public final class CategoryMother {
     }
 
     public static Category salario() {
-        return new Category(UUID.fromString("30000000-0000-7000-8000-000000000002"),
+        return new Category(SALARIO_ID,
                 "Salario", CategoryScope.INCOME, "wallet", "#1B5E20", true);
     }
 
@@ -38,7 +42,7 @@ public final class CategoryMother {
 
     /** Como la vuelve a leer el INSERT ... RETURNING. */
     public static Category plantasCreada() {
-        return new Category(UUID.fromString("30000000-0000-7000-8000-000000000004"),
+        return new Category(PLANTAS_ID,
                 "Plantas", CategoryScope.EXPENSE, "sprout", "#7CB342", false);
     }
 }

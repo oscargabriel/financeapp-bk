@@ -15,6 +15,7 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | `POST` | `/api/accounts` | Bearer | Crear una cuenta |
 | `GET` | `/api/categories` | Bearer | Listar las categorías del usuario |
 | `POST` | `/api/categories` | Bearer | Crear una categoría |
+| `PATCH` | `/api/categories/{id}` | Bearer | Modificar una categoría |
 | `GET` | `/api/catalogs/account-types` | Bearer | Tipos de cuenta válidos |
 | `GET` | `/api/catalogs/transaction-types` | Bearer | Tipos de movimiento válidos |
 | `GET` | `/api/catalogs/currencies` | Bearer | Monedas activas |
@@ -146,7 +147,8 @@ Todos los errores salen con la misma forma:
 | 401 | `INVALID_CREDENTIALS` | Login con correo o contraseña incorrectos |
 | 404 | `NOT_FOUND` | La ruta no existe (con token válido), o el recurso de la ruta no existe o es de otro usuario (`field`: `id`) |
 | 405 | `VALIDATION_ERROR` | Método no soportado en esa ruta (`description`: "La peticion no pudo ser procesada") |
-| 409 | `DUPLICATE_RESOURCE` | Ya existe: correo registrado o nombre de cuenta repetido |
+| 409 | `DUPLICATE_RESOURCE` | Ya existe: correo registrado, o nombre de cuenta o de categoría repetido |
+| 409 | `RESOURCE_IN_USE` | El cambio dejaría inconsistentes otros datos que usan el recurso: el alcance de una categoría con movimientos que no admitiría (`field`: `appliesTo`) |
 | 413 | `PAYLOAD_TOO_LARGE` | El cuerpo pasa de 1 MB |
 | 500 | `INTERNAL_SERVER_ERROR` | Error inesperado. Nunca trae detalle técnico |
 | 503 | — | Solo en `/status`, cuando la base no responde (ver su sección) |
@@ -404,6 +406,50 @@ tenía, incluidas las de la semilla.
 **Errores:** 400 `VALIDATION_ERROR` por campo, todos en la misma respuesta; 409
 `DUPLICATE_RESOURCE` en `name` si otra categoría viva del usuario ya usa ese nombre, también una de
 la semilla. El nombre de una categoría borrada sí se puede reutilizar.
+
+### `PATCH /api/categories/{id}`
+
+Modifica una categoría del usuario del token. **Bearer.** Se envían solo los campos que cambian.
+Las categorías de la semilla se modifican igual que las propias, y siguen con `isSystem` en `true`.
+
+**Parche**
+
+| Campo | Tipo | Reglas |
+|---|---|---|
+| `name` | string | Hasta 60 caracteres, no en blanco. Se recorta. Único entre las categorías vivas del usuario sin distinguir mayúsculas |
+| `appliesTo` | string | `EXPENSE`, `INCOME` o `BOTH`, en cualquier caja |
+| `icon` | string | Hasta 40 caracteres, no en blanco |
+| `color` | string | `#RRGGBB`, no en blanco. Se guarda en mayúsculas |
+
+- **Ausente o `null` es "no cambia".** Ningún campo se puede vaciar: a diferencia del alta, un
+  `icon` o un `color` en blanco son 400, no `null`.
+- Un parche sin ningún campo (`{}`, o todo en `null`) es 400 en `body`.
+- Cambiar solo las mayúsculas del nombre de la propia categoría no es un choque.
+- Pasar `appliesTo` a `EXPENSE` cuando la categoría tiene ingresos, o a `INCOME` cuando tiene gastos,
+  es 409 y no cambia nada del parche. Pasar a `BOTH` siempre se puede.
+- La categoría conserva su lugar en la lista.
+
+```json
+{
+  "name": "Huerta",
+  "icon": "leaf",
+  "color": "#558B2F"
+}
+```
+
+**200 OK** — la categoría completa como quedó, con la misma forma que un elemento de
+`GET /categories`.
+
+**Errores propios**
+
+| HTTP | `code` | `field` | Cuándo |
+|---|---|---|---|
+| 400 | `VALIDATION_ERROR` | `id` | El id de la ruta no es un UUID |
+| 400 | `VALIDATION_ERROR` | `body` | El parche no trae ningún campo |
+| 400 | `VALIDATION_ERROR` | el campo | Formato inválido o campo en blanco, todos en la misma respuesta |
+| 404 | `NOT_FOUND` | `id` | La categoría no existe, está borrada o es de otro usuario: la respuesta es la misma |
+| 409 | `DUPLICATE_RESOURCE` | `name` | Otra categoría viva del usuario ya usa ese nombre |
+| 409 | `RESOURCE_IN_USE` | `appliesTo` | La categoría tiene movimientos del tipo que el alcance nuevo dejaría fuera |
 
 ### Catálogos — `GET /api/catalogs/*`
 
@@ -778,7 +824,7 @@ desplegar un frontend en un dominio nuevo, hay que pedir que se agregue a la lis
 
 Para que el frontend no lo busque:
 
-- Editar o borrar cuentas o categorías.
+- Editar o borrar cuentas, o borrar categorías.
 - Consultar un movimiento por su id. Para listarlos está `GET /api/reports/transactions`.
 - Crear metas de gasto.
 - Refresh token o logout. El token simplemente vence.
