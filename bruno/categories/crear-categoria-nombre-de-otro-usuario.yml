@@ -1,0 +1,39 @@
+info:
+  name: Crear categoria con nombre de otro usuario
+  type: http
+  seq: 15
+
+http:
+  method: POST
+  url: "{{baseUrl}}/categories"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Gimnasio",
+        "appliesTo": "EXPENSE"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.name
+      operator: eq
+      value: Gimnasio
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El nombre es unico por usuario
+
+  `Gimnasio` es una categoria propia del usuario del escenario; el indice lleva `user_id`, asi que
+  otro usuario la puede crear.

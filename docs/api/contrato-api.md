@@ -14,6 +14,7 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | `GET` | `/api/accounts` | Bearer | Listar las cuentas del usuario |
 | `POST` | `/api/accounts` | Bearer | Crear una cuenta |
 | `GET` | `/api/categories` | Bearer | Listar las categorías del usuario |
+| `POST` | `/api/categories` | Bearer | Crear una categoría |
 | `GET` | `/api/catalogs/account-types` | Bearer | Tipos de cuenta válidos |
 | `GET` | `/api/catalogs/transaction-types` | Bearer | Tipos de movimiento válidos |
 | `GET` | `/api/catalogs/currencies` | Bearer | Monedas activas |
@@ -373,6 +374,36 @@ mayúsculas: `expense` es 400 `VALIDATION_ERROR` en `appliesTo`.
 
 Para el selector de categoría de un movimiento, pide `appliesTo=EXPENSE` en un gasto e
 `appliesTo=INCOME` en un ingreso. Así solo aparecen las que el alta va a aceptar.
+
+### `POST /api/categories`
+
+Crea una categoría del usuario del token. **Bearer.**
+
+**Cuerpo**
+
+| Campo | Tipo | Obligatorio | Reglas |
+|---|---|---|---|
+| `name` | string | sí | Hasta 60 caracteres. Se recorta. Único entre las categorías vivas del usuario sin distinguir mayúsculas |
+| `appliesTo` | string | sí | `EXPENSE`, `INCOME` o `BOTH`. Aquí, a diferencia del filtro de `GET`, se acepta en minúsculas |
+| `icon` | string | no | Hasta 40 caracteres. En blanco se guarda como `null` |
+| `color` | string | no | `#RRGGBB`. Se guarda en mayúsculas. En blanco se guarda como `null` |
+
+```json
+{
+  "name": "Plantas",
+  "appliesTo": "EXPENSE",
+  "icon": "sprout",
+  "color": "#7CB342"
+}
+```
+
+**201 Created** — la categoría con la misma forma de un elemento de `GET /categories`, con
+`isSystem` en `false`. Queda **al final** de la lista del usuario: después de todas las que ya
+tenía, incluidas las de la semilla.
+
+**Errores:** 400 `VALIDATION_ERROR` por campo, todos en la misma respuesta; 409
+`DUPLICATE_RESOURCE` en `name` si otra categoría viva del usuario ya usa ese nombre, también una de
+la semilla. El nombre de una categoría borrada sí se puede reutilizar.
 
 ### Catálogos — `GET /api/catalogs/*`
 
@@ -749,6 +780,6 @@ Para que el frontend no lo busque:
 
 - Editar o borrar cuentas o categorías.
 - Consultar un movimiento por su id. Para listarlos está `GET /api/reports/transactions`.
-- Crear categorías propias o metas de gasto.
+- Crear metas de gasto.
 - Refresh token o logout. El token simplemente vence.
 - Movimientos en monedas distintas de COP.

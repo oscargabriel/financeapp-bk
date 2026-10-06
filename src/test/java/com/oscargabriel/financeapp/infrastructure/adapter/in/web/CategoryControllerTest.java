@@ -1,5 +1,6 @@
 package com.oscargabriel.financeapp.infrastructure.adapter.in.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -8,21 +9,28 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockJwt;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webflux.test.autoconfigure.WebFluxTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.JwtMutator;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
+import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.model.CategoryScope;
+import com.oscargabriel.financeapp.domain.model.CreateCategoryCommand;
+import com.oscargabriel.financeapp.domain.port.in.CreateCategoryPort;
 import com.oscargabriel.financeapp.domain.port.in.ListCategoriesPort;
 import com.oscargabriel.financeapp.infrastructure.config.JwtConfig;
 import com.oscargabriel.financeapp.infrastructure.config.SecurityConfig;
 import com.oscargabriel.financeapp.support.CategoryMother;
 
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /** Sin el base-path /api, igual que el resto de slices: la ruta completa la cubre CategoriesIT. */
 @WebFluxTest(CategoryController.class)
@@ -36,6 +44,9 @@ class CategoryControllerTest {
 
     @MockitoBean
     private ListCategoriesPort listCategories;
+
+    @MockitoBean
+    private CreateCategoryPort createCategory;
 
     private static JwtMutator tokenDelUsuario() {
         return mockJwt().jwt(jwt -> jwt.subject(CategoryMother.USER_ID.toString()));
@@ -151,5 +162,111 @@ class CategoryControllerTest {
                 .jsonPath("$.errors[0].field").isEqualTo("authorization");
 
         verifyNoInteractions(listCategories);
+    }
+
+    @Test
+    void creaLaCategoriaYRespondeConElMismoContratoQueElListado() {
+        when(createCategory.create(eq(CategoryMother.USER_ID), any()))
+                .thenReturn(Mono.just(CategoryMother.plantasCreada()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name": "Plantas", "appliesTo": "EXPENSE", "icon": "sprout", "color": "#7CB342"}
+                        """)
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody()
+                .jsonPath("$.id").isEqualTo("30000000-0000-7000-8000-000000000004")
+                .jsonPath("$.name").isEqualTo("Plantas")
+                .jsonPath("$.appliesTo").isEqualTo("EXPENSE")
+                .jsonPath("$.icon").isEqualTo("sprout")
+                .jsonPath("$.color").isEqualTo("#7CB342")
+                .jsonPath("$.isSystem").isEqualTo(false)
+                .jsonPath("$.userId").doesNotExist();
+    }
+
+    @Test
+    void pasaAlCasoDeUsoElUsuarioDelTokenYElCuerpoTalCualLlega() {
+        when(createCategory.create(eq(CategoryMother.USER_ID), any()))
+                .thenReturn(Mono.just(CategoryMother.plantasCreada()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name": "  Plantas  ", "appliesTo": "expense", "icon": " ", "color": "#7cb342"}
+                        """)
+                .exchange()
+                .expectStatus().isCreated();
+
+        ArgumentCaptor<CreateCategoryCommand> comando = ArgumentCaptor.forClass(CreateCategoryCommand.class);
+        verify(createCategory).create(eq(CategoryMother.USER_ID), comando.capture());
+        assertThat(comando.getValue()).isEqualTo(new CreateCategoryCommand("  Plantas  ", "expense", " ", "#7cb342"));
+    }
+
+    /** Las reglas de formato viven en el record: un cuerpo invalido no llega al caso de uso. */
+    @Test
+    void devuelve400ConLosCamposInvalidosSinLlamarAlCasoDeUso() {
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"appliesTo": "GASTO", "color": "rojo"}
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors.length()").isEqualTo(3)
+                .jsonPath("$.errors[?(@.field == 'name')].description").isEqualTo("El nombre es obligatorio")
+                .jsonPath("$.errors[?(@.field == 'appliesTo')].description")
+                .isEqualTo("appliesTo debe ser EXPENSE, INCOME o BOTH")
+                .jsonPath("$.errors[?(@.field == 'color')].description")
+                .isEqualTo("El color debe tener la forma #RRGGBB")
+                .jsonPath("$.errors[?(@.code != 'VALIDATION_ERROR')]").isEmpty();
+
+        verifyNoInteractions(createCategory);
+    }
+
+    @Test
+    void devuelve409CuandoElNombreYaLoUsaOtraCategoriaViva() {
+        when(createCategory.create(eq(CategoryMother.USER_ID), any()))
+                .thenReturn(Mono.error(new BadRequestException(HttpStatus.CONFLICT, ErrorCodes.DUPLICATE_RESOURCE,
+                        "Ya hay una categoria con ese nombre", "name")));
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name": "Mercado", "appliesTo": "EXPENSE"}
+                        """)
+                .exchange()
+                .expectStatus().isEqualTo(HttpStatus.CONFLICT)
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.DUPLICATE_RESOURCE.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("name");
+    }
+
+    @Test
+    void devuelve400CuandoElCuerpoNoEsJson() {
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{name:")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.JSON_PARSING_ERROR.getCode());
+
+        verifyNoInteractions(createCategory);
+    }
+
+    @Test
+    void devuelve401AlCrearSinCredenciales() {
+        webTestClient.post().uri(URI_BASE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name": "Plantas", "appliesTo": "EXPENSE"}
+                        """)
+                .exchange()
+                .expectStatus().isUnauthorized();
+
+        verifyNoInteractions(createCategory);
     }
 }

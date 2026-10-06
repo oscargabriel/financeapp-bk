@@ -1,0 +1,45 @@
+info:
+  name: Crear categoria con appliesTo invalido
+  type: http
+  seq: 16
+
+http:
+  method: POST
+  url: "{{baseUrl}}/categories"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Arriendo local",
+        "appliesTo": "GASTO"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: appliesTo
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # appliesTo fuera del CHECK
+
+  Solo `EXPENSE`, `INCOME` o `BOTH`, sin distinguir mayusculas. Sale como 400 del request, no como
+  violacion del CHECK `ck_categories_scope`.

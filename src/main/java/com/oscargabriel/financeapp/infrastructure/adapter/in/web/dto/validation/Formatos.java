@@ -12,6 +12,9 @@ public final class Formatos {
 
     public static final String CODIGO_MONEDA = "^\\s*([A-Za-z]{3})?\\s*$";
 
+    /** El mismo patron que los CHECK de color de categories y default_categories, en cualquier caja. */
+    public static final String COLOR_HEX = "^\\s*(#[0-9A-Fa-f]{6})?\\s*$";
+
     /** Vacio, o al menos 8 caracteres de cualquier tipo, espacios incluidos. */
     public static final String AL_MENOS_8 = "^\\s*$|^[\\s\\S]{8,}$";
 

@@ -1,0 +1,48 @@
+info:
+  name: Crear categoria sin icono ni color
+  type: http
+  seq: 11
+
+http:
+  method: POST
+  url: "{{baseUrl}}/categories"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Bonos",
+        "appliesTo": "INCOME",
+        "icon": " ",
+        "color": ""
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.icon
+      operator: isNull
+    - expression: res.body.color
+      operator: isNull
+    - expression: res.body.appliesTo
+      operator: eq
+      value: INCOME
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idBonos", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Icono y color en blanco
+
+  Los dos son opcionales: en blanco se guardan como `null`, no como texto vacio.

@@ -2,22 +2,29 @@ package com.oscargabriel.financeapp.infrastructure.adapter.in.web;
 
 import java.util.Arrays;
 
+import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.model.CategoryScope;
+import com.oscargabriel.financeapp.domain.port.in.CreateCategoryPort;
 import com.oscargabriel.financeapp.domain.port.in.ListCategoriesPort;
 import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.CategoryResponse;
+import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.CreateCategoryRequest;
 
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @RestController
 @RequestMapping("/categories")
@@ -25,12 +32,22 @@ import reactor.core.publisher.Flux;
 public class CategoryController {
 
     private final ListCategoriesPort listCategories;
+    private final CreateCategoryPort createCategory;
 
     @GetMapping
     public Flux<CategoryResponse> categories(
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(required = false) String appliesTo) {
         return Flux.defer(() -> listCategories.list(UsuarioDelToken.de(jwt), parseScope(appliesTo)))
+                .map(CategoryResponse::from);
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public Mono<CategoryResponse> create(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody CreateCategoryRequest request) {
+        return Mono.defer(() -> createCategory.create(UsuarioDelToken.de(jwt), request.toCommand()))
                 .map(CategoryResponse::from);
     }
 
