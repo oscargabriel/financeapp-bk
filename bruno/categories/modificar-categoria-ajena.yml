@@ -1,7 +1,7 @@
 info:
   name: Modificar categoria ajena
   type: http
-  seq: 31
+  seq: 33
 
 http:
   method: PATCH

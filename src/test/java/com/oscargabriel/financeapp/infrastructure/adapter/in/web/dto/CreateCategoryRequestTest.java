@@ -18,58 +18,56 @@ class CreateCategoryRequestTest {
 
     private static final String ALCANCE = "appliesTo debe ser EXPENSE, INCOME o BOTH";
 
+    private static final String ICONO = "sprout";
+
+    private static final String COLOR = "#7CB342";
+
     @Test
     void unaCategoriaCompletaNoTieneViolaciones() {
         assertThat(Violaciones.de(new CreateCategoryRequest("Plantas", "EXPENSE", "sprout", "#7CB342"))).isEmpty();
     }
 
-    @Test
-    void elIconoYElColorSonOpcionales() {
-        assertThat(Violaciones.de(new CreateCategoryRequest("Bonos", "INCOME", null, null))).isEmpty();
-    }
-
-    /** En blanco no son un error de formato: el caso de uso los guarda como null. */
-    @Test
-    void elIconoYElColorEnBlancoNoTienenViolaciones() {
-        assertThat(Violaciones.de(new CreateCategoryRequest("Bonos", "INCOME", " ", ""))).isEmpty();
-    }
-
     @ParameterizedTest
     @ValueSource(strings = {"expense", " Income ", "BOTH"})
     void elAlcanceNoDistingueMayusculasNiEspaciosDelBorde(String alcance) {
-        assertThat(Violaciones.de(new CreateCategoryRequest("Plantas", alcance, null, null))).isEmpty();
+        assertThat(Violaciones.de(new CreateCategoryRequest("Plantas", alcance, "sprout", "#7CB342"))).isEmpty();
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"#7cb342", " #7CB342 ", "#000000"})
     void aceptaElColorHexadecimalEnCualquierCaja(String color) {
-        assertThat(Violaciones.de(new CreateCategoryRequest("Plantas", "EXPENSE", null, color))).isEmpty();
+        assertThat(Violaciones.de(new CreateCategoryRequest("Plantas", "EXPENSE", "sprout", color))).isEmpty();
     }
 
     @Test
     void aceptaUnNombreDeSesentaCaracteres() {
-        assertThat(Violaciones.de(new CreateCategoryRequest("x".repeat(60), "EXPENSE", null, null))).isEmpty();
+        assertThat(Violaciones.de(new CreateCategoryRequest("x".repeat(60), "EXPENSE", "sprout", "#7CB342"))).isEmpty();
     }
 
     static Stream<Arguments> unCampoInvalido() {
         return Stream.of(
-                Arguments.of("sin nombre", alta(null, "EXPENSE", null, null), "name", "El nombre es obligatorio"),
-                Arguments.of("nombre en blanco", alta("   ", "EXPENSE", null, null), "name",
+                Arguments.of("sin nombre", alta(null, "EXPENSE", ICONO, COLOR), "name", "El nombre es obligatorio"),
+                Arguments.of("nombre en blanco", alta("   ", "EXPENSE", ICONO, COLOR), "name",
                         "El nombre es obligatorio"),
-                Arguments.of("nombre de 61", alta("x".repeat(61), "EXPENSE", null, null), "name",
+                Arguments.of("nombre de 61", alta("x".repeat(61), "EXPENSE", ICONO, COLOR), "name",
                         "El nombre no puede superar los 60 caracteres"),
-                Arguments.of("sin alcance", alta("Plantas", null, null, null), "appliesTo",
+                Arguments.of("sin alcance", alta("Plantas", null, ICONO, COLOR), "appliesTo",
                         "appliesTo es obligatorio"),
-                Arguments.of("alcance en blanco", alta("Plantas", " ", null, null), "appliesTo",
+                Arguments.of("alcance en blanco", alta("Plantas", " ", ICONO, COLOR), "appliesTo",
                         "appliesTo es obligatorio"),
-                Arguments.of("alcance desconocido", alta("Plantas", "GASTO", null, null), "appliesTo", ALCANCE),
-                Arguments.of("icono de 41", alta("Plantas", "EXPENSE", "x".repeat(41), null), "icon",
+                Arguments.of("alcance desconocido", alta("Plantas", "GASTO", ICONO, COLOR), "appliesTo", ALCANCE),
+                Arguments.of("sin icono", alta("Plantas", "EXPENSE", null, COLOR), "icon", "El icono es obligatorio"),
+                Arguments.of("icono en blanco", alta("Plantas", "EXPENSE", " ", COLOR), "icon",
+                        "El icono es obligatorio"),
+                Arguments.of("icono de 41", alta("Plantas", "EXPENSE", "x".repeat(41), COLOR), "icon",
                         "El icono no puede superar los 40 caracteres"),
-                Arguments.of("color con nombre", alta("Plantas", "EXPENSE", null, "rojo"), "color",
+                Arguments.of("sin color", alta("Plantas", "EXPENSE", ICONO, null), "color", "El color es obligatorio"),
+                Arguments.of("color vacio", alta("Plantas", "EXPENSE", ICONO, ""), "color", "El color es obligatorio"),
+                Arguments.of("color con nombre", alta("Plantas", "EXPENSE", ICONO, "rojo"), "color",
                         "El color debe tener la forma #RRGGBB"),
-                Arguments.of("color de cinco digitos", alta("Plantas", "EXPENSE", null, "#12345"), "color",
+                Arguments.of("color de cinco digitos", alta("Plantas", "EXPENSE", ICONO, "#12345"), "color",
                         "El color debe tener la forma #RRGGBB"),
-                Arguments.of("color sin numeral", alta("Plantas", "EXPENSE", null, "7CB342"), "color",
+                Arguments.of("color sin numeral", alta("Plantas", "EXPENSE", ICONO, "7CB342"), "color",
                         "El color debe tener la forma #RRGGBB"));
     }
 
@@ -82,7 +80,7 @@ class CreateCategoryRequestTest {
     @Test
     void reportaTodosLosCamposInvalidosEnUnaSolaRespuesta() {
         assertThat(Violaciones.de(alta(null, "GASTO", null, "rojo")).keySet())
-                .containsExactlyInAnyOrder("name", "appliesTo", "color");
+                .containsExactlyInAnyOrder("name", "appliesTo", "icon", "color");
     }
 
     private static CreateCategoryRequest alta(String nombre, String alcance, String icono, String color) {

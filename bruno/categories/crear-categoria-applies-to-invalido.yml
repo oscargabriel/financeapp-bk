@@ -11,7 +11,9 @@ http:
     data: |-
       {
         "name": "Arriendo local",
-        "appliesTo": "GASTO"
+        "appliesTo": "GASTO",
+        "icon": "tag",
+        "color": "#455A64"
       }
   auth:
     type: bearer

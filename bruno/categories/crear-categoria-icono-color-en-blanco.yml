@@ -1,7 +1,7 @@
 info:
-  name: Crear categoria sin icono ni color
+  name: Crear categoria con icono y color en blanco
   type: http
-  seq: 18
+  seq: 19
 
 http:
   method: POST
@@ -11,7 +11,9 @@ http:
     data: |-
       {
         "name": "Sin adornos",
-        "appliesTo": "INCOME"
+        "appliesTo": "INCOME",
+        "icon": " ",
+        "color": ""
       }
   auth:
     type: bearer
@@ -41,7 +43,6 @@ settings:
   maxRedirects: 5
 
 docs: |
-  # Icono y color son obligatorios
+  # En blanco tampoco vale
 
-  Desde FA-66 una categoria no nace sin icono ni color. No se crea nada: "Categorias tras
-  modificar" sigue contando 25.
+  Antes de FA-66 se guardaban como `null`; ahora son el mismo 400 que si faltaran.

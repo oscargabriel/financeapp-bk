@@ -81,10 +81,9 @@ INSERT INTO finance.categories (id, user_id, name, applies_to, icon, color, sort
 VALUES (gen_random_uuid(), :'uid'::uuid, 'Gimnasio', 'EXPENSE', 'dumbbell', '#00695C', 300);
 
 -- La semilla no trae ninguna BOTH: sin esta, el filtro de bruno/categories/ no tendria como
--- probar que pedir EXPENSE o INCOME tambien devuelve las que sirven para los dos. Sin icono ni
--- color a proposito, porque los dos son opcionales y la respuesta tiene que llevarlos en null.
-INSERT INTO finance.categories (id, user_id, name, applies_to, sort_order)
-VALUES (gen_random_uuid(), :'uid'::uuid, 'Ajustes', 'BOTH', 260);
+-- probar que pedir EXPENSE o INCOME tambien devuelve las que sirven para los dos.
+INSERT INTO finance.categories (id, user_id, name, applies_to, icon, color, sort_order)
+VALUES (gen_random_uuid(), :'uid'::uuid, 'Ajustes', 'BOTH', 'sliders-horizontal', '#607D8B', 260);
 
 -- Borrada logicamente: GET /api/categories no la puede devolver. Id fijo para que
 -- bruno/categories/ pueda pedirla y comprobar el 404 del PATCH.

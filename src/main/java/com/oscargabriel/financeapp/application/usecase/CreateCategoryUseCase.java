@@ -34,18 +34,12 @@ public class CreateCategoryUseCase implements CreateCategoryPort {
     }
 
     private NewCategory nuevaCategoria(UUID userId, CreateCategoryCommand command) {
-        String color = opcional(command.color());
         return new NewCategory(
                 UuidV7.from(clock.instant()),
                 userId,
                 command.name().trim(),
                 CategoryScope.valueOf(command.appliesTo().trim().toUpperCase()),
-                opcional(command.icon()),
-                color == null ? null : color.toUpperCase());
-    }
-
-    /** Un campo opcional en blanco se guarda como null, no como texto vacio. */
-    private static String opcional(String valor) {
-        return valor == null || valor.isBlank() ? null : valor.trim();
+                command.icon().trim(),
+                command.color().trim().toUpperCase());
     }
 }

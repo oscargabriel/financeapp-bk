@@ -36,7 +36,7 @@ runtime:
           });
           expect(lista[23]).to.deep.equal({
             id: bru.getVar("idBonos"), name: "Bonos", appliesTo: "INCOME",
-            icon: null, color: null, isSystem: false
+            icon: "gift", color: "#AD1457", isSystem: false
           });
         });
 
