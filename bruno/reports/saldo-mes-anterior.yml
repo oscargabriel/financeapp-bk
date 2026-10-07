@@ -1,0 +1,47 @@
+info:
+  name: Saldo del mes anterior
+  type: http
+  seq: 38
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/balance?from={{primerDiaAnterior}}&to={{ultimoDiaAnterior}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: before-request
+      code: |-
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const comoDia = function (f) {
+          return f.getFullYear() + "-" + dos(f.getMonth() + 1) + "-" + dos(f.getDate());
+        };
+        const hoy = new Date();
+        bru.setVar("primerDiaAnterior", comoDia(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1)));
+        bru.setVar("segundoDiaAnterior", comoDia(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 2)));
+        bru.setVar("ultimoDiaAnterior", comoDia(new Date(hoy.getFullYear(), hoy.getMonth(), 0)));
+    - type: tests
+      code: |-
+        const r = res.getBody();
+
+        test("el periodo es el mes anterior", function() {
+          expect(r.period).to.eql({ from: bru.getVar("primerDiaAnterior"), to: bru.getVar("ultimoDiaAnterior"),
+              income: 4500000, expense: 1820000, net: 2680000 });
+        });
+
+        test("el historico no depende del rango", function() {
+          expect(r.allTime).to.eql({ income: 14300000, expense: 5170500, net: 9129500 });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  Fija tambien `segundoDiaAnterior`, que usa `Saldo negativo`.

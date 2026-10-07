@@ -1,0 +1,28 @@
+info:
+  name: Saldo del ultimo dia del mes
+  type: http
+  seq: 40
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/balance?from={{ultimoDia}}&to={{ultimoDia}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.period.expense
+      operator: eq
+      value: "50000"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  "Cena de fin de mes" ocurre a las 21:30 en Bogota, ya el dia siguiente en UTC: el dia se corta en
+  la zona del usuario, como en el reporte.

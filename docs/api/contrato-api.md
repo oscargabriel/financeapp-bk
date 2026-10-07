@@ -28,6 +28,7 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | `DELETE` | `/api/transactions/{id}` | Bearer | Eliminar un movimiento |
 | `GET` | `/api/monthly-spending` | Bearer | Gasto mensual contra la meta |
 | `GET` | `/api/reports/transactions` | Bearer | Movimientos y totales de un rango de días |
+| `GET` | `/api/reports/balance` | Bearer | Ingresos menos gastos de un rango y de siempre, con las cuentas |
 
 ## Generalidades
 
@@ -898,7 +899,8 @@ dos extremos. Errores 400 `VALIDATION_ERROR`, en el campo del parámetro:
   ],
   "totalsByCategory": [
     { "categoryId": "0192a3b4-...", "categoryName": "Mercado", "total": 85000.0000, "count": 1 }
-  ]
+  ],
+  "net": -85000.0000
 }
 ```
 
@@ -909,6 +911,7 @@ dos extremos. Errores 400 `VALIDATION_ERROR`, en el campo del parámetro:
 | `amountBase` | El mismo monto en la moneda base. Es lo que suman los totales |
 | `totalsByType` | Una entrada por tipo consultado (los tres sin filtro de tipo), aunque sea en cero |
 | `totalsByCategory` | Solo las categorías con movimientos, de mayor a menor total |
+| `net` | Total de `INCOME` menos total de `EXPENSE`. Puede ser negativo |
 
 **A tener en cuenta**
 
@@ -928,6 +931,89 @@ dos extremos. Errores 400 `VALIDATION_ERROR`, en el campo del parámetro:
 - El día de cada movimiento se decide con la **zona horaria del usuario**, igual que el mes en
   `monthly-spending`: un gasto del 31 a las 21:30 en Bogotá es del 31 aunque en UTC ya sea el 1.
 - No hay paginación: el rango entero viene en una respuesta.
+- **`net` sigue a los filtros.** Se calcula sobre la lista devuelta: un tipo que el filtro deja
+  fuera cuenta como cero, así que con `type=EXPENSE` el neto es el gasto con signo negativo, y con
+  `type=TRANSFER` es cero.
+
+### `GET /api/reports/balance`
+
+Cuánto entró menos cuánto salió, en un rango y desde siempre, junto con las cuentas activas del
+usuario del token. **Bearer.**
+
+**Query params**
+
+| Param | Formato | Obligatorio |
+|---|---|---|
+| `from` | `YYYY-MM-DD` | Junto con `to` |
+| `to` | `YYYY-MM-DD` | Junto con `from` |
+
+Van los dos o ninguno. Sin ninguno, el rango es el mes en curso. Errores 400 `VALIDATION_ERROR`, en
+el campo del parámetro:
+
+- Viene uno solo: el error va en el que falta.
+- Un día que no viene como `YYYY-MM-DD` o que no existe.
+- `from` posterior a `to`, en el campo `from`.
+
+**200 OK**
+
+```json
+{
+  "currencyCode": "COP",
+  "period": {
+    "from": "2026-10-01",
+    "to": "2026-10-31",
+    "income": 5300000.0000,
+    "expense": 1905500.0000,
+    "net": 3394500.0000
+  },
+  "allTime": {
+    "income": 14300000.0000,
+    "expense": 5170500.0000,
+    "net": 9129500.0000
+  },
+  "accounts": [
+    {
+      "id": "0192a3b4-...",
+      "name": "Bancolombia",
+      "type": "DEBIT",
+      "currencyCode": "COP",
+      "currentBalance": 12375000.0000,
+      "creditLimit": null,
+      "availableCredit": null
+    },
+    {
+      "id": "0192a3b4-...",
+      "name": "Visa",
+      "type": "CREDIT",
+      "currencyCode": "COP",
+      "currentBalance": -658000.0000,
+      "creditLimit": 5000000.0000,
+      "availableCredit": 4342000.0000
+    }
+  ]
+}
+```
+
+| Campo | Significado |
+|---|---|
+| `currencyCode` | La moneda base del usuario: la de `period` y `allTime` |
+| `period` | Ingresos, gastos y neto del rango, con las fechas que se usaron |
+| `allTime` | Lo mismo con todos los movimientos del usuario, sin importar el rango |
+| `net` | `income` menos `expense`. Puede ser negativo |
+| `accounts` | Las cuentas activas por nombre, cada una con su saldo en **su** moneda |
+| `availableCredit` | En una tarjeta, `creditLimit` + `currentBalance`: lo que queda por gastar |
+
+**A tener en cuenta**
+
+- **Las transferencias no cuentan** como ingreso ni como gasto: mover plata entre cuentas propias,
+  incluido pagar la tarjeta, no cambia el neto. Los gastos pagados con tarjeta sí cuentan.
+- **Las cuentas no se suman.** Pueden estar en monedas distintas, así que la respuesta no trae un
+  saldo total.
+- Una tarjeta sin cupo cargado trae `creditLimit` y `availableCredit` en `null`. Se completa con
+  `PATCH /api/accounts/{id}`.
+- El día de cada movimiento se decide con la zona horaria del usuario, como en
+  `reports/transactions`. El mes por defecto sale del reloj del servidor, que hoy está en la misma
+  zona.
 
 ## CORS
 

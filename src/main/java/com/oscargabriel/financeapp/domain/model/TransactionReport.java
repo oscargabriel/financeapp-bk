@@ -39,6 +39,19 @@ public record TransactionReport(
                 porCategoria(ordenados));
     }
 
+    /** Ingresos menos gastos. Un tipo que el filtro deja fuera no tiene entrada y cuenta como cero. */
+    public BigDecimal net() {
+        return totalDe(TransactionType.INCOME).subtract(totalDe(TransactionType.EXPENSE));
+    }
+
+    private BigDecimal totalDe(TransactionType tipo) {
+        return totalsByType.stream()
+                .filter(t -> t.type() == tipo)
+                .map(TypeTotal::total)
+                .findFirst()
+                .orElse(BigDecimal.ZERO);
+    }
+
     /** Una entrada por tipo consultado, aunque no tenga movimientos: un tipo sin entrada no dice si es cero. */
     private static List<TypeTotal> porTipo(TransactionReportFilter filter, List<ReportedTransaction> movimientos) {
         return filter.typesToReport().stream()

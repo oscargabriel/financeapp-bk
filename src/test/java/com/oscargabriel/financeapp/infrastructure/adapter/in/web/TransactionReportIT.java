@@ -67,6 +67,39 @@ class TransactionReportIT {
     }
 
     @Test
+    void elSaldoSinCredencialesEsUn401ConElRetoDelJwt() {
+        webTestClient.get().uri("/api/reports/balance")
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().valueEquals("WWW-Authenticate", "Bearer")
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED")
+                .jsonPath("$.errors[0].field").isEqualTo("authorization");
+    }
+
+    @Test
+    void elSaldoConElBasicCompartidoEsUn401() {
+        webTestClient.get().uri("/api/reports/balance")
+                .headers(BasicMother.cabecera())
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().valueEquals("WWW-Authenticate", "Bearer")
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED");
+    }
+
+    @Test
+    void elSaldoValidaElRangoAntesDeConsultarLaBase() {
+        webTestClient.get().uri("/api/reports/balance?from=2026-10-01")
+                .headers(headers -> headers.setBearerAuth(TokenMother.valido()))
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.errors[0].field").isEqualTo("to");
+    }
+
+    @Test
     void noExponeElEndpointFueraDelBasePath() {
         webTestClient.get().uri("/reports/transactions?from=2026-09-01&to=2026-09-30")
                 .headers(headers -> headers.setBearerAuth(TokenMother.valido()))

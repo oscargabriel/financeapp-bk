@@ -109,6 +109,29 @@ class TransactionReportTest {
     }
 
     @Test
+    void elNetoEsIngresosMenosGastosSinLasTransferencias() {
+        TransactionReport reporte = TransactionReport.of("COP", sinFiltros(), DEL_MES);
+
+        assertThat(reporte.net()).isEqualByComparingTo("4334500");
+    }
+
+    @Test
+    void conSoloGastosElNetoSaleNegativo() {
+        TransactionReport reporte = TransactionReport.of("COP", conTipos(TransactionType.EXPENSE),
+                DEL_MES.stream().filter(t -> t.type() == TransactionType.EXPENSE).toList());
+
+        assertThat(reporte.net()).isEqualByComparingTo("-165500");
+    }
+
+    @Test
+    void conSoloTransferenciasElNetoEsCero() {
+        TransactionReport reporte = TransactionReport.of("COP", conTipos(TransactionType.TRANSFER),
+                List.of(unaTransferenciaEnDolares("2026-09-10T20:00:00Z")));
+
+        assertThat(reporte.net()).isEqualByComparingTo("0");
+    }
+
+    @Test
     void elFiltroConservaLasCuentasPedidas() {
         assertThat(conCuentas(CUENTA_ID, DESTINO_ID).accountIds()).containsExactlyInAnyOrder(CUENTA_ID, DESTINO_ID);
     }

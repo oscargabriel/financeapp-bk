@@ -24,3 +24,15 @@ docs: |
   que le llega (300.000); Bancolombia 3 gastos por 1.470.000, 2 ingresos por 5.300.000, el retiro que
   sale y el cambio de dolares que entra (410.000); Visa 4 gastos por 208.000; Ahorros USD solo el
   cambio de dolares que sale.
+
+  Despues, el neto del reporte (`net`) con filtro de tipo y `GET /api/reports/balance` (FA-75).
+  Netos del escenario, ingresos menos gastos sin transferencias:
+
+  | Mes | Ingresos | Gastos | Neto |
+  |---|---|---|---|
+  | En curso | 5.300.000 | 1.905.500 | 3.394.500 |
+  | Anterior | 4.500.000 | 1.820.000 | 2.680.000 |
+  | Hace dos | 4.500.000 | 1.445.000 | 3.055.000 |
+  | Historico | 14.300.000 | 5.170.500 | 9.129.500 |
+
+  Del dia 2 al ultimo del mes anterior solo hay gastos (620.000): es el caso del neto negativo.

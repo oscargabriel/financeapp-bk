@@ -23,7 +23,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.model.TransactionType;
+import com.oscargabriel.financeapp.domain.port.in.GetBalancePort;
 import com.oscargabriel.financeapp.domain.port.in.GetTransactionReportPort;
+import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.BalanceResponse;
 import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.TransactionReportResponse;
 
 import reactor.core.publisher.Mono;
@@ -36,6 +38,7 @@ public class TransactionReportController {
     private static final Pattern FORMATO_DIA = Pattern.compile("[0-9]{4}-[0-9]{2}-[0-9]{2}");
 
     private final GetTransactionReportPort getTransactionReport;
+    private final GetBalancePort getBalance;
 
     /**
      * Los filtros llegan repetidos (?type=EXPENSE&type=INCOME) o separados por coma (?type=EXPENSE,INCOME):
@@ -58,6 +61,21 @@ public class TransactionReportController {
                         parseAll(types, "type", "El tipo debe ser EXPENSE, INCOME o TRANSFER",
                                 v -> TransactionType.valueOf(v.toUpperCase(Locale.ROOT)))))
                 .map(TransactionReportResponse::from);
+    }
+
+    /** Aqui las fechas son opcionales: la que falta llega en null y el caso de uso decide si eso vale. */
+    @GetMapping("/balance")
+    public Mono<BalanceResponse> balance(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
+        return Mono.defer(() -> getBalance.get(
+                        UsuarioDelToken.de(jwt), parseOptionalDay(from, "from"), parseOptionalDay(to, "to")))
+                .map(BalanceResponse::from);
+    }
+
+    private static LocalDate parseOptionalDay(String valor, String campo) {
+        return valor == null || valor.isBlank() ? null : parseDay(valor, campo);
     }
 
     private static LocalDate parseDay(String valor, String campo) {

@@ -14,7 +14,8 @@ public record TransactionReportResponse(
         String currencyCode,
         List<Item> transactions,
         List<TypeTotal> totalsByType,
-        List<CategoryTotal> totalsByCategory) {
+        List<CategoryTotal> totalsByCategory,
+        BigDecimal net) {
 
     public record Item(
             String id,
@@ -64,7 +65,8 @@ public record TransactionReportResponse(
                         .toList(),
                 reporte.totalsByCategory().stream()
                         .map(c -> new CategoryTotal(c.categoryId().toString(), c.categoryName(), c.total(), c.count()))
-                        .toList());
+                        .toList(),
+                reporte.net());
     }
 
     private static String texto(UUID id) {

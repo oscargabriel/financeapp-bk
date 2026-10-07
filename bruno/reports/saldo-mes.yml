@@ -1,0 +1,75 @@
+info:
+  name: Saldo del mes
+  type: http
+  seq: 36
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/balance?from={{primerDia}}&to={{ultimoDia}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const r = res.getBody();
+        const porNombre = function (n) {
+          return r.accounts.find(function (a) { return a.name === n; });
+        };
+
+        test("devuelve el contrato de la consulta de saldo", function() {
+          expect(r).to.have.all.keys("currencyCode", "period", "allTime", "accounts");
+          expect(r.currencyCode).to.equal("COP");
+          expect(r.period).to.have.all.keys("from", "to", "income", "expense", "net");
+          expect(r.allTime).to.have.all.keys("income", "expense", "net");
+          expect(r.accounts[0]).to.have.all.keys("id", "name", "type", "currencyCode", "currentBalance",
+              "creditLimit", "availableCredit");
+        });
+
+        test("el periodo es el mes pedido, sin transferencias", function() {
+          expect(r.period).to.eql({ from: bru.getVar("primerDia"), to: bru.getVar("ultimoDia"),
+              income: 5300000, expense: 1905500, net: 3394500 });
+        });
+
+        test("el historico suma los tres meses del escenario", function() {
+          expect(r.allTime).to.eql({ income: 14300000, expense: 5170500, net: 9129500 });
+        });
+
+        test("las cuentas activas por nombre, sin la desactivada ni la borrada", function() {
+          const nombres = r.accounts.map(function (a) { return a.name; });
+          expect(nombres).to.eql(["Ahorros USD", "Bancolombia", "Efectivo", "Visa"]);
+        });
+
+        test("la tarjeta trae su cupo y lo que queda por gastar", function() {
+          const visa = porNombre("Visa");
+          expect(visa.type).to.equal("CREDIT");
+          expect(visa.currentBalance).to.equal(-658000);
+          expect(visa.creditLimit).to.equal(5000000);
+          expect(visa.availableCredit).to.equal(4342000);
+        });
+
+        test("una cuenta en dolares sale en su moneda y sin cupo", function() {
+          const usd = porNombre("Ahorros USD");
+          expect(usd.currencyCode).to.equal("USD");
+          expect(usd.creditLimit).to.equal(null);
+          expect(usd.availableCredit).to.equal(null);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # GET /api/reports/balance?from=&to=
+
+  Mes en curso del escenario: ingresos 5.300.000, gastos 1.905.500. El historico agrega el mes
+  anterior (4.500.000 / 1.820.000) y el de hace dos meses (4.500.000 / 1.445.000). Los gastos de
+  la Visa cuentan como egresos; el retiro de cajero y el cambio de dolares no cuentan.
+
+  Visa: cupo 5.000.000 y saldo -658.000, la suma de sus gastos de los tres meses.

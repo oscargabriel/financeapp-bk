@@ -1,0 +1,28 @@
+info:
+  name: Neto del reporte con solo gastos
+  type: http
+  seq: 34
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{primerDia}}&to={{ultimoDia}}&type=EXPENSE"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.net
+      operator: eq
+      value: "-1905500"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  Con el filtro de tipo los ingresos quedan fuera y cuentan como cero: el neto sale negativo y se
+  devuelve tal cual.
