@@ -363,7 +363,8 @@ Las reglas de cada artefacto (proposal, specs, design, tasks) están en `openspe
 El ciclo de una tarea:
 
 1. La tarea sale del tablero. Un encargo que llegue suelto —un mensaje, una conversación— se
-   registra primero como tarea, para que tenga `ID`.
+   registra primero como tarea, para que tenga `ID`. El tablero es compartido con el front: aquí
+   solo se toman tareas con `Área = Backend`, aunque se pida una de `Frontend` por su `ID`.
 2. Rama `feature/fa-<n>-<slug>` desde `dev`.
 3. Change `fa-<n>-<slug>`: explorar el código si hace falta y proponer (proposal, delta de spec con
    escenarios, design si aplica, tasks). **Lo que se aclare conversando se escribe en esos archivos**:
