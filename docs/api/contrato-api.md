@@ -11,6 +11,9 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | `POST` | `/api/auth/register` | Basic | Crear un usuario |
 | `POST` | `/api/auth/login` | Basic | Obtener el token de un usuario |
 | `GET` | `/api/status` | Basic | Estado del servicio y de la base |
+| `GET` | `/api/users/me` | Bearer | Perfil del usuario del token |
+| `PATCH` | `/api/users/me` | Bearer | Modificar el perfil |
+| `PUT` | `/api/users/me/password` | Bearer | Cambiar la contraseña |
 | `GET` | `/api/accounts` | Bearer | Listar las cuentas del usuario |
 | `POST` | `/api/accounts` | Bearer | Crear una cuenta |
 | `PATCH` | `/api/accounts/{id}` | Bearer | Modificar una cuenta |
@@ -174,6 +177,7 @@ llamar a login.
 | `lastName` | string | no | Hasta 100 caracteres |
 | `baseCurrencyCode` | string | no | Código de 3 letras que exista en el catálogo. Por defecto `COP` |
 | `timezone` | string | no | Zona IANA (`America/Bogota`, `Europe/Madrid`). Por defecto `America/Bogota` |
+| `phone` | string | no | Un `+` opcional y de 7 a 15 dígitos, sin espacios ni separadores. Se recorta |
 
 ```json
 {
@@ -192,6 +196,7 @@ llamar a login.
   "email": "ana@correo.com",
   "firstName": "Ana",
   "lastName": "Pérez",
+  "phone": null,
   "baseCurrencyCode": "COP",
   "timezone": "America/Bogota",
   "defaultCategories": 22
@@ -200,6 +205,8 @@ llamar a login.
 
 `defaultCategories` es cuántas categorías quedaron creadas para el usuario. La respuesta nunca
 incluye la contraseña ni su hash.
+
+`phone` sale en `null` si no se envió.
 
 **Errores:** 400 `VALIDATION_ERROR` (por campo; la moneda inexistente sale en `baseCurrencyCode`),
 409 `DUPLICATE_RESOURCE` en `email` si el correo ya está registrado. Las mayúsculas no cuentan:
@@ -260,6 +267,103 @@ frontend.
 
 **503 Service Unavailable** — mismo cuerpo con `"status": "DOWN"` y el servicio caído en `DOWN`.
 Cada dependencia tiene 2 segundos para responder antes de contarse como caída.
+
+### `GET /api/users/me`
+
+El perfil del usuario del token. **Bearer.**
+
+**200 OK**
+
+```json
+{
+  "id": "0199a1b2-3c4d-7e5f-8a9b-0c1d2e3f4a5b",
+  "email": "ana@correo.com",
+  "firstName": "Ana",
+  "lastName": "Pérez",
+  "phone": "3001234567",
+  "baseCurrencyCode": "COP",
+  "timezone": "America/Bogota"
+}
+```
+
+`lastName` y `phone` pueden venir en `null`. La respuesta nunca trae la contraseña ni su hash.
+
+**Errores:** 401 `UNAUTHENTICATED` también si el usuario fue desactivado o borrado y su token
+todavía no vence: el cliente lo trata como cualquier otro 401 y vuelve al login.
+
+### `PATCH /api/users/me`
+
+Modifica el perfil del usuario del token. **Bearer.** Se envían solo los campos que cambian.
+
+**Parche**
+
+| Campo | Tipo | Reglas |
+|---|---|---|
+| `firstName` | string | Hasta 100 caracteres, no en blanco. Se recorta |
+| `lastName` | string | Hasta 100 caracteres. **En blanco lo borra** |
+| `email` | string | Formato de correo, hasta 255 caracteres, no en blanco. Se guarda en minúsculas. **Si cambia, exige `currentPassword`** |
+| `phone` | string | Las reglas del alta. **En blanco lo borra** |
+| `timezone` | string | Zona IANA, no en blanco |
+| `currentPassword` | string | La contraseña actual. Solo se mira si el correo cambia |
+| `baseCurrencyCode` | — | **Se omite**: ni error ni cambio. Cambiar la moneda base todavía no existe (FA-91) |
+
+- **Ausente o `null` es "no cambia".** Para vaciar el apellido o el celular se manda el texto en
+  blanco (`""`).
+- Un parche sin ningún campo modificable es 400 en `body`. `currentPassword` y `baseCurrencyCode`
+  no cuentan: `{"baseCurrencyCode": "USD"}` solo también es 400 en `body`.
+- El correo cuenta como cambiado si difiere del guardado después de recortarlo y pasarlo a
+  minúsculas. Mandar el mismo en otra caja no exige la contraseña.
+- Cambiar el correo no invalida el token: sigue sirviendo hasta que vence.
+
+```json
+{
+  "firstName": "Ana María",
+  "phone": "3109876543",
+  "email": "ana.maria@correo.com",
+  "currentPassword": "unaClaveLarga"
+}
+```
+
+**200 OK** — el perfil completo como quedó, con la forma de `GET /api/users/me`.
+
+**Errores propios**
+
+| HTTP | `code` | `field` | Cuándo |
+|---|---|---|---|
+| 400 | `VALIDATION_ERROR` | `body` | El parche no trae ningún campo modificable |
+| 400 | `VALIDATION_ERROR` | el campo | Formato inválido o campo obligatorio en blanco, uno por campo |
+| 400 | `VALIDATION_ERROR` | `currentPassword` | El correo cambia y no vino la contraseña actual |
+| 400 | `INVALID_CREDENTIALS` | `currentPassword` | El correo cambia y la contraseña actual no es correcta |
+| 409 | `DUPLICATE_RESOURCE` | `email` | Otro usuario ya usa ese correo, sin distinguir mayúsculas |
+
+**La contraseña equivocada es 400, no 401.** El token es válido: un 401 haría que el cliente cerrara
+la sesión de alguien que solo se equivocó al escribir. Se verifica antes que el correo, así que con
+la contraseña mal nunca se sabe si el correo nuevo estaba libre.
+
+### `PUT /api/users/me/password`
+
+Cambia la contraseña del usuario del token. **Bearer.**
+
+**Cuerpo**
+
+| Campo | Tipo | Obligatorio | Reglas |
+|---|---|---|---|
+| `currentPassword` | string | sí | La contraseña actual |
+| `newPassword` | string | sí | Las reglas del alta: al menos 8 caracteres y no más de 72 bytes en UTF-8 |
+
+```json
+{ "currentPassword": "unaClaveLarga", "newPassword": "otraClaveLarga" }
+```
+
+**204 No Content** — sin cuerpo. Desde ese momento el login funciona con la nueva y no con la
+anterior. Los tokens ya emitidos siguen sirviendo hasta que vencen: no hay forma de revocarlos.
+
+**Errores propios**
+
+| HTTP | `code` | `field` | Cuándo |
+|---|---|---|---|
+| 400 | `VALIDATION_ERROR` | el campo | Falta una de las dos, o la nueva no cumple las reglas |
+| 400 | `INVALID_CREDENTIALS` | `currentPassword` | La contraseña actual no es correcta. 400 y no 401, por lo mismo que en el `PATCH` |
 
 ### `GET /api/accounts`
 
@@ -1031,5 +1135,7 @@ Para que el frontend no lo busque:
 - Recuperar o listar las categorías borradas.
 - Consultar un movimiento por su id. Para listarlos está `GET /api/reports/transactions`.
 - Crear metas de gasto.
-- Refresh token o logout. El token simplemente vence.
+- Refresh token o logout. El token simplemente vence, también después de cambiar la contraseña.
+- Cambiar la moneda base del usuario (FA-91): el `PATCH /api/users/me` la omite.
+- Recuperar la contraseña olvidada (FA-90).
 - Movimientos en monedas distintas de COP.

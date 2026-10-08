@@ -14,6 +14,9 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -92,6 +95,26 @@ class RegisterUserUseCaseTest {
     }
 
     @Test
+    void guardaElCelularRecortado() {
+        altaPosible();
+
+        StepVerifier.create(useCase().register(UserMother.unAltaConCelular(" +573001234567 ")))
+                .assertNext(registrado -> assertThat(registrado.user().phone()).isEqualTo("+573001234567"))
+                .verifyComplete();
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = "   ")
+    void unCelularAusenteOEnBlancoSeGuardaComoNull(String celular) {
+        altaPosible();
+
+        StepVerifier.create(useCase().register(UserMother.unAltaConCelular(celular)))
+                .assertNext(registrado -> assertThat(registrado.user().phone()).isNull())
+                .verifyComplete();
+    }
+
+    @Test
     void normalizaElEmailAMinusculasPorqueElUnicoDeLaBaseEsSobreLower() {
         altaPosible();
 
@@ -145,7 +168,7 @@ class RegisterUserUseCaseTest {
     }
 
     private static RegistrationCommand conEmail(String email) {
-        return new RegistrationCommand(email, UserMother.PASSWORD, "Ana", null, null, null);
+        return new RegistrationCommand(email, UserMother.PASSWORD, "Ana", null, null, null, null);
     }
 
     private static List<String> campos(Throwable error) {

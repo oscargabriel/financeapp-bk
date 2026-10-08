@@ -1,0 +1,40 @@
+info:
+  name: Login del perfil
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/login"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailPerfil}}",
+        "password": "{{clavePerfil}}"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("tokenPerfil", res.getBody().accessToken);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Login del usuario de la carpeta
+
+  Guarda el token en `tokenPerfil`.

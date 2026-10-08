@@ -1,0 +1,44 @@
+info:
+  name: Alta con celular invalido
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/register"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "invalido-{{emailPerfil}}",
+        "password": "unaClaveLarga",
+        "firstName": "Perfil",
+        "phone": "300 123"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: phone
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Celular con espacios en medio
+
+  Solo se admite un + opcional y de 7 a 15 digitos seguidos.

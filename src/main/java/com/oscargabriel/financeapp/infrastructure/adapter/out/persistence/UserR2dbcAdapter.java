@@ -13,8 +13,10 @@ import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.model.User;
 import com.oscargabriel.financeapp.domain.model.UserCredentials;
+import com.oscargabriel.financeapp.domain.model.UserProfile;
 import com.oscargabriel.financeapp.domain.port.out.UserRepositoryPort;
 
+import io.r2dbc.spi.Row;
 import reactor.core.publisher.Mono;
 
 @Component
@@ -41,10 +43,60 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
                AND is_active
             """;
 
+    /** Mismo filtro que CREDENCIALES_ACTIVAS: un token vigente de un usuario desactivado no ve su perfil. */
+    private static final String PERFIL_ACTIVO = """
+            SELECT id, email, first_name, last_name, phone, base_currency_code, timezone
+              FROM finance.users
+             WHERE id = :id
+               AND deleted_at IS NULL
+               AND is_active
+            """;
+
+    private static final String HASH_ACTIVO = """
+            SELECT password_hash
+              FROM finance.users
+             WHERE id = :id
+               AND deleted_at IS NULL
+               AND is_active
+            """;
+
+    /** Mismo criterio que ux_users_email: sin distinguir mayusculas y solo entre los no borrados. */
+    private static final String EXISTE_EMAIL_DE_OTRO = """
+            SELECT EXISTS (
+                SELECT 1
+                  FROM finance.users
+                 WHERE lower(email) = lower(:email)
+                   AND deleted_at IS NULL
+                   AND id <> :id
+            )
+            """;
+
+    /** updated_at lo pone trg_users_updated_at. */
+    private static final String ACTUALIZAR_PERFIL = """
+            UPDATE finance.users
+               SET email = :email,
+                   first_name = :firstName,
+                   last_name = :lastName,
+                   phone = :phone,
+                   timezone = :timezone
+             WHERE id = :id
+               AND deleted_at IS NULL
+               AND is_active
+            RETURNING id, email, first_name, last_name, phone, base_currency_code, timezone
+            """;
+
+    private static final String ACTUALIZAR_CLAVE = """
+            UPDATE finance.users
+               SET password_hash = :passwordHash
+             WHERE id = :id
+               AND deleted_at IS NULL
+               AND is_active
+            """;
+
     private static final String INSERTAR_USUARIO = """
             INSERT INTO finance.users
-                   (id, email, password_hash, first_name, last_name, base_currency_code, timezone)
-            VALUES (:id, :email, :passwordHash, :firstName, :lastName, :baseCurrencyCode, :timezone)
+                   (id, email, password_hash, first_name, last_name, phone, base_currency_code, timezone)
+            VALUES (:id, :email, :passwordHash, :firstName, :lastName, :phone, :baseCurrencyCode, :timezone)
             """;
 
     /**
@@ -87,6 +139,67 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
     }
 
     @Override
+    public Mono<UserProfile> findActiveProfile(UUID id) {
+        return databaseClient.sql(PERFIL_ACTIVO)
+                .bind("id", id)
+                .map((row, metadata) -> perfil(row))
+                .one();
+    }
+
+    @Override
+    public Mono<String> findActivePasswordHash(UUID id) {
+        return databaseClient.sql(HASH_ACTIVO)
+                .bind("id", id)
+                .map((row, metadata) -> row.get("password_hash", String.class))
+                .one();
+    }
+
+    @Override
+    public Mono<Boolean> existsByEmailForOtherUser(String email, UUID id) {
+        return databaseClient.sql(EXISTE_EMAIL_DE_OTRO)
+                .bind("email", email)
+                .bind("id", id)
+                .map((row, metadata) -> row.get(0, Boolean.class))
+                .one();
+    }
+
+    @Override
+    public Mono<UserProfile> updateProfile(UserProfile profile) {
+        DatabaseClient.GenericExecuteSpec sentencia = databaseClient.sql(ACTUALIZAR_PERFIL)
+                .bind("id", profile.id())
+                .bind("email", profile.email())
+                .bind("firstName", profile.firstName())
+                .bind("timezone", profile.timezone());
+        sentencia = bindOpcional(sentencia, "lastName", profile.lastName());
+        sentencia = bindOpcional(sentencia, "phone", profile.phone());
+
+        return sentencia.map((row, metadata) -> perfil(row))
+                .one()
+                .onErrorMap(DataIntegrityViolationException.class, this::comoConflicto);
+    }
+
+    @Override
+    public Mono<Void> updatePassword(UUID id, String passwordHash) {
+        return databaseClient.sql(ACTUALIZAR_CLAVE)
+                .bind("id", id)
+                .bind("passwordHash", passwordHash)
+                .fetch()
+                .rowsUpdated()
+                .then();
+    }
+
+    private static UserProfile perfil(Row row) {
+        return new UserProfile(
+                row.get("id", UUID.class),
+                row.get("email", String.class),
+                row.get("first_name", String.class),
+                row.get("last_name", String.class),
+                row.get("phone", String.class),
+                row.get("base_currency_code", String.class),
+                row.get("timezone", String.class));
+    }
+
+    @Override
     public Mono<Long> createWithDefaultCategories(User user) {
         return insertarUsuario(user)
                 .then(copiarCategorias(user))
@@ -103,11 +216,16 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
                 .bind("baseCurrencyCode", user.baseCurrencyCode())
                 .bind("timezone", user.timezone());
 
-        sentencia = user.lastName() == null
-                ? sentencia.bindNull("lastName", String.class)
-                : sentencia.bind("lastName", user.lastName());
+        sentencia = bindOpcional(sentencia, "lastName", user.lastName());
+        sentencia = bindOpcional(sentencia, "phone", user.phone());
 
         return sentencia.fetch().rowsUpdated();
+    }
+
+    /** bind no admite null: un opcional ausente va con bindNull y su tipo. */
+    private static DatabaseClient.GenericExecuteSpec bindOpcional(
+            DatabaseClient.GenericExecuteSpec sentencia, String nombre, String valor) {
+        return valor == null ? sentencia.bindNull(nombre, String.class) : sentencia.bind(nombre, valor);
     }
 
     private Mono<Long> copiarCategorias(User user) {
@@ -118,8 +236,8 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
     }
 
     /**
-     * El caso de uso ya pregunta si el email esta libre, pero entre esa consulta y este INSERT cabe
-     * otro registro con el mismo correo. Cuando pasa, el unico ux_users_email lo corta y aqui se
+     * El caso de uso ya pregunta si el email esta libre, pero entre esa consulta y el INSERT del alta
+     * o el UPDATE del perfil cabe otro registro con el mismo correo. Cuando pasa, el unico ux_users_email lo corta y aqui se
      * traduce al mismo 409 en vez de dejar que salga como un 500.
      */
     private BadRequestException comoConflicto(DataIntegrityViolationException e) {

@@ -1,0 +1,39 @@
+info:
+  name: Cambiar clave por una invalida
+  type: http
+  seq: 17
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/users/me/password"
+  body:
+    type: json
+    data: |-
+      {
+        "currentPassword": "{{clavePerfil}}",
+        "newPassword": "corta12"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenPerfil}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: newPassword
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # La nueva sigue las reglas del alta: 7 caracteres no alcanzan

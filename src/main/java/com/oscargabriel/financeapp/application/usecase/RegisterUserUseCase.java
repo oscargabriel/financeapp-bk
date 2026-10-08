@@ -49,11 +49,15 @@ public class RegisterUserUseCase implements RegisterUserPort {
                 email,
                 hasher.hash(command.password()),
                 command.firstName().trim(),
-                command.lastName() == null || command.lastName().isBlank()
-                        ? null
-                        : command.lastName().trim(),
+                opcional(command.lastName()),
                 moneda,
-                command.timezoneOrDefault());
+                command.timezoneOrDefault(),
+                opcional(command.phone()));
+    }
+
+    /** Un opcional en blanco se guarda como null, no como texto vacio. */
+    private static String opcional(String valor) {
+        return valor == null || valor.isBlank() ? null : valor.trim();
     }
 
     private Mono<Void> monedaExiste(String moneda) {
