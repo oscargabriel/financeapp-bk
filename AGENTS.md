@@ -32,7 +32,14 @@ colección y apaga la app (FA-61):
 
 ```powershell
 pwsh -NoProfile -File .claude/scripts/verificar-bruno.ps1 -RecargarDatos
+pwsh -NoProfile -File .claude/scripts/verificar-bruno.ps1 -RecargarDatos -Puerto 8081
 ```
+
+El puerto es el de `host` en `bruno/environments/local.yml` (8080). Con otra app en ese puerto —la
+que usa el front, por ejemplo— no hace falta apagarla: `-Puerto` levanta la de la rama en otro y le
+pasa a `bru` `host` y `baseUrl` con ese puerto (FA-99). Las dos comparten la base, y
+`-RecargarDatos` solo recrea los usuarios del back. El script le fija a la app `SERVER_PORT`, que es
+la variable que lee el perfil `local`, y falla si no termina escuchando en el puerto validado.
 
 Para depurar un request suelto, desde `bruno/` y con una app que hayas levantado tú contra la base
 local:

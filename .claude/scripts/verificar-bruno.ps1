@@ -1,9 +1,11 @@
-# Uso: verificar-bruno.ps1 [-Objetivo carpeta] [-RecargarDatos] [nombre=valor ...]
+# Uso: verificar-bruno.ps1 [-Objetivo carpeta] [-RecargarDatos] [-Puerto n] [nombre=valor ...]
 # Cada nombre=valor se pasa a bru como --env-var, por ejemplo para sobrescribir una variable del entorno.
+# -Puerto levanta la app en otro puerto que el de local.yml, para convivir con otra app en ese (FA-99).
 [CmdletBinding(PositionalBinding = $false)]
 param(
     [string]$Objetivo = '.',
     [switch]$RecargarDatos,
+    [ValidateRange(1, 65535)][int]$Puerto,
     [int]$TiempoArranque = 120,
     [Parameter(ValueFromRemainingArguments)][string[]]$Variables
 )
@@ -46,18 +48,42 @@ function QuienEscucha([int]$puerto) {
         Select-Object -First 1 -ExpandProperty OwningProcess
 }
 
-# 1. Puerto: el de host en el entorno local de Bruno.
-$entornoBruno = Get-Content (Join-Path $repo 'bruno\environments\local.yml') -Raw
-if ($entornoBruno -notmatch 'name:\s*host\s*\r?\n\s*value:\s*(\S+)') {
-    Detener 2 'no se encontro la variable host en bruno/environments/local.yml.'
+function VariableBruno([string]$entorno, [string]$nombre) {
+    if ($entorno -notmatch "name:\s*$nombre\s*\r?\n\s*value:\s*(\S+)") {
+        Detener 2 "no se encontro la variable $nombre en bruno/environments/local.yml."
+    }
+    $Matches[1]
 }
-$puerto = ([uri]$Matches[1]).Port
+
+function ConPuerto([string]$url, [int]$puerto) {
+    $uri = [UriBuilder]$url
+    $uri.Port = $puerto
+    $uri.Uri.AbsoluteUri.TrimEnd('/')
+}
+
+# 1. Puerto: -Puerto, o el de host en el entorno local de Bruno.
+$entornoBruno = Get-Content (Join-Path $repo 'bruno\environments\local.yml') -Raw
+$hostBruno = VariableBruno $entornoBruno 'host'
+$variablesPuerto = @()
+if ($PSBoundParameters.ContainsKey('Puerto')) {
+    # Con dos --env-var del mismo nombre no se sabe cual gana: bru podria ir a otro puerto que la app.
+    $choque = @($Variables | Where-Object { $_ -match '^(host|baseUrl)=' })
+    if ($choque) {
+        Detener 2 "-Puerto ya fija host y baseUrl; quita $($choque -join ', ') o el parametro -Puerto."
+    }
+    $puerto = $Puerto
+    $variablesPuerto = @("host=$(ConPuerto $hostBruno $puerto)",
+        "baseUrl=$(ConPuerto (VariableBruno $entornoBruno 'baseUrl') $puerto)")
+} else {
+    $puerto = ([uri]$hostBruno).Port
+}
 
 $ocupante = QuienEscucha $puerto
 if ($ocupante) {
     $proceso = Get-Process -Id $ocupante -ErrorAction SilentlyContinue
     Detener 2 ("el puerto $puerto esta ocupado por PID $ocupante ($($proceso.ProcessName)). Puede ser una app " +
-        "apuntando a otra base: detenla tu y vuelve a correr. Este script no mata procesos ajenos.")
+        "apuntando a otra base: detenla tu, o corre con -Puerto y otro puerto si quieres dejarla arriba. " +
+        "Este script no mata procesos ajenos.")
 }
 
 # 2. Base: la URL del perfil local tal como la veria la app arrancada desde esta terminal.
@@ -84,6 +110,9 @@ $limpia = Destino (Resolver $plantilla.Url $false)
 Get-ChildItem env: | Where-Object { $_.Name -like 'DB_*' -or $_.Name -like 'SPRING_R2DBC_*' } |
     ForEach-Object { Remove-Item "env:$($_.Name)" }
 $env:SPRING_PROFILES_ACTIVE = 'local'
+# El perfil local lee el puerto de SERVER_PORT (PORT solo lo usa Cloud Run): uno heredado de la
+# terminal sacaria a la app del puerto validado.
+$env:SERVER_PORT = $puerto
 
 $bru = Get-Command bru -ErrorAction SilentlyContinue
 if (-not $bru) { Detener 2 'bru no esta en el PATH (FA-39).' }
@@ -122,11 +151,20 @@ try {
     }
     # El java de la app es hijo del daemon de Gradle, no del wrapper: se guarda para apagarlo directo.
     $app = QuienEscucha $puerto
+    if (-not $app) {
+        # Una copia de application-local.yaml que no lea SERVER_PORT la deja en otro puerto: se busca
+        # en el log para apagarla igual, porque el taskkill del wrapper no la alcanza.
+        $real = if ($texto -match 'Netty started on port (\d+)') { [int]$Matches[1] } else { $null }
+        if ($real) { $app = QuienEscucha $real }
+        $codigo = 3
+        throw ("La app arranco en el puerto $real y no en el $puerto. Revisa que server.port de " +
+            'application-local.yaml lea SERVER_PORT.')
+    }
     Write-Host "App arriba (PID $app, log en $log)."
 
     Push-Location (Join-Path $repo 'bruno')
     try {
-        $extra = @($Variables | Where-Object { $_ } | ForEach-Object { '--env-var', $_ })
+        $extra = @(@($variablesPuerto) + @($Variables) | Where-Object { $_ } | ForEach-Object { '--env-var', $_ })
         & $bru.Source run $Objetivo -r --env local @extra
         $codigo = $LASTEXITCODE
     } finally {
