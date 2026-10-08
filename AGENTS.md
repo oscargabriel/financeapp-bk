@@ -289,12 +289,17 @@ recrea solo lo suyo:
 
 | Lado | Usuarios | Los recrea o limpia |
 |---|---|---|
-| Back (`bruno/`) | `prueba@` e `inactivo@financeapp.local`, `*@bruno.local` | `test-data.sql` |
+| Back (`bruno/`) | `prueba@`, `inactivo@` y `pendientes@financeapp.local`, `*@bruno.local` | `test-data.sql` |
 | Front | `demo@financeapp.local`, `*@front.local` | `demo-data.sql` |
 | Desarrollador | `dev@financeapp.local` | `demo-data.sql` con `email` y `u = 1` |
 
 Nadie entra como `prueba@` para probar a mano: le cambiaría a la colección los totales que verifica.
-Para eso está `dev@`. Los usuarios que el front registre desde la interfaz van con correo
+Para eso está `dev@`.
+
+`pendientes@financeapp.local` tiene los movimientos pendientes de aprobación que usa
+`bruno/pending/` (FA-76). Esa carpeta los aprueba y los rechaza, así que **solo pasa con
+`test-data.sql` recién cargado**: una segunda corrida sin recargar falla. `verificar-bruno.ps1
+-RecargarDatos` ya recarga los datos antes de cada corrida. Los usuarios que el front registre desde la interfaz van con correo
 `@front.local`, que la recarga de la demo borra.
 
 El front solo tiene su aplicación contra el API local: no corre psql ni recarga nada. **Por ahora

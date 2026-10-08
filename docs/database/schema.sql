@@ -294,8 +294,10 @@ CREATE TABLE finance.transactions (
     origin                  VARCHAR(10)    NOT NULL DEFAULT 'WEB',
     created_at              TIMESTAMPTZ    NOT NULL DEFAULT now(),
     updated_at              TIMESTAMPTZ    NOT NULL DEFAULT now(),
+    status                  VARCHAR(10)    NOT NULL DEFAULT 'CONFIRMED',
     CONSTRAINT ck_transactions_type        CHECK (type IN ('EXPENSE', 'INCOME', 'TRANSFER')),
     CONSTRAINT ck_transactions_origin      CHECK (origin IN ('WEB', 'TELEGRAM', 'IMPORT')),
+    CONSTRAINT ck_transactions_status      CHECK (status IN ('PENDING', 'CONFIRMED')),
     CONSTRAINT ck_transactions_amount      CHECK (amount > 0),
     CONSTRAINT ck_transactions_amount_base CHECK (amount_base > 0),
     CONSTRAINT ck_transactions_rate        CHECK (exchange_rate > 0),
@@ -322,6 +324,7 @@ COMMENT ON COLUMN finance.transactions.amount IS 'Monto siempre positivo, en la 
 COMMENT ON COLUMN finance.transactions.destination_amount IS 'Solo en TRANSFER entre cuentas de distinta moneda: lo que efectivamente entra al destino. NULL significa el mismo monto.';
 COMMENT ON COLUMN finance.transactions.amount_base IS 'amount convertido a la moneda base del usuario. Es la columna que suman los reportes, para que monedas distintas sean comparables.';
 COMMENT ON COLUMN finance.transactions.occurred_at IS 'Cuándo ocurrió el movimiento, no cuándo se registró (created_at). El bot de Telegram registra gastos de días anteriores.';
+COMMENT ON COLUMN finance.transactions.status IS 'PENDING: registrado por el asistente y sin efecto hasta aprobarse; no mueve current_balance ni cuenta en reportes. CONFIRMED: todo lo demás. Rechazar un pendiente lo borra.';
 
 CREATE INDEX ix_transactions_user_date
     ON finance.transactions (user_id, occurred_at DESC);
@@ -339,6 +342,10 @@ CREATE INDEX ix_transactions_category_date
 CREATE INDEX ix_transactions_expense_report
     ON finance.transactions (user_id, occurred_at) WHERE type = 'EXPENSE';
 
+-- La lista de pendientes del usuario. Son pocos frente al total de movimientos.
+CREATE INDEX ix_transactions_pending
+    ON finance.transactions (user_id, occurred_at DESC) WHERE status = 'PENDING';
+
 CREATE TRIGGER trg_transactions_updated_at
     BEFORE UPDATE ON finance.transactions
     FOR EACH ROW EXECUTE FUNCTION finance.set_updated_at();
@@ -346,12 +353,14 @@ CREATE TRIGGER trg_transactions_updated_at
 
 -- Mantiene accounts.current_balance. En UPDATE revierte el efecto de la fila
 -- vieja antes de aplicar la nueva, para tolerar cambios de cuenta, tipo o monto.
+-- Un pendiente no tiene efecto: aprobarlo (PENDING -> CONFIRMED) solo aplica la
+-- fila nueva, y rechazarlo (DELETE de un PENDING) no revierte nada.
 CREATE OR REPLACE FUNCTION finance.sync_account_balances()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    IF TG_OP IN ('UPDATE', 'DELETE') THEN
+    IF TG_OP IN ('UPDATE', 'DELETE') AND OLD.status = 'CONFIRMED' THEN
         UPDATE finance.accounts
            SET current_balance = current_balance - finance.balance_delta(OLD.type, OLD.amount)
          WHERE id = OLD.account_id;
@@ -363,7 +372,7 @@ BEGIN
         END IF;
     END IF;
 
-    IF TG_OP IN ('INSERT', 'UPDATE') THEN
+    IF TG_OP IN ('INSERT', 'UPDATE') AND NEW.status = 'CONFIRMED' THEN
         UPDATE finance.accounts
            SET current_balance = current_balance + finance.balance_delta(NEW.type, NEW.amount)
          WHERE id = NEW.account_id;
@@ -425,6 +434,7 @@ CREATE TRIGGER trg_budgets_updated_at
 -- Reglas comunes:
 --   * Solo cuentan los movimientos de tipo EXPENSE. Una transferencia mueve
 --     dinero entre cuentas propias, no lo gasta.
+--   * Solo cuentan los CONFIRMED: un pendiente no es gasto hasta aprobarse.
 --   * Suman amount_base para que monedas distintas sean comparables.
 --   * El mes se corta en la zona horaria del usuario.
 --   * FULL OUTER JOIN contra budgets: un mes con meta y sin gastos aparece con
@@ -440,6 +450,7 @@ WITH spent AS (
       FROM finance.transactions t
       JOIN finance.users u ON u.id = t.user_id
      WHERE t.type = 'EXPENSE'
+       AND t.status = 'CONFIRMED'
      GROUP BY t.user_id, 2
 ),
 budget AS (
@@ -479,6 +490,7 @@ WITH spent AS (
       FROM finance.transactions t
       JOIN finance.users u ON u.id = t.user_id
      WHERE t.type = 'EXPENSE'
+       AND t.status = 'CONFIRMED'
      GROUP BY t.user_id, 2, t.category_id
 ),
 budget AS (

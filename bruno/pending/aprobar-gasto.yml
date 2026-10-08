@@ -1,0 +1,37 @@
+info:
+  name: Aprobar gasto
+  type: http
+  seq: 10
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/{{idPendienteGasto}}/approve"
+  auth:
+    type: bearer
+    token: "{{tokenPendientes}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: eq
+      value: CONFIRMED
+  scripts:
+    - type: tests
+      code: |-
+        const t = res.getBody();
+
+        test("devuelve el movimiento completo, con la correccion", function() {
+          expect(t.id).to.equal(bru.getVar("idPendienteGasto"));
+          expect(t.type).to.equal("EXPENSE");
+          expect(t.amount).to.equal(50000);
+          expect(t.description).to.equal("Mercado del asistente");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

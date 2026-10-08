@@ -19,5 +19,6 @@ public record Transaction(
         String currencyCode,
         String description,
         String notes,
-        Instant occurredAt) {
+        Instant occurredAt,
+        TransactionStatus status) {
 }

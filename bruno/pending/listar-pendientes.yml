@@ -1,0 +1,47 @@
+info:
+  name: Listar pendientes
+  type: http
+  seq: 5
+
+http:
+  method: GET
+  url: "{{baseUrl}}/transactions/pending"
+  auth:
+    type: bearer
+    token: "{{tokenPendientes}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: length
+      value: "3"
+  scripts:
+    - type: tests
+      code: |-
+        const lista = res.getBody();
+
+        test("devuelve el contrato del movimiento, con su estado", function() {
+          expect(lista[0]).to.have.all.keys("id", "type", "accountId", "destinationAccountId",
+              "categoryId", "amount", "currencyCode", "description", "notes", "occurredAt", "status");
+        });
+
+        test("todos estan pendientes", function() {
+          lista.forEach(function (t) { expect(t.status).to.equal("PENDING"); });
+        });
+
+        test("del mas reciente al mas antiguo, sin el confirmado", function() {
+          expect(lista.map(function (t) { return t.id; })).to.eql([
+            bru.getVar("idPendienteGasto"),
+            bru.getVar("idPendienteTraslado"),
+            bru.getVar("idPendienteRechazo")
+          ]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

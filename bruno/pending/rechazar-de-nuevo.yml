@@ -1,0 +1,34 @@
+info:
+  name: Rechazar dos veces
+  type: http
+  seq: 20
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/{{idPendienteRechazo}}/reject"
+  auth:
+    type: bearer
+    token: "{{tokenPendientes}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "404"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: NOT_FOUND
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: id
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El rechazado ya no existe
+
+  Rechazar lo borra: la segunda vez no hay nada que encontrar.

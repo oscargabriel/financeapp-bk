@@ -29,10 +29,14 @@ import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.model.CreateTransactionCommand;
 import com.oscargabriel.financeapp.domain.model.Transaction;
+import com.oscargabriel.financeapp.domain.model.TransactionStatus;
 import com.oscargabriel.financeapp.domain.model.TransactionType;
 import com.oscargabriel.financeapp.domain.model.UpdateTransactionCommand;
+import com.oscargabriel.financeapp.domain.port.in.ApprovePendingTransactionPort;
 import com.oscargabriel.financeapp.domain.port.in.CreateTransactionsPort;
 import com.oscargabriel.financeapp.domain.port.in.DeleteTransactionPort;
+import com.oscargabriel.financeapp.domain.port.in.ListPendingTransactionsPort;
+import com.oscargabriel.financeapp.domain.port.in.RejectPendingTransactionPort;
 import com.oscargabriel.financeapp.domain.port.in.UpdateTransactionPort;
 import com.oscargabriel.financeapp.infrastructure.config.JwtConfig;
 import com.oscargabriel.financeapp.infrastructure.config.SecurityConfig;
@@ -73,6 +77,15 @@ class TransactionControllerTest {
     @MockitoBean
     private DeleteTransactionPort deleteTransaction;
 
+    @MockitoBean
+    private ListPendingTransactionsPort listPending;
+
+    @MockitoBean
+    private ApprovePendingTransactionPort approvePending;
+
+    @MockitoBean
+    private RejectPendingTransactionPort rejectPending;
+
     private static JwtMutator tokenDelUsuario() {
         return mockJwt().jwt(jwt -> jwt.subject(TransactionMother.USER_ID.toString()));
     }
@@ -111,6 +124,7 @@ class TransactionControllerTest {
                 .jsonPath("$[0].description").isEqualTo("Mercado")
                 .jsonPath("$[0].notes").isEqualTo("Pagado en efectivo")
                 .jsonPath("$[0].occurredAt").isEqualTo("2026-09-20T15:15:00Z")
+                .jsonPath("$[0].status").isEqualTo("CONFIRMED")
                 .jsonPath("$[0].userId").doesNotExist()
                 .jsonPath("$[1].id").isEqualTo(TRANSFERENCIA_ID.toString())
                 .jsonPath("$[1].destinationAccountId").isEqualTo(TransactionMother.DESTINO_ID.toString())
@@ -446,6 +460,109 @@ class TransactionControllerTest {
         verifyNoInteractions(deleteTransaction);
     }
 
+    @Test
+    void listaLosPendientesDelUsuarioConSuEstado() {
+        when(listPending.listPending(TransactionMother.USER_ID)).thenReturn(Flux.just(
+                TransactionMother.conEstado(gasto(), TransactionStatus.PENDING),
+                TransactionMother.conEstado(transferencia(), TransactionStatus.PENDING)));
+
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "/pending")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(2)
+                .jsonPath("$[0].id").isEqualTo(GASTO_ID.toString())
+                .jsonPath("$[0].status").isEqualTo("PENDING")
+                .jsonPath("$[1].id").isEqualTo(TRANSFERENCIA_ID.toString())
+                .jsonPath("$[1].status").isEqualTo("PENDING");
+    }
+
+    @Test
+    void sinPendientesLaListaSaleVacia() {
+        when(listPending.listPending(TransactionMother.USER_ID)).thenReturn(Flux.empty());
+
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "/pending")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$").isArray()
+                .jsonPath("$.length()").isEqualTo(0);
+    }
+
+    @Test
+    void apruebaYRespondeElMovimientoConfirmado() {
+        when(approvePending.approve(TransactionMother.USER_ID, GASTO_ID)).thenReturn(Mono.just(gasto()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE + "/" + GASTO_ID + "/approve")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.id").isEqualTo(GASTO_ID.toString())
+                .jsonPath("$.amount").isEqualTo(50000)
+                .jsonPath("$.status").isEqualTo("CONFIRMED");
+    }
+
+    @Test
+    void rechazaYRespondeSinContenido() {
+        when(rejectPending.reject(TransactionMother.USER_ID, GASTO_ID)).thenReturn(Mono.empty());
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE + "/" + GASTO_ID + "/reject")
+                .exchange()
+                .expectStatus().isNoContent()
+                .expectBody().isEmpty();
+
+        verify(rejectPending).reject(TransactionMother.USER_ID, GASTO_ID);
+    }
+
+    @Test
+    void unIdMalFormadoAlAprobarEsUn400SobreElId() {
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE + "/abc/approve")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("id");
+
+        verifyNoInteractions(approvePending);
+    }
+
+    @Test
+    void unIdMalFormadoAlRechazarEsUn400SobreElId() {
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE + "/abc/reject")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("id");
+
+        verifyNoInteractions(rejectPending);
+    }
+
+    @Test
+    void aprobarUnConfirmadoPropagaElConflictoDelCasoDeUso() {
+        when(approvePending.approve(TransactionMother.USER_ID, GASTO_ID)).thenReturn(Mono.error(
+                new BadRequestException(HttpStatus.CONFLICT, ErrorCodes.INVALID_STATE,
+                        "El movimiento ya esta confirmado", "status")));
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE + "/" + GASTO_ID + "/approve")
+                .exchange()
+                .expectStatus().isEqualTo(HttpStatus.CONFLICT)
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.INVALID_STATE.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("status");
+    }
+
+    @Test
+    void rechazarUnoAjenoPropagaElNoEncontradoDelCasoDeUso() {
+        when(rejectPending.reject(TransactionMother.USER_ID, GASTO_ID)).thenReturn(Mono.error(noEncontrado()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE + "/" + GASTO_ID + "/reject")
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.errors[0].field").isEqualTo("id");
+    }
+
     private static BadRequestException noEncontrado() {
         return new BadRequestException(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, "El movimiento no existe", "id");
     }
@@ -453,12 +570,14 @@ class TransactionControllerTest {
     private static Transaction gasto() {
         return new Transaction(GASTO_ID, TransactionMother.USER_ID, TransactionType.EXPENSE,
                 TransactionMother.ORIGEN_ID, null, TransactionMother.MERCADO_ID, new BigDecimal("50000"),
-                "COP", "Mercado", "Pagado en efectivo", Instant.parse("2026-09-20T15:15:00Z"));
+                "COP", "Mercado", "Pagado en efectivo", Instant.parse("2026-09-20T15:15:00Z"),
+                TransactionStatus.CONFIRMED);
     }
 
     private static Transaction transferencia() {
         return new Transaction(TRANSFERENCIA_ID, TransactionMother.USER_ID, TransactionType.TRANSFER,
                 TransactionMother.ORIGEN_ID, TransactionMother.DESTINO_ID, null, new BigDecimal("100000"),
-                "COP", "Ahorro", null, Instant.parse("2026-09-20T16:00:00Z"));
+                "COP", "Ahorro", null, Instant.parse("2026-09-20T16:00:00Z"),
+                TransactionStatus.CONFIRMED);
     }
 }

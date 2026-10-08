@@ -1,0 +1,34 @@
+info:
+  name: Consulta de saldo tras aprobar
+  type: http
+  seq: 13
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/balance?from={{primerDia}}&to={{ultimoDia}}"
+  auth:
+    type: bearer
+    token: "{{tokenPendientes}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.period.expense
+      operator: eq
+      value: "80000"
+    - expression: res.body.allTime.expense
+      operator: eq
+      value: "80000"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El gasto aprobado ya cuenta
+
+  30.000 confirmado desde la carga más los 50.000 aprobados. La transferencia no es egreso.

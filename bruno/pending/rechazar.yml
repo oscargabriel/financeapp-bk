@@ -1,0 +1,29 @@
+info:
+  name: Rechazar pendiente
+  type: http
+  seq: 15
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/{{idPendienteRechazo}}/reject"
+  auth:
+    type: bearer
+    token: "{{tokenPendientes}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+  scripts:
+    - type: tests
+      code: |-
+        test("no devuelve cuerpo", function() {
+          expect(res.getBody() || "").to.be.empty;
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

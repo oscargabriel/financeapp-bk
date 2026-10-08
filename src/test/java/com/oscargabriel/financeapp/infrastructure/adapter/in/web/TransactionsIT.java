@@ -6,8 +6,11 @@ import java.time.Duration;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
@@ -109,6 +112,36 @@ class TransactionsIT {
     @Test
     void elDeleteConElBasicCompartidoEsUn401() {
         webTestClient.delete().uri(MOVIMIENTO)
+                .headers(BasicMother.cabecera())
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED");
+    }
+
+    /** Los tres endpoints de pendientes caen en la cadena del JWT, sin regla propia. */
+    @ParameterizedTest
+    @CsvSource({
+            "GET,  /api/transactions/pending",
+            "POST, /api/transactions/50000000-0000-7000-8000-000000000001/approve",
+            "POST, /api/transactions/50000000-0000-7000-8000-000000000001/reject"})
+    void losPendientesSinCredencialesSonUn401ConElRetoDelJwt(HttpMethod metodo, String ruta) {
+        webTestClient.method(metodo).uri(ruta)
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().valueEquals("WWW-Authenticate", "Bearer")
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED")
+                .jsonPath("$.errors[0].field").isEqualTo("authorization");
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "GET,  /api/transactions/pending",
+            "POST, /api/transactions/50000000-0000-7000-8000-000000000001/approve",
+            "POST, /api/transactions/50000000-0000-7000-8000-000000000001/reject"})
+    void losPendientesConElBasicCompartidoSonUn401(HttpMethod metodo, String ruta) {
+        webTestClient.method(metodo).uri(ruta)
                 .headers(BasicMother.cabecera())
                 .exchange()
                 .expectStatus().isUnauthorized()

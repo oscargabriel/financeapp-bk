@@ -1,0 +1,29 @@
+info:
+  name: Rechazar con id mal formado
+  type: http
+  seq: 23
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/abc/reject"
+  auth:
+    type: bearer
+    token: "{{tokenPendientes}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: id
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
