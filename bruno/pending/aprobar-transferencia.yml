@@ -1,0 +1,29 @@
+info:
+  name: Aprobar transferencia
+  type: http
+  seq: 11
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/{{idPendienteTraslado}}/approve"
+  auth:
+    type: bearer
+    token: "{{tokenPendientes}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: eq
+      value: CONFIRMED
+    - expression: res.body.type
+      operator: eq
+      value: TRANSFER
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

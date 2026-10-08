@@ -79,6 +79,7 @@ erDiagram
         varchar description
         timestamptz occurred_at
         varchar origin
+        varchar status
     }
 
     budgets {
@@ -143,6 +144,21 @@ nueva, así que cambiar la cuenta, el tipo o el monto de un movimiento es seguro
 `initial_balance` es el punto de partida y lo copia a `current_balance` el
 trigger `trg_accounts_seed_balance` al crear la cuenta.
 
+### Movimientos pendientes
+
+`transactions.status` vale `CONFIRMED` (el default) o `PENDING`, y lo pone el
+asistente de IA (FA-76). Un pendiente no tiene efecto hasta que el usuario lo
+aprueba:
+
+- el trigger de saldos lo ignora;
+- aprobarlo es un `UPDATE` a `CONFIRMED`, y ahí el trigger aplica la fila;
+- rechazarlo es un `DELETE`, sin nada que revertir.
+
+Las vistas de gasto mensual, el reporte de movimientos y la consulta de saldo
+filtran `status = 'CONFIRMED'`. Un pendiente sí cuenta como referencia: la FK
+impide borrar la cuenta o la categoría que usa. El porqué está en el `design.md`
+de `openspec/changes/archive/2026-10-08-fa-76-movimientos-pendientes/`.
+
 ### El signo lo da el tipo, nunca el monto
 
 `amount` siempre es positivo (`CHECK amount > 0`). `EXPENSE` y `TRANSFER` restan
@@ -165,7 +181,7 @@ destino; con `NULL` el trigger asume el mismo monto. Sin esa columna, una
 transferencia de USD a COP sumaría dólares a una cuenta en pesos.
 
 Las transferencias **no** cuentan como gasto en las vistas: mueven dinero entre
-cuentas propias, no lo consumen.
+cuentas propias, no lo consumen. Los pendientes tampoco cuentan, hasta aprobarse.
 
 ### Multi-moneda
 

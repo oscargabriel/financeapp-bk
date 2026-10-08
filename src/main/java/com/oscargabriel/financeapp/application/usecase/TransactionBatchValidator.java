@@ -16,6 +16,7 @@ import com.oscargabriel.financeapp.domain.model.Account;
 import com.oscargabriel.financeapp.domain.model.Category;
 import com.oscargabriel.financeapp.domain.model.CreateTransactionCommand;
 import com.oscargabriel.financeapp.domain.model.Transaction;
+import com.oscargabriel.financeapp.domain.model.TransactionStatus;
 import com.oscargabriel.financeapp.domain.model.TransactionType;
 
 /**
@@ -77,7 +78,7 @@ final class TransactionBatchValidator {
         }
         return new Transaction(ids.get(), userId, tipo, cuenta, destino, categoria, elemento.amount(),
                 ReferenciasDelUsuario.MONEDA_UNICA, elemento.description().trim(), elemento.notes(),
-                instante(elemento.occurredAt()));
+                instante(elemento.occurredAt()), TransactionStatus.CONFIRMED);
     }
 
     /** El formato ya lo valido CreateTransactionRequest; aqui solo falta decidir el de los vacios. */

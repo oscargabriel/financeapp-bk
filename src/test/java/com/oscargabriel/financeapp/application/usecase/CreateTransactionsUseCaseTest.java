@@ -40,6 +40,7 @@ import com.oscargabriel.financeapp.domain.exceptions.responses.ErrorDetail;
 import com.oscargabriel.financeapp.domain.model.CategoryScope;
 import com.oscargabriel.financeapp.domain.model.CreateTransactionCommand;
 import com.oscargabriel.financeapp.domain.model.Transaction;
+import com.oscargabriel.financeapp.domain.model.TransactionStatus;
 import com.oscargabriel.financeapp.domain.model.TransactionType;
 import com.oscargabriel.financeapp.domain.port.out.AccountQueryPort;
 import com.oscargabriel.financeapp.domain.port.out.CategoryQueryPort;
@@ -114,6 +115,18 @@ class CreateTransactionsUseCaseTest {
                     assertThat(t.notes()).isEqualTo("Pagado en efectivo");
                     assertThat(t.occurredAt()).isEqualTo(Instant.parse("2026-09-20T15:15:00Z"));
                 })
+                .verifyComplete();
+    }
+
+    @Test
+    void todoLoQueEntraPorElAltaQuedaConfirmado() {
+        List<CreateTransactionCommand> lote = List.of(TransactionMother.unGasto().build(),
+                TransactionMother.unIngreso().build(), TransactionMother.unaTransferencia().build());
+
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, lote))
+                .assertNext(t -> assertThat(t.status()).isEqualTo(TransactionStatus.CONFIRMED))
+                .assertNext(t -> assertThat(t.status()).isEqualTo(TransactionStatus.CONFIRMED))
+                .assertNext(t -> assertThat(t.status()).isEqualTo(TransactionStatus.CONFIRMED))
                 .verifyComplete();
     }
 

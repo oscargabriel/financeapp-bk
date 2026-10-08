@@ -1,0 +1,32 @@
+info:
+  name: Pending
+  type: folder
+  seq: 10
+
+request:
+  auth: inherit
+
+docs: |
+  # Movimientos pendientes de aprobación
+
+  Corre con el usuario `pendientes@financeapp.local` que siembra `docs/database/test-data.sql`, y su
+  token en `tokenPendientes`. Es un usuario aparte porque aprobar mueve saldos y totales, y en
+  `prueba@` los verifican otras carpetas.
+
+  **Necesita `test-data.sql` recién cargado.** Ningún endpoint crea pendientes todavía (lo hará el
+  asistente, FA-77), así que la carpeta aprueba y rechaza las filas sembradas: en una segunda
+  corrida sin recargar ya no son pendientes y los requests fallan. `verificar-bruno.ps1
+  -RecargarDatos` recarga antes de cada corrida.
+
+  Lo sembrado, en el mes en curso:
+
+  | Movimiento | Monto | Estado | Variable |
+  |---|---|---|---|
+  | Gasto «Mercado confirmado» | 30.000 | CONFIRMED | |
+  | Gasto «Gasto mal leído» | 20.000 | PENDING | `idPendienteRechazo` |
+  | Transferencia «Al bolsillo» | 100.000 | PENDING | `idPendienteTraslado` |
+  | Gasto «Mercado del asistente» | 45.000 | PENDING | `idPendienteGasto` |
+
+  Saldos con solo el confirmado: Cuenta pendientes 970.000 y Bolsillo pendientes 0. Los requests
+  de movimiento ajeno usan el `accessToken` de `auth/`: la carpeta sola, sin `auth/` antes, los
+  deja en 401.

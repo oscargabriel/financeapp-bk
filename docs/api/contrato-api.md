@@ -29,6 +29,9 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | `POST` | `/api/transactions` | Bearer | Registrar un lote de movimientos |
 | `PATCH` | `/api/transactions/{id}` | Bearer | Modificar un movimiento |
 | `DELETE` | `/api/transactions/{id}` | Bearer | Eliminar un movimiento |
+| `GET` | `/api/transactions/pending` | Bearer | Movimientos pendientes de aprobación |
+| `POST` | `/api/transactions/{id}/approve` | Bearer | Aprobar un pendiente |
+| `POST` | `/api/transactions/{id}/reject` | Bearer | Rechazar un pendiente |
 | `GET` | `/api/monthly-spending` | Bearer | Gasto mensual contra la meta |
 | `GET` | `/api/reports/transactions` | Bearer | Movimientos y totales de un rango de días |
 | `GET` | `/api/reports/balance` | Bearer | Ingresos menos gastos de un rango y de siempre, con las cuentas |
@@ -156,6 +159,7 @@ Todos los errores salen con la misma forma:
 | 405 | `VALIDATION_ERROR` | Método no soportado en esa ruta (`description`: "La peticion no pudo ser procesada") |
 | 409 | `DUPLICATE_RESOURCE` | Ya existe: correo registrado, o nombre de cuenta o de categoría repetido |
 | 409 | `RESOURCE_IN_USE` | El cambio dejaría inconsistentes otros datos que usan el recurso: el alcance de una categoría con movimientos que no admitiría (`field`: `appliesTo`), la moneda de una cuenta con movimientos (`field`: `currencyCode`), o borrar una cuenta con saldo (`field`: `currentBalance`) |
+| 409 | `INVALID_STATE` | El recurso no está en el estado que la acción exige: aprobar o rechazar un movimiento ya confirmado (`field`: `status`) |
 | 413 | `PAYLOAD_TOO_LARGE` | El cuerpo pasa de 1 MB |
 | 500 | `INTERNAL_SERVER_ERROR` | Error inesperado. Nunca trae detalle técnico |
 | 503 | — | Solo en `/status`, cuando la base no responde (ver su sección) |
@@ -781,10 +785,14 @@ no confirma que un id exista fuera de tus datos.
     "currencyCode": "COP",
     "description": "Mercado de la semana",
     "notes": null,
-    "occurredAt": "2026-09-20T15:15:00Z"
+    "occurredAt": "2026-09-20T15:15:00Z",
+    "status": "CONFIRMED"
   }
 ]
 ```
+
+`status` es `CONFIRMED` en todo lo que entra por aquí; si el cuerpo trae un `status`, se ignora.
+`PENDING` solo lo pone el asistente (ver [Movimientos pendientes](#movimientos-pendientes)).
 
 **Efecto en los saldos.** La base los aplica en la misma transacción. Después del 201, un
 `GET /accounts` ya los muestra:
@@ -850,7 +858,8 @@ Modifica un movimiento del usuario del token. **Bearer.** Se envían solo los ca
 del alta.
 
 **Efecto en los saldos.** La base revierte el movimiento anterior y aplica el nuevo en la misma
-operación, también si cambian la cuenta, el tipo o el monto.
+operación, también si cambian la cuenta, el tipo o el monto. Un pendiente se puede corregir antes
+de aprobarlo: sigue `PENDING` y no mueve saldos.
 
 **Errores propios**
 
@@ -871,6 +880,32 @@ Borra un movimiento del usuario del token. **Bearer.** El borrado es físico: no
 |---|---|---|
 | 400 | `id` | El id de la ruta no es un UUID |
 | 404 | `id` | El movimiento no existe, ya se borró, o es de otro usuario |
+
+### Movimientos pendientes
+
+Lo que registre el asistente de IA entra **pendiente** (`"status": "PENDING"`) hasta que el usuario
+lo aprueba. Mientras tanto no mueve saldos ni cuenta en `monthly-spending`, `reports/transactions`
+ni `reports/balance`. Hoy ningún endpoint crea pendientes: llegan con el asistente.
+
+Los tres endpoints son **Bearer**.
+
+**`GET /api/transactions/pending`** — **200 OK** con los pendientes del usuario, del más reciente al
+más antiguo por `occurredAt`, con la misma forma que un elemento de la respuesta del alta. Sin
+pendientes, `[]`.
+
+**`POST /api/transactions/{id}/approve`** — sin cuerpo. **200 OK** con el movimiento completo y
+`"status": "CONFIRMED"`. Desde ese momento mueve los saldos como en el alta y cuenta en los reportes.
+
+**`POST /api/transactions/{id}/reject`** — sin cuerpo. **204 No Content.** El pendiente se borra y no
+deja rastro.
+
+| HTTP | `code` | `field` | Cuándo |
+|---|---|---|---|
+| 400 | `VALIDATION_ERROR` | `id` | El id de la ruta no es un UUID |
+| 404 | `NOT_FOUND` | `id` | No existe, ya se rechazó, o es de otro usuario: la respuesta es la misma |
+| 409 | `INVALID_STATE` | `status` | Ya está confirmado. Para borrar un confirmado está `DELETE /api/transactions/{id}` |
+
+Un pendiente también se corrige con `PATCH` y se borra con `DELETE`, igual que uno confirmado.
 
 ### `GET /api/monthly-spending`
 
@@ -917,7 +952,7 @@ extremos. Errores 400 `VALIDATION_ERROR`:
 
 | Campo | Significado |
 |---|---|
-| `totalSpent` | Suma de los gastos (`EXPENSE`) del mes. Ingresos y transferencias no cuentan |
+| `totalSpent` | Suma de los gastos (`EXPENSE`) confirmados del mes. Ingresos, transferencias y pendientes no cuentan |
 | `budgetAmount` | Meta de gasto total del mes, o `null` si no hay |
 | `remaining` | `budgetAmount - totalSpent`. Negativo si se pasó de la meta. `null` sin meta |
 | `percentUsed` | Porcentaje consumido de la meta, con 2 decimales. Puede pasar de 100. `null` sin meta |
@@ -937,8 +972,8 @@ extremos. Errores 400 `VALIDATION_ERROR`:
 
 ### `GET /api/reports/transactions`
 
-Movimientos del usuario del token en un rango de días, con sus totales por tipo y por categoría.
-**Bearer.**
+Movimientos confirmados del usuario del token en un rango de días, con sus totales por tipo y por
+categoría. Los pendientes no salen hasta aprobarse. **Bearer.**
 
 **Query params**
 
@@ -1111,6 +1146,7 @@ el campo del parámetro:
 
 - **Las transferencias no cuentan** como ingreso ni como gasto: mover plata entre cuentas propias,
   incluido pagar la tarjeta, no cambia el neto. Los gastos pagados con tarjeta sí cuentan.
+- **Los pendientes no cuentan** hasta aprobarse, ni en `period` ni en `allTime`.
 - **Las cuentas no se suman.** Pueden estar en monedas distintas, así que la respuesta no trae un
   saldo total.
 - Una tarjeta sin cupo cargado trae `creditLimit` y `availableCredit` en `null`. Se completa con
@@ -1134,6 +1170,8 @@ Para que el frontend no lo busque:
 - Recuperar o listar las cuentas borradas.
 - Recuperar o listar las categorías borradas.
 - Consultar un movimiento por su id. Para listarlos está `GET /api/reports/transactions`.
+- Crear movimientos pendientes: los creará el asistente (FA-77).
+- Aprobar o rechazar pendientes en lote.
 - Crear metas de gasto.
 - Refresh token o logout. El token simplemente vence, también después de cambiar la contraseña.
 - Cambiar la moneda base del usuario (FA-91): el `PATCH /api/users/me` la omite.

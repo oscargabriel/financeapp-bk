@@ -24,11 +24,18 @@ SET search_path TO finance, public;
 \set nequi    '20000000-0000-7000-8000-000000000005'
 \set davivienda '20000000-0000-7000-8000-000000000006'
 \set cigarrillos '30000000-0000-7000-8000-000000000170'
+\set pendientes          '10000000-0000-7000-8000-000000000003'
+\set cuenta_pendientes   '20000000-0000-7000-8000-000000000007'
+\set bolsillo_pendientes '20000000-0000-7000-8000-000000000008'
+\set pendiente_gasto     '70000000-0000-7000-8000-000000000001'
+\set pendiente_traslado  '70000000-0000-7000-8000-000000000002'
+\set pendiente_rechazo   '70000000-0000-7000-8000-000000000003'
 
 BEGIN;
 
 -- Borrado del escenario anterior. El resto cae en cascada desde users.
-DELETE FROM finance.users WHERE email IN ('prueba@financeapp.local', 'inactivo@financeapp.local');
+DELETE FROM finance.users
+ WHERE email IN ('prueba@financeapp.local', 'inactivo@financeapp.local', 'pendientes@financeapp.local');
 
 -- Los requests de alta de bruno/ crean un usuario nuevo en cada corrida: auth/ con el correo
 -- registro-<timestamp>@bruno.local, monthly-spending/ con sin-datos-<timestamp>@bruno.local,
@@ -276,6 +283,53 @@ SELECT gen_random_uuid(), :'uid'::uuid, r.m0::date, c.id, b.amount, 'COP'
   JOIN finance.categories c
     ON c.user_id = :'uid'::uuid AND c.name = b.category_name;
 
+
+-- -----------------------------------------------------------------------------
+-- Movimientos pendientes de aprobación (FA-76)
+--
+-- Usuario aparte, con la misma clave, para bruno/pending/: aprobar mueve saldos
+-- y totales, y en prueba@ los verifican otras carpetas. Esa carpeta aprueba y
+-- rechaza estas filas, así que entre dos corridas hay que recargar este script.
+--
+-- Saldos con solo el gasto confirmado: Cuenta pendientes 970.000, Bolsillo 0.
+-- Los pendientes no los mueven hasta aprobarse.
+-- -----------------------------------------------------------------------------
+INSERT INTO finance.users
+    (id, email, password_hash, first_name, base_currency_code, timezone)
+VALUES
+    (:'pendientes'::uuid, 'pendientes@financeapp.local',
+     '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy',
+     'Pendientes', 'COP', 'America/Bogota');
+
+INSERT INTO finance.categories
+    (id, user_id, name, applies_to, icon, color, sort_order, is_system)
+SELECT gen_random_uuid(), :'pendientes'::uuid, d.name, d.applies_to, d.icon, d.color, d.sort_order, TRUE
+  FROM finance.default_categories d
+ WHERE d.is_active;
+
+INSERT INTO finance.accounts (id, user_id, name, type, currency_code, initial_balance)
+VALUES
+    (:'cuenta_pendientes'::uuid,   :'pendientes'::uuid, 'Cuenta pendientes',   'DEBIT', 'COP', 1000000),
+    (:'bolsillo_pendientes'::uuid, :'pendientes'::uuid, 'Bolsillo pendientes', 'CASH',  'COP',       0);
+
+-- Del más antiguo al más reciente: el confirmado, el pendiente que se rechaza, la
+-- transferencia y el gasto. GET /api/transactions/pending los devuelve al revés.
+INSERT INTO finance.transactions
+    (id, user_id, account_id, destination_account_id, category_id, type, amount,
+     currency_code, exchange_rate, amount_base, description, occurred_at, status)
+SELECT m.id, :'pendientes'::uuid, :'cuenta_pendientes'::uuid, m.destino,
+       (SELECT c.id FROM finance.categories c
+         WHERE c.user_id = :'pendientes'::uuid AND c.name = m.category_name),
+       m.type, m.amount, 'COP', 1, m.amount, m.description,
+       (r.m0 + m.desfase) AT TIME ZONE 'America/Bogota', m.status
+  FROM (VALUES
+        (gen_random_uuid(),           NULL::uuid,                     'Mercado', 'EXPENSE',   30000::numeric, 'Mercado confirmado',  INTERVAL '0 day 10 hours', 'CONFIRMED'),
+        (:'pendiente_rechazo'::uuid,  NULL::uuid,                     'Mercado', 'EXPENSE',   20000::numeric, 'Gasto mal leído',     INTERVAL '0 day 11 hours', 'PENDING'),
+        (:'pendiente_traslado'::uuid, :'bolsillo_pendientes'::uuid,   NULL,      'TRANSFER', 100000::numeric, 'Al bolsillo',         INTERVAL '0 day 12 hours', 'PENDING'),
+        (:'pendiente_gasto'::uuid,    NULL::uuid,                     'Mercado', 'EXPENSE',   45000::numeric, 'Mercado del asistente', INTERVAL '0 day 13 hours', 'PENDING')
+       ) AS m(id, destino, category_name, type, amount, description, desfase, status)
+ CROSS JOIN (SELECT date_trunc('month', now() AT TIME ZONE 'America/Bogota') AS m0) r;
+
 COMMIT;
 
 \echo ''
@@ -283,4 +337,6 @@ COMMIT;
 SELECT (SELECT count(*) FROM finance.accounts     WHERE user_id = :'uid'::uuid) AS cuentas,
        (SELECT count(*) FROM finance.categories   WHERE user_id = :'uid'::uuid) AS categorias,
        (SELECT count(*) FROM finance.transactions WHERE user_id = :'uid'::uuid) AS movimientos,
-       (SELECT count(*) FROM finance.budgets      WHERE user_id = :'uid'::uuid) AS metas;
+       (SELECT count(*) FROM finance.budgets      WHERE user_id = :'uid'::uuid) AS metas,
+       (SELECT count(*) FROM finance.transactions WHERE user_id = :'pendientes'::uuid
+                                                    AND status = 'PENDING') AS pendientes;

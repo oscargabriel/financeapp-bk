@@ -1,0 +1,34 @@
+info:
+  name: Aprobar un confirmado
+  type: http
+  seq: 18
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/{{idPendienteGasto}}/approve"
+  auth:
+    type: bearer
+    token: "{{tokenPendientes}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: INVALID_STATE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: status
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Ya se aprobó
+
+  El saldo no cambia: aprobar dos veces no descuenta dos veces.

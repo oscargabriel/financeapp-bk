@@ -12,6 +12,7 @@ import org.springframework.transaction.ReactiveTransactionManager;
 import org.springframework.transaction.reactive.TransactionalOperator;
 
 import com.oscargabriel.financeapp.domain.model.Transaction;
+import com.oscargabriel.financeapp.domain.model.TransactionStatus;
 import com.oscargabriel.financeapp.domain.model.TransactionType;
 import com.oscargabriel.financeapp.domain.port.out.TransactionRepositoryPort;
 
@@ -24,23 +25,35 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
 
     /**
      * Solo COP: exchange_rate queda en su DEFAULT 1 y amount_base es el mismo amount. current_balance
-     * lo mueve trg_transactions_sync_balance fila a fila, dentro de la misma transaccion.
+     * lo mueve trg_transactions_sync_balance fila a fila, dentro de la misma transaccion, y solo si el
+     * movimiento entra CONFIRMED.
      */
     private static final String INSERTAR = """
             INSERT INTO finance.transactions
                    (id, user_id, account_id, destination_account_id, category_id, type,
-                    amount, currency_code, amount_base, description, notes, occurred_at)
+                    amount, currency_code, amount_base, description, notes, occurred_at, status)
             VALUES (:id, :userId, :accountId, :destinationAccountId, :categoryId, :type,
-                    :amount, :currencyCode, :amount, :description, :notes, :occurredAt)
+                    :amount, :currencyCode, :amount, :description, :notes, :occurredAt, :status)
             """;
 
+    private static final String COLUMNAS = """
+            id, user_id, type, account_id, destination_account_id, category_id,
+                   amount, currency_code, description, notes, occurred_at, status""";
+
     private static final String BUSCAR = """
-            SELECT id, user_id, type, account_id, destination_account_id, category_id,
-                   amount, currency_code, description, notes, occurred_at
+            SELECT %s
               FROM finance.transactions
              WHERE id = :id
                AND user_id = :userId
-            """;
+            """.formatted(COLUMNAS);
+
+    private static final String PENDIENTES = """
+            SELECT %s
+              FROM finance.transactions
+             WHERE user_id = :userId
+               AND status = 'PENDING'
+             ORDER BY occurred_at DESC, id DESC
+            """.formatted(COLUMNAS);
 
     /**
      * notes y currency_code no se tocan: no son modificables. El trigger revierte la fila vieja y
@@ -64,6 +77,26 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
             DELETE FROM finance.transactions
              WHERE id = :id
                AND user_id = :userId
+            """;
+
+    /**
+     * La condicion de estado se repite aunque el caso de uso ya la leyo: si otro request lo aprobo o lo
+     * borro en medio, son cero filas, y el saldo nunca se aplica dos veces. Los saldos los mueve el
+     * trigger al ver el paso de PENDING a CONFIRMED.
+     */
+    private static final String CONFIRMAR = """
+            UPDATE finance.transactions
+               SET status = 'CONFIRMED'
+             WHERE id = :id
+               AND user_id = :userId
+               AND status = 'PENDING'
+            """;
+
+    private static final String BORRAR_PENDIENTE = """
+            DELETE FROM finance.transactions
+             WHERE id = :id
+               AND user_id = :userId
+               AND status = 'PENDING'
             """;
 
     private final DatabaseClient databaseClient;
@@ -106,7 +139,29 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
 
     @Override
     public Mono<Boolean> deleteByIdAndUser(UUID id, UUID userId) {
-        return databaseClient.sql(BORRAR)
+        return porIdYUsuario(BORRAR, id, userId);
+    }
+
+    @Override
+    public Flux<Transaction> findPendingByUser(UUID userId) {
+        return databaseClient.sql(PENDIENTES)
+                .bind("userId", userId)
+                .map((row, metadata) -> toDomain(row))
+                .all();
+    }
+
+    @Override
+    public Mono<Boolean> confirm(UUID id, UUID userId) {
+        return porIdYUsuario(CONFIRMAR, id, userId);
+    }
+
+    @Override
+    public Mono<Boolean> deletePending(UUID id, UUID userId) {
+        return porIdYUsuario(BORRAR_PENDIENTE, id, userId);
+    }
+
+    private Mono<Boolean> porIdYUsuario(String sql, UUID id, UUID userId) {
+        return databaseClient.sql(sql)
                 .bind("id", id)
                 .bind("userId", userId)
                 .fetch().rowsUpdated()
@@ -115,7 +170,8 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
 
     private Mono<Long> insertar(Transaction t) {
         DatabaseClient.GenericExecuteSpec sentencia = conCamposComunes(databaseClient.sql(INSERTAR), t)
-                .bind("currencyCode", t.currencyCode());
+                .bind("currencyCode", t.currencyCode())
+                .bind("status", t.status().name());
         sentencia = t.notes() == null
                 ? sentencia.bindNull("notes", String.class)
                 : sentencia.bind("notes", t.notes());
@@ -153,6 +209,7 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
                 row.get("currency_code", String.class),
                 row.get("description", String.class),
                 row.get("notes", String.class),
-                row.get("occurred_at", OffsetDateTime.class).toInstant());
+                row.get("occurred_at", OffsetDateTime.class).toInstant(),
+                TransactionStatus.valueOf(row.get("status", String.class)));
     }
 }

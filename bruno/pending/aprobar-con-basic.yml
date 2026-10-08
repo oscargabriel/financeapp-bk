@@ -1,0 +1,30 @@
+info:
+  name: Aprobar con Basic
+  type: http
+  seq: 27
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/{{idPendienteRechazo}}/approve"
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: authorization
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -28,6 +28,7 @@ public class TransactionReportR2dbcAdapter implements TransactionReportQueryPort
     /**
      * Los limites del rango se calculan sobre el dia en la zona del usuario, no aplicando la zona a la
      * columna: asi la condicion usa ix_transactions_user_date. Es el mismo corte que v_monthly_spending.
+     * Los pendientes quedan fuera hasta aprobarse (FA-76).
      */
     private static final String SQL_MOVIMIENTOS = """
             SELECT t.id, t.type, t.account_id, t.destination_account_id, t.category_id,
@@ -37,7 +38,8 @@ public class TransactionReportR2dbcAdapter implements TransactionReportQueryPort
               JOIN finance.users u ON u.id = t.user_id
               LEFT JOIN finance.categories c ON c.id = t.category_id
              WHERE t.user_id = :userId
-               AND t.occurred_at >= (CAST(:from AS date)::timestamp AT TIME ZONE u.timezone)
+               AND t.status = 'CONFIRMED'
+               AND t.occurred_at >=(CAST(:from AS date)::timestamp AT TIME ZONE u.timezone)
                AND t.occurred_at < ((CAST(:to AS date) + 1)::timestamp AT TIME ZONE u.timezone)
             """;
 

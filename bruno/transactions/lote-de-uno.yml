@@ -17,7 +17,8 @@ http:
           "amount": 50000,
           "description": "  Mercado de la semana  ",
           "notes": "Pagado en efectivo",
-          "occurredAt": "2026-09-20T10:15:00-05:00"
+          "occurredAt": "2026-09-20T10:15:00-05:00",
+          "status": "PENDING"
         }
       ]
   auth:
@@ -41,7 +42,7 @@ runtime:
 
         test("devuelve el contrato completo del movimiento", function() {
           expect(t).to.have.all.keys("id", "type", "accountId", "destinationAccountId", "categoryId",
-              "amount", "currencyCode", "description", "notes", "occurredAt");
+              "amount", "currencyCode", "description", "notes", "occurredAt", "status");
           expect(t.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
         });
 
@@ -54,6 +55,10 @@ runtime:
           expect(t.currencyCode).to.equal("COP");
           expect(t.description).to.equal("Mercado de la semana");
           expect(t.notes).to.equal("Pagado en efectivo");
+        });
+
+        test("entra confirmado aunque el cuerpo pida otro estado", function() {
+          expect(t.status).to.equal("CONFIRMED");
         });
 
         test("devuelve el instante en UTC", function() {
@@ -71,3 +76,6 @@ docs: |
 
   El cuerpo siempre es un arreglo, aunque traiga un movimiento. `amount` va positivo: el signo lo
   da el tipo. `occurredAt` exige offset, y la respuesta devuelve el mismo instante en UTC.
+
+  El `status` del cuerpo se ignora: el alta siempre entra `CONFIRMED`. Solo el asistente (FA-77)
+  crea pendientes.
