@@ -291,6 +291,14 @@ que registre desde la interfaz van con correo `@front.local`, o nada los borra. 
 demo no los fija ninguna spec ni ningún assert: se cambian cuando el front lo necesite. Vaciar la
 base también se lleva la demo; después se recargan los dos scripts.
 
+**Para el front, la demo es persistente** (FA-95). El front solo tiene su aplicación contra el API
+local: no corre psql ni puede recargar nada, así que lo que crea con `demo@` o con usuarios
+`@front.local` vive solo en esta base. Recargar `demo-data.sql` o vaciar la base se lo borra, y por
+eso ninguna de las dos cosas se hace sin acordarlo antes. `verificar-bruno.ps1 -RecargarDatos` y
+`test-data.sql` no tocan la demo y se corren libres. Las fechas de la demo se calculan al cargarla
+y no avanzan: al cambiar de mes, el mes en curso queda sin movimientos de demo hasta una recarga.
+Renovar los meses sin borrar lo del front está pendiente en FA-94.
+
 `src/test/resources/db/monthly-spending-fixture.sql` quedó sin uso al salir Testcontainers. Se
 conserva porque sus fechas absolutas y su segundo usuario son la base del escenario que falta
 montar en Bruno.
