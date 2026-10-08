@@ -13,7 +13,8 @@ public record RegistrationCommand(
         String firstName,
         String lastName,
         String baseCurrencyCode,
-        String timezone) {
+        String timezone,
+        String phone) {
 
     public static final String MONEDA_POR_DEFECTO = "COP";
     public static final String ZONA_POR_DEFECTO = "America/Bogota";

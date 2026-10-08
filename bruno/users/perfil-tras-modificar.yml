@@ -1,0 +1,41 @@
+info:
+  name: Perfil tras modificar
+  type: http
+  seq: 6
+
+http:
+  method: GET
+  url: "{{baseUrl}}/users/me"
+  auth:
+    type: bearer
+    token: "{{tokenPerfil}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.firstName
+      operator: eq
+      value: Ana Maria
+    - expression: res.body.timezone
+      operator: eq
+      value: Europe/Madrid
+    - expression: res.body.baseCurrencyCode
+      operator: eq
+      value: COP
+  scripts:
+    - type: tests
+      code: |-
+        test("el celular es el del PATCH", function() {
+          expect(res.getBody().phone).to.equal("3109876543");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El GET refleja el PATCH

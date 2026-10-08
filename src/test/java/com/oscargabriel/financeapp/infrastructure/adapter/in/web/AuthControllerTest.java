@@ -94,7 +94,53 @@ class AuthControllerTest {
                 .jsonPath("$.lastName").isEqualTo("Gomez")
                 .jsonPath("$.baseCurrencyCode").isEqualTo("USD")
                 .jsonPath("$.timezone").isEqualTo("America/Lima")
+                .jsonPath("$.phone").isEqualTo(null)
                 .jsonPath("$.defaultCategories").isEqualTo(22);
+    }
+
+    @Test
+    void devuelveElCelularDelAltaYLoTrasladaAlCasoDeUso() {
+        when(registerUser.register(any())).thenReturn(Mono.just(new RegisteredUser(
+                new User(ID, UserMother.EMAIL, UserMother.HASH, "Ana", "Gomez", "USD", "America/Lima",
+                        "+573001234567"),
+                22L)));
+
+        webTestClient.post().uri(URI_REGISTRO)
+                .headers(BasicMother.cabecera())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of(
+                        "email", UserMother.EMAIL,
+                        "password", UserMother.PASSWORD,
+                        "firstName", "Ana",
+                        "lastName", "Gomez",
+                        "baseCurrencyCode", "USD",
+                        "timezone", "America/Lima",
+                        "phone", " +573001234567 "))
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody()
+                .jsonPath("$.phone").isEqualTo("+573001234567");
+
+        verify(registerUser).register(UserMother.unAltaConCelular(" +573001234567 "));
+    }
+
+    @Test
+    void rechazaUnCelularMalFormadoSinLlamarAlCasoDeUso() {
+        webTestClient.post().uri(URI_REGISTRO)
+                .headers(BasicMother.cabecera())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of(
+                        "email", UserMother.EMAIL,
+                        "password", UserMother.PASSWORD,
+                        "firstName", "Ana",
+                        "phone", "300 123"))
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.errors[0].field").isEqualTo("phone");
+
+        verifyNoInteractions(registerUser);
     }
 
     /** OWASP A02: ni el hash ni la clave pueden asomar en la respuesta del alta. */
@@ -128,7 +174,7 @@ class AuthControllerTest {
                 .expectStatus().isCreated();
 
         verify(registerUser).register(new RegistrationCommand(
-                UserMother.EMAIL, UserMother.PASSWORD, "Ana", "Gomez", "USD", "America/Lima"));
+                UserMother.EMAIL, UserMother.PASSWORD, "Ana", "Gomez", "USD", "America/Lima", null));
     }
 
     @Test
@@ -336,7 +382,7 @@ class AuthControllerTest {
 
     private static RegisteredUser unRegistro() {
         return new RegisteredUser(
-                new User(ID, UserMother.EMAIL, UserMother.HASH, "Ana", "Gomez", "USD", "America/Lima"),
+                new User(ID, UserMother.EMAIL, UserMother.HASH, "Ana", "Gomez", "USD", "America/Lima", null),
                 22L);
     }
 }

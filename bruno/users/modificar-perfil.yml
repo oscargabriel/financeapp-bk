@@ -1,0 +1,56 @@
+info:
+  name: Modificar perfil
+  type: http
+  seq: 5
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/users/me"
+  body:
+    type: json
+    data: |-
+      {
+        "firstName": " Ana Maria ",
+        "phone": "3109876543",
+        "timezone": "Europe/Madrid",
+        "baseCurrencyCode": "USD"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenPerfil}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.firstName
+      operator: eq
+      value: Ana Maria
+    - expression: res.body.timezone
+      operator: eq
+      value: Europe/Madrid
+    - expression: res.body.lastName
+      operator: eq
+      value: Bruno
+  scripts:
+    - type: tests
+      code: |-
+        test("cambia el celular", function() {
+          expect(res.getBody().phone).to.equal("3109876543");
+        });
+
+        test("la moneda base se omite: sigue en COP", function() {
+          expect(res.getBody().baseCurrencyCode).to.equal("COP");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Parche parcial
+
+  `baseCurrencyCode` viaja a proposito: el perfil lo omite hasta FA-91, sin error ni cambio.

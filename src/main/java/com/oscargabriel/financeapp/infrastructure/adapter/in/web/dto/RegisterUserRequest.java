@@ -38,10 +38,13 @@ public record RegisterUserRequest(
         String baseCurrencyCode,
 
         @ZonaIana
-        String timezone) {
+        String timezone,
+
+        @Pattern(regexp = Formatos.CELULAR, message = Formatos.MENSAJE_CELULAR)
+        String phone) {
 
     public RegistrationCommand toCommand() {
         return new RegistrationCommand(
-                email, password, firstName, lastName, baseCurrencyCode, timezone);
+                email, password, firstName, lastName, baseCurrencyCode, timezone, phone);
     }
 }

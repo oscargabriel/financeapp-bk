@@ -1,0 +1,42 @@
+info:
+  name: Cambiar correo
+  type: http
+  seq: 14
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/users/me"
+  body:
+    type: json
+    data: |-
+      {
+        "email": " {{correoNuevoEnMayusculas}} ",
+        "currentPassword": "{{clavePerfil}}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenPerfil}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: before-request
+      code: |-
+        bru.setVar("correoNuevoEnMayusculas", bru.getVar("emailPerfilNuevo").toUpperCase());
+    - type: tests
+      code: |-
+        test("guarda el correo recortado y en minusculas", function() {
+          expect(res.getBody().email).to.equal(bru.getVar("emailPerfilNuevo"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Cambio de correo con la contrasena correcta
