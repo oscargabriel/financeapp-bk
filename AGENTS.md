@@ -270,11 +270,32 @@ Ningún test monta ya esos archivos, así que **un cambio en `schema.sql` o `see
 suite: rompe `bru run`**, y solo si te acuerdas de correrlo. El escenario de la colección es
 `docs/database/test-data.sql`, que se carga con psql y usa fechas relativas al mes en curso.
 
+Los datos para el front y las demos son otro script, `docs/database/demo-data.sql` (FA-93): crea
+`demo@financeapp.local`, con la misma contraseña que el usuario de `test-data.sql`
+(`claveDePrueba123`), con cuentas de cada tipo y seis meses de movimientos. Se carga igual:
+
+```powershell
+psql -U postgres -d financeapp -f docs/database/demo-data.sql
+```
+
+Front y back comparten la base local y se separan por usuario; cada script borra y recrea solo lo
+suyo, así que se cargan en cualquier orden:
+
+| Lado | Usuarios | Los recrea o limpia |
+|---|---|---|
+| Back (`bruno/`) | `prueba@` e `inactivo@financeapp.local`, `*@bruno.local` | `test-data.sql` |
+| Front | `demo@financeapp.local`, `*@front.local` | `demo-data.sql` |
+
+El front no entra como `prueba@`: le cambiaría a la colección los totales que verifica. Los usuarios
+que registre desde la interfaz van con correo `@front.local`, o nada los borra. Los montos de la
+demo no los fija ninguna spec ni ningún assert: se cambian cuando el front lo necesite. Vaciar la
+base también se lleva la demo; después se recargan los dos scripts.
+
 `src/test/resources/db/monthly-spending-fixture.sql` quedó sin uso al salir Testcontainers. Se
 conserva porque sus fechas absolutas y su segundo usuario son la base del escenario que falta
 montar en Bruno.
 
-**Producción es Neon, y ahí `test-data.sql` no se carga nunca.** Solo van `schema.sql`, `seed.sql`
+**Producción es Neon, y ahí ni `test-data.sql` ni `demo-data.sql` se cargan nunca.** Solo van `schema.sql`, `seed.sql`
 y los `update/`, aplicados a mano con psql, igual que en local. Cómo se aplica un update ahí, el
 registro de los ya aplicados y el respaldo del plan están en
 [`docs/despliegue.md`](docs/despliegue.md#base-de-datos-neon). El encabezado de cada update dice
