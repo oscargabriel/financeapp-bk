@@ -262,7 +262,9 @@ docs/database/
   seed.sql                        monedas y categorías por defecto
   reset-data.sql                  vacía los datos, conserva estructura y semilla
   drop.sql                        elimina todos los objetos del modelo
-  test-data.sql                   escenario de pruebas, re-ejecutable
+  test-data.sql                   escenario de pruebas de bruno/, re-ejecutable
+  demo-data.sql                   datos de demo para demo@ y dev@, re-ejecutable
+  cargar-datos-local.sql          carga los dos anteriores de una vez
   test-checks.sql                 consultas de verificación
   update/
     20260905_01_baseline.sql      línea base
@@ -399,14 +401,18 @@ Hay dos niveles, según qué tanto se quiera echar atrás:
 ```powershell
 # 1. Vaciar los datos y conservar estructura, vistas y catálogo semilla.
 psql -f docs/database/reset-data.sql
-psql -f docs/database/test-data.sql
+psql -f docs/database/cargar-datos-local.sql
 
 # 2. Borrar todo el modelo y reconstruirlo (tras cambiar schema.sql).
 psql -f docs/database/drop.sql
 psql -f docs/database/schema.sql
 psql -f docs/database/seed.sql
-psql -f docs/database/test-data.sql
+psql -f docs/database/cargar-datos-local.sql
 ```
+
+[`cargar-datos-local.sql`](cargar-datos-local.sql) carga `test-data.sql` y la demo
+de `demo@` y `dev@` (FA-94). Después de los dos niveles hay que correrlo, porque
+los dos se llevan también los datos del front.
 
 Para volver al escenario de pruebas sin tocar nada más, basta con volver a correr
 `test-data.sql`: ya empieza borrando su propio usuario.

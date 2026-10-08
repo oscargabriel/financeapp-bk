@@ -1,20 +1,29 @@
 -- =============================================================================
--- financeapp-bk : datos de demo para el front
+-- financeapp-bk : datos de demo
 --
--- Crea demo@financeapp.local con seis meses de movimientos, para la demo y para
--- probar las pantallas del front. No es el escenario de bruno/: ese es
+-- Crea un usuario con seis meses de movimientos, para la demo, las pruebas del
+-- front y las del desarrollador. No es el escenario de bruno/: ese es
 -- test-data.sql, con totales que las specs fijan. Aqui los montos se pueden
 -- cambiar cuando el front lo necesite sin romper nada.
 --
--- Front y back comparten la base local, separados por usuario:
+-- Recibe dos variables de psql:
+--   email  correo del usuario     (por defecto demo@financeapp.local)
+--   u      un digito para los ids (por defecto 0): usuario 4000000<u>-...,
+--          cuentas 5000000<u>-..., categorias propias 6000000<u>-...
+-- Corrido solo carga la demo del front. cargar-datos-local.sql lo incluye
+-- tambien para dev@financeapp.local con u = 1. En una sesion de psql que ya
+-- tenga esas variables, carga el usuario que digan ellas.
+--
+-- Front, back y desarrollador comparten la base local, separados por usuario:
 --   back : prueba@ e inactivo@financeapp.local, y los *@bruno.local  -> test-data.sql
 --   front: demo@financeapp.local, y los *@front.local                -> este script
+--   dev  : dev@financeapp.local                                      -> este script
 -- Los usuarios que el front registre desde la interfaz van con correo
--- @front.local: recargar este script los borra.
+-- @front.local: recargar la demo los borra.
 --
--- Re-ejecutable: borra esos usuarios con todo lo suyo y recrea la demo. Las
--- fechas son relativas al mes en curso, y del mes en curso solo entran los
--- movimientos que ya ocurrieron: dos cargas el mismo dia dejan el mismo estado.
+-- Re-ejecutable: borra el usuario con todo lo suyo y lo recrea. Las fechas son
+-- relativas al mes en curso, y del mes en curso solo entran los movimientos que
+-- ya ocurrieron: dos cargas el mismo dia dejan el mismo estado.
 --
 -- Solo para la base local; en Neon no se carga.
 --
@@ -24,21 +33,35 @@
 \set ON_ERROR_STOP on
 SET search_path TO finance, public;
 
-\set uid        '40000000-0000-7000-8000-000000000001'
-\set efectivo   '50000000-0000-7000-8000-000000000001'
-\set nomina     '50000000-0000-7000-8000-000000000002'
-\set tarjeta    '50000000-0000-7000-8000-000000000003'
-\set ahorros    '50000000-0000-7000-8000-000000000004'
-\set cdt        '50000000-0000-7000-8000-000000000005'
-\set nequi      '50000000-0000-7000-8000-000000000006'
-\set dolares    '50000000-0000-7000-8000-000000000007'
-\set gimnasio   '60000000-0000-7000-8000-000000000001'
-\set jardin     '60000000-0000-7000-8000-000000000002'
+\if :{?email}
+\else
+\set email 'demo@financeapp.local'
+\endif
+\if :{?u}
+\else
+\set u 0
+\endif
+
+\set uid        '4000000' :u '-0000-7000-8000-000000000001'
+\set efectivo   '5000000' :u '-0000-7000-8000-000000000001'
+\set nomina     '5000000' :u '-0000-7000-8000-000000000002'
+\set tarjeta    '5000000' :u '-0000-7000-8000-000000000003'
+\set ahorros    '5000000' :u '-0000-7000-8000-000000000004'
+\set cdt        '5000000' :u '-0000-7000-8000-000000000005'
+\set nequi      '5000000' :u '-0000-7000-8000-000000000006'
+\set dolares    '5000000' :u '-0000-7000-8000-000000000007'
+\set gimnasio   '6000000' :u '-0000-7000-8000-000000000001'
+\set jardin     '6000000' :u '-0000-7000-8000-000000000002'
 
 BEGIN;
 
--- Cuentas, categorias, movimientos y metas caen en cascada.
-DELETE FROM finance.users WHERE email = 'demo@financeapp.local' OR email LIKE '%@front.local';
+-- Cuentas, categorias, movimientos y metas caen en cascada. Por id y por correo,
+-- por si alguien le cambio el correo al usuario desde el API. Los @front.local
+-- solo se limpian al recargar la demo del front.
+DELETE FROM finance.users
+ WHERE id = :'uid'::uuid
+    OR email = :'email'
+    OR (:'email' = 'demo@financeapp.local' AND email LIKE '%@front.local');
 
 
 -- -----------------------------------------------------------------------------
@@ -50,7 +73,7 @@ INSERT INTO finance.users
     (id, email, password_hash, first_name, last_name, phone, birth_date,
      base_currency_code, timezone)
 VALUES
-    (:'uid'::uuid, 'demo@financeapp.local',
+    (:'uid'::uuid, :'email',
      '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy',
      'Laura', 'Gómez', '3109876543', DATE '1992-07-21',
      'COP', 'America/Bogota');
@@ -262,7 +285,7 @@ SELECT gen_random_uuid(), :'uid'::uuid,
 COMMIT;
 
 \echo ''
-\echo 'Datos de demo recreados para demo@financeapp.local (clave claveDePrueba123)'
+\echo 'Datos de demo recreados para' :email '(clave claveDePrueba123)'
 SELECT to_char(occurred_at AT TIME ZONE 'America/Bogota', 'YYYY-MM') AS mes,
        count(*) FILTER (WHERE type = 'EXPENSE')  AS gastos,
        count(*) FILTER (WHERE type = 'INCOME')   AS ingresos,
