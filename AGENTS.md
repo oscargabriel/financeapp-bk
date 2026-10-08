@@ -270,44 +270,53 @@ Ningún test monta ya esos archivos, así que **un cambio en `schema.sql` o `see
 suite: rompe `bru run`**, y solo si te acuerdas de correrlo. El escenario de la colección es
 `docs/database/test-data.sql`, que se carga con psql y usa fechas relativas al mes en curso.
 
-Los datos para el front y las demos son otro script, `docs/database/demo-data.sql` (FA-93): crea
-`demo@financeapp.local`, con la misma contraseña que el usuario de `test-data.sql`
-(`claveDePrueba123`), con cuentas de cada tipo y seis meses de movimientos. Se carga igual:
+Los datos de demo son otro script, `docs/database/demo-data.sql` (FA-93): un usuario con cuentas de
+cada tipo y seis meses de movimientos. Se carga para dos usuarios: `demo@financeapp.local`, que usa
+el front, y `dev@financeapp.local`, para las pruebas a mano del desarrollador. Los dos tienen el
+mismo escenario con ids propios, y la misma contraseña que el usuario de `test-data.sql`
+(`claveDePrueba123`). Los montos de la demo no los fija ninguna spec ni ningún assert: se cambian
+cuando el front lo necesite.
+
+Toda la base local se carga con un solo comando (FA-94), que incluye `test-data.sql` y la demo de
+los dos usuarios:
 
 ```powershell
-psql -U postgres -d financeapp -f docs/database/demo-data.sql
+psql -U postgres -d financeapp -f docs/database/cargar-datos-local.sql
 ```
 
-Front y back comparten la base local y se separan por usuario; cada script borra y recrea solo lo
-suyo, así que se cargan en cualquier orden:
+Front, back y desarrollador comparten la base local y se separan por usuario. Cada script borra y
+recrea solo lo suyo:
 
 | Lado | Usuarios | Los recrea o limpia |
 |---|---|---|
 | Back (`bruno/`) | `prueba@` e `inactivo@financeapp.local`, `*@bruno.local` | `test-data.sql` |
 | Front | `demo@financeapp.local`, `*@front.local` | `demo-data.sql` |
+| Desarrollador | `dev@financeapp.local` | `demo-data.sql` con `email` y `u = 1` |
 
-El front no entra como `prueba@`: le cambiaría a la colección los totales que verifica. Los usuarios
-que registre desde la interfaz van con correo `@front.local`, o nada los borra. Los montos de la
-demo no los fija ninguna spec ni ningún assert: se cambian cuando el front lo necesite. Vaciar la
-base también se lleva la demo; después se recargan los dos scripts.
+Nadie entra como `prueba@` para probar a mano: le cambiaría a la colección los totales que verifica.
+Para eso está `dev@`. Los usuarios que el front registre desde la interfaz van con correo
+`@front.local`, que la recarga de la demo borra.
 
-**Para el front, la demo es persistente** (FA-95). El front solo tiene su aplicación contra el API
-local: no corre psql ni puede recargar nada, así que lo que crea con `demo@` o con usuarios
-`@front.local` vive solo en esta base. Recargar `demo-data.sql` o vaciar la base se lo borra, y por
-eso ninguna de las dos cosas se hace sin acordarlo antes. `verificar-bruno.ps1 -RecargarDatos` y
-`test-data.sql` no tocan la demo y se corren libres. Las fechas de la demo se calculan al cargarla
-y no avanzan: al cambiar de mes, el mes en curso queda sin movimientos de demo hasta una recarga.
-Renovar los meses sin borrar lo del front está pendiente en FA-94.
+El front solo tiene su aplicación contra el API local: no corre psql ni recarga nada. **Por ahora
+solo lee**, así que recargar la demo no le borra trabajo y está permitido. Cuando el front empiece a
+crear o modificar datos, eso deja de valer y la recarga se acuerda antes. Las fechas de la demo se
+calculan al cargarla y no avanzan: al cambiar de mes, el mes en curso queda sin movimientos hasta
+la siguiente recarga.
+
+**Un `update/` que modifique tablas reinicia los datos de la base local.** Después de aplicarlo en
+local se corre `cargar-datos-local.sql`. El encabezado del update lo dice, y el PR lo destaca para
+que el front sepa que sus datos se reiniciaron. En Neon no aplica: ahí no hay datos de prueba.
 
 `src/test/resources/db/monthly-spending-fixture.sql` quedó sin uso al salir Testcontainers. Se
 conserva porque sus fechas absolutas y su segundo usuario son la base del escenario que falta
 montar en Bruno.
 
-**Producción es Neon, y ahí ni `test-data.sql` ni `demo-data.sql` se cargan nunca.** Solo van `schema.sql`, `seed.sql`
-y los `update/`, aplicados a mano con psql, igual que en local. Cómo se aplica un update ahí, el
-registro de los ya aplicados y el respaldo del plan están en
-[`docs/despliegue.md`](docs/despliegue.md#base-de-datos-neon). El encabezado de cada update dice
-si va antes o después del despliegue de su app; ese orden es el que sigue el procedimiento.
+**Producción es Neon, y ahí no se carga ningún dato de prueba** (`test-data.sql`, `demo-data.sql`,
+`cargar-datos-local.sql`). Solo van `schema.sql`, `seed.sql` y los `update/`, aplicados a mano con
+psql, igual que en local. Cómo se aplica un update ahí, el registro de los ya aplicados y el
+respaldo del plan están en [`docs/despliegue.md`](docs/despliegue.md#base-de-datos-neon). El
+encabezado de cada update dice si va antes o después del despliegue de su app; ese orden es el que
+sigue el procedimiento.
 
 ## Despliegue
 
