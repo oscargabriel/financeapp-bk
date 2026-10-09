@@ -1,7 +1,7 @@
 info:
   name: Pendientes tras rechazar
   type: http
-  seq: 16
+  seq: 25
 
 http:
   method: GET

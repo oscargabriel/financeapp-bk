@@ -1,7 +1,7 @@
 info:
   name: Rechazar dos veces
   type: http
-  seq: 20
+  seq: 29
 
 http:
   method: POST

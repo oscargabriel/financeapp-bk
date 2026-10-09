@@ -1,0 +1,37 @@
+info:
+  name: Reactivar cuenta pendientes
+  type: http
+  seq: 18
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/20000000-0000-7000-8000-000000000007"
+  body:
+    type: json
+    data: |-
+      {
+        "isActive": true
+      }
+  auth:
+    type: bearer
+    token: "{{tokenPendientes}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.isActive
+      operator: eq
+      value: "true"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Cierra la ventana
+
+  Con las dos cuentas reactivadas, "Aprobar gasto" y "Aprobar transferencia" pasan como antes.
