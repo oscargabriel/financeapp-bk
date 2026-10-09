@@ -1,7 +1,7 @@
 info:
   name: Borrar cuenta
   type: http
-  seq: 60
+  seq: 64
 
 http:
   method: DELETE

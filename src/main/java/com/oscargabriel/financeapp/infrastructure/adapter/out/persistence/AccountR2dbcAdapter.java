@@ -86,13 +86,28 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
             RETURNING %s
             """.formatted(COLUMNAS);
 
-    /** La fila se queda: los movimientos la siguen referenciando por la FK. */
+    /**
+     * La fila se queda: los confirmados la siguen referenciando por la FK. Sus pendientes se van en la
+     * misma sentencia (FA-97): PostgreSQL ejecuta el DELETE del CTE aunque el SELECT no lo lea, y si la
+     * cuenta ya no estaba viva, borrada sale vacia y no se toca ningun pendiente. Borrar un pendiente
+     * no mueve saldos: trg_transactions_sync_balance solo revierte filas CONFIRMED.
+     */
     private static final String BORRAR = """
-            UPDATE finance.accounts
-               SET deleted_at = now()
-             WHERE id = :id
-               AND user_id = :userId
-               AND deleted_at IS NULL
+            WITH borrada AS (
+                UPDATE finance.accounts
+                   SET deleted_at = now()
+                 WHERE id = :id
+                   AND user_id = :userId
+                   AND deleted_at IS NULL
+                RETURNING id
+            ), pendientes AS (
+                DELETE FROM finance.transactions t
+                 USING borrada b
+                 WHERE t.user_id = :userId
+                   AND t.status = 'PENDING'
+                   AND (t.account_id = b.id OR t.destination_account_id = b.id)
+            )
+            SELECT count(*) AS borradas FROM borrada
             """;
 
     private final DatabaseClient databaseClient;
@@ -160,8 +175,8 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
         return databaseClient.sql(BORRAR)
                 .bind("id", accountId)
                 .bind("userId", userId)
-                .fetch().rowsUpdated()
-                .map(filas -> filas > 0);
+                .map((row, metadata) -> row.get("borradas", Long.class) > 0)
+                .one();
     }
 
     /** Los tres son null fuera de una CREDIT, y R2DBC exige el tipo para enlazar un null. */

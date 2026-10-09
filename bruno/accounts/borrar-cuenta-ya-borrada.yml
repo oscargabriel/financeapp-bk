@@ -1,7 +1,7 @@
 info:
   name: Borrar cuenta ya borrada
   type: http
-  seq: 62
+  seq: 67
 
 http:
   method: DELETE

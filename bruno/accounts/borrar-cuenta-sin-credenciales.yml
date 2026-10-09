@@ -1,7 +1,7 @@
 info:
   name: Borrar cuenta sin credenciales
   type: http
-  seq: 72
+  seq: 77
 
 http:
   method: DELETE

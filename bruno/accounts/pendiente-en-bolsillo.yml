@@ -1,0 +1,46 @@
+info:
+  name: Pendiente en Bolsillo
+  type: http
+  seq: 60
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: json
+    data: |-
+      {
+        "data": "crear_movimiento {\"tipo\": \"EXPENSE\", \"monto\": 3000, \"cuenta\": \"bolsillo\", \"categoria\": \"Mercado\", \"descripcion\": \"Tinto\"}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.intent
+      operator: eq
+      value: CREATE_TRANSACTION
+  scripts:
+    - type: tests
+      code: |-
+        const t = res.getBody().transaction;
+        bru.setVar("idPendienteBolsillo", t.id);
+
+        test("queda pendiente", function() {
+          expect(t.status).to.equal("PENDING");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un pendiente de otra cuenta
+
+  No toca `Caja chica`: tiene que sobrevivir a su borrado.

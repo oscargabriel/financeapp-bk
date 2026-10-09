@@ -1,7 +1,7 @@
 info:
   name: Cuentas tras borrar
   type: http
-  seq: 61
+  seq: 66
 
 http:
   method: GET
@@ -26,6 +26,11 @@ runtime:
           expect(ids).to.not.include(bru.getVar("idCajaChica"));
           expect(ids).to.include(bru.getVar("idCuentaEfectivo"));
           expect(ids).to.include(bru.getVar("idCuentaCredito"));
+        });
+
+        test("Bolsillo no cambio de saldo: la transferencia pendiente hacia Caja chica nunca se aplico", function() {
+          const bolsillo = res.getBody().find(function (c) { return c.id === bru.getVar("idCuentaEfectivo"); });
+          expect(bolsillo.currentBalance).to.equal(230000);
         });
 
 settings:
