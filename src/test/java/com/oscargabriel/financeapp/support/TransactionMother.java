@@ -42,13 +42,13 @@ public final class TransactionMother {
     public static List<Account> cuentasDelUsuario() {
         return List.of(
                 new Account(ORIGEN_ID, "Efectivo", AccountType.CASH, "COP", new BigDecimal("1000000.0000"),
-                        new BigDecimal("1000000.0000"), null, null, null, true),
+                        new BigDecimal("1000000.0000"), null, null, null, null, true),
                 new Account(DESTINO_ID, "Ahorros", AccountType.SAVINGS, "COP", BigDecimal.ZERO,
-                        BigDecimal.ZERO, null, null, null, true),
+                        BigDecimal.ZERO, null, null, null, null, true),
                 new Account(USD_ID, "Ahorros USD", AccountType.SAVINGS, "USD", new BigDecimal("1200.0000"),
-                        new BigDecimal("1200.0000"), null, null, null, true),
+                        new BigDecimal("1200.0000"), null, null, null, null, true),
                 new Account(INACTIVA_ID, "Nequi", AccountType.DEBIT, "COP", new BigDecimal("80000.0000"),
-                        new BigDecimal("80000.0000"), null, null, null, false));
+                        new BigDecimal("80000.0000"), null, null, null, null, false));
     }
 
     public static List<Category> categoriasDelUsuario() {

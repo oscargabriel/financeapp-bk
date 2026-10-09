@@ -32,14 +32,16 @@ runtime:
           expect(bolsillo.initialBalance).to.equal(300000);
           expect(bolsillo.currentBalance).to.equal(250000);
           expect(bolsillo.isActive).to.equal(true);
+          expect(bolsillo.monthlyInterestRate).to.equal(null);
         });
 
-        test("la tarjeta quedo con la moneda, el cupo y las fechas nuevas", function() {
+        test("la tarjeta quedo con la moneda, el cupo, las fechas y la tasa nuevas", function() {
           const tarjeta = porId("idCuentaCredito");
           expect(tarjeta.currencyCode).to.equal("USD");
           expect(tarjeta.creditLimit).to.equal(4000000);
           expect(tarjeta.statementDay).to.equal(25);
           expect(tarjeta.paymentDueDay).to.equal(12);
+          expect(tarjeta.monthlyInterestRate).to.equal(1.9);
         });
 
 settings:

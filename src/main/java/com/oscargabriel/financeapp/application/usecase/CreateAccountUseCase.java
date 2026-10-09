@@ -54,7 +54,8 @@ public class CreateAccountUseCase implements CreateAccountPort {
                 command.initialBalance() == null ? BigDecimal.ZERO : command.initialBalance(),
                 command.creditLimit(),
                 command.statementDay(),
-                command.paymentDueDay());
+                command.paymentDueDay(),
+                command.monthlyInterestRate());
     }
 
     private Mono<Void> monedaActiva(String moneda) {

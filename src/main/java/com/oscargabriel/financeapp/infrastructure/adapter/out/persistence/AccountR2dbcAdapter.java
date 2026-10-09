@@ -27,7 +27,7 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
 
     private static final String COLUMNAS = """
             id, name, type, currency_code, initial_balance, current_balance,
-                   credit_limit, statement_day, payment_due_day, is_active""";
+                   credit_limit, statement_day, payment_due_day, monthly_interest_rate, is_active""";
 
     private static final String SQL = """
             SELECT %s
@@ -45,9 +45,9 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
     private static final String INSERTAR = """
             INSERT INTO finance.accounts
                    (id, user_id, name, type, currency_code, initial_balance,
-                    credit_limit, statement_day, payment_due_day)
+                    credit_limit, statement_day, payment_due_day, monthly_interest_rate)
             VALUES (:id, :userId, :name, :type, :currencyCode, :initialBalance,
-                    :creditLimit, :statementDay, :paymentDueDay)
+                    :creditLimit, :statementDay, :paymentDueDay, :monthlyInterestRate)
             RETURNING %s
             """.formatted(COLUMNAS);
 
@@ -79,6 +79,7 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
                    credit_limit = :creditLimit,
                    statement_day = :statementDay,
                    payment_due_day = :paymentDueDay,
+                   monthly_interest_rate = :monthlyInterestRate,
                    is_active = :isActive
              WHERE id = :id
                AND user_id = :userId
@@ -131,7 +132,8 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
                 .bind("currencyCode", account.currencyCode())
                 .bind("initialBalance", account.initialBalance());
 
-        return camposDeCredito(sentencia, account.creditLimit(), account.statementDay(), account.paymentDueDay())
+        return camposDeCredito(sentencia, account.creditLimit(), account.statementDay(), account.paymentDueDay(),
+                        account.monthlyInterestRate())
                 .map((row, metadata) -> toDomain(row))
                 .one()
                 .onErrorMap(DuplicateKeyException.class, AccountR2dbcAdapter::comoConflicto);
@@ -164,7 +166,8 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
                 .bind("initialBalance", account.initialBalance())
                 .bind("isActive", account.active());
 
-        return camposDeCredito(sentencia, account.creditLimit(), account.statementDay(), account.paymentDueDay())
+        return camposDeCredito(sentencia, account.creditLimit(), account.statementDay(), account.paymentDueDay(),
+                        account.monthlyInterestRate())
                 .map((row, metadata) -> toDomain(row))
                 .one()
                 .onErrorMap(DuplicateKeyException.class, AccountR2dbcAdapter::comoConflicto);
@@ -179,18 +182,21 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
                 .one();
     }
 
-    /** Los tres son null fuera de una CREDIT, y R2DBC exige el tipo para enlazar un null. */
+    /** Los cuatro son null fuera de una CREDIT, y R2DBC exige el tipo para enlazar un null. */
     private static DatabaseClient.GenericExecuteSpec camposDeCredito(DatabaseClient.GenericExecuteSpec sentencia,
-            BigDecimal creditLimit, Integer statementDay, Integer paymentDueDay) {
+            BigDecimal creditLimit, Integer statementDay, Integer paymentDueDay, BigDecimal monthlyInterestRate) {
         sentencia = creditLimit == null
                 ? sentencia.bindNull("creditLimit", BigDecimal.class)
                 : sentencia.bind("creditLimit", creditLimit);
         sentencia = statementDay == null
                 ? sentencia.bindNull("statementDay", Short.class)
                 : sentencia.bind("statementDay", statementDay.shortValue());
-        return paymentDueDay == null
+        sentencia = paymentDueDay == null
                 ? sentencia.bindNull("paymentDueDay", Short.class)
                 : sentencia.bind("paymentDueDay", paymentDueDay.shortValue());
+        return monthlyInterestRate == null
+                ? sentencia.bindNull("monthlyInterestRate", BigDecimal.class)
+                : sentencia.bind("monthlyInterestRate", monthlyInterestRate);
     }
 
     private static Account toDomain(Row row) {
@@ -204,6 +210,7 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
                 row.get("credit_limit", BigDecimal.class),
                 comoEntero(row.get("statement_day", Short.class)),
                 comoEntero(row.get("payment_due_day", Short.class)),
+                row.get("monthly_interest_rate", BigDecimal.class),
                 Boolean.TRUE.equals(row.get("is_active", Boolean.class)));
     }
 

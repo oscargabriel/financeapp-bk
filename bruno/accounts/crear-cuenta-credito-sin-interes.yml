@@ -1,0 +1,40 @@
+info:
+  name: Crear tarjeta sin interes
+  type: http
+  seq: 80
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Falabella",
+        "type": "CREDIT",
+        "currencyCode": "COP",
+        "monthlyInterestRate": 0
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.monthlyInterestRate
+      operator: eq
+      value: 0
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Tasa en cero
+
+  El 0 es una tarjeta sin interes, distinto de `null`, que es "no la he cargado".

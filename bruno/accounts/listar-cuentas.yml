@@ -30,7 +30,7 @@ runtime:
             expect(c.id).to.match(/^[0-9a-f-]{36}$/);
             expect(c).to.have.all.keys("id", "name", "type", "currencyCode", "initialBalance",
                 "currentBalance", "creditLimit", "availableCredit", "statementDay", "paymentDueDay",
-                "isActive");
+                "monthlyInterestRate", "isActive");
             expect(c.isActive).to.equal(true);
           });
         });
@@ -47,21 +47,23 @@ runtime:
           expect(visa.availableCredit).to.equal(4342000);
         });
 
-        test("la tarjeta trae su cupo y sus fechas", function() {
+        test("la tarjeta trae su cupo, sus fechas y su tasa", function() {
           const visa = porNombre("Visa");
           expect(visa.initialBalance).to.equal(0);
           expect(visa.creditLimit).to.equal(5000000);
           expect(visa.statementDay).to.equal(15);
           expect(visa.paymentDueDay).to.equal(5);
+          expect(visa.monthlyInterestRate).to.equal(2.1);
         });
 
-        test("las cuentas que no son de credito no tienen cupo ni fechas", function() {
+        test("las cuentas que no son de credito no tienen cupo, fechas ni tasa", function() {
           ["Ahorros USD", "Bancolombia", "Efectivo"].forEach(function (nombre) {
             const cuenta = porNombre(nombre);
             expect(cuenta.availableCredit).to.equal(null);
             expect(cuenta.creditLimit).to.equal(null);
             expect(cuenta.statementDay).to.equal(null);
             expect(cuenta.paymentDueDay).to.equal(null);
+            expect(cuenta.monthlyInterestRate).to.equal(null);
           });
         });
 

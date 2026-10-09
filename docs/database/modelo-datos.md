@@ -49,6 +49,7 @@ erDiagram
         numeric credit_limit
         smallint statement_day
         smallint payment_due_day
+        numeric monthly_interest_rate
         boolean is_active
         timestamptz deleted_at
     }
@@ -174,8 +175,12 @@ como el trigger.
 
 Una cuenta `CREDIT` con `current_balance` negativo está en deuda; el cupo
 disponible es `credit_limit + current_balance`. Los campos `credit_limit`,
-`statement_day` y `payment_due_day` solo pueden tener valor si `type = 'CREDIT'`
-(lo garantiza `ck_accounts_credit_fields`).
+`statement_day`, `payment_due_day` y `monthly_interest_rate` solo pueden tener
+valor si `type = 'CREDIT'` (lo garantiza `ck_accounts_credit_fields`).
+
+`monthly_interest_rate` es la tasa de interés mensual en **porcentaje**, no en
+fracción: `2.15` es el 2,15 % mensual. Va de 0 a 10; el tope atrapa una tasa
+anual escrita por error en el campo mensual (FA-105).
 
 ### Transferencias
 

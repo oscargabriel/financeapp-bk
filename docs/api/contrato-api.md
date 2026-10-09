@@ -415,6 +415,7 @@ sin distinguir mayúsculas.
     "availableCredit": 4650000.0000,
     "statementDay": 15,
     "paymentDueDay": 30,
+    "monthlyInterestRate": 2.1500,
     "isActive": true
   },
   {
@@ -428,6 +429,7 @@ sin distinguir mayúsculas.
     "availableCredit": null,
     "statementDay": null,
     "paymentDueDay": null,
+    "monthlyInterestRate": null,
     "isActive": true
   }
 ]
@@ -441,6 +443,7 @@ sin distinguir mayúsculas.
 | `creditLimit` | Solo en `CREDIT`: el cupo. `null` en los demás tipos o si la tarjeta no lo tiene |
 | `availableCredit` | Solo en `CREDIT`: `creditLimit + currentBalance`. `null` en los demás tipos o si la tarjeta no tiene cupo |
 | `statementDay`, `paymentDueDay` | Solo en `CREDIT`: día de corte y día de pago, 1 a 31. `null` en los demás tipos |
+| `monthlyInterestRate` | Solo en `CREDIT`: tasa de interés **mensual en porcentaje** (`2.15` es el 2,15 % mensual, no 0.0215). `null` en los demás tipos o si la tarjeta no la tiene cargada |
 
 ### `POST /api/accounts`
 
@@ -457,10 +460,14 @@ Crea una cuenta del usuario del token. **Bearer.**
 | `creditLimit` | number | no | **Solo `CREDIT`.** Mayor que cero |
 | `statementDay` | integer | no | **Solo `CREDIT`.** Día de corte, 1 a 31 |
 | `paymentDueDay` | integer | no | **Solo `CREDIT`.** Día de pago, 1 a 31 |
+| `monthlyInterestRate` | number | no | **Solo `CREDIT`.** Tasa mensual en porcentaje, de 0 a 10 con hasta 4 decimales. 0 es una tarjeta sin interés |
 | `currentBalance` | — | **no se envía** | Si llega, es 400: el saldo vigente lo calcula el sistema. Para fijar el saldo de arranque se usa `initialBalance` |
 
-En una cuenta que no es `CREDIT`, mandar `creditLimit`, `statementDay` o `paymentDueDay` es 400,
-uno por campo.
+En una cuenta que no es `CREDIT`, mandar `creditLimit`, `statementDay`, `paymentDueDay` o
+`monthlyInterestRate` es 400, uno por campo.
+
+El tope de 10 en la tasa existe para atrapar la tasa **efectiva anual** del extracto (por ejemplo
+28,5) escrita en el campo mensual: como mensual daría cuotas con diez veces el interés real.
 
 ```json
 {
@@ -470,7 +477,8 @@ uno por campo.
   "initialBalance": -350000,
   "creditLimit": 5000000,
   "statementDay": 15,
-  "paymentDueDay": 30
+  "paymentDueDay": 30,
+  "monthlyInterestRate": 2.15
 }
 ```
 
@@ -495,13 +503,14 @@ cuenta desactivada se modifica igual que una activa.
 | `creditLimit` | number | **Solo `CREDIT`.** Mayor que cero |
 | `statementDay` | integer | **Solo `CREDIT`.** 1 a 31 |
 | `paymentDueDay` | integer | **Solo `CREDIT`.** 1 a 31 |
+| `monthlyInterestRate` | number | **Solo `CREDIT`.** Tasa mensual en porcentaje, de 0 a 10 con hasta 4 decimales |
 | `currentBalance`, `type`, `isActive` | — | **No se envían.** Si llegan con valor, 400 en su campo |
 
-- **Ausente o `null` es "no cambia".** El parche no vacía campos: no hay forma de quitarle el cupo
-  o las fechas a una tarjeta.
+- **Ausente o `null` es "no cambia".** El parche no vacía campos: no hay forma de quitarle el cupo,
+  las fechas o la tasa a una tarjeta.
 - Un parche sin ningún campo modificable (`{}`, o todo en `null`) es 400 en `body`.
-- El tipo es el de la cuenta guardada: `creditLimit`, `statementDay` o `paymentDueDay` sobre una
-  cuenta que no es `CREDIT` son 400, uno por campo.
+- El tipo es el de la cuenta guardada: `creditLimit`, `statementDay`, `paymentDueDay` o
+  `monthlyInterestRate` sobre una cuenta que no es `CREDIT` son 400, uno por campo.
 - Corregir el saldo inicial no descuadra nada: si la cuenta arrancó en 200000 y gastó 50000 (saldo
   150000), pasar el inicial a 300000 deja el saldo en 250000.
 - Mandar la moneda que la cuenta ya tiene, en cualquier caja, no es un cambio y no da 409.

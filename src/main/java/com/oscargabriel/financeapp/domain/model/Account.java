@@ -13,6 +13,7 @@ public record Account(
         BigDecimal creditLimit,
         Integer statementDay,
         Integer paymentDueDay,
+        BigDecimal monthlyInterestRate,
         boolean active) {
 
     /** Un saldo negativo es deuda, asi que sumarlo al limite ya resta lo usado. */

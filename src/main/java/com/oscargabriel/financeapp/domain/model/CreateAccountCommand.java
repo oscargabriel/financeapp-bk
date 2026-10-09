@@ -16,5 +16,6 @@ public record CreateAccountCommand(
         BigDecimal creditLimit,
         Integer statementDay,
         Integer paymentDueDay,
+        BigDecimal monthlyInterestRate,
         BigDecimal currentBalance) {
 }

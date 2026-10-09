@@ -52,6 +52,32 @@ class AccountsIT {
     }
 
     @Test
+    void elListadoConElBasicCompartidoEsUn401() {
+        webTestClient.get().uri("/api/accounts")
+                .headers(BasicMother.cabecera())
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().valueEquals("WWW-Authenticate", "Bearer")
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED")
+                .jsonPath("$.errors[0].field").isEqualTo("authorization");
+    }
+
+    @Test
+    void elAltaConElBasicCompartidoEsUn401() {
+        webTestClient.post().uri("/api/accounts")
+                .headers(BasicMother.cabecera())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"name\": \"Billetera\", \"type\": \"CASH\", \"currencyCode\": \"COP\"}")
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().valueEquals("WWW-Authenticate", "Bearer")
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED")
+                .jsonPath("$.errors[0].field").isEqualTo("authorization");
+    }
+
+    @Test
     void elPatchSinCredencialesEsUn401ConElRetoDelJwt() {
         webTestClient.patch().uri("/api/accounts/20000000-0000-7000-8000-000000000001")
                 .contentType(MediaType.APPLICATION_JSON)

@@ -1,0 +1,37 @@
+info:
+  name: Modificar tasa al tope
+  type: http
+  seq: 84
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/{{idCuentaCredito}}"
+  body:
+    type: json
+    data: |-
+      {
+        "monthlyInterestRate": 10
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.monthlyInterestRate
+      operator: eq
+      value: 10
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El tope se incluye
+
+  10 es la tasa mensual mas alta que se admite. Los dos 400 anteriores no la cambiaron: seguia en 1.9.
