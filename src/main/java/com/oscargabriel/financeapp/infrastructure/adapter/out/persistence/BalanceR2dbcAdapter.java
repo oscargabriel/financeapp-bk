@@ -22,7 +22,8 @@ public class BalanceR2dbcAdapter implements BalanceQueryPort {
      * Una sola pasada para el rango y el historico (design.md de FA-75). El rango se corta igual que en
      * TransactionReportR2dbcAdapter: los limites del dia en la zona del usuario, no la zona aplicada a la
      * columna. El LEFT JOIN deja una fila con ceros a un usuario sin movimientos. El filtro de estado va
-     * en el ON y no en el WHERE: un usuario con solo pendientes tambien sale, con ceros (FA-76).
+     * en el ON y no en el WHERE: un usuario con solo pendientes tambien sale, con ceros (FA-76). Lo
+     * programado tampoco entra hasta su fecha (FA-106), y se decide con now() de la base.
      */
     private static final String SQL = """
             SELECT u.base_currency_code,
@@ -37,6 +38,7 @@ public class BalanceR2dbcAdapter implements BalanceQueryPort {
                    SELECT CAST(:from AS date)::timestamp AT TIME ZONE u.timezone AS desde,
                           (CAST(:to AS date) + 1)::timestamp AT TIME ZONE u.timezone AS hasta) r
               LEFT JOIN finance.transactions t ON t.user_id = u.id AND t.status = 'CONFIRMED'
+                    AND t.occurred_at <= now()
              WHERE u.id = :userId
              GROUP BY u.base_currency_code
             """;

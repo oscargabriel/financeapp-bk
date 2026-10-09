@@ -25,8 +25,13 @@ import reactor.core.publisher.Mono;
 @AllArgsConstructor
 public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryPort {
 
+    /**
+     * current_balance incluye lo programado: el trigger aplica todo movimiento confirmado sin mirar la
+     * fecha. El saldo vigente le resta lo que todavia no ha ocurrido (FA-106), y es el que sale de aqui.
+     */
     private static final String COLUMNAS = """
-            id, name, type, currency_code, initial_balance, current_balance,
+            id, name, type, currency_code, initial_balance,
+                   current_balance - finance.scheduled_balance_delta(id) AS current_balance,
                    credit_limit, statement_day, payment_due_day, monthly_interest_rate, is_active""";
 
     private static final String SQL = """

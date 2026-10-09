@@ -1,5 +1,7 @@
 package com.oscargabriel.financeapp.infrastructure.adapter.in.web;
 
+import java.time.Clock;
+
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -21,11 +23,12 @@ import reactor.core.publisher.Mono;
 public class AssistantController {
 
     private final AssistantPort assistant;
+    private final Clock clock;
 
     @PostMapping("/messages")
     public Mono<AssistantMessageResponse> message(@AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody AssistantMessageRequest mensaje) {
         return Mono.defer(() -> assistant.atender(UsuarioDelToken.de(jwt), mensaje.data()))
-                .map(AssistantMessageResponse::from);
+                .map(r -> AssistantMessageResponse.from(r, clock.instant()));
     }
 }

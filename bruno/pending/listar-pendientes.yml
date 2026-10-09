@@ -26,7 +26,8 @@ runtime:
         test("devuelve el contrato del movimiento, con su estado y su origen", function() {
           expect(lista[0]).to.have.all.keys("id", "type", "accountId", "destinationAccountId",
               "categoryId", "amount", "currencyCode", "description", "notes", "occurredAt", "status",
-              "origin");
+              "origin", "scheduled");
+          lista.forEach(function (t) { expect(t.scheduled).to.equal(false); });
         });
 
         test("todos estan pendientes y vienen del asistente", function() {

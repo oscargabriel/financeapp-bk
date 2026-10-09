@@ -1,5 +1,6 @@
 package com.oscargabriel.financeapp.infrastructure.adapter.in.web;
 
+import static com.oscargabriel.financeapp.support.ReportMother.AHORA;
 import static com.oscargabriel.financeapp.support.ReportMother.CUENTA_ID;
 import static com.oscargabriel.financeapp.support.ReportMother.DESDE;
 import static com.oscargabriel.financeapp.support.ReportMother.DESTINO_ID;
@@ -70,7 +71,7 @@ class TransactionReportControllerTest {
 
     private void respondeVacio() {
         when(getTransactionReport.get(eq(USER_ID), any(), any(), any(), any(), any()))
-                .thenReturn(Mono.just(TransactionReport.of("COP", sinFiltros(), List.of())));
+                .thenReturn(Mono.just(TransactionReport.of("COP", sinFiltros(), List.of(), AHORA)));
     }
 
     @Test
@@ -116,7 +117,7 @@ class TransactionReportControllerTest {
     void devuelveElReporteConElFormatoDelContrato() {
         TransactionReport reporte = TransactionReport.of("COP", sinFiltros(), List.of(
                 unGasto(MERCADO_ID, "Mercado", "85000.0000", "2026-09-02T15:00:00Z"),
-                unaTransferenciaEnDolares("2026-09-10T20:00:00Z")));
+                unaTransferenciaEnDolares("2026-09-10T20:00:00Z")), AHORA);
         when(getTransactionReport.get(eq(USER_ID), any(), any(), any(), any(), any())).thenReturn(Mono.just(reporte));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(RANGO)
@@ -145,6 +146,24 @@ class TransactionReportControllerTest {
                 .jsonPath("$.totalsByCategory[0].categoryName").isEqualTo("Mercado")
                 .jsonPath("$.net").isEqualTo(-85000.0)
                 .jsonPath("$.userId").doesNotExist();
+    }
+
+    @Test
+    void marcaCadaMovimientoProgramadoSegunElInstanteDelReporte() {
+        TransactionReport reporte = TransactionReport.of("COP", sinFiltros(), List.of(
+                unGasto(MERCADO_ID, "Mercado", "85000.0000", "2026-09-02T15:00:00Z"),
+                unGasto(MERCADO_ID, "Mercado", "40000.0000", "2026-10-15T15:00:00Z")), AHORA);
+        when(getTransactionReport.get(eq(USER_ID), any(), any(), any(), any(), any())).thenReturn(Mono.just(reporte));
+
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(RANGO)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.transactions[0].occurredAt").isEqualTo("2026-10-15T15:00:00Z")
+                .jsonPath("$.transactions[0].scheduled").isEqualTo(true)
+                .jsonPath("$.transactions[1].scheduled").isEqualTo(false)
+                .jsonPath("$.totalsByType[0].total").isEqualTo(85000.0)
+                .jsonPath("$.net").isEqualTo(-85000.0);
     }
 
     static Stream<Arguments> unParametroInvalido() {

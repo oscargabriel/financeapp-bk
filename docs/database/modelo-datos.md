@@ -165,6 +165,28 @@ filtran `status = 'CONFIRMED'`. Un pendiente sí cuenta como referencia: la FK
 impide borrar la cuenta o la categoría que usa. El porqué está en el `design.md`
 de `openspec/changes/archive/2026-10-08-fa-76-movimientos-pendientes/`.
 
+### Movimientos programados
+
+Un movimiento `CONFIRMED` con `occurred_at > now()` está programado (FA-106):
+no cuenta en el saldo vigente ni en el gasto mensual hasta su fecha. No hay un
+proceso que lo "active", porque el servicio puede estar apagado: todo se decide
+al leer.
+
+- El trigger de saldos no mira la fecha, así que `current_balance` incluye lo
+  programado. El **saldo vigente** es
+  `current_balance - finance.scheduled_balance_delta(id)`, y es el que lee la
+  aplicación. Quien consulte la columna a mano con psql ve el saldo con lo
+  programado incluido.
+- Las vistas de gasto mensual y la consulta de saldo filtran
+  `occurred_at <= now()`. El reporte de movimientos sí lista los programados, y
+  la aplicación los deja fuera de sus totales.
+- Cambiar la fecha con un `UPDATE` no necesita nada especial: el trigger revierte
+  y reaplica lo mismo, y la resta se recalcula con la fecha nueva.
+
+`test-data.sql` recorta a `now()` los movimientos del mes en curso para que
+ninguno quede programado y los totales del escenario no dependan del día en que
+se cargue. El porqué está en el `design.md` del change de FA-106.
+
 ### El signo lo da el tipo, nunca el monto
 
 `amount` siempre es positivo (`CHECK amount > 0`). `EXPENSE` y `TRANSFER` restan
@@ -173,8 +195,8 @@ como el trigger.
 
 ### Tarjetas de crédito
 
-Una cuenta `CREDIT` con `current_balance` negativo está en deuda; el cupo
-disponible es `credit_limit + current_balance`. Los campos `credit_limit`,
+Una cuenta `CREDIT` con saldo vigente negativo está en deuda; el cupo
+disponible es `credit_limit` más el saldo vigente. Los campos `credit_limit`,
 `statement_day`, `payment_due_day` y `monthly_interest_rate` solo pueden tener
 valor si `type = 'CREDIT'` (lo garantiza `ck_accounts_credit_fields`).
 

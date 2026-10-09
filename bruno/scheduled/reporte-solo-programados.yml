@@ -1,0 +1,42 @@
+info:
+  name: Reporte con solo programados
+  type: http
+  seq: 12
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{diaProgramado}}&to={{diaProgramado}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.transactions
+      operator: length
+      value: "1"
+    - expression: res.body.transactions[0].scheduled
+      operator: eq
+      value: "true"
+    - expression: res.body.totalsByCategory
+      operator: length
+      value: "0"
+    - expression: res.body.net
+      operator: eq
+      value: "0"
+  scripts:
+    - type: tests
+      code: |-
+        test("los tres tipos en cero", function() {
+          res.getBody().totalsByType.forEach(function (t) {
+            expect(t.total).to.equal(0);
+            expect(t.count).to.equal(0);
+          });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

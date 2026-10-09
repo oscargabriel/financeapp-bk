@@ -1,5 +1,6 @@
 package com.oscargabriel.financeapp.infrastructure.adapter.in.web;
 
+import java.time.Clock;
 import java.util.List;
 import java.util.UUID;
 
@@ -53,6 +54,7 @@ public class TransactionController {
     private final ListPendingTransactionsPort listPending;
     private final ApprovePendingTransactionPort approvePending;
     private final RejectPendingTransactionPort rejectPending;
+    private final Clock clock;
 
     /**
      * Mono de la lista y no Flux: transmitir el Flux mandaria el 201 y los primeros elementos antes de
@@ -70,7 +72,7 @@ public class TransactionController {
             List<@NotNull(message = "El elemento no puede ser nulo") @Valid CreateTransactionRequest> lote) {
         return Flux.defer(() -> createTransactions.create(UsuarioDelToken.de(jwt), TransactionOrigin.WEB,
                         lote.stream().map(CreateTransactionRequest::toCommand).toList()))
-                .map(TransactionResponse::from)
+                .map(t -> TransactionResponse.from(t, clock.instant()))
                 .collectList();
     }
 
@@ -87,7 +89,7 @@ public class TransactionController {
                     }
                     return updateTransaction.update(UsuarioDelToken.de(jwt), movimiento, parche.toCommand());
                 })
-                .map(TransactionResponse::from);
+                .map(t -> TransactionResponse.from(t, clock.instant()));
     }
 
     @DeleteMapping("/{id}")
@@ -100,13 +102,13 @@ public class TransactionController {
     @GetMapping("/pending")
     public Flux<TransactionResponse> pending(@AuthenticationPrincipal Jwt jwt) {
         return Flux.defer(() -> listPending.listPending(UsuarioDelToken.de(jwt)))
-                .map(TransactionResponse::from);
+                .map(t -> TransactionResponse.from(t, clock.instant()));
     }
 
     @PostMapping("/{id}/approve")
     public Mono<TransactionResponse> approve(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
         return Mono.defer(() -> approvePending.approve(UsuarioDelToken.de(jwt), parseId(id)))
-                .map(TransactionResponse::from);
+                .map(t -> TransactionResponse.from(t, clock.instant()));
     }
 
     /** Solo un pendiente: sobre un confirmado es 409, para no borrarlo creyendo rechazar. */

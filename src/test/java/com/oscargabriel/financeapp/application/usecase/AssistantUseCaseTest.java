@@ -329,7 +329,7 @@ class AssistantUseCaseTest {
     @Nested
     class ConsultarMovimientos {
 
-        private final TransactionReport reporte = TransactionReport.of("COP", ReportMother.sinFiltros(), List.of());
+        private final TransactionReport reporte = TransactionReport.of("COP", ReportMother.sinFiltros(), List.of(), ReportMother.AHORA);
 
         @BeforeEach
         void reporte() {

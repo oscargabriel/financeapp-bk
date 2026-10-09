@@ -155,17 +155,32 @@ ON CONFLICT (code) DO UPDATE SET is_active = FALSE;
 
 
 -- -----------------------------------------------------------------------------
+-- Instante del mes en curso: el desfase desde el día 1 en hora de Bogotá,
+-- recortado al pasado. Un movimiento con fecha futura estaría programado
+-- (FA-106) y no contaría, así que sin el recorte los totales del escenario
+-- dependerían del día del mes en que se cargue. El recorte deja cada fila
+-- distinta, antes de now() y en el mismo orden del desfase: la que caería en el
+-- futuro queda a (31 días - desfase) / 1000 antes de now(), menos de 45 minutos.
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION pg_temp.en_el_mes(desfase INTERVAL)
+RETURNS TIMESTAMPTZ
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT LEAST(date_trunc('month', now() AT TIME ZONE 'America/Bogota') + desfase,
+                 (now() AT TIME ZONE 'America/Bogota') - (INTERVAL '31 days' - desfase) / 1000)
+           AT TIME ZONE 'America/Bogota';
+$$;
+
+
+-- -----------------------------------------------------------------------------
 -- Gastos e ingresos del mes en curso
---
--- El offset se suma al primer día del mes en hora de Bogotá. El último
--- movimiento cae el ultimo día a las 21:30 locales: en UTC ya es del mes
--- siguiente, y sirve para comprobar que las vistas lo cuentan en este mes.
 -- -----------------------------------------------------------------------------
 INSERT INTO finance.transactions
     (id, user_id, account_id, category_id, type, amount, currency_code,
      exchange_rate, amount_base, description, occurred_at, origin)
 SELECT gen_random_uuid(), :'uid'::uuid, m.account_id, c.id, m.type, m.amount, 'COP',
-       1, m.amount, m.description, (r.m0 + m.desfase) AT TIME ZONE 'America/Bogota', m.origin
+       1, m.amount, m.description, pg_temp.en_el_mes(m.desfase), m.origin
   FROM (VALUES
         (:'debit'::uuid,  'Vivienda',        'EXPENSE', 1200000::numeric, 'Arriendo',            INTERVAL '0 day 8 hours',   'WEB'),
         (:'debit'::uuid,  'Salario',         'INCOME',  4500000::numeric, 'Salario quincena 1',  INTERVAL '0 day 9 hours',   'WEB'),
@@ -178,23 +193,11 @@ SELECT gen_random_uuid(), :'uid'::uuid, m.account_id, c.id, m.type, m.amount, 'C
         (:'credit'::uuid, 'Entretenimiento', 'EXPENSE',   60000::numeric, 'Cine',                INTERVAL '19 day 20 hours', 'WEB'),
         (:'debit'::uuid,  'Salud',           'EXPENSE',   90000::numeric, 'Consulta médica',     INTERVAL '21 day 9 hours',  'WEB'),
         (:'credit'::uuid, 'Suscripciones',   'EXPENSE',   25000::numeric, 'Streaming',           INTERVAL '24 day 6 hours',  'IMPORT'),
-        (:'cash'::uuid,   'Gimnasio',        'EXPENSE',  120000::numeric, 'Mensualidad',         INTERVAL '25 day 19 hours', 'WEB')
+        (:'cash'::uuid,   'Gimnasio',        'EXPENSE',  120000::numeric, 'Mensualidad',         INTERVAL '25 day 19 hours', 'WEB'),
+        (:'cash'::uuid,   'Restaurantes',    'EXPENSE',   50000::numeric, 'Cena',                INTERVAL '27 day 21 hours 30 minutes', 'TELEGRAM')
        ) AS m(account_id, category_name, type, amount, description, desfase, origin)
- CROSS JOIN (SELECT date_trunc('month', now() AT TIME ZONE 'America/Bogota') AS m0) r
   JOIN finance.categories c
     ON c.user_id = :'uid'::uuid AND c.name = m.category_name;
-
--- Gasto del último día del mes a las 21:30 en Bogotá (frontera de mes).
-INSERT INTO finance.transactions
-    (id, user_id, account_id, category_id, type, amount, currency_code,
-     exchange_rate, amount_base, description, occurred_at, origin)
-SELECT gen_random_uuid(), :'uid'::uuid, :'cash'::uuid, c.id, 'EXPENSE', 50000, 'COP',
-       1, 50000, 'Cena de fin de mes',
-       (date_trunc('month', now() AT TIME ZONE 'America/Bogota')
-        + INTERVAL '1 month' - INTERVAL '2 hours 30 minutes') AT TIME ZONE 'America/Bogota',
-       'TELEGRAM'
-  FROM finance.categories c
- WHERE c.user_id = :'uid'::uuid AND c.name = 'Restaurantes';
 
 
 -- -----------------------------------------------------------------------------
@@ -205,8 +208,7 @@ INSERT INTO finance.transactions
      currency_code, exchange_rate, amount_base, description, occurred_at, origin)
 SELECT gen_random_uuid(), :'uid'::uuid, :'debit'::uuid, :'cash'::uuid, 'TRANSFER',
        300000, NULL, 'COP', 1, 300000, 'Retiro de cajero',
-       (r.m0 + INTERVAL '2 day 12 hours') AT TIME ZONE 'America/Bogota', 'WEB'
-  FROM (SELECT date_trunc('month', now() AT TIME ZONE 'America/Bogota') AS m0) r;
+       pg_temp.en_el_mes(INTERVAL '2 day 12 hours'), 'WEB';
 
 -- Transferencia entre monedas distintas: salen 100 USD y entran 410.000 COP.
 INSERT INTO finance.transactions
@@ -214,8 +216,7 @@ INSERT INTO finance.transactions
      currency_code, exchange_rate, amount_base, description, occurred_at, origin)
 SELECT gen_random_uuid(), :'uid'::uuid, :'usd'::uuid, :'debit'::uuid, 'TRANSFER',
        100, 410000, 'USD', 4100, 410000, 'Cambio de dólares',
-       (r.m0 + INTERVAL '9 day 15 hours') AT TIME ZONE 'America/Bogota', 'WEB'
-  FROM (SELECT date_trunc('month', now() AT TIME ZONE 'America/Bogota') AS m0) r;
+       pg_temp.en_el_mes(INTERVAL '9 day 15 hours'), 'WEB';
 
 
 -- -----------------------------------------------------------------------------
@@ -247,6 +248,10 @@ SELECT gen_random_uuid(), :'uid'::uuid, m.account_id, c.id, m.type, m.amount, 'C
 -- que v_monthly_spending lo devuelve con budget_amount, remaining y percent_used
 -- en NULL. Sirve para distinguir "no configuró meta" de "meta en cero", que no
 -- son lo mismo. El ingreso comprueba de paso que la vista solo suma los EXPENSE.
+--
+-- Los buses caen el último día del mes a las 21:30 de Bogotá, que en UTC ya es
+-- el día siguiente: prueban la frontera del día. Van en este mes y no en el en
+-- curso porque una fila a fin del mes en curso estaría programada (FA-106).
 -- -----------------------------------------------------------------------------
 INSERT INTO finance.transactions
     (id, user_id, account_id, category_id, type, amount, currency_code,
@@ -257,7 +262,7 @@ SELECT gen_random_uuid(), :'uid'::uuid, m.account_id, c.id, m.type, m.amount, 'C
         (:'debit'::uuid,  'Vivienda',  'EXPENSE', 1200000::numeric, 'Arriendo',          INTERVAL '0 day 8 hours'),
         (:'debit'::uuid,  'Salario',   'INCOME',  4500000::numeric, 'Salario',           INTERVAL '0 day 9 hours'),
         (:'cash'::uuid,   'Mercado',   'EXPENSE',  210000::numeric, 'Mercado del mes',   INTERVAL '6 day 10 hours'),
-        (:'credit'::uuid, 'Transporte','EXPENSE',   35000::numeric, 'Buses',             INTERVAL '17 day 7 hours')
+        (:'credit'::uuid, 'Transporte','EXPENSE',   35000::numeric, 'Buses de fin de mes', INTERVAL '1 month' - INTERVAL '2 hours 30 minutes')
        ) AS m(account_id, category_name, type, amount, description, desfase)
  CROSS JOIN (SELECT date_trunc('month', now() AT TIME ZONE 'America/Bogota')
                     - INTERVAL '2 month' AS m0) r
@@ -332,15 +337,14 @@ SELECT m.id, :'pendientes'::uuid, :'cuenta_pendientes'::uuid, m.destino,
        (SELECT c.id FROM finance.categories c
          WHERE c.user_id = :'pendientes'::uuid AND c.name = m.category_name),
        m.type, m.amount, 'COP', 1, m.amount, m.description,
-       (r.m0 + m.desfase) AT TIME ZONE 'America/Bogota', m.status,
+       pg_temp.en_el_mes(m.desfase), m.status,
        CASE m.status WHEN 'PENDING' THEN 'TELEGRAM' ELSE 'WEB' END
   FROM (VALUES
         (gen_random_uuid(),           NULL::uuid,                     'Mercado', 'EXPENSE',   30000::numeric, 'Mercado confirmado',  INTERVAL '0 day 10 hours', 'CONFIRMED'),
         (:'pendiente_rechazo'::uuid,  NULL::uuid,                     'Mercado', 'EXPENSE',   20000::numeric, 'Gasto mal leído',     INTERVAL '0 day 11 hours', 'PENDING'),
         (:'pendiente_traslado'::uuid, :'bolsillo_pendientes'::uuid,   NULL,      'TRANSFER', 100000::numeric, 'Al bolsillo',         INTERVAL '0 day 12 hours', 'PENDING'),
         (:'pendiente_gasto'::uuid,    NULL::uuid,                     'Mercado', 'EXPENSE',   45000::numeric, 'Mercado del asistente', INTERVAL '0 day 13 hours', 'PENDING')
-       ) AS m(id, destino, category_name, type, amount, description, desfase, status)
- CROSS JOIN (SELECT date_trunc('month', now() AT TIME ZONE 'America/Bogota') AS m0) r;
+       ) AS m(id, destino, category_name, type, amount, description, desfase, status);
 
 COMMIT;
 

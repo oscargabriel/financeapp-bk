@@ -1,0 +1,56 @@
+info:
+  name: Gasto programado y gasto de hoy
+  type: http
+  seq: 7
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idPrincipalProgramados}}",
+          "categoryId": "{{idMercadoProgramados}}",
+          "amount": 40000,
+          "description": "Mercado programado",
+          "occurredAt": "{{diaProgramado}}T12:00:00-05:00"
+        },
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idPrincipalProgramados}}",
+          "categoryId": "{{idMercadoProgramados}}",
+          "amount": 10000,
+          "description": "Mercado de hoy"
+        }
+      ]
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body[0].scheduled
+      operator: eq
+      value: "true"
+    - expression: res.body[1].scheduled
+      operator: eq
+      value: "false"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idGastoProgramado", res.getBody()[0].id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # La marca sale de la fecha
+
+  El primero es dentro de 40 dias; el segundo, sin `occurredAt`, es el instante de la peticion.

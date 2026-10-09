@@ -24,6 +24,9 @@ public final class ReportMother {
     public static final LocalDate DESDE = LocalDate.of(2026, 9, 1);
     public static final LocalDate HASTA = LocalDate.of(2026, 9, 30);
 
+    /** El instante de los reportes de prueba: despues de todo el mes, asi nada sale programado. */
+    public static final Instant AHORA = Instant.parse("2026-10-01T00:00:00Z");
+
     private ReportMother() {
     }
 

@@ -15,13 +15,16 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Set;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -41,14 +44,38 @@ import reactor.test.StepVerifier;
 @ExtendWith(MockitoExtension.class)
 class GetTransactionReportUseCaseTest {
 
+    /** Despues de todo el mes de prueba: ningun movimiento de ReportMother sale programado. */
+    private static final Instant AHORA = Instant.parse("2026-10-01T00:00:00Z");
+
     @Mock
     private TransactionReportQueryPort query;
 
-    @InjectMocks
     private GetTransactionReportUseCase casoDeUso;
 
     @Captor
     private ArgumentCaptor<TransactionReportFilter> filtro;
+
+    @BeforeEach
+    void setUp() {
+        casoDeUso = new GetTransactionReportUseCase(query, Clock.fixed(AHORA, ZoneOffset.UTC));
+    }
+
+    @Test
+    void armaElReporteAlInstanteDelRelojYNoSumaLoQueOcurreDespues() {
+        when(query.findBaseCurrency(USER_ID)).thenReturn(Mono.just("COP"));
+        when(query.findByUser(eq(USER_ID), any())).thenReturn(Flux.just(
+                unGasto(MERCADO_ID, "Mercado", "85000.0000", "2026-09-02T15:00:00Z"),
+                unGasto(MERCADO_ID, "Mercado", "40000.0000", "2026-10-15T15:00:00Z")));
+
+        StepVerifier.create(casoDeUso.get(USER_ID, DESDE, HASTA, Set.of(), Set.of(), Set.of()))
+                .assertNext(reporte -> {
+                    assertThat(reporte.asOf()).isEqualTo(AHORA);
+                    assertThat(reporte.transactions()).hasSize(2);
+                    assertThat(reporte.totalsByType()).extracting(TypeTotal::type, TypeTotal::total)
+                            .contains(tuple(TransactionType.EXPENSE, new BigDecimal("85000.0000")));
+                })
+                .verifyComplete();
+    }
 
     @Test
     void armaElReporteConLaMonedaYLosMovimientosDelPuertoYLePasaTodosLosFiltros() {

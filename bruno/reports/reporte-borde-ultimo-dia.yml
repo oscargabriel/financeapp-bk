@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: "{{baseUrl}}/reports/transactions?from={{ultimoDia}}&to={{ultimoDia}}"
+  url: "{{baseUrl}}/reports/transactions?from={{ultimoDiaFrontera}}&to={{ultimoDiaFrontera}}"
   auth: inherit
 
 runtime:
@@ -16,9 +16,9 @@ runtime:
   scripts:
     - type: tests
       code: |-
-        test("incluye la cena de las 21:30, que en UTC ya es del dia siguiente", function() {
+        test("incluye los buses de las 21:30, que en UTC ya es del dia siguiente", function() {
           const descripciones = res.getBody().transactions.map(function (t) { return t.description; });
-          expect(descripciones).to.include("Cena de fin de mes");
+          expect(descripciones).to.include("Buses de fin de mes");
         });
 
 settings:
@@ -30,5 +30,5 @@ settings:
 docs: |
   # Borde de dia por zona horaria
 
-  "Cena de fin de mes" ocurre el ultimo dia del mes a las 21:30 en Bogota, las 02:30 UTC del dia
+  "Buses de fin de mes" ocurre el ultimo dia de hace dos meses a las 21:30 en Bogota, las 02:30 UTC del dia
   siguiente. El dia se corta en la zona del usuario (`users.timezone`), asi que es de este dia.

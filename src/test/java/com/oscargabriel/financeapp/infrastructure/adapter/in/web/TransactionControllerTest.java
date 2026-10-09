@@ -41,6 +41,7 @@ import com.oscargabriel.financeapp.domain.port.in.RejectPendingTransactionPort;
 import com.oscargabriel.financeapp.domain.port.in.UpdateTransactionPort;
 import com.oscargabriel.financeapp.infrastructure.config.JwtConfig;
 import com.oscargabriel.financeapp.infrastructure.config.SecurityConfig;
+import com.oscargabriel.financeapp.support.RelojFijo;
 import com.oscargabriel.financeapp.support.TransactionMother;
 
 import reactor.core.publisher.Flux;
@@ -48,7 +49,7 @@ import reactor.core.publisher.Mono;
 
 /** Sin el base-path /api, igual que el resto de slices: la ruta completa la cubre TransactionsIT. */
 @WebFluxTest(TransactionController.class)
-@Import({SecurityConfig.class, JwtConfig.class})
+@Import({SecurityConfig.class, JwtConfig.class, RelojFijo.class})
 class TransactionControllerTest {
 
     private static final String URI_BASE = "/transactions";
@@ -131,6 +132,39 @@ class TransactionControllerTest {
                 .jsonPath("$[1].id").isEqualTo(TRANSFERENCIA_ID.toString())
                 .jsonPath("$[1].destinationAccountId").isEqualTo(TransactionMother.DESTINO_ID.toString())
                 .jsonPath("$[1].categoryId").isEqualTo(null);
+    }
+
+    @Test
+    void marcaComoProgramadoElMovimientoConFechaPosteriorAlReloj() {
+        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), anyList()))
+                .thenReturn(Flux.just(gasto(), TransactionMother.conFecha(transferencia(), RelojFijo.DESPUES)));
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(LOTE)
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody()
+                .jsonPath("$[0].scheduled").isEqualTo(false)
+                .jsonPath("$[1].scheduled").isEqualTo(true);
+    }
+
+    @Test
+    void laMarcaDeProgramadoEnElCuerpoSeIgnora() {
+        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), anyList()))
+                .thenReturn(Flux.just(gasto()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        [{"type": "EXPENSE", "accountId": "30000000-0000-7000-8000-000000000001",
+                          "categoryId": "40000000-0000-7000-8000-000000000001", "amount": 50000,
+                          "description": "Mercado", "scheduled": true}]
+                        """)
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody()
+                .jsonPath("$[0].scheduled").isEqualTo(false);
     }
 
     @Test
@@ -339,6 +373,23 @@ class TransactionControllerTest {
     }
 
     @Test
+    void elPatchQueLlevaLaFechaAlFuturoDevuelveElMovimientoProgramado() {
+        when(updateTransaction.update(eq(TransactionMother.USER_ID), eq(GASTO_ID), any()))
+                .thenReturn(Mono.just(TransactionMother.conFecha(gasto(), RelojFijo.DESPUES)));
+
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/" + GASTO_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"occurredAt": "2026-11-08T12:00:00-05:00"}
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.occurredAt").isEqualTo("2026-11-08T17:00:00Z")
+                .jsonPath("$.scheduled").isEqualTo(true);
+    }
+
+    @Test
     void unParcheVacioEsUn400SobreElCuerpoSinLlamarAlCasoDeUso() {
         webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/" + GASTO_ID)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -480,6 +531,21 @@ class TransactionControllerTest {
     }
 
     @Test
+    void laListaDePendientesMarcaLosProgramados() {
+        when(listPending.listPending(TransactionMother.USER_ID)).thenReturn(Flux.just(
+                TransactionMother.conFecha(TransactionMother.conEstado(gasto(), TransactionStatus.PENDING),
+                        RelojFijo.DESPUES),
+                TransactionMother.conEstado(transferencia(), TransactionStatus.PENDING)));
+
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "/pending")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$[0].scheduled").isEqualTo(true)
+                .jsonPath("$[1].scheduled").isEqualTo(false);
+    }
+
+    @Test
     void sinPendientesLaListaSaleVacia() {
         when(listPending.listPending(TransactionMother.USER_ID)).thenReturn(Flux.empty());
 
@@ -501,7 +567,8 @@ class TransactionControllerTest {
                 .expectBody()
                 .jsonPath("$.id").isEqualTo(GASTO_ID.toString())
                 .jsonPath("$.amount").isEqualTo(50000)
-                .jsonPath("$.status").isEqualTo("CONFIRMED");
+                .jsonPath("$.status").isEqualTo("CONFIRMED")
+                .jsonPath("$.scheduled").isEqualTo(false);
     }
 
     @Test

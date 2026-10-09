@@ -7,7 +7,10 @@ import java.util.UUID;
 import com.oscargabriel.financeapp.domain.model.ReportedTransaction;
 import com.oscargabriel.financeapp.domain.model.TransactionReport;
 
-/** El reporte de movimientos. occurredAt sale en UTC, como en el resto del API. */
+/**
+ * El reporte de movimientos. occurredAt sale en UTC, como en el resto del API. scheduled marca los
+ * programados (FA-106): salen en la lista y no en los totales.
+ */
 public record TransactionReportResponse(
         String from,
         String to,
@@ -29,9 +32,10 @@ public record TransactionReportResponse(
             BigDecimal amountBase,
             String description,
             String notes,
-            String occurredAt) {
+            String occurredAt,
+            boolean scheduled) {
 
-        static Item from(ReportedTransaction t) {
+        static Item from(ReportedTransaction t, boolean scheduled) {
             return new Item(
                     t.id().toString(),
                     t.type().name(),
@@ -44,7 +48,8 @@ public record TransactionReportResponse(
                     t.amountBase(),
                     t.description(),
                     t.notes(),
-                    t.occurredAt().toString());
+                    t.occurredAt().toString(),
+                    scheduled);
         }
     }
 
@@ -59,7 +64,7 @@ public record TransactionReportResponse(
                 reporte.filter().from().toString(),
                 reporte.filter().to().toString(),
                 reporte.currencyCode(),
-                reporte.transactions().stream().map(Item::from).toList(),
+                reporte.transactions().stream().map(t -> Item.from(t, reporte.scheduled(t))).toList(),
                 reporte.totalsByType().stream()
                         .map(t -> new TypeTotal(t.type().name(), t.total(), t.count()))
                         .toList(),
