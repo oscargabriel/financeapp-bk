@@ -19,8 +19,8 @@ import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.validation.
  * el formato del alta y no puede ir en blanco. Que el cupo y los dias solo valgan en una CREDIT lo
  * decide el caso de uso, porque el tipo no viene en el cuerpo: es el de la cuenta guardada.
  *
- * currentBalance, type e isActive se leen solo para rechazarlos: ignorarlos haria creer al cliente
- * que los cambio.
+ * currentBalance y type se leen solo para rechazarlos: ignorarlos haria creer al cliente que los
+ * cambio. isActive si se modifica (FA-68): desactivar y reactivar es un campo mas del parche.
  */
 public record UpdateAccountRequest(
 
@@ -53,16 +53,16 @@ public record UpdateAccountRequest(
         @Null(message = "El tipo de una cuenta no se puede cambiar")
         String type,
 
-        @Null(message = "El estado de la cuenta no se cambia con este endpoint")
         Boolean isActive) {
 
     /** Un parche que no cambia nada se rechaza en el controlador, antes de leer la cuenta. */
     public boolean sinCambios() {
-        return Stream.of(name, currencyCode, initialBalance, creditLimit, statementDay, paymentDueDay)
+        return Stream.of(name, currencyCode, initialBalance, creditLimit, statementDay, paymentDueDay, isActive)
                 .allMatch(campo -> campo == null);
     }
 
     public UpdateAccountCommand toCommand() {
-        return new UpdateAccountCommand(name, currencyCode, initialBalance, creditLimit, statementDay, paymentDueDay);
+        return new UpdateAccountCommand(name, currencyCode, initialBalance, creditLimit, statementDay, paymentDueDay,
+                isActive);
     }
 }

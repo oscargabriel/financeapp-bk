@@ -1,7 +1,7 @@
 info:
-  name: Gasto en cuenta borrada
+  name: Gasto en cuenta desactivada
   type: http
-  seq: 65
+  seq: 45
 
 http:
   method: POST
@@ -12,10 +12,10 @@ http:
       [
         {
           "type": "EXPENSE",
-          "accountId": "{{idCajaChica}}",
+          "accountId": "{{idCuentaEfectivo}}",
           "categoryId": "{{idMercadoCuentas}}",
-          "amount": 1000,
-          "description": "No deberia entrar"
+          "amount": 20000,
+          "description": "Mercado"
         }
       ]
   auth:
@@ -41,6 +41,6 @@ settings:
   maxRedirects: 5
 
 docs: |
-  # Una cuenta borrada no recibe movimientos nuevos
+  # Una cuenta desactivada no recibe movimientos nuevos
 
-  Responde como con una cuenta que no existe.
+  El mismo gasto que "Gasto tras reactivar" acepta despues.

@@ -1,14 +1,18 @@
 info:
-  name: Borrar cuenta ya borrada
+  name: Reactivar cuenta borrada
   type: http
-  seq: 62
+  seq: 55
 
 http:
-  method: DELETE
-  url: "{{baseUrl}}/accounts/{{idCajaChica}}"
-  auth:
-    type: bearer
-    token: "{{tokenCuentas}}"
+  method: PATCH
+  url: "{{baseUrl}}/accounts/20000000-0000-7000-8000-000000000006"
+  body:
+    type: json
+    data: |-
+      {
+        "isActive": true
+      }
+  auth: inherit
 
 runtime:
   assertions:
@@ -29,6 +33,6 @@ settings:
   maxRedirects: 5
 
 docs: |
-  # La misma cuenta otra vez
+  # Davivienda, la borrada del escenario
 
-  Ya borrada responde como una inexistente.
+  Reactivar no revive una cuenta borrada: 404, como cualquier PATCH sobre ella.

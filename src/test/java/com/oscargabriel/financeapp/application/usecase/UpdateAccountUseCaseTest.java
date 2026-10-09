@@ -50,7 +50,7 @@ class UpdateAccountUseCaseTest {
         actualizacionPosible();
 
         StepVerifier.create(useCase().update(AccountMother.USER_ID, AccountMother.EFECTIVO_ID,
-                        new UpdateAccountCommand(" Bolsillo ", null, new BigDecimal("200000"), null, null, null)))
+                        new UpdateAccountCommand(" Bolsillo ", null, new BigDecimal("200000"), null, null, null, null)))
                 .expectNextCount(1)
                 .verifyComplete();
 
@@ -67,7 +67,7 @@ class UpdateAccountUseCaseTest {
         actualizacionPosible();
 
         StepVerifier.create(useCase().update(AccountMother.USER_ID, tarjeta.id(),
-                        new UpdateAccountCommand(null, null, null, new BigDecimal("4000000"), 25, null)))
+                        new UpdateAccountCommand(null, null, null, new BigDecimal("4000000"), 25, null, null)))
                 .expectNextCount(1)
                 .verifyComplete();
 
@@ -78,6 +78,53 @@ class UpdateAccountUseCaseTest {
     }
 
     @Test
+    void desactivaUnaCuentaConSaldoSinTocarElResto() {
+        guardada(AccountMother.efectivo());
+        actualizacionPosible();
+
+        StepVerifier.create(useCase().update(AccountMother.USER_ID, AccountMother.EFECTIVO_ID,
+                        new UpdateAccountCommand(null, null, null, null, null, null, false)))
+                .expectNextCount(1)
+                .verifyComplete();
+
+        verify(cuentas).update(eq(AccountMother.USER_ID), cuentaGuardada.capture());
+        assertThat(cuentaGuardada.getValue())
+                .isEqualTo(new Account(AccountMother.EFECTIVO_ID, "Efectivo", AccountType.CASH, "COP",
+                        new BigDecimal("500000.0000"), AccountMother.efectivo().currentBalance(),
+                        null, null, null, false));
+    }
+
+    @Test
+    void reactivaUnaCuentaDesactivada() {
+        Account nequi = AccountMother.inactiva();
+        guardada(nequi);
+        actualizacionPosible();
+
+        StepVerifier.create(useCase().update(AccountMother.USER_ID, nequi.id(),
+                        new UpdateAccountCommand(null, null, null, null, null, null, true)))
+                .expectNextCount(1)
+                .verifyComplete();
+
+        verify(cuentas).update(eq(AccountMother.USER_ID), cuentaGuardada.capture());
+        assertThat(cuentaGuardada.getValue().active()).isTrue();
+    }
+
+    @Test
+    void elEstadoEnNullConservaElGuardado() {
+        Account nequi = AccountMother.inactiva();
+        guardada(nequi);
+        actualizacionPosible();
+
+        StepVerifier.create(useCase().update(AccountMother.USER_ID, nequi.id(),
+                        new UpdateAccountCommand("Nequi vieja", null, null, null, null, null, null)))
+                .expectNextCount(1)
+                .verifyComplete();
+
+        verify(cuentas).update(eq(AccountMother.USER_ID), cuentaGuardada.capture());
+        assertThat(cuentaGuardada.getValue().active()).isFalse();
+    }
+
+    @Test
     void devuelveLaCuentaComoLaDejoLaBase() {
         Account comoQuedo = new Account(AccountMother.EFECTIVO_ID, "Efectivo", AccountType.CASH, "COP",
                 new BigDecimal("600000.0000"), new BigDecimal("422500.0000"), null, null, null, true);
@@ -85,7 +132,7 @@ class UpdateAccountUseCaseTest {
         when(cuentas.update(any(), any())).thenReturn(Mono.just(comoQuedo));
 
         StepVerifier.create(useCase().update(AccountMother.USER_ID, AccountMother.EFECTIVO_ID,
-                        new UpdateAccountCommand(null, null, new BigDecimal("600000"), null, null, null)))
+                        new UpdateAccountCommand(null, null, new BigDecimal("600000"), null, null, null, null)))
                 .assertNext(cuenta -> assertThat(cuenta).isEqualTo(comoQuedo))
                 .verifyComplete();
     }
@@ -96,7 +143,7 @@ class UpdateAccountUseCaseTest {
                 .thenReturn(Mono.empty());
 
         StepVerifier.create(useCase().update(AccountMother.USER_ID, AccountMother.EFECTIVO_ID,
-                        new UpdateAccountCommand("Bolsillo", null, null, null, null, null)))
+                        new UpdateAccountCommand("Bolsillo", null, null, null, null, null, null)))
                 .expectErrorSatisfies(error -> esError(error, HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, "id"))
                 .verify();
 
@@ -108,7 +155,7 @@ class UpdateAccountUseCaseTest {
         guardada(AccountMother.efectivo());
 
         StepVerifier.create(useCase().update(AccountMother.USER_ID, AccountMother.EFECTIVO_ID,
-                        new UpdateAccountCommand(null, "USD", null, new BigDecimal("1000000"), 3, 10)))
+                        new UpdateAccountCommand(null, "USD", null, new BigDecimal("1000000"), 3, 10, null)))
                 .expectErrorSatisfies(error -> {
                     BadRequestException bre = (BadRequestException) error;
                     assertThat(bre.getHttpStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -132,7 +179,7 @@ class UpdateAccountUseCaseTest {
         when(monedas.exists("XYZ")).thenReturn(Mono.just(false));
 
         StepVerifier.create(useCase().update(AccountMother.USER_ID, AccountMother.EFECTIVO_ID,
-                        new UpdateAccountCommand(null, " xyz ", null, null, null, null)))
+                        new UpdateAccountCommand(null, " xyz ", null, null, null, null, null)))
                 .expectErrorSatisfies(error -> esError(error, HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR,
                         "currencyCode"))
                 .verify();
@@ -141,6 +188,7 @@ class UpdateAccountUseCaseTest {
         verify(cuentas, never()).update(any(), any());
     }
 
+    /** Con el estado en el parche: el 409 tampoco desactiva, porque no hay ninguna escritura. */
     @Test
     void rechazaCambiarLaMonedaDeUnaCuentaConMovimientosSinGuardarNada() {
         guardada(AccountMother.efectivo());
@@ -148,7 +196,7 @@ class UpdateAccountUseCaseTest {
         when(cuentas.hasTransactions(AccountMother.EFECTIVO_ID)).thenReturn(Mono.just(true));
 
         StepVerifier.create(useCase().update(AccountMother.USER_ID, AccountMother.EFECTIVO_ID,
-                        new UpdateAccountCommand("Otro", "USD", null, null, null, null)))
+                        new UpdateAccountCommand("Otro", "USD", null, null, null, null, false)))
                 .expectErrorSatisfies(error -> esError(error, HttpStatus.CONFLICT, ErrorCodes.RESOURCE_IN_USE,
                         "currencyCode"))
                 .verify();
@@ -164,7 +212,7 @@ class UpdateAccountUseCaseTest {
         actualizacionPosible();
 
         StepVerifier.create(useCase().update(AccountMother.USER_ID, AccountMother.EFECTIVO_ID,
-                        new UpdateAccountCommand(null, " usd ", null, null, null, null)))
+                        new UpdateAccountCommand(null, " usd ", null, null, null, null, null)))
                 .expectNextCount(1)
                 .verifyComplete();
 
@@ -179,7 +227,7 @@ class UpdateAccountUseCaseTest {
         actualizacionPosible();
 
         StepVerifier.create(useCase().update(AccountMother.USER_ID, AccountMother.EFECTIVO_ID,
-                        new UpdateAccountCommand(null, "cop", null, null, null, null)))
+                        new UpdateAccountCommand(null, "cop", null, null, null, null, null)))
                 .expectNextCount(1)
                 .verifyComplete();
 
@@ -194,7 +242,7 @@ class UpdateAccountUseCaseTest {
                 ErrorCodes.DUPLICATE_RESOURCE, "Ya hay una cuenta con ese nombre", "name")));
 
         StepVerifier.create(useCase().update(AccountMother.USER_ID, AccountMother.EFECTIVO_ID,
-                        new UpdateAccountCommand("Visa", null, null, null, null, null)))
+                        new UpdateAccountCommand("Visa", null, null, null, null, null, null)))
                 .expectErrorSatisfies(error -> esError(error, HttpStatus.CONFLICT, ErrorCodes.DUPLICATE_RESOURCE,
                         "name"))
                 .verify();
@@ -207,7 +255,7 @@ class UpdateAccountUseCaseTest {
         when(cuentas.update(any(), any())).thenReturn(Mono.empty());
 
         StepVerifier.create(useCase().update(AccountMother.USER_ID, AccountMother.EFECTIVO_ID,
-                        new UpdateAccountCommand("Bolsillo", null, null, null, null, null)))
+                        new UpdateAccountCommand("Bolsillo", null, null, null, null, null, null)))
                 .expectErrorSatisfies(error -> esError(error, HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, "id"))
                 .verify();
     }

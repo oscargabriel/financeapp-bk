@@ -1,16 +1,16 @@
 info:
-  name: Saldar Caja chica
+  name: Desactivar cuenta ya desactivada
   type: http
-  seq: 59
+  seq: 42
 
 http:
   method: PATCH
-  url: "{{baseUrl}}/accounts/{{idCajaChica}}"
+  url: "{{baseUrl}}/accounts/{{idCuentaEfectivo}}"
   body:
     type: json
     data: |-
       {
-        "initialBalance": 30000
+        "isActive": false
       }
   auth:
     type: bearer
@@ -21,9 +21,15 @@ runtime:
     - expression: res.status
       operator: eq
       value: "200"
+    - expression: res.body.isActive
+      operator: eq
+      value: false
+    - expression: res.body.name
+      operator: eq
+      value: BOLSILLO
     - expression: res.body.currentBalance
       operator: eq
-      value: 0
+      value: 250000
 
 settings:
   encodeUrl: true
@@ -32,6 +38,6 @@ settings:
   maxRedirects: 5
 
 docs: |
-  # Dejarla en cero corrigiendo el saldo inicial
+  # Pedir el estado que ya tiene
 
-  El camino de FA-24: el inicial pasa a 30000 y el gasto de 30000 deja el vigente en 0.
+  Idempotente: 200 con la cuenta sin cambios, no un conflicto.

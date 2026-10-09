@@ -1,7 +1,7 @@
 info:
   name: Borrar cuenta desactivada con saldo
   type: http
-  seq: 54
+  seq: 69
 
 http:
   method: DELETE

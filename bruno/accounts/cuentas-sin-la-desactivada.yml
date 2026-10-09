@@ -1,11 +1,11 @@
 info:
-  name: Cuentas tras borrar
+  name: Cuentas sin la desactivada
   type: http
-  seq: 61
+  seq: 43
 
 http:
   method: GET
-  url: "{{baseUrl}}/accounts?includeInactive=true"
+  url: "{{baseUrl}}/accounts"
   auth:
     type: bearer
     token: "{{tokenCuentas}}"
@@ -15,16 +15,12 @@ runtime:
     - expression: res.status
       operator: eq
       value: "200"
-    - expression: res.body
-      operator: length
-      value: "2"
   scripts:
     - type: tests
       code: |-
-        test("la borrada no sale ni pidiendo las inactivas", function() {
+        test("Bolsillo no aparece y la tarjeta si", function() {
           const ids = res.getBody().map(function (c) { return c.id; });
-          expect(ids).to.not.include(bru.getVar("idCajaChica"));
-          expect(ids).to.include(bru.getVar("idCuentaEfectivo"));
+          expect(ids).to.not.include(bru.getVar("idCuentaEfectivo"));
           expect(ids).to.include(bru.getVar("idCuentaCredito"));
         });
 
@@ -35,6 +31,6 @@ settings:
   maxRedirects: 5
 
 docs: |
-  # El listado ya no la trae
+  # Fuera del listado por defecto
 
-  Borrar no es desactivar: `includeInactive=true` tampoco la devuelve.
+  Sin `includeInactive`, solo queda la tarjeta.
