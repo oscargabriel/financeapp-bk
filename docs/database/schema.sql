@@ -163,20 +163,24 @@ CREATE TABLE finance.accounts (
     deleted_at       TIMESTAMPTZ,
     created_at       TIMESTAMPTZ    NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ    NOT NULL DEFAULT now(),
+    monthly_interest_rate NUMERIC(6,4),
     CONSTRAINT ck_accounts_type CHECK (type IN ('CASH', 'DEBIT', 'CREDIT', 'SAVINGS', 'INVESTMENT', 'OTHER')),
     CONSTRAINT ck_accounts_credit_limit    CHECK (credit_limit IS NULL OR credit_limit > 0),
     CONSTRAINT ck_accounts_statement_day   CHECK (statement_day IS NULL OR statement_day BETWEEN 1 AND 31),
     CONSTRAINT ck_accounts_payment_due_day CHECK (payment_due_day IS NULL OR payment_due_day BETWEEN 1 AND 31),
+    CONSTRAINT ck_accounts_monthly_interest_rate CHECK (monthly_interest_rate IS NULL OR monthly_interest_rate BETWEEN 0 AND 10),
     -- Los atributos de crédito solo tienen sentido en una tarjeta de crédito.
     CONSTRAINT ck_accounts_credit_fields CHECK (
         type = 'CREDIT'
-        OR (credit_limit IS NULL AND statement_day IS NULL AND payment_due_day IS NULL)
+        OR (credit_limit IS NULL AND statement_day IS NULL AND payment_due_day IS NULL
+            AND monthly_interest_rate IS NULL)
     )
 );
 
 COMMENT ON TABLE  finance.accounts IS 'Origen o destino del dinero: efectivo, cuenta bancaria, tarjeta de crédito, etc.';
 COMMENT ON COLUMN finance.accounts.current_balance IS 'Saldo vigente: initial_balance más el efecto de los movimientos. Lo mantienen los triggers trg_transactions_sync_balance y trg_accounts_shift_balance; la aplicación NUNCA lo escribe directamente. En una tarjeta de crédito un valor negativo es la deuda, y el cupo disponible es credit_limit + current_balance.';
-COMMENT ON COLUMN finance.accounts.initial_balance IS 'Saldo con el que la cuenta entra al sistema. Se copia a current_balance al crearla, y si después cambia, current_balance se corre en la misma diferencia.';
+COMMENT ON COLUMN finance.accounts.monthly_interest_rate IS 'Tasa de interés mensual de una tarjeta de crédito, en porcentaje: 2.15 es el 2,15 % mensual. NULL si no se ha cargado.';
+COMMENT ON COLUMN finance.accounts.initial_balance IS'Saldo con el que la cuenta entra al sistema. Se copia a current_balance al crearla, y si después cambia, current_balance se corre en la misma diferencia.';
 
 CREATE UNIQUE INDEX ux_accounts_user_name
     ON finance.accounts (user_id, lower(name)) WHERE deleted_at IS NULL;

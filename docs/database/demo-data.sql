@@ -119,9 +119,9 @@ VALUES
 
 INSERT INTO finance.accounts
     (id, user_id, name, type, currency_code, initial_balance,
-     credit_limit, statement_day, payment_due_day)
+     credit_limit, statement_day, payment_due_day, monthly_interest_rate)
 VALUES
-    (:'tarjeta'::uuid, :'uid'::uuid, 'Mastercard Oro', 'CREDIT', 'COP', 0, 8000000, 20, 5);
+    (:'tarjeta'::uuid, :'uid'::uuid, 'Mastercard Oro', 'CREDIT', 'COP', 0, 8000000, 20, 5, 1.89);
 
 
 -- -----------------------------------------------------------------------------

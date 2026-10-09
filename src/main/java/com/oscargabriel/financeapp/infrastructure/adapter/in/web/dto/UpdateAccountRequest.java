@@ -13,10 +13,11 @@ import jakarta.validation.constraints.Size;
 import com.oscargabriel.financeapp.domain.model.UpdateAccountCommand;
 import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.validation.Formatos;
 import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.validation.MontoNumeric;
+import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.validation.TasaMensual;
 
 /**
  * El parche de PATCH /accounts/{id}: todo opcional, y null es "no cambia". Cada campo que viene cumple
- * el formato del alta y no puede ir en blanco. Que el cupo y los dias solo valgan en una CREDIT lo
+ * el formato del alta y no puede ir en blanco. Que el cupo, los dias y la tasa solo valgan en una CREDIT lo
  * decide el caso de uso, porque el tipo no viene en el cuerpo: es el de la cuenta guardada.
  *
  * currentBalance y type se leen solo para rechazarlos: ignorarlos haria creer al cliente que los
@@ -47,6 +48,9 @@ public record UpdateAccountRequest(
         @Max(value = 31, message = "El dia de pago debe estar entre 1 y 31")
         Integer paymentDueDay,
 
+        @TasaMensual
+        BigDecimal monthlyInterestRate,
+
         @Null(message = "El saldo vigente lo calcula el sistema; para corregirlo, cambia initialBalance")
         BigDecimal currentBalance,
 
@@ -57,12 +61,13 @@ public record UpdateAccountRequest(
 
     /** Un parche que no cambia nada se rechaza en el controlador, antes de leer la cuenta. */
     public boolean sinCambios() {
-        return Stream.of(name, currencyCode, initialBalance, creditLimit, statementDay, paymentDueDay, isActive)
+        return Stream.of(name, currencyCode, initialBalance, creditLimit, statementDay, paymentDueDay,
+                        monthlyInterestRate, isActive)
                 .allMatch(campo -> campo == null);
     }
 
     public UpdateAccountCommand toCommand() {
         return new UpdateAccountCommand(name, currencyCode, initialBalance, creditLimit, statementDay, paymentDueDay,
-                isActive);
+                monthlyInterestRate, isActive);
     }
 }

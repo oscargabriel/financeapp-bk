@@ -105,12 +105,13 @@ class AccountControllerTest {
                 .jsonPath("$[0].availableCredit").isEqualTo(4342000.0)
                 .jsonPath("$[0].statementDay").isEqualTo(15)
                 .jsonPath("$[0].paymentDueDay").isEqualTo(5)
+                .jsonPath("$[0].monthlyInterestRate").isEqualTo(2.1)
                 .jsonPath("$[0].isActive").isEqualTo(true)
                 .jsonPath("$[0].userId").doesNotExist();
     }
 
     @Test
-    void dejaEnNullElCupoYLasFechasDeUnaCuentaQueNoEsDeCredito() {
+    void dejaEnNullElCupoLasFechasYLaTasaDeUnaCuentaQueNoEsDeCredito() {
         when(listAccounts.list(eq(AccountMother.USER_ID), anyBoolean()))
                 .thenReturn(Flux.just(AccountMother.efectivo()));
 
@@ -124,7 +125,8 @@ class AccountControllerTest {
                 .jsonPath("$[0].creditLimit").isEqualTo(null)
                 .jsonPath("$[0].availableCredit").isEqualTo(null)
                 .jsonPath("$[0].statementDay").isEqualTo(null)
-                .jsonPath("$[0].paymentDueDay").isEqualTo(null);
+                .jsonPath("$[0].paymentDueDay").isEqualTo(null)
+                .jsonPath("$[0].monthlyInterestRate").isEqualTo(null);
     }
 
     @Test
@@ -226,6 +228,7 @@ class AccountControllerTest {
                 .jsonPath("$.availableCredit").isEqualTo(2800000.0)
                 .jsonPath("$.statementDay").isEqualTo(20)
                 .jsonPath("$.paymentDueDay").isEqualTo(5)
+                .jsonPath("$.monthlyInterestRate").isEqualTo(2.15)
                 .jsonPath("$.isActive").isEqualTo(true)
                 .jsonPath("$.userId").doesNotExist();
     }
@@ -240,7 +243,7 @@ class AccountControllerTest {
                 .bodyValue("""
                         {"name": "Mastercard", "type": "CREDIT", "currencyCode": "COP",
                          "initialBalance": -200000, "creditLimit": 3000000, "statementDay": 20,
-                         "paymentDueDay": 5}
+                         "paymentDueDay": 5, "monthlyInterestRate": 2.15}
                         """)
                 .exchange()
                 .expectStatus().isCreated();
@@ -248,7 +251,7 @@ class AccountControllerTest {
         ArgumentCaptor<CreateAccountCommand> comando = ArgumentCaptor.forClass(CreateAccountCommand.class);
         verify(createAccount).create(eq(AccountMother.USER_ID), comando.capture());
         assertThat(comando.getValue()).isEqualTo(new CreateAccountCommand("Mastercard", "CREDIT", "COP",
-                new BigDecimal("-200000"), new BigDecimal("3000000"), 20, 5, null));
+                new BigDecimal("-200000"), new BigDecimal("3000000"), 20, 5, new BigDecimal("2.15"), null));
     }
 
     /** Las reglas viven en el record: un cuerpo invalido no llega al caso de uso. */
@@ -299,7 +302,7 @@ class AccountControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("""
                         {"name": " Visa ", "currencyCode": "cop", "initialBalance": 10, "creditLimit": 6000000,
-                         "statementDay": 16, "paymentDueDay": 6}
+                         "statementDay": 16, "paymentDueDay": 6, "monthlyInterestRate": 1.9}
                         """)
                 .exchange()
                 .expectStatus().isOk()
@@ -310,7 +313,7 @@ class AccountControllerTest {
         ArgumentCaptor<UpdateAccountCommand> comando = ArgumentCaptor.forClass(UpdateAccountCommand.class);
         verify(updateAccount).update(eq(AccountMother.USER_ID), eq(AccountMother.VISA_ID), comando.capture());
         assertThat(comando.getValue()).isEqualTo(new UpdateAccountCommand(" Visa ", "cop", new BigDecimal("10"),
-                new BigDecimal("6000000"), 16, 6, null));
+                new BigDecimal("6000000"), 16, 6, new BigDecimal("1.9"), null));
     }
 
     @Test
@@ -378,7 +381,7 @@ class AccountControllerTest {
         ArgumentCaptor<UpdateAccountCommand> comando = ArgumentCaptor.forClass(UpdateAccountCommand.class);
         verify(updateAccount).update(eq(AccountMother.USER_ID), eq(AccountMother.EFECTIVO_ID), comando.capture());
         assertThat(comando.getValue())
-                .isEqualTo(new UpdateAccountCommand(null, null, null, null, null, null, false));
+                .isEqualTo(new UpdateAccountCommand(null, null, null, null, null, null, null, false));
     }
 
     @Test

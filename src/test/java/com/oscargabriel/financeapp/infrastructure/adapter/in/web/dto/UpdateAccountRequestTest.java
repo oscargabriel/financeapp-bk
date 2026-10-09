@@ -18,15 +18,24 @@ import com.oscargabriel.financeapp.support.Violaciones;
 
 class UpdateAccountRequestTest {
 
+    private static final String TASA_FUERA =
+            "La tasa de interes mensual va de 0 a 10, en porcentaje y con hasta 4 decimales";
+
     @Test
     void unParcheCompletoNoTieneViolaciones() {
         assertThat(Violaciones.de(new UpdateAccountRequest("Bolsillo", "usd", new BigDecimal("-200000.5"),
-                new BigDecimal("4000000"), 1, 31, null, null, null))).isEmpty();
+                new BigDecimal("4000000"), 1, 31, new BigDecimal("1.9"), null, null, null))).isEmpty();
     }
 
     @Test
     void todosLosCamposSonOpcionales() {
         assertThat(Violaciones.de(vacio())).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0", "10", "1.50000"})
+    void laTasaAdmiteLosLimitesYLosCerosALaDerecha(String tasa) {
+        assertThat(Violaciones.de(conTasa(new BigDecimal(tasa)))).isEmpty();
     }
 
     static Stream<Arguments> unCampoInvalido() {
@@ -53,11 +62,16 @@ class UpdateAccountRequestTest {
                         "El dia de pago debe estar entre 1 y 31"),
                 Arguments.of("dia de pago 32", conDias(null, 32), "paymentDueDay",
                         "El dia de pago debe estar entre 1 y 31"),
-                Arguments.of("saldo vigente", new UpdateAccountRequest(null, null, null, null, null, null,
+                Arguments.of("tasa negativa", conTasa(new BigDecimal("-1")), "monthlyInterestRate", TASA_FUERA),
+                Arguments.of("tasa que parece anual", conTasa(new BigDecimal("28.5")), "monthlyInterestRate",
+                        TASA_FUERA),
+                Arguments.of("tasa con cinco decimales", conTasa(new BigDecimal("1.23456")), "monthlyInterestRate",
+                        TASA_FUERA),
+                Arguments.of("saldo vigente", new UpdateAccountRequest(null, null, null, null, null, null, null,
                         BigDecimal.ONE, null, null), "currentBalance",
                         "El saldo vigente lo calcula el sistema; para corregirlo, cambia initialBalance"),
-                Arguments.of("tipo", new UpdateAccountRequest(null, null, null, null, null, null, null, "CASH", null),
-                        "type", "El tipo de una cuenta no se puede cambiar"));
+                Arguments.of("tipo", new UpdateAccountRequest(null, null, null, null, null, null, null, null, "CASH",
+                        null), "type", "El tipo de una cuenta no se puede cambiar"));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -69,9 +83,9 @@ class UpdateAccountRequestTest {
     @Test
     void reportaTodosLosCamposInvalidosEnUnaSolaRespuesta() {
         assertThat(Violaciones.de(new UpdateAccountRequest(" ", "us", new BigDecimal("1.23456"), BigDecimal.ZERO,
-                32, 0, BigDecimal.ONE, "CASH", false)).keySet())
+                32, 0, new BigDecimal("28.5"), BigDecimal.ONE, "CASH", false)).keySet())
                 .containsExactlyInAnyOrder("name", "currencyCode", "initialBalance", "creditLimit", "statementDay",
-                        "paymentDueDay", "currentBalance", "type");
+                        "paymentDueDay", "monthlyInterestRate", "currentBalance", "type");
     }
 
     @ParameterizedTest
@@ -96,39 +110,48 @@ class UpdateAccountRequestTest {
     }
 
     @Test
-    void elComandoLlevaLosSieteCamposModificables() {
+    void soloLaTasaYaEsUnCambio() {
+        assertThat(conTasa(new BigDecimal("1.9")).sinCambios()).isFalse();
+    }
+
+    @Test
+    void elComandoLlevaLosOchoCamposModificables() {
         UpdateAccountRequest request = new UpdateAccountRequest("Bolsillo", "usd", BigDecimal.TEN, BigDecimal.ONE,
-                3, 4, null, null, false);
+                3, 4, new BigDecimal("1.9"), null, null, false);
 
         assertThat(request.toCommand()).isEqualTo(new UpdateAccountCommand(
-                "Bolsillo", "usd", BigDecimal.TEN, BigDecimal.ONE, 3, 4, false));
+                "Bolsillo", "usd", BigDecimal.TEN, BigDecimal.ONE, 3, 4, new BigDecimal("1.9"), false));
     }
 
     private static UpdateAccountRequest vacio() {
-        return new UpdateAccountRequest(null, null, null, null, null, null, null, null, null);
+        return new UpdateAccountRequest(null, null, null, null, null, null, null, null, null, null);
     }
 
     private static UpdateAccountRequest conNombre(String nombre) {
-        return new UpdateAccountRequest(nombre, null, null, null, null, null, null, null, null);
+        return new UpdateAccountRequest(nombre, null, null, null, null, null, null, null, null, null);
     }
 
     private static UpdateAccountRequest conMoneda(String moneda) {
-        return new UpdateAccountRequest(null, moneda, null, null, null, null, null, null, null);
+        return new UpdateAccountRequest(null, moneda, null, null, null, null, null, null, null, null);
     }
 
     private static UpdateAccountRequest conSaldoInicial(BigDecimal saldo) {
-        return new UpdateAccountRequest(null, null, saldo, null, null, null, null, null, null);
+        return new UpdateAccountRequest(null, null, saldo, null, null, null, null, null, null, null);
     }
 
     private static UpdateAccountRequest conCupo(BigDecimal cupo) {
-        return new UpdateAccountRequest(null, null, null, cupo, null, null, null, null, null);
+        return new UpdateAccountRequest(null, null, null, cupo, null, null, null, null, null, null);
     }
 
     private static UpdateAccountRequest conDias(Integer corte, Integer pago) {
-        return new UpdateAccountRequest(null, null, null, null, corte, pago, null, null, null);
+        return new UpdateAccountRequest(null, null, null, null, corte, pago, null, null, null, null);
+    }
+
+    private static UpdateAccountRequest conTasa(BigDecimal tasa) {
+        return new UpdateAccountRequest(null, null, null, null, null, null, tasa, null, null, null);
     }
 
     private static UpdateAccountRequest conEstado(Boolean activa) {
-        return new UpdateAccountRequest(null, null, null, null, null, null, null, null, activa);
+        return new UpdateAccountRequest(null, null, null, null, null, null, null, null, null, activa);
     }
 }

@@ -63,6 +63,7 @@ public class UpdateAccountUseCase implements UpdateAccountPort {
                 parche.creditLimit() == null ? guardada.creditLimit() : parche.creditLimit(),
                 parche.statementDay() == null ? guardada.statementDay() : parche.statementDay(),
                 parche.paymentDueDay() == null ? guardada.paymentDueDay() : parche.paymentDueDay(),
+                parche.monthlyInterestRate() == null ? guardada.monthlyInterestRate() : parche.monthlyInterestRate(),
                 parche.isActive() == null ? guardada.active() : parche.isActive());
     }
 
@@ -83,6 +84,9 @@ public class UpdateAccountUseCase implements UpdateAccountPort {
         }
         if (parche.paymentDueDay() != null) {
             errores.add(invalido("Solo una cuenta CREDIT tiene dia de pago", "paymentDueDay"));
+        }
+        if (parche.monthlyInterestRate() != null) {
+            errores.add(invalido("Solo una cuenta CREDIT tiene tasa de interes", "monthlyInterestRate"));
         }
         if (!errores.isEmpty()) {
             throw new BadRequestException(HttpStatus.BAD_REQUEST, errores);

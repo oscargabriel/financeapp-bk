@@ -16,7 +16,7 @@ import com.oscargabriel.financeapp.domain.model.AccountType;
 import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.CreateAccountRequest;
 
 /**
- * Cupo, dia de corte y dia de pago dependen del tipo: obligatorios en rango para una CREDIT y
+ * Cupo, dia de corte, dia de pago y tasa de interes dependen del tipo: obligatorios en rango para una CREDIT y
  * prohibidos en las demas. Cada error sale sobre su propio campo, no sobre la clase. Tienen que salir
  * como 400 y no llegar a ck_accounts_credit_fields.
  */
@@ -58,6 +58,10 @@ public @interface CamposDeCredito {
             if (!esDiaDelMes(cuenta.paymentDueDay())) {
                 valido = error(context, "paymentDueDay", "El dia de pago debe estar entre 1 y 31");
             }
+            BigDecimal tasa = cuenta.monthlyInterestRate();
+            if (tasa != null && !Tasas.cabe(tasa)) {
+                valido = error(context, "monthlyInterestRate", Tasas.FUERA_DE_RANGO);
+            }
             return valido;
         }
 
@@ -71,6 +75,9 @@ public @interface CamposDeCredito {
             }
             if (cuenta.paymentDueDay() != null) {
                 valido = error(context, "paymentDueDay", "Solo una cuenta CREDIT tiene dia de pago");
+            }
+            if (cuenta.monthlyInterestRate() != null) {
+                valido = error(context, "monthlyInterestRate", "Solo una cuenta CREDIT tiene tasa de interes");
             }
             return valido;
         }

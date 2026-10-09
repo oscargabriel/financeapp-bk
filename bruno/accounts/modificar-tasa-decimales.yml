@@ -1,0 +1,43 @@
+info:
+  name: Modificar tasa con demasiados decimales
+  type: http
+  seq: 83
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/{{idCuentaCredito}}"
+  body:
+    type: json
+    data: |-
+      {
+        "monthlyInterestRate": 1.23456
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: monthlyInterestRate
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Precision de la tasa
+
+  Hasta 4 decimales: `NUMERIC(6,4)` redondearia el quinto en silencio.

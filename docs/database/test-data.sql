@@ -120,9 +120,9 @@ VALUES
 
 INSERT INTO finance.accounts
     (id, user_id, name, type, currency_code, initial_balance,
-     credit_limit, statement_day, payment_due_day)
+     credit_limit, statement_day, payment_due_day, monthly_interest_rate)
 VALUES
-    (:'credit'::uuid, :'uid'::uuid, 'Visa', 'CREDIT', 'COP', 0, 5000000, 15, 5);
+    (:'credit'::uuid, :'uid'::uuid, 'Visa', 'CREDIT', 'COP', 0, 5000000, 15, 5, 2.1);
 
 -- Desactivada: GET /api/accounts solo la devuelve con includeInactive=true. Sin movimientos, asi
 -- que su saldo vigente es el inicial.

@@ -16,7 +16,8 @@ http:
         "initialBalance": -200000,
         "creditLimit": 3000000,
         "statementDay": 20,
-        "paymentDueDay": 5
+        "paymentDueDay": 5,
+        "monthlyInterestRate": 2.15
       }
   auth:
     type: bearer
@@ -46,6 +47,10 @@ runtime:
           expect(res.getBody().creditLimit).to.equal(3000000);
           expect(res.getBody().statementDay).to.equal(20);
           expect(res.getBody().paymentDueDay).to.equal(5);
+        });
+
+        test("devuelve la tasa mensual en porcentaje", function() {
+          expect(res.getBody().monthlyInterestRate).to.equal(2.15);
         });
 
         bru.setVar("idCuentaCredito", res.getBody().id);
