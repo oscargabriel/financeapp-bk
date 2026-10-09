@@ -1,0 +1,38 @@
+info:
+  name: Categoria Cafe
+  type: http
+  seq: 6
+
+http:
+  method: POST
+  url: "{{baseUrl}}/categories"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Cafe",
+        "appliesTo": "EXPENSE",
+        "icon": "coffee",
+        "color": "#6d4c41"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Segunda categoria que normaliza como «Café»
+
+  La base las admite juntas: el indice unico compara `lower(name)`, que conserva la tilde. El
+  asistente compara sin tildes y las ve iguales.

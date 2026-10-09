@@ -11,6 +11,7 @@ import com.oscargabriel.financeapp.domain.model.Category;
 import com.oscargabriel.financeapp.domain.model.CategoryScope;
 import com.oscargabriel.financeapp.domain.model.CreateTransactionCommand;
 import com.oscargabriel.financeapp.domain.model.Transaction;
+import com.oscargabriel.financeapp.domain.model.TransactionOrigin;
 import com.oscargabriel.financeapp.domain.model.TransactionStatus;
 import com.oscargabriel.financeapp.domain.model.TransactionType;
 import com.oscargabriel.financeapp.domain.model.UpdateTransactionCommand;
@@ -83,30 +84,35 @@ public final class TransactionMother {
 
     public static Transaction unGastoGuardado() {
         return new Transaction(GASTO_GUARDADO_ID, USER_ID, TransactionType.EXPENSE, ORIGEN_ID, null, MERCADO_ID,
-                new BigDecimal("30000.5000"), "COP", "Fruta", "En la plaza", INSTANTE, TransactionStatus.CONFIRMED);
+                new BigDecimal("30000.5000"), "COP", "Fruta", "En la plaza", INSTANTE, TransactionStatus.CONFIRMED,
+                TransactionOrigin.WEB);
     }
 
     public static Transaction unGastoGuardadoEn(UUID cuenta) {
         Transaction gasto = unGastoGuardado();
         return new Transaction(gasto.id(), gasto.userId(), gasto.type(), cuenta, null, gasto.categoryId(),
                 gasto.amount(), gasto.currencyCode(), gasto.description(), gasto.notes(), gasto.occurredAt(),
-                gasto.status());
+                gasto.status(), gasto.origin());
     }
 
     /** El mismo gasto guardado, pero como lo deja el asistente: sin aprobar. */
     public static Transaction unGastoPendiente() {
-        return conEstado(unGastoGuardado(), TransactionStatus.PENDING);
+        Transaction t = unGastoGuardado();
+        return new Transaction(t.id(), t.userId(), t.type(), t.accountId(), t.destinationAccountId(),
+                t.categoryId(), t.amount(), t.currencyCode(), t.description(), t.notes(), t.occurredAt(),
+                TransactionStatus.PENDING, TransactionOrigin.TELEGRAM);
     }
 
     public static Transaction conEstado(Transaction t, TransactionStatus estado) {
         return new Transaction(t.id(), t.userId(), t.type(), t.accountId(), t.destinationAccountId(),
-                t.categoryId(), t.amount(), t.currencyCode(), t.description(), t.notes(), t.occurredAt(), estado);
+                t.categoryId(), t.amount(), t.currencyCode(), t.description(), t.notes(), t.occurredAt(), estado,
+                t.origin());
     }
 
     public static Transaction unaTransferenciaGuardada() {
         return new Transaction(TRANSFERENCIA_GUARDADA_ID, USER_ID, TransactionType.TRANSFER, ORIGEN_ID, DESTINO_ID,
                 null, new BigDecimal("100000.0000"), "COP", "Ahorro del mes", null, INSTANTE,
-                TransactionStatus.CONFIRMED);
+                TransactionStatus.CONFIRMED, TransactionOrigin.WEB);
     }
 
     public static Parche unParche() {

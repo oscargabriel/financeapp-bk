@@ -16,7 +16,8 @@ public record TransactionResponse(
         String description,
         String notes,
         String occurredAt,
-        String status) {
+        String status,
+        String origin) {
 
     public static TransactionResponse from(Transaction t) {
         return new TransactionResponse(
@@ -30,6 +31,7 @@ public record TransactionResponse(
                 t.description(),
                 t.notes(),
                 t.occurredAt().toString(),
-                t.status().name());
+                t.status().name(),
+                t.origin().name());
     }
 }

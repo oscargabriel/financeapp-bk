@@ -80,6 +80,16 @@ cors:
 status:
   check-timeout: ${STATUS_CHECK_TIMEOUT:2s}
 
+# Asistente (FA-77). La key y el modelo no tienen default, como los secretos: el modelo no esta
+# decidido y el despliegue lo elige a sabiendas. El stub solo existe fuera de prod (design.md de FA-77).
+asistente:
+  proveedor: ${ASISTENTE_PROVEEDOR:gemini}
+  gemini:
+    api-key: ${GEMINI_API_KEY}
+    model: ${GEMINI_MODEL}
+    base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
+    timeout: ${GEMINI_TIMEOUT:20s}
+
 # Verificacion de conectividad con la base al arrancar: si no responde tras agotar los intentos,
 # el contexto no termina de levantar y la aplicacion no queda escuchando. Se apaga solo donde no
 # hay base que responder (la suite de tests).

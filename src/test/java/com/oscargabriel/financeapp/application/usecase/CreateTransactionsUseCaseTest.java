@@ -40,6 +40,7 @@ import com.oscargabriel.financeapp.domain.exceptions.responses.ErrorDetail;
 import com.oscargabriel.financeapp.domain.model.CategoryScope;
 import com.oscargabriel.financeapp.domain.model.CreateTransactionCommand;
 import com.oscargabriel.financeapp.domain.model.Transaction;
+import com.oscargabriel.financeapp.domain.model.TransactionOrigin;
 import com.oscargabriel.financeapp.domain.model.TransactionStatus;
 import com.oscargabriel.financeapp.domain.model.TransactionType;
 import com.oscargabriel.financeapp.domain.port.out.AccountQueryPort;
@@ -86,7 +87,7 @@ class CreateTransactionsUseCaseTest {
                 TransactionMother.unaTransferencia().build(),
                 TransactionMother.unGasto().build());
 
-        StepVerifier.create(useCase().create(TransactionMother.USER_ID, lote))
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB, lote))
                 .assertNext(t -> assertThat(t.type()).isEqualTo(TransactionType.INCOME))
                 .assertNext(t -> assertThat(t.type()).isEqualTo(TransactionType.TRANSFER))
                 .assertNext(t -> assertThat(t.type()).isEqualTo(TransactionType.EXPENSE))
@@ -102,7 +103,7 @@ class CreateTransactionsUseCaseTest {
         CreateTransactionCommand gasto = TransactionMother.unGasto()
                 .description("  Mercado  ").notes("Pagado en efectivo").currencyCode("cop").build();
 
-        StepVerifier.create(useCase().create(TransactionMother.USER_ID, List.of(gasto)))
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB, List.of(gasto)))
                 .assertNext(t -> {
                     assertThat(t.id().version()).isEqualTo(7);
                     assertThat(t.userId()).isEqualTo(TransactionMother.USER_ID);
@@ -119,20 +120,33 @@ class CreateTransactionsUseCaseTest {
     }
 
     @Test
-    void todoLoQueEntraPorElAltaQuedaConfirmado() {
+    void todoLoQueEntraPorLaWebQuedaConfirmadoYConSuOrigen() {
         List<CreateTransactionCommand> lote = List.of(TransactionMother.unGasto().build(),
                 TransactionMother.unIngreso().build(), TransactionMother.unaTransferencia().build());
 
-        StepVerifier.create(useCase().create(TransactionMother.USER_ID, lote))
-                .assertNext(t -> assertThat(t.status()).isEqualTo(TransactionStatus.CONFIRMED))
-                .assertNext(t -> assertThat(t.status()).isEqualTo(TransactionStatus.CONFIRMED))
-                .assertNext(t -> assertThat(t.status()).isEqualTo(TransactionStatus.CONFIRMED))
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB, lote))
+                .assertNext(t -> assertThat(t).extracting(Transaction::status, Transaction::origin)
+                        .containsExactly(TransactionStatus.CONFIRMED, TransactionOrigin.WEB))
+                .assertNext(t -> assertThat(t).extracting(Transaction::status, Transaction::origin)
+                        .containsExactly(TransactionStatus.CONFIRMED, TransactionOrigin.WEB))
+                .assertNext(t -> assertThat(t).extracting(Transaction::status, Transaction::origin)
+                        .containsExactly(TransactionStatus.CONFIRMED, TransactionOrigin.WEB))
+                .verifyComplete();
+    }
+
+    @Test
+    void loQueRegistraElAsistenteQuedaPendienteYConOrigenTelegram() {
+        List<CreateTransactionCommand> lote = List.of(TransactionMother.unGasto().build());
+
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.TELEGRAM, lote))
+                .assertNext(t -> assertThat(t).extracting(Transaction::status, Transaction::origin)
+                        .containsExactly(TransactionStatus.PENDING, TransactionOrigin.TELEGRAM))
                 .verifyComplete();
     }
 
     @Test
     void unaTransferenciaLlevaDestinoYNoLlevaCategoria() {
-        StepVerifier.create(useCase().create(TransactionMother.USER_ID,
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB,
                         List.of(TransactionMother.unaTransferencia().build())))
                 .assertNext(t -> {
                     assertThat(t.destinationAccountId()).isEqualTo(TransactionMother.DESTINO_ID);
@@ -145,7 +159,7 @@ class CreateTransactionsUseCaseTest {
     @NullSource
     @ValueSource(strings = {"", "   "})
     void unElementoSinFechaQuedaConElInstanteDelReloj(String fecha) {
-        StepVerifier.create(useCase().create(TransactionMother.USER_ID,
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB,
                         List.of(TransactionMother.unGasto().occurredAt(fecha).build())))
                 .assertNext(t -> assertThat(t.occurredAt()).isEqualTo(RELOJ.instant()))
                 .verifyComplete();
@@ -164,7 +178,7 @@ class CreateTransactionsUseCaseTest {
                 TransactionMother.unGasto().occurredAt(null).build());
 
         StepVerifier.create(new CreateTransactionsUseCase(cuentas, categorias, repositorio, queAvanza)
-                        .create(TransactionMother.USER_ID, lote).map(Transaction::occurredAt).distinct())
+                        .create(TransactionMother.USER_ID, TransactionOrigin.WEB, lote).map(Transaction::occurredAt).distinct())
                 .expectNextCount(1)
                 .verifyComplete();
     }
@@ -175,7 +189,7 @@ class CreateTransactionsUseCaseTest {
                 TransactionMother.unGasto().build(),
                 TransactionMother.unGasto().occurredAt(null).build());
 
-        StepVerifier.create(useCase().create(TransactionMother.USER_ID, lote))
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB, lote))
                 .assertNext(t -> assertThat(t.occurredAt()).isEqualTo(Instant.parse("2026-09-20T15:15:00Z")))
                 .assertNext(t -> assertThat(t.occurredAt()).isEqualTo(RELOJ.instant()))
                 .verifyComplete();
@@ -187,14 +201,14 @@ class CreateTransactionsUseCaseTest {
                 TransactionMother.unGasto().categoryId(TransactionMother.AMBAS_ID.toString()).build(),
                 TransactionMother.unIngreso().categoryId(TransactionMother.AMBAS_ID.toString()).build());
 
-        StepVerifier.create(useCase().create(TransactionMother.USER_ID, lote))
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB, lote))
                 .expectNextCount(2)
                 .verifyComplete();
     }
 
     @Test
     void consultaLasCategoriasDeLosTresAlcances() {
-        StepVerifier.create(useCase().create(TransactionMother.USER_ID,
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB,
                         List.of(TransactionMother.unGasto().build())))
                 .expectNextCount(1)
                 .verifyComplete();
@@ -206,7 +220,7 @@ class CreateTransactionsUseCaseTest {
     void cadaMovimientoRecibeSuPropioId() {
         List<CreateTransactionCommand> lote = Collections.nCopies(3, TransactionMother.unGasto().build());
 
-        StepVerifier.create(useCase().create(TransactionMother.USER_ID, lote).map(Transaction::id).distinct())
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB, lote).map(Transaction::id).distinct())
                 .expectNextCount(3)
                 .verifyComplete();
     }
@@ -215,7 +229,7 @@ class CreateTransactionsUseCaseTest {
     void aceptaElTopeDeQuinientos() {
         List<CreateTransactionCommand> lote = Collections.nCopies(500, TransactionMother.unGasto().build());
 
-        StepVerifier.create(useCase().create(TransactionMother.USER_ID, lote))
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB, lote))
                 .expectNextCount(500)
                 .verifyComplete();
     }
@@ -256,7 +270,7 @@ class CreateTransactionsUseCaseTest {
             String campo) {
         List<CreateTransactionCommand> lote = List.of(TransactionMother.unIngreso().build(), elemento.build());
 
-        StepVerifier.create(useCase().create(TransactionMother.USER_ID, lote))
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB, lote))
                 .expectErrorSatisfies(error -> {
                     BadRequestException bre = (BadRequestException) error;
                     assertThat(bre.getHttpStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -280,7 +294,7 @@ class CreateTransactionsUseCaseTest {
                 TransactionMother.unaTransferencia().destinationAccountId(TransactionMother.USD_ID.toString()).build(),
                 TransactionMother.unIngreso().categoryId(TransactionMother.MERCADO_ID.toString()).build());
 
-        StepVerifier.create(useCase().create(TransactionMother.USER_ID, lote))
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB, lote))
                 .expectErrorSatisfies(error -> assertThat(((BadRequestException) error)
                         .getErrorResponse().getErrors())
                         .extracting(ErrorDetail::getField)
@@ -293,7 +307,7 @@ class CreateTransactionsUseCaseTest {
     /** La descripcion se guarda recortada: los espacios del borde no son parte de ella. */
     @Test
     void guardaLaDescripcionRecortada() {
-        StepVerifier.create(useCase().create(TransactionMother.USER_ID,
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB,
                         List.of(TransactionMother.unGasto().description("  Mercado  ").build())))
                 .assertNext(movimiento -> assertThat(movimiento.description()).isEqualTo("Mercado"))
                 .verifyComplete();
@@ -303,7 +317,7 @@ class CreateTransactionsUseCaseTest {
     void propagaElFalloDelRepositorio() {
         when(repositorio.saveAll(anyList())).thenReturn(Flux.error(new IllegalStateException("se cayo la base")));
 
-        StepVerifier.create(useCase().create(TransactionMother.USER_ID,
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB,
                         List.of(TransactionMother.unGasto().build())))
                 .expectErrorMessage("se cayo la base")
                 .verify();
@@ -311,7 +325,7 @@ class CreateTransactionsUseCaseTest {
 
     @Test
     void noHaceNadaHastaQueAlguienSeSuscribe() {
-        useCase().create(TransactionMother.USER_ID, List.of(TransactionMother.unGasto().build()));
+        useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB, List.of(TransactionMother.unGasto().build()));
 
         verifyNoInteractions(cuentas, categorias, repositorio);
     }

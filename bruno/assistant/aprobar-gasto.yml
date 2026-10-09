@@ -1,0 +1,29 @@
+info:
+  name: Aprobar el gasto del asistente
+  type: http
+  seq: 21
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/{{idPendienteAsistente}}/approve"
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: eq
+      value: CONFIRMED
+    - expression: res.body.origin
+      operator: eq
+      value: TELEGRAM
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

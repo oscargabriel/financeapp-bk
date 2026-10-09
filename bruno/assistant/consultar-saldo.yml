@@ -1,0 +1,42 @@
+info:
+  name: Consultar saldo
+  type: http
+  seq: 24
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: json
+    data: |-
+      {
+        "data": "consultar_saldo"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.intent
+      operator: eq
+      value: GET_BALANCE
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("saldoAsistente", JSON.stringify(res.getBody().balance));
+
+        test("trae el saldo del mes, y solo el saldo", function() {
+          expect(res.getBody().message).to.contain("neto");
+          expect(res.getBody().transaction).to.equal(null);
+          expect(res.getBody().report).to.equal(null);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

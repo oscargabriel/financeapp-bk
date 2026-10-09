@@ -29,6 +29,7 @@ import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.model.CreateTransactionCommand;
 import com.oscargabriel.financeapp.domain.model.Transaction;
+import com.oscargabriel.financeapp.domain.model.TransactionOrigin;
 import com.oscargabriel.financeapp.domain.model.TransactionStatus;
 import com.oscargabriel.financeapp.domain.model.TransactionType;
 import com.oscargabriel.financeapp.domain.model.UpdateTransactionCommand;
@@ -103,7 +104,7 @@ class TransactionControllerTest {
 
     @Test
     void respondeCreadoConLosMovimientosEnElOrdenQueLosEntregaElCasoDeUso() {
-        when(createTransactions.create(eq(TransactionMother.USER_ID), anyList()))
+        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), anyList()))
                 .thenReturn(Flux.just(gasto(), transferencia()));
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
@@ -125,6 +126,7 @@ class TransactionControllerTest {
                 .jsonPath("$[0].notes").isEqualTo("Pagado en efectivo")
                 .jsonPath("$[0].occurredAt").isEqualTo("2026-09-20T15:15:00Z")
                 .jsonPath("$[0].status").isEqualTo("CONFIRMED")
+                .jsonPath("$[0].origin").isEqualTo("WEB")
                 .jsonPath("$[0].userId").doesNotExist()
                 .jsonPath("$[1].id").isEqualTo(TRANSFERENCIA_ID.toString())
                 .jsonPath("$[1].destinationAccountId").isEqualTo(TransactionMother.DESTINO_ID.toString())
@@ -133,7 +135,7 @@ class TransactionControllerTest {
 
     @Test
     void pasaAlCasoDeUsoElUsuarioDelTokenYCadaElementoTalCualLlega() {
-        when(createTransactions.create(eq(TransactionMother.USER_ID), anyList()))
+        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), anyList()))
                 .thenReturn(Flux.just(gasto(), transferencia()));
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
@@ -144,7 +146,7 @@ class TransactionControllerTest {
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<CreateTransactionCommand>> lote = ArgumentCaptor.forClass(List.class);
-        verify(createTransactions).create(eq(TransactionMother.USER_ID), lote.capture());
+        verify(createTransactions).create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), lote.capture());
         assertThat(lote.getValue()).containsExactly(
                 new CreateTransactionCommand("EXPENSE", "30000000-0000-7000-8000-000000000001", null,
                         "40000000-0000-7000-8000-000000000001", new BigDecimal("50000"), null, null,
@@ -157,7 +159,7 @@ class TransactionControllerTest {
     /** La fecha la pone el caso de uso: el controlador no la exige ni la inventa (FA-60). */
     @Test
     void unElementoSinFechaLlegaAlCasoDeUsoSinFecha() {
-        when(createTransactions.create(eq(TransactionMother.USER_ID), anyList())).thenReturn(Flux.just(gasto()));
+        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), anyList())).thenReturn(Flux.just(gasto()));
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -171,7 +173,7 @@ class TransactionControllerTest {
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<CreateTransactionCommand>> lote = ArgumentCaptor.forClass(List.class);
-        verify(createTransactions).create(eq(TransactionMother.USER_ID), lote.capture());
+        verify(createTransactions).create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), lote.capture());
         assertThat(lote.getValue()).singleElement()
                 .extracting(CreateTransactionCommand::occurredAt).isNull();
     }
@@ -266,7 +268,7 @@ class TransactionControllerTest {
     /** Que las cuentas y categorias existan y sean del usuario lo sigue reportando el caso de uso. */
     @Test
     void devuelveLosErroresIndexadosDelCasoDeUso() {
-        when(createTransactions.create(eq(TransactionMother.USER_ID), anyList()))
+        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), anyList()))
                 .thenReturn(Flux.error(new BadRequestException(HttpStatus.BAD_REQUEST,
                         ErrorCodes.VALIDATION_ERROR, "La cuenta no existe", "[1].accountId")));
 
@@ -286,7 +288,7 @@ class TransactionControllerTest {
      */
     @Test
     void noRespondeCreadoSiElLoteFallaDespuesDelPrimerMovimiento() {
-        when(createTransactions.create(eq(TransactionMother.USER_ID), anyList()))
+        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), anyList()))
                 .thenReturn(Flux.concat(Flux.just(gasto()), Flux.error(new IllegalStateException("fallo el INSERT 2"))));
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
@@ -571,13 +573,13 @@ class TransactionControllerTest {
         return new Transaction(GASTO_ID, TransactionMother.USER_ID, TransactionType.EXPENSE,
                 TransactionMother.ORIGEN_ID, null, TransactionMother.MERCADO_ID, new BigDecimal("50000"),
                 "COP", "Mercado", "Pagado en efectivo", Instant.parse("2026-09-20T15:15:00Z"),
-                TransactionStatus.CONFIRMED);
+                TransactionStatus.CONFIRMED, TransactionOrigin.WEB);
     }
 
     private static Transaction transferencia() {
         return new Transaction(TRANSFERENCIA_ID, TransactionMother.USER_ID, TransactionType.TRANSFER,
                 TransactionMother.ORIGEN_ID, TransactionMother.DESTINO_ID, null, new BigDecimal("100000"),
                 "COP", "Ahorro", null, Instant.parse("2026-09-20T16:00:00Z"),
-                TransactionStatus.CONFIRMED);
+                TransactionStatus.CONFIRMED, TransactionOrigin.WEB);
     }
 }

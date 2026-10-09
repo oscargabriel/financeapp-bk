@@ -6,7 +6,7 @@ import java.util.UUID;
 
 /**
  * Un movimiento ya validado. destinationAccountId solo en TRANSFER y categoryId solo en EXPENSE e
- * INCOME, como exige ck_transactions_shape.
+ * INCOME, como exige ck_transactions_shape. origin no cambia en toda su vida.
  */
 public record Transaction(
         UUID id,
@@ -20,5 +20,6 @@ public record Transaction(
         String description,
         String notes,
         Instant occurredAt,
-        TransactionStatus status) {
+        TransactionStatus status,
+        TransactionOrigin origin) {
 }

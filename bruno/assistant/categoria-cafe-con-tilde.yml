@@ -1,0 +1,32 @@
+info:
+  name: Categoria Café
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: "{{baseUrl}}/categories"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Café",
+        "appliesTo": "EXPENSE",
+        "icon": "coffee",
+        "color": "#6d4c41"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

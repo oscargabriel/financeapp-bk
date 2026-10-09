@@ -314,14 +314,16 @@ VALUES
 
 -- Del más antiguo al más reciente: el confirmado, el pendiente que se rechaza, la
 -- transferencia y el gasto. GET /api/transactions/pending los devuelve al revés.
+-- Los pendientes llevan origen TELEGRAM, como los que crea el asistente (FA-77).
 INSERT INTO finance.transactions
     (id, user_id, account_id, destination_account_id, category_id, type, amount,
-     currency_code, exchange_rate, amount_base, description, occurred_at, status)
+     currency_code, exchange_rate, amount_base, description, occurred_at, status, origin)
 SELECT m.id, :'pendientes'::uuid, :'cuenta_pendientes'::uuid, m.destino,
        (SELECT c.id FROM finance.categories c
          WHERE c.user_id = :'pendientes'::uuid AND c.name = m.category_name),
        m.type, m.amount, 'COP', 1, m.amount, m.description,
-       (r.m0 + m.desfase) AT TIME ZONE 'America/Bogota', m.status
+       (r.m0 + m.desfase) AT TIME ZONE 'America/Bogota', m.status,
+       CASE m.status WHEN 'PENDING' THEN 'TELEGRAM' ELSE 'WEB' END
   FROM (VALUES
         (gen_random_uuid(),           NULL::uuid,                     'Mercado', 'EXPENSE',   30000::numeric, 'Mercado confirmado',  INTERVAL '0 day 10 hours', 'CONFIRMED'),
         (:'pendiente_rechazo'::uuid,  NULL::uuid,                     'Mercado', 'EXPENSE',   20000::numeric, 'Gasto mal leído',     INTERVAL '0 day 11 hours', 'PENDING'),

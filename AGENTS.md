@@ -41,6 +41,10 @@ pasa a `bru` `host` y `baseUrl` con ese puerto (FA-99). Las dos comparten la bas
 `-RecargarDatos` solo recrea los usuarios del back. El script le fija a la app `SERVER_PORT`, que es
 la variable que lee el perfil `local`, y falla si no termina escuchando en el puerto validado.
 
+El script también arranca la app con `ASISTENTE_PROVEEDOR=stub` (FA-77): `bruno/assistant/` habla
+con un modelo de mentira que entiende `<funcion> <json>`, nunca con Gemini. Contra una app levantada
+a mano sin esa variable, esa carpeta falla. El stub no existe con el perfil `prod`.
+
 Para depurar un request suelto, desde `bruno/` y con una app que hayas levantado tú contra la base
 local:
 
@@ -161,7 +165,8 @@ pasen por `boundedElastic`.
   frente a sus 901 conexiones (el servicio escala de 0 a 1, FA-48), e idle por debajo de los 5 min
   en los que Neon suspende. Si sube el máximo de instancias, rehacer esa cuenta.
 - Lee sin **default** los secretos y `CORS_ALLOWED_ORIGINS`: un despliegue sin `DB_USERNAME` /
-  `DB_PASSWORD` / `JWT_SECRET` / `BASIC_USERNAME` / `BASIC_PASSWORD` / `CORS_ALLOWED_ORIGINS` falla
+  `DB_PASSWORD` / `JWT_SECRET` / `BASIC_USERNAME` / `BASIC_PASSWORD` / `CORS_ALLOWED_ORIGINS` /
+  `GEMINI_API_KEY` / `GEMINI_MODEL` falla
   al arrancar en vez de levantar con valores implícitos. `DB_USERNAME` y `DB_PASSWORD` los enlaza el
   binder de Boot, que deja pasar el placeholder sin resolver como texto literal. Lo que los hace
   fallar en el acto, como a los demás, es `R2dbcCredentialsCheck`, que los vuelve a pedir con
@@ -222,6 +227,10 @@ spring:
       password: ...      # la misma que BASIC_USERNAME/BASIC_PASSWORD de bruno/.env
 cors:
   allowed-origins: "*"   # el base no trae default: sin esta clave local no arranca
+asistente:
+  gemini:
+    api-key: ...         # sin default; con el stub de verificar-bruno.ps1 vale cualquier texto
+    model: ...           # sin default: el modelo del asistente no esta decidido (FA-77)
 ```
 
 ## Tests

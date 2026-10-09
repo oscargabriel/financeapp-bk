@@ -1,0 +1,41 @@
+info:
+  name: Texto no soportado
+  type: http
+  seq: 26
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: json
+    data: |-
+      {
+        "data": "cuentame un chiste"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.intent
+      operator: eq
+      value: UNSUPPORTED
+  scripts:
+    - type: tests
+      code: |-
+        test("dice lo que sabe hacer y no toca nada", function() {
+          expect(res.getBody().message).to.contain("movimientos");
+          expect(res.getBody().transaction).to.equal(null);
+          expect(res.getBody().report).to.equal(null);
+          expect(res.getBody().balance).to.equal(null);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

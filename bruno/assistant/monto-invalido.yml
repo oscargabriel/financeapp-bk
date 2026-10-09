@@ -1,0 +1,41 @@
+info:
+  name: Monto invalido
+  type: http
+  seq: 19
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: json
+    data: |-
+      {
+        "data": "crear_movimiento {\"tipo\": \"EXPENSE\", \"monto\": 0, \"cuenta\": \"Efectivo\", \"categoria\": \"Mercado\", \"descripcion\": \"Nada\"}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.intent
+      operator: eq
+      value: NEEDS_CLARIFICATION
+  scripts:
+    - type: tests
+      code: |-
+        test("explica la regla del monto y no crea nada", function() {
+          expect(res.getBody().message).to.contain("monto");
+          expect(res.getBody().transaction).to.equal(null);
+          expect(res.getBody().report).to.equal(null);
+          expect(res.getBody().balance).to.equal(null);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
