@@ -1,7 +1,7 @@
 info:
   name: Cuenta ajena no borrada
   type: http
-  seq: 71
+  seq: 76
 
 http:
   method: GET

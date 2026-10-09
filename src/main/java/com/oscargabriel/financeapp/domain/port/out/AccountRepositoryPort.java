@@ -28,6 +28,10 @@ public interface AccountRepositoryPort {
      */
     Mono<Account> update(UUID userId, Account account);
 
-    /** Marca como borrada la cuenta viva del usuario; false si no existe, ya estaba borrada o es de otro. */
+    /**
+     * Marca como borrada la cuenta viva del usuario y elimina, en la misma operacion, los movimientos
+     * PENDING que la tienen como origen o destino. False si no existe, ya estaba borrada o es de otro,
+     * y entonces no elimina nada.
+     */
     Mono<Boolean> softDelete(UUID accountId, UUID userId);
 }
