@@ -2,7 +2,7 @@ package com.oscargabriel.financeapp.application.usecase;
 
 import java.time.Clock;
 
-import lombok.AllArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -15,18 +15,35 @@ import com.oscargabriel.financeapp.domain.model.UuidV7;
 import com.oscargabriel.financeapp.domain.port.in.RegisterUserPort;
 import com.oscargabriel.financeapp.domain.port.out.CurrencyQueryPort;
 import com.oscargabriel.financeapp.domain.port.out.PasswordHasherPort;
+import com.oscargabriel.financeapp.domain.port.out.RegistrationAllowlistPort;
 import com.oscargabriel.financeapp.domain.port.out.UserRepositoryPort;
 
 import reactor.core.publisher.Mono;
 
 @Service
-@AllArgsConstructor
 public class RegisterUserUseCase implements RegisterUserPort {
 
     private final UserRepositoryPort usuarios;
     private final CurrencyQueryPort monedas;
     private final PasswordHasherPort hasher;
+    private final RegistrationAllowlistPort admitidos;
     private final Clock clock;
+    private final boolean restringido;
+
+    public RegisterUserUseCase(
+            UserRepositoryPort usuarios,
+            CurrencyQueryPort monedas,
+            PasswordHasherPort hasher,
+            RegistrationAllowlistPort admitidos,
+            Clock clock,
+            @Value("${registro.admitidos.enabled}") boolean restringido) {
+        this.usuarios = usuarios;
+        this.monedas = monedas;
+        this.hasher = hasher;
+        this.admitidos = admitidos;
+        this.clock = clock;
+        this.restringido = restringido;
+    }
 
     /** El formato ya viene validado por RegisterUserRequest; aqui queda lo que necesita la base. */
     @Override
@@ -36,7 +53,8 @@ public class RegisterUserUseCase implements RegisterUserPort {
             String moneda = command.baseCurrencyCodeOrDefault();
 
             return monedaExiste(moneda)
-                    .then(emailDisponible(email))
+                    .then(Mono.defer(() -> emailAdmitido(email)))
+                    .then(Mono.defer(() -> emailDisponible(email)))
                     .then(Mono.fromSupplier(() -> nuevoUsuario(command, email, moneda)))
                     .flatMap(usuario -> usuarios.createWithDefaultCategories(usuario)
                             .map(copiadas -> new RegisteredUser(usuario, copiadas)));
@@ -66,6 +84,19 @@ public class RegisterUserUseCase implements RegisterUserPort {
                 .switchIfEmpty(Mono.error(() -> unError(HttpStatus.BAD_REQUEST,
                         ErrorCodes.VALIDATION_ERROR,
                         "La moneda no existe en el catalogo", "baseCurrencyCode")))
+                .then();
+    }
+
+    /** Va antes de emailDisponible: a un correo no admitido no se le dice si ya tiene cuenta. */
+    private Mono<Void> emailAdmitido(String email) {
+        if (!restringido) {
+            return Mono.empty();
+        }
+        return admitidos.isAllowed(email)
+                .filter(Boolean::booleanValue)
+                .switchIfEmpty(Mono.error(() -> unError(HttpStatus.FORBIDDEN,
+                        ErrorCodes.REGISTRATION_NOT_ALLOWED,
+                        "El correo no esta admitido para registrarse", "email")))
                 .then();
     }
 

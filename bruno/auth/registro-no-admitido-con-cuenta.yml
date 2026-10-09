@@ -1,0 +1,41 @@
+info:
+  name: Registro no admitido con cuenta
+  type: http
+  seq: 12
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/register"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "PRUEBA@financeapp.local",
+        "password": "unaClaveLarga",
+        "firstName": "Otra"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "403"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: REGISTRATION_NOT_ALLOWED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: email
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # A un correo no admitido no se le dice si ya tiene cuenta (FA-103)
+
+  `prueba@financeapp.local` existe, pero no esta en la lista de admitidos. El 403 va antes del 409:
+  de lo contrario el alta serviria para averiguar que correos tienen cuenta.

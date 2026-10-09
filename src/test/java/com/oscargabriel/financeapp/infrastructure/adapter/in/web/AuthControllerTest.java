@@ -194,7 +194,29 @@ class AuthControllerTest {
                 .jsonPath("$.errors[0].field").isEqualTo("email");
     }
 
-    /** Las reglas viven en el record: un payload invalido no llega al caso de uso. */
+    /** FA-103: el handler responde con el status que trae la excepcion, sin un case propio. */
+    @Test
+    void devuelve403ConElFormatoDeErrorDelProyectoCuandoElCorreoNoEstaAdmitido() {
+        when(registerUser.register(any())).thenReturn(Mono.error(new BadRequestException(
+                HttpStatus.FORBIDDEN, ErrorCodes.REGISTRATION_NOT_ALLOWED,
+                "El correo no esta admitido para registrarse", "email")));
+
+        webTestClient.post().uri(URI_REGISTRO)
+                .headers(BasicMother.cabecera())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(unPayload())
+                .exchange()
+                .expectStatus().isForbidden()
+                .expectBody()
+                .jsonPath("$.errors.length()").isEqualTo(1)
+                .jsonPath("$.errors[0].code").isEqualTo("REGISTRATION_NOT_ALLOWED")
+                .jsonPath("$.errors[0].field").isEqualTo("email");
+    }
+
+    /**
+     * Las reglas viven en el record: un payload invalido no llega al caso de uso, y por eso tampoco
+     * a la lista de admitidos (FA-103): el 400 sale antes que el 403.
+     */
     @Test
     void devuelve400ConTodosLosCamposInvalidosSinLlamarAlCasoDeUso() {
         webTestClient.post().uri(URI_REGISTRO)
@@ -337,6 +359,20 @@ class AuthControllerTest {
                 .expectStatus().isUnauthorized();
 
         verifyNoInteractions(login);
+    }
+
+    @Test
+    void unTokenValidoNoSirveEnElRegistro() {
+        webTestClient.post().uri(URI_REGISTRO)
+                .headers(headers -> headers.setBearerAuth(TokenMother.valido()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(unPayload())
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED");
+
+        verifyNoInteractions(registerUser);
     }
 
     /**

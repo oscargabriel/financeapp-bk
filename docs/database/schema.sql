@@ -128,6 +128,21 @@ CREATE TRIGGER trg_users_updated_at
     BEFORE UPDATE ON finance.users
     FOR EACH ROW EXECUTE FUNCTION finance.set_updated_at();
 
+-- =============================================================================
+-- REGISTRATION_ALLOWLIST
+-- =============================================================================
+
+CREATE TABLE finance.registration_allowlist (
+    entry       VARCHAR(255) PRIMARY KEY,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    CONSTRAINT ck_registration_allowlist_entry CHECK (
+        entry = lower(entry)
+        AND entry ~ '^[^@[:space:]]*@[^@[:space:]]+\.[a-z]{2,}$')
+);
+
+COMMENT ON TABLE  finance.registration_allowlist IS 'Correos que pueden registrarse cuando la restricción del alta está encendida. Se mantiene a mano con SQL. El login no la consulta: quitar un correo no afecta al usuario ya registrado.';
+COMMENT ON COLUMN finance.registration_allowlist.entry IS 'Un correo exacto (ana@correo.com) o un dominio completo (@correo.com), en minúsculas. Una fila de dominio admite a CUALQUIER cuenta de ese dominio: no usarla con dominios públicos como @gmail.com.';
+
 
 -- =============================================================================
 -- ACCOUNTS
