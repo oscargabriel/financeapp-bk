@@ -1,7 +1,7 @@
 info:
   name: Modificar gasto de cuenta borrada
   type: http
-  seq: 49
+  seq: 64
 
 http:
   method: PATCH

@@ -1,11 +1,17 @@
 info:
-  name: Borrar cuenta ya borrada
+  name: Desactivar con estado en null
   type: http
-  seq: 62
+  seq: 52
 
 http:
-  method: DELETE
-  url: "{{baseUrl}}/accounts/{{idCajaChica}}"
+  method: PATCH
+  url: "{{baseUrl}}/accounts/{{idCuentaEfectivo}}"
+  body:
+    type: json
+    data: |-
+      {
+        "isActive": null
+      }
   auth:
     type: bearer
     token: "{{tokenCuentas}}"
@@ -14,13 +20,13 @@ runtime:
   assertions:
     - expression: res.status
       operator: eq
-      value: "404"
+      value: "400"
     - expression: res.body.errors[0].code
       operator: eq
-      value: NOT_FOUND
+      value: VALIDATION_ERROR
     - expression: res.body.errors[0].field
       operator: eq
-      value: id
+      value: body
 
 settings:
   encodeUrl: true
@@ -29,6 +35,6 @@ settings:
   maxRedirects: 5
 
 docs: |
-  # La misma cuenta otra vez
+  # El estado en null no es un cambio
 
-  Ya borrada responde como una inexistente.
+  Como cualquier otro campo en null: el parche queda vacio.

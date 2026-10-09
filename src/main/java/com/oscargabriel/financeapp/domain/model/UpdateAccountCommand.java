@@ -9,5 +9,6 @@ public record UpdateAccountCommand(
         BigDecimal initialBalance,
         BigDecimal creditLimit,
         Integer statementDay,
-        Integer paymentDueDay) {
+        Integer paymentDueDay,
+        Boolean isActive) {
 }

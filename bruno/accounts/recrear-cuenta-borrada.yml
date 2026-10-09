@@ -1,7 +1,7 @@
 info:
   name: Recrear cuenta borrada
   type: http
-  seq: 51
+  seq: 66
 
 http:
   method: POST

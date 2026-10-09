@@ -1,0 +1,41 @@
+info:
+  name: Desactivar y renombrar a la vez
+  type: http
+  seq: 49
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/{{idCuentaCredito}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Mastercard vieja",
+        "isActive": false
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.name
+      operator: eq
+      value: Mastercard vieja
+    - expression: res.body.isActive
+      operator: eq
+      value: false
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El estado viaja con los demas campos
+
+  Sobre la tarjeta, que queda desactivada para el resto de la carpeta.

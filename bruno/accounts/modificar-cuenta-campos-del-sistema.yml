@@ -25,13 +25,13 @@ runtime:
       value: "400"
     - expression: res.body.errors
       operator: length
-      value: "3"
+      value: "2"
   scripts:
     - type: tests
       code: |-
-        test("un error por campo, todos juntos", function() {
+        test("un error por campo rechazado, ninguno en isActive", function() {
           const campos = res.getBody().errors.map(function (e) { return e.field; }).sort();
-          expect(campos).to.deep.equal(["currentBalance", "isActive", "type"]);
+          expect(campos).to.deep.equal(["currentBalance", "type"]);
           res.getBody().errors.forEach(function (e) { expect(e.code).to.equal("VALIDATION_ERROR"); });
         });
 
@@ -42,7 +42,8 @@ settings:
   maxRedirects: 5
 
 docs: |
-  # Saldo vigente, tipo y estado no se tocan por aqui
+  # Saldo vigente y tipo no se tocan por aqui
 
-  El saldo vigente lo calcula la base, el tipo no se cambia y desactivar es otro endpoint (FA-25).
-  Mandarlos es un error, no algo que se ignora en silencio.
+  El saldo vigente lo calcula la base y el tipo no se cambia: mandarlos es un error, no algo que se
+  ignora en silencio. `isActive` si se admite (FA-68), pero el 400 no escribe nada: la cuenta sigue
+  activa, y "Cuentas tras modificar" lo comprueba.

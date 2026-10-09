@@ -1,7 +1,7 @@
 info:
   name: Borrar cuenta con id mal formado
   type: http
-  seq: 53
+  seq: 68
 
 http:
   method: DELETE

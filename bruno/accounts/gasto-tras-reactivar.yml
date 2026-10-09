@@ -1,7 +1,7 @@
 info:
-  name: Gasto en Caja chica
+  name: Gasto tras reactivar
   type: http
-  seq: 57
+  seq: 47
 
 http:
   method: POST
@@ -12,10 +12,10 @@ http:
       [
         {
           "type": "EXPENSE",
-          "accountId": "{{idCajaChica}}",
+          "accountId": "{{idCuentaEfectivo}}",
           "categoryId": "{{idMercadoCuentas}}",
-          "amount": 30000,
-          "description": "Tinto"
+          "amount": 20000,
+          "description": "Mercado"
         }
       ]
   auth:
@@ -27,10 +27,6 @@ runtime:
     - expression: res.status
       operator: eq
       value: "201"
-  scripts:
-    - type: tests
-      code: |-
-        bru.setVar("idGastoCajaChica", res.getBody()[0].id);
 
 settings:
   encodeUrl: true
@@ -39,7 +35,6 @@ settings:
   maxRedirects: 5
 
 docs: |
-  # Historia y saldo en la cuenta
+  # Reactivada, admite movimientos otra vez
 
-  Con este gasto `Caja chica` queda en -30000 y tiene un movimiento que el borrado no puede tocar.
-  Guarda su id en `idGastoCajaChica`.
+  El mismo cuerpo que "Gasto en cuenta desactivada".

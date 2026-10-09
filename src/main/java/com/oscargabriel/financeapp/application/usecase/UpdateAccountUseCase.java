@@ -29,8 +29,9 @@ public class UpdateAccountUseCase implements UpdateAccountPort {
 
     /**
      * El formato del parche ya viene validado por UpdateAccountRequest, incluidos los rangos y que
-     * no traiga saldo vigente, tipo ni estado. Aqui queda lo que depende de la cuenta guardada: su
-     * tipo, su moneda y sus movimientos. Ningun chequeo escribe; solo el update final.
+     * no traiga saldo vigente ni tipo. Aqui queda lo que depende de la cuenta guardada: su tipo, su
+     * moneda y sus movimientos. Ningun chequeo escribe; solo el update final, que lleva tambien el
+     * estado: un parche rechazado no desactiva ni reactiva nada.
      */
     @Override
     public Mono<Account> update(UUID userId, UUID accountId, UpdateAccountCommand parche) {
@@ -62,7 +63,7 @@ public class UpdateAccountUseCase implements UpdateAccountPort {
                 parche.creditLimit() == null ? guardada.creditLimit() : parche.creditLimit(),
                 parche.statementDay() == null ? guardada.statementDay() : parche.statementDay(),
                 parche.paymentDueDay() == null ? guardada.paymentDueDay() : parche.paymentDueDay(),
-                guardada.active());
+                parche.isActive() == null ? guardada.active() : parche.isActive());
     }
 
     /**

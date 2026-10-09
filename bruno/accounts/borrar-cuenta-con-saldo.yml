@@ -1,7 +1,7 @@
 info:
   name: Borrar cuenta con saldo
   type: http
-  seq: 43
+  seq: 58
 
 http:
   method: DELETE

@@ -310,7 +310,7 @@ class AccountControllerTest {
         ArgumentCaptor<UpdateAccountCommand> comando = ArgumentCaptor.forClass(UpdateAccountCommand.class);
         verify(updateAccount).update(eq(AccountMother.USER_ID), eq(AccountMother.VISA_ID), comando.capture());
         assertThat(comando.getValue()).isEqualTo(new UpdateAccountCommand(" Visa ", "cop", new BigDecimal("10"),
-                new BigDecimal("6000000"), 16, 6));
+                new BigDecimal("6000000"), 16, 6, null));
     }
 
     @Test
@@ -344,7 +344,7 @@ class AccountControllerTest {
     }
 
     @Test
-    void rechazaElSaldoVigenteElTipoYElEstadoSinLlamarAlCasoDeUso() {
+    void rechazaElSaldoVigenteYElTipoPeroNoElEstadoSinLlamarAlCasoDeUso() {
         webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/" + AccountMother.VISA_ID)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("""
@@ -353,10 +353,46 @@ class AccountControllerTest {
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()
-                .jsonPath("$.errors.length()").isEqualTo(3)
+                .jsonPath("$.errors.length()").isEqualTo(2)
                 .jsonPath("$.errors[?(@.field == 'currentBalance')]").exists()
-                .jsonPath("$.errors[?(@.field == 'type')]").exists()
-                .jsonPath("$.errors[?(@.field == 'isActive')]").exists();
+                .jsonPath("$.errors[?(@.field == 'type')]").exists();
+
+        verifyNoInteractions(updateAccount);
+    }
+
+    @Test
+    void pasaElEstadoDelParcheAlCasoDeUso() {
+        when(updateAccount.update(eq(AccountMother.USER_ID), eq(AccountMother.EFECTIVO_ID), any()))
+                .thenReturn(Mono.just(AccountMother.inactiva()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/" + AccountMother.EFECTIVO_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"isActive": false}
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.isActive").isEqualTo(false);
+
+        ArgumentCaptor<UpdateAccountCommand> comando = ArgumentCaptor.forClass(UpdateAccountCommand.class);
+        verify(updateAccount).update(eq(AccountMother.USER_ID), eq(AccountMother.EFECTIVO_ID), comando.capture());
+        assertThat(comando.getValue())
+                .isEqualTo(new UpdateAccountCommand(null, null, null, null, null, null, false));
+    }
+
+    @Test
+    void elEstadoEnNullEsUnParcheVacio() {
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/" + AccountMother.VISA_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"isActive": null}
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("body");
 
         verifyNoInteractions(updateAccount);
     }

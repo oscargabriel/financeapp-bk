@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import com.oscargabriel.financeapp.domain.model.UpdateAccountCommand;
 import com.oscargabriel.financeapp.support.Violaciones;
@@ -56,9 +57,7 @@ class UpdateAccountRequestTest {
                         BigDecimal.ONE, null, null), "currentBalance",
                         "El saldo vigente lo calcula el sistema; para corregirlo, cambia initialBalance"),
                 Arguments.of("tipo", new UpdateAccountRequest(null, null, null, null, null, null, null, "CASH", null),
-                        "type", "El tipo de una cuenta no se puede cambiar"),
-                Arguments.of("estado", new UpdateAccountRequest(null, null, null, null, null, null, null, null, false),
-                        "isActive", "El estado de la cuenta no se cambia con este endpoint"));
+                        "type", "El tipo de una cuenta no se puede cambiar"));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -72,7 +71,13 @@ class UpdateAccountRequestTest {
         assertThat(Violaciones.de(new UpdateAccountRequest(" ", "us", new BigDecimal("1.23456"), BigDecimal.ZERO,
                 32, 0, BigDecimal.ONE, "CASH", false)).keySet())
                 .containsExactlyInAnyOrder("name", "currencyCode", "initialBalance", "creditLimit", "statementDay",
-                        "paymentDueDay", "currentBalance", "type", "isActive");
+                        "paymentDueDay", "currentBalance", "type");
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void elEstadoSeAdmite(boolean activa) {
+        assertThat(Violaciones.de(conEstado(activa))).isEmpty();
     }
 
     @Test
@@ -86,12 +91,17 @@ class UpdateAccountRequestTest {
     }
 
     @Test
-    void elComandoLlevaLosSeisCamposModificables() {
+    void soloElEstadoYaEsUnCambio() {
+        assertThat(conEstado(false).sinCambios()).isFalse();
+    }
+
+    @Test
+    void elComandoLlevaLosSieteCamposModificables() {
         UpdateAccountRequest request = new UpdateAccountRequest("Bolsillo", "usd", BigDecimal.TEN, BigDecimal.ONE,
-                3, 4, null, null, null);
+                3, 4, null, null, false);
 
         assertThat(request.toCommand()).isEqualTo(new UpdateAccountCommand(
-                "Bolsillo", "usd", BigDecimal.TEN, BigDecimal.ONE, 3, 4));
+                "Bolsillo", "usd", BigDecimal.TEN, BigDecimal.ONE, 3, 4, false));
     }
 
     private static UpdateAccountRequest vacio() {
@@ -116,5 +126,9 @@ class UpdateAccountRequestTest {
 
     private static UpdateAccountRequest conDias(Integer corte, Integer pago) {
         return new UpdateAccountRequest(null, null, null, null, corte, pago, null, null, null);
+    }
+
+    private static UpdateAccountRequest conEstado(Boolean activa) {
+        return new UpdateAccountRequest(null, null, null, null, null, null, null, null, activa);
     }
 }

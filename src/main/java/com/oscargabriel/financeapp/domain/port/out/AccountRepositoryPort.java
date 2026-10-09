@@ -22,9 +22,9 @@ public interface AccountRepositoryPort {
     Mono<Boolean> hasTransactions(UUID accountId);
 
     /**
-     * Reemplaza nombre, moneda, saldo inicial, cupo y dias de la cuenta no borrada del usuario y la
-     * devuelve como quedo, con el saldo vigente que corrio la base, o vacio si ya no esta. El nombre
-     * repetido sale como en create.
+     * Reemplaza nombre, moneda, saldo inicial, cupo, dias y estado de la cuenta no borrada del usuario
+     * y la devuelve como quedo, con el saldo vigente que corrio la base, o vacio si ya no esta. El
+     * nombre repetido sale como en create.
      */
     Mono<Account> update(UUID userId, Account account);
 

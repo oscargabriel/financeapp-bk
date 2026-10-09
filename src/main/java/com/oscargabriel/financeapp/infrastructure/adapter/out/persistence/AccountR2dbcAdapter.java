@@ -78,7 +78,8 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
                    initial_balance = :initialBalance,
                    credit_limit = :creditLimit,
                    statement_day = :statementDay,
-                   payment_due_day = :paymentDueDay
+                   payment_due_day = :paymentDueDay,
+                   is_active = :isActive
              WHERE id = :id
                AND user_id = :userId
                AND deleted_at IS NULL
@@ -145,7 +146,8 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
                 .bind("userId", userId)
                 .bind("name", account.name())
                 .bind("currencyCode", account.currencyCode())
-                .bind("initialBalance", account.initialBalance());
+                .bind("initialBalance", account.initialBalance())
+                .bind("isActive", account.active());
 
         return camposDeCredito(sentencia, account.creditLimit(), account.statementDay(), account.paymentDueDay())
                 .map((row, metadata) -> toDomain(row))

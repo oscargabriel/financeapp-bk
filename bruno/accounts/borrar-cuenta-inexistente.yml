@@ -1,7 +1,7 @@
 info:
   name: Borrar cuenta inexistente
   type: http
-  seq: 52
+  seq: 67
 
 http:
   method: DELETE
