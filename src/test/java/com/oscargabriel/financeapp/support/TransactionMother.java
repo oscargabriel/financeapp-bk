@@ -103,6 +103,13 @@ public final class TransactionMother {
                 TransactionStatus.PENDING, TransactionOrigin.TELEGRAM);
     }
 
+    /** El mismo movimiento con otra fecha: despues de RelojFijo.AHORA queda programado (FA-106). */
+    public static Transaction conFecha(Transaction t, Instant fecha) {
+        return new Transaction(t.id(), t.userId(), t.type(), t.accountId(), t.destinationAccountId(),
+                t.categoryId(), t.amount(), t.currencyCode(), t.description(), t.notes(), fecha, t.status(),
+                t.origin());
+    }
+
     public static Transaction conEstado(Transaction t, TransactionStatus estado) {
         return new Transaction(t.id(), t.userId(), t.type(), t.accountId(), t.destinationAccountId(),
                 t.categoryId(), t.amount(), t.currencyCode(), t.description(), t.notes(), t.occurredAt(), estado,

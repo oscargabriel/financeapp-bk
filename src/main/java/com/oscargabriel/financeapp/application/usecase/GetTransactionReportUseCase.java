@@ -1,5 +1,6 @@
 package com.oscargabriel.financeapp.application.usecase;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Set;
 import java.util.UUID;
@@ -23,6 +24,7 @@ import reactor.core.publisher.Mono;
 public class GetTransactionReportUseCase implements GetTransactionReportPort {
 
     private final TransactionReportQueryPort query;
+    private final Clock clock;
 
     /** El defer hace que un rango invertido salga como senal de error, no al ensamblar la cadena. */
     @Override
@@ -31,7 +33,7 @@ public class GetTransactionReportUseCase implements GetTransactionReportPort {
         return Mono.defer(() -> {
             TransactionReportFilter filtro = filtro(from, to, categoryIds, accountIds, types);
             return Mono.zip(query.findBaseCurrency(userId), query.findByUser(userId, filtro).collectList())
-                    .map(t -> TransactionReport.of(t.getT1(), filtro, t.getT2()));
+                    .map(t -> TransactionReport.of(t.getT1(), filtro, t.getT2(), clock.instant()));
         });
     }
 

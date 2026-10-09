@@ -178,7 +178,7 @@ CREATE TABLE finance.accounts (
 );
 
 COMMENT ON TABLE  finance.accounts IS 'Origen o destino del dinero: efectivo, cuenta bancaria, tarjeta de crédito, etc.';
-COMMENT ON COLUMN finance.accounts.current_balance IS 'Saldo vigente: initial_balance más el efecto de los movimientos. Lo mantienen los triggers trg_transactions_sync_balance y trg_accounts_shift_balance; la aplicación NUNCA lo escribe directamente. En una tarjeta de crédito un valor negativo es la deuda, y el cupo disponible es credit_limit + current_balance.';
+COMMENT ON COLUMN finance.accounts.current_balance IS 'initial_balance más el efecto de todos los movimientos confirmados, también los programados (fecha futura). El saldo vigente que ve el usuario es current_balance - finance.scheduled_balance_delta(id). Lo mantienen los triggers trg_transactions_sync_balance y trg_accounts_shift_balance; la aplicación NUNCA lo escribe directamente. En una tarjeta de crédito un valor negativo es la deuda, y el cupo disponible es credit_limit más el saldo vigente.';
 COMMENT ON COLUMN finance.accounts.monthly_interest_rate IS 'Tasa de interés mensual de una tarjeta de crédito, en porcentaje: 2.15 es el 2,15 % mensual. NULL si no se ha cargado.';
 COMMENT ON COLUMN finance.accounts.initial_balance IS'Saldo con el que la cuenta entra al sistema. Se copia a current_balance al crearla, y si después cambia, current_balance se corre en la misma diferencia.';
 
@@ -412,6 +412,30 @@ CREATE TRIGGER trg_transactions_sync_balance
     FOR EACH ROW EXECUTE FUNCTION finance.sync_account_balances();
 
 
+-- Efecto sobre la cuenta de sus movimientos programados: confirmados con fecha
+-- posterior a now() (FA-106). El trigger de arriba ya los aplicó a
+-- current_balance; el saldo vigente es current_balance menos esto. Al llegar la
+-- fecha la fila sale de aquí sola, sin que ningún proceso la toque.
+CREATE OR REPLACE FUNCTION finance.scheduled_balance_delta(p_account_id UUID)
+RETURNS NUMERIC
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT COALESCE(SUM(efecto), 0)
+      FROM (SELECT finance.balance_delta(t.type, t.amount) AS efecto
+              FROM finance.transactions t
+             WHERE t.account_id = p_account_id
+               AND t.status = 'CONFIRMED'
+               AND t.occurred_at > now()
+            UNION ALL
+            SELECT COALESCE(t.destination_amount, t.amount)
+              FROM finance.transactions t
+             WHERE t.destination_account_id = p_account_id
+               AND t.status = 'CONFIRMED'
+               AND t.occurred_at > now()) AS programados;
+$$;
+
+
 -- =============================================================================
 -- BUDGETS
 -- =============================================================================
@@ -454,6 +478,8 @@ CREATE TRIGGER trg_budgets_updated_at
 --   * Solo cuentan los movimientos de tipo EXPENSE. Una transferencia mueve
 --     dinero entre cuentas propias, no lo gasta.
 --   * Solo cuentan los CONFIRMED: un pendiente no es gasto hasta aprobarse.
+--   * Solo cuentan los que ya ocurrieron: un programado (occurred_at > now())
+--     no es gasto hasta su fecha (FA-106).
 --   * Suman amount_base para que monedas distintas sean comparables.
 --   * El mes se corta en la zona horaria del usuario.
 --   * FULL OUTER JOIN contra budgets: un mes con meta y sin gastos aparece con
@@ -470,6 +496,7 @@ WITH spent AS (
       JOIN finance.users u ON u.id = t.user_id
      WHERE t.type = 'EXPENSE'
        AND t.status = 'CONFIRMED'
+       AND t.occurred_at <= now()
      GROUP BY t.user_id, 2
 ),
 budget AS (
@@ -510,6 +537,7 @@ WITH spent AS (
       JOIN finance.users u ON u.id = t.user_id
      WHERE t.type = 'EXPENSE'
        AND t.status = 'CONFIRMED'
+       AND t.occurred_at <= now()
      GROUP BY t.user_id, 2, t.category_id
 ),
 budget AS (

@@ -439,7 +439,7 @@ sin distinguir mayúsculas.
 |---|---|
 | `type` | `CASH`, `DEBIT`, `CREDIT`, `SAVINGS`, `INVESTMENT` u `OTHER` |
 | `initialBalance` | Saldo con el que la cuenta entró al sistema |
-| `currentBalance` | Saldo vigente: `initialBalance` más el efecto de los movimientos. Lo calcula la base y el cliente nunca lo escribe. **En una tarjeta de crédito, negativo es deuda** |
+| `currentBalance` | Saldo vigente: `initialBalance` más el efecto de los movimientos que ya ocurrieron; los [programados](#movimientos-programados) no cuentan hasta su fecha. Lo calcula la base y el cliente nunca lo escribe. **En una tarjeta de crédito, negativo es deuda** |
 | `creditLimit` | Solo en `CREDIT`: el cupo. `null` en los demás tipos o si la tarjeta no lo tiene |
 | `availableCredit` | Solo en `CREDIT`: `creditLimit + currentBalance`. `null` en los demás tipos o si la tarjeta no tiene cupo |
 | `statementDay`, `paymentDueDay` | Solo en `CREDIT`: día de corte y día de pago, 1 a 31. `null` en los demás tipos |
@@ -813,7 +813,8 @@ no confirma que un id exista fuera de tus datos.
     "description": "Mercado de la semana",
     "notes": null,
     "occurredAt": "2026-09-20T15:15:00Z",
-    "status": "CONFIRMED"
+    "status": "CONFIRMED",
+    "scheduled": false
   }
 ]
 ```
@@ -821,8 +822,12 @@ no confirma que un id exista fuera de tus datos.
 `status` es `CONFIRMED` en todo lo que entra por aquí; si el cuerpo trae un `status`, se ignora.
 `PENDING` solo lo pone el asistente (ver [Movimientos pendientes](#movimientos-pendientes)).
 
+`scheduled` es `true` si `occurredAt` es posterior al momento en que el servidor responde: el
+movimiento está **programado** (ver [Movimientos programados](#movimientos-programados)). Lo calcula
+el servidor; si el cuerpo trae un `scheduled`, se ignora.
+
 **Efecto en los saldos.** La base los aplica en la misma transacción. Después del 201, un
-`GET /accounts` ya los muestra:
+`GET /accounts` ya los muestra, salvo los programados, que esperan a su fecha:
 
 | Tipo | `accountId` | `destinationAccountId` |
 |---|---|---|
@@ -886,7 +891,8 @@ del alta.
 
 **Efecto en los saldos.** La base revierte el movimiento anterior y aplica el nuevo en la misma
 operación, también si cambian la cuenta, el tipo o el monto. Un pendiente se puede corregir antes
-de aprobarlo: sigue `PENDING` y no mueve saldos.
+de aprobarlo: sigue `PENDING` y no mueve saldos. Cambiar `occurredAt` de una fecha futura a una pasada
+aplica el movimiento, y al revés lo retira hasta que llegue; `scheduled` sale según la fecha nueva.
 
 **Errores propios**
 
@@ -934,6 +940,24 @@ deja rastro.
 
 Un pendiente también se corrige con `PATCH` y se borra con `DELETE`, igual que uno confirmado.
 
+### Movimientos programados
+
+Un movimiento confirmado con `occurredAt` posterior al momento actual está **programado**
+(`"scheduled": true`). Hasta su fecha:
+
+- no mueve el `currentBalance` de sus cuentas, en `GET /accounts` ni en `reports/balance`, ni el
+  `availableCredit` de una tarjeta;
+- no cuenta en `monthly-spending`, ni en `period` o `allTime` de `reports/balance`;
+- **sí sale** en la lista de `reports/transactions`, marcado, pero no suma en sus totales ni en `net`.
+
+Cuando llega la fecha empieza a contar solo: nada lo "activa", y no hace falta modificarlo ni que el
+servidor haya estado encendido. Un pendiente con fecha futura sigue `PENDING` y además sale con
+`"scheduled": true`; al aprobarlo, queda programado hasta su fecha.
+
+`scheduled` no es un estado que se guarde ni que el cliente envíe: el servidor lo calcula en cada
+respuesta comparando `occurredAt` con su reloj. Una misma respuesta puede marcarlo `true` y, unos
+segundos después, otra marcarlo `false`.
+
 ### `GET /api/monthly-spending`
 
 Gasto por mes del usuario del token comparado con su meta mensual. **Bearer.**
@@ -979,7 +1003,7 @@ extremos. Errores 400 `VALIDATION_ERROR`:
 
 | Campo | Significado |
 |---|---|
-| `totalSpent` | Suma de los gastos (`EXPENSE`) confirmados del mes. Ingresos, transferencias y pendientes no cuentan |
+| `totalSpent` | Suma de los gastos (`EXPENSE`) confirmados del mes que ya ocurrieron. Ingresos, transferencias, pendientes y programados no cuentan |
 | `budgetAmount` | Meta de gasto total del mes, o `null` si no hay |
 | `remaining` | `budgetAmount - totalSpent`. Negativo si se pasó de la meta. `null` sin meta |
 | `percentUsed` | Porcentaje consumido de la meta, con 2 decimales. Puede pasar de 100. `null` sin meta |
@@ -1000,7 +1024,8 @@ extremos. Errores 400 `VALIDATION_ERROR`:
 ### `GET /api/reports/transactions`
 
 Movimientos confirmados del usuario del token en un rango de días, con sus totales por tipo y por
-categoría. Los pendientes no salen hasta aprobarse. **Bearer.**
+categoría. Los pendientes no salen hasta aprobarse. Los programados salen marcados con
+`"scheduled": true` y no suman en los totales. **Bearer.**
 
 **Query params**
 
@@ -1041,7 +1066,8 @@ dos extremos. Errores 400 `VALIDATION_ERROR`, en el campo del parámetro:
       "amountBase": 410000.0000,
       "description": "Cambio de dólares",
       "notes": null,
-      "occurredAt": "2026-10-10T20:00:00Z"
+      "occurredAt": "2026-10-10T20:00:00Z",
+      "scheduled": false
     },
     {
       "id": "0192a3b4-...",
@@ -1055,7 +1081,8 @@ dos extremos. Errores 400 `VALIDATION_ERROR`, en el campo del parámetro:
       "amountBase": 85000.0000,
       "description": "Carne y verduras",
       "notes": null,
-      "occurredAt": "2026-10-02T15:00:00Z"
+      "occurredAt": "2026-10-02T15:00:00Z",
+      "scheduled": false
     }
   ],
   "totalsByType": [
@@ -1075,8 +1102,9 @@ dos extremos. Errores 400 `VALIDATION_ERROR`, en el campo del parámetro:
 | `currencyCode` | La moneda base del usuario: la de `amountBase` y la de todos los totales |
 | `amount` / `currencyCode` del movimiento | El monto en la moneda de la cuenta origen |
 | `amountBase` | El mismo monto en la moneda base. Es lo que suman los totales |
-| `totalsByType` | Una entrada por tipo consultado (los tres sin filtro de tipo), aunque sea en cero |
-| `totalsByCategory` | Solo las categorías con movimientos, de mayor a menor total |
+| `scheduled` | `true` si el movimiento está programado: sale en la lista, pero no en los totales ni en `net` |
+| `totalsByType` | Una entrada por tipo consultado (los tres sin filtro de tipo), aunque sea en cero. Sin los programados |
+| `totalsByCategory` | Solo las categorías con movimientos ya ocurridos, de mayor a menor total |
 | `net` | Total de `INCOME` menos total de `EXPENSE`. Puede ser negativo |
 
 **A tener en cuenta**
@@ -1174,6 +1202,8 @@ el campo del parámetro:
 - **Las transferencias no cuentan** como ingreso ni como gasto: mover plata entre cuentas propias,
   incluido pagar la tarjeta, no cambia el neto. Los gastos pagados con tarjeta sí cuentan.
 - **Los pendientes no cuentan** hasta aprobarse, ni en `period` ni en `allTime`.
+- **Los programados no cuentan** hasta su fecha, ni en `period`, ni en `allTime`, ni en el
+  `currentBalance` de las cuentas: un rango futuro con solo programados sale en cero.
 - **Las cuentas no se suman.** Pueden estar en monedas distintas, así que la respuesta no trae un
   saldo total.
 - Una tarjeta sin cupo cargado trae `creditLimit` y `availableCredit` en `null`. Se completa con

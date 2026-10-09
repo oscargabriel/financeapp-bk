@@ -1,10 +1,14 @@
 package com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 import com.oscargabriel.financeapp.domain.model.Transaction;
 
-/** occurredAt sale en UTC (Instant): el cliente lo muestra en la zona que quiera. */
+/**
+ * occurredAt sale en UTC (Instant): el cliente lo muestra en la zona que quiera. scheduled se calcula
+ * contra el instante de la respuesta: con fecha posterior, el movimiento esta programado (FA-106).
+ */
 public record TransactionResponse(
         String id,
         String type,
@@ -17,9 +21,10 @@ public record TransactionResponse(
         String notes,
         String occurredAt,
         String status,
-        String origin) {
+        String origin,
+        boolean scheduled) {
 
-    public static TransactionResponse from(Transaction t) {
+    public static TransactionResponse from(Transaction t, Instant ahora) {
         return new TransactionResponse(
                 t.id().toString(),
                 t.type().name(),
@@ -32,6 +37,7 @@ public record TransactionResponse(
                 t.notes(),
                 t.occurredAt().toString(),
                 t.status().name(),
-                t.origin().name());
+                t.origin().name(),
+                t.scheduledAt(ahora));
     }
 }

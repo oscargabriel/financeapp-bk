@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: "{{baseUrl}}/reports/transactions?from={{primerDiaSiguiente}}&to={{primerDiaSiguiente}}"
+  url: "{{baseUrl}}/reports/transactions?from={{diaSiguienteFrontera}}&to={{diaSiguienteFrontera}}"
   auth: inherit
 
 runtime:
@@ -16,9 +16,9 @@ runtime:
   scripts:
     - type: tests
       code: |-
-        test("no incluye la cena, aunque en UTC sea de este dia", function() {
+        test("no incluye los buses, aunque en UTC sea de este dia", function() {
           const descripciones = res.getBody().transactions.map(function (t) { return t.description; });
-          expect(descripciones).to.not.include("Cena de fin de mes");
+          expect(descripciones).to.not.include("Buses de fin de mes");
         });
 
 settings:

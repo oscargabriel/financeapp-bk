@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: "{{baseUrl}}/reports/balance?from={{ultimoDia}}&to={{ultimoDia}}"
+  url: "{{baseUrl}}/reports/balance?from={{ultimoDiaFrontera}}&to={{ultimoDiaFrontera}}"
   auth: inherit
 
 runtime:
@@ -15,7 +15,7 @@ runtime:
       value: "200"
     - expression: res.body.period.expense
       operator: eq
-      value: "50000"
+      value: "35000"
 
 settings:
   encodeUrl: true
@@ -24,5 +24,5 @@ settings:
   maxRedirects: 5
 
 docs: |
-  "Cena de fin de mes" ocurre a las 21:30 en Bogota, ya el dia siguiente en UTC: el dia se corta en
+  "Buses de fin de mes" (35.000) ocurre el ultimo dia de hace dos meses a las 21:30 en Bogota, ya el dia siguiente en UTC: el dia se corta en
   la zona del usuario, como en el reporte.

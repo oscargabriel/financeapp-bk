@@ -1,5 +1,6 @@
 package com.oscargabriel.financeapp.domain.model;
 
+import static com.oscargabriel.financeapp.support.ReportMother.AHORA;
 import static com.oscargabriel.financeapp.support.ReportMother.CUENTA_ID;
 import static com.oscargabriel.financeapp.support.ReportMother.DESTINO_ID;
 import static com.oscargabriel.financeapp.support.ReportMother.MERCADO_ID;
@@ -15,6 +16,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
@@ -36,7 +38,7 @@ class TransactionReportTest {
 
     @Test
     void totalizaLosTresTiposEnElOrdenDelEnumSumandoElMontoBase() {
-        TransactionReport reporte = TransactionReport.of("COP", sinFiltros(), DEL_MES);
+        TransactionReport reporte = TransactionReport.of("COP", sinFiltros(), DEL_MES, AHORA);
 
         assertThat(reporte.totalsByType())
                 .extracting(TypeTotal::type, TypeTotal::total, TypeTotal::count)
@@ -48,7 +50,7 @@ class TransactionReportTest {
 
     @Test
     void sinMovimientosLosTresTiposVanEnCeroYNoHayTotalesPorCategoria() {
-        TransactionReport reporte = TransactionReport.of("COP", sinFiltros(), List.of());
+        TransactionReport reporte = TransactionReport.of("COP", sinFiltros(), List.of(), AHORA);
 
         assertThat(reporte.totalsByType())
                 .extracting(TypeTotal::type, TypeTotal::total, TypeTotal::count)
@@ -63,7 +65,7 @@ class TransactionReportTest {
     @Test
     void conFiltroDeTipoSoloTotalizaLosTiposPedidosEnElOrdenDelEnum() {
         TransactionReport reporte = TransactionReport.of("COP",
-                conTipos(TransactionType.TRANSFER, TransactionType.EXPENSE), List.of());
+                conTipos(TransactionType.TRANSFER, TransactionType.EXPENSE), List.of(), AHORA);
 
         assertThat(reporte.totalsByType()).extracting(TypeTotal::type)
                 .containsExactly(TransactionType.EXPENSE, TransactionType.TRANSFER);
@@ -71,7 +73,7 @@ class TransactionReportTest {
 
     @Test
     void losTotalesPorCategoriaDejanFueraLasTransferenciasYVanDeMayorAMenor() {
-        TransactionReport reporte = TransactionReport.of("COP", sinFiltros(), DEL_MES);
+        TransactionReport reporte = TransactionReport.of("COP", sinFiltros(), DEL_MES, AHORA);
 
         assertThat(reporte.totalsByCategory())
                 .extracting(CategoryTotal::categoryName, CategoryTotal::total, CategoryTotal::count)
@@ -83,7 +85,7 @@ class TransactionReportTest {
 
     @Test
     void ordenaLosMovimientosDelMasRecienteAlMasAntiguo() {
-        TransactionReport reporte = TransactionReport.of("COP", sinFiltros(), DEL_MES);
+        TransactionReport reporte = TransactionReport.of("COP", sinFiltros(), DEL_MES, AHORA);
 
         assertThat(reporte.transactions()).hasSize(5).extracting(ReportedTransaction::occurredAt)
                 .isSortedAccordingTo(Comparator.reverseOrder());
@@ -110,7 +112,7 @@ class TransactionReportTest {
 
     @Test
     void elNetoEsIngresosMenosGastosSinLasTransferencias() {
-        TransactionReport reporte = TransactionReport.of("COP", sinFiltros(), DEL_MES);
+        TransactionReport reporte = TransactionReport.of("COP", sinFiltros(), DEL_MES, AHORA);
 
         assertThat(reporte.net()).isEqualByComparingTo("4334500");
     }
@@ -118,7 +120,7 @@ class TransactionReportTest {
     @Test
     void conSoloGastosElNetoSaleNegativo() {
         TransactionReport reporte = TransactionReport.of("COP", conTipos(TransactionType.EXPENSE),
-                DEL_MES.stream().filter(t -> t.type() == TransactionType.EXPENSE).toList());
+                DEL_MES.stream().filter(t -> t.type() == TransactionType.EXPENSE).toList(), AHORA);
 
         assertThat(reporte.net()).isEqualByComparingTo("-165500");
     }
@@ -126,9 +128,63 @@ class TransactionReportTest {
     @Test
     void conSoloTransferenciasElNetoEsCero() {
         TransactionReport reporte = TransactionReport.of("COP", conTipos(TransactionType.TRANSFER),
-                List.of(unaTransferenciaEnDolares("2026-09-10T20:00:00Z")));
+                List.of(unaTransferenciaEnDolares("2026-09-10T20:00:00Z")), AHORA);
 
         assertThat(reporte.net()).isEqualByComparingTo("0");
+    }
+
+    /** El gasto de 42.500 del dia 12 queda despues del instante del reporte: esta programado (FA-106). */
+    private static final Instant EL_DIA_10 = Instant.parse("2026-09-10T21:00:00Z");
+
+    @Test
+    void losProgramadosSiguenEnLaListaPeroNoEnLosTotales() {
+        TransactionReport reporte = TransactionReport.of("COP", sinFiltros(), DEL_MES, EL_DIA_10);
+
+        assertThat(reporte.transactions()).hasSize(5);
+        assertThat(reporte.totalsByType())
+                .extracting(TypeTotal::type, TypeTotal::total, TypeTotal::count)
+                .containsExactly(
+                        tuple(TransactionType.EXPENSE, new BigDecimal("123000.0000"), 2L),
+                        tuple(TransactionType.INCOME, new BigDecimal("4500000.0000"), 1L),
+                        tuple(TransactionType.TRANSFER, new BigDecimal("410000.0000"), 1L));
+        assertThat(reporte.totalsByCategory())
+                .extracting(CategoryTotal::categoryName, CategoryTotal::total, CategoryTotal::count)
+                .contains(tuple("Mercado", new BigDecimal("85000.0000"), 1L));
+        assertThat(reporte.net()).isEqualByComparingTo("4377000");
+    }
+
+    @Test
+    void conSoloProgramadosLosTotalesVanEnCero() {
+        TransactionReport reporte = TransactionReport.of("COP", sinFiltros(), DEL_MES,
+                Instant.parse("2026-08-31T00:00:00Z"));
+
+        assertThat(reporte.transactions()).hasSize(5);
+        assertThat(reporte.totalsByType()).extracting(TypeTotal::total, TypeTotal::count)
+                .containsOnly(tuple(BigDecimal.ZERO, 0L));
+        assertThat(reporte.totalsByCategory()).isEmpty();
+        assertThat(reporte.net()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void unMovimientoJustoEnElInstanteDelReporteYaCuenta() {
+        Instant instante = Instant.parse("2026-09-12T23:00:00Z");
+
+        TransactionReport reporte = TransactionReport.of("COP", conTipos(TransactionType.EXPENSE),
+                List.of(unGasto(MERCADO_ID, "Mercado", "42500.0000", "2026-09-12T23:00:00Z")), instante);
+
+        assertThat(reporte.scheduled(reporte.transactions().getFirst())).isFalse();
+        assertThat(reporte.net()).isEqualByComparingTo("-42500");
+    }
+
+    @Test
+    void marcaComoProgramadoLoQueOcurreDespuesDelInstanteDelReporte() {
+        TransactionReport reporte = TransactionReport.of("COP", sinFiltros(), DEL_MES, EL_DIA_10);
+
+        assertThat(reporte.transactions())
+                .filteredOn(reporte::scheduled)
+                .extracting(ReportedTransaction::occurredAt)
+                .containsExactly(Instant.parse("2026-09-12T23:00:00Z"));
+        assertThat(reporte.asOf()).isEqualTo(EL_DIA_10);
     }
 
     @Test

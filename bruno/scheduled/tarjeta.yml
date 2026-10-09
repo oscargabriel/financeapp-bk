@@ -1,0 +1,37 @@
+info:
+  name: Tarjeta
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Mastercard",
+        "type": "CREDIT",
+        "currencyCode": "COP",
+        "initialBalance": -200000,
+        "creditLimit": 3000000,
+        "statementDay": 20,
+        "paymentDueDay": 5
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idTarjetaProgramados", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

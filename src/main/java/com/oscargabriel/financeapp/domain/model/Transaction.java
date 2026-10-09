@@ -22,4 +22,9 @@ public record Transaction(
         Instant occurredAt,
         TransactionStatus status,
         TransactionOrigin origin) {
+
+    /** Con fecha posterior al instante dado: no cuenta en saldos ni reportes hasta entonces (FA-106). */
+    public boolean scheduledAt(Instant ahora) {
+        return occurredAt.isAfter(ahora);
+    }
 }

@@ -34,6 +34,7 @@ import com.oscargabriel.financeapp.infrastructure.config.JwtConfig;
 import com.oscargabriel.financeapp.infrastructure.config.SecurityConfig;
 import com.oscargabriel.financeapp.support.BalanceMother;
 import com.oscargabriel.financeapp.support.BasicMother;
+import com.oscargabriel.financeapp.support.RelojFijo;
 import com.oscargabriel.financeapp.support.ReportMother;
 import com.oscargabriel.financeapp.support.TransactionMother;
 
@@ -41,7 +42,7 @@ import reactor.core.publisher.Mono;
 
 /** Sin el base-path /api, como los demas slices: bruno/assistant/ prueba la ruta completa. */
 @WebFluxTest(AssistantController.class)
-@Import({SecurityConfig.class, JwtConfig.class})
+@Import({SecurityConfig.class, JwtConfig.class, RelojFijo.class})
 class AssistantControllerTest {
 
     private static final String RUTA = "/assistant/messages";
@@ -131,6 +132,7 @@ class AssistantControllerTest {
                 .jsonPath("$.transaction.id").isEqualTo(TransactionMother.GASTO_GUARDADO_ID.toString())
                 .jsonPath("$.transaction.status").isEqualTo("PENDING")
                 .jsonPath("$.transaction.origin").isEqualTo("TELEGRAM")
+                .jsonPath("$.transaction.scheduled").isEqualTo(false)
                 .jsonPath("$.transaction.userId").doesNotExist()
                 .jsonPath("$.report").isEqualTo(null)
                 .jsonPath("$.balance").isEqualTo(null);
@@ -139,7 +141,7 @@ class AssistantControllerTest {
     @Test
     void unReporteSaleConElContratoDeReportsTransactions() {
         responde(AssistantReply.reporte("Del 2026-09-01 al 2026-09-30",
-                TransactionReport.of("COP", ReportMother.sinFiltros(), List.of())));
+                TransactionReport.of("COP", ReportMother.sinFiltros(), List.of(), ReportMother.AHORA)));
 
         envia(Map.of("data", TEXTO))
                 .expectStatus().isOk()

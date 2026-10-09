@@ -1,0 +1,36 @@
+info:
+  name: Saldo con programados
+  type: http
+  seq: 13
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/balance?from={{diaProgramado}}&to={{diaProgramado}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.period.expense
+      operator: eq
+      value: "0"
+    - expression: res.body.allTime.expense
+      operator: eq
+      value: "10000"
+  scripts:
+    - type: tests
+      code: |-
+        test("las cuentas traen el saldo vigente", function() {
+          const principal = res.getBody().accounts.find(function (c) {
+            return c.id === bru.getVar("idPrincipalProgramados");
+          });
+          expect(principal.currentBalance).to.equal(490000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

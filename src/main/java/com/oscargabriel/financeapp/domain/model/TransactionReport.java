@@ -1,6 +1,7 @@
 package com.oscargabriel.financeapp.domain.model;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -11,14 +12,16 @@ import java.util.UUID;
 /**
  * El reporte de movimientos de un rango: la lista y sus totales. Los totales se calculan aqui, sobre
  * la misma lista que se devuelve, para que cuadren con ella por construccion (ver el design.md de
- * FA-63). Suman amountBase, la moneda base del usuario, nunca amount.
+ * FA-63). Suman amountBase, la moneda base del usuario, nunca amount, y dejan fuera lo que a asOf
+ * todavia esta programado.
  */
 public record TransactionReport(
         String currencyCode,
         TransactionReportFilter filter,
         List<ReportedTransaction> transactions,
         List<TypeTotal> totalsByType,
-        List<CategoryTotal> totalsByCategory) {
+        List<CategoryTotal> totalsByCategory,
+        Instant asOf) {
 
     private static final Comparator<ReportedTransaction> MAS_RECIENTE_PRIMERO =
             Comparator.comparing(ReportedTransaction::occurredAt).reversed();
@@ -33,10 +36,16 @@ public record TransactionReport(
     }
 
     public static TransactionReport of(String currencyCode, TransactionReportFilter filter,
-            List<ReportedTransaction> transactions) {
+            List<ReportedTransaction> transactions, Instant asOf) {
         List<ReportedTransaction> ordenados = transactions.stream().sorted(MAS_RECIENTE_PRIMERO).toList();
-        return new TransactionReport(currencyCode, filter, ordenados, porTipo(filter, ordenados),
-                porCategoria(ordenados));
+        List<ReportedTransaction> vigentes = ordenados.stream().filter(t -> !t.scheduledAt(asOf)).toList();
+        return new TransactionReport(currencyCode, filter, ordenados, porTipo(filter, vigentes),
+                porCategoria(vigentes), asOf);
+    }
+
+    /** Un programado (FA-106) sale en la lista pero no en los totales: todavia no ha ocurrido. */
+    public boolean scheduled(ReportedTransaction transaction) {
+        return transaction.scheduledAt(asOf);
     }
 
     /** Ingresos menos gastos. Un tipo que el filtro deja fuera no tiene entrada y cuenta como cero. */

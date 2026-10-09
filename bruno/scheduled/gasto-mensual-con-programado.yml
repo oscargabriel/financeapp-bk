@@ -1,0 +1,33 @@
+info:
+  name: Gasto mensual con programado
+  type: http
+  seq: 14
+
+http:
+  method: GET
+  url: "{{baseUrl}}/monthly-spending?from={{mesProgramado}}&to={{mesProgramado}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("el mes del programado no suma nada", function() {
+          const mes = res.getBody().find(function (m) { return m.periodMonth === bru.getVar("mesProgramado"); });
+          expect(mes === undefined || mes.totalSpent === 0).to.equal(true);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un mes con solo programados
+
+  Sin gasto vigente ni meta, la vista no tiene fila para ese mes; con meta saldria en cero.

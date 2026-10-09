@@ -22,4 +22,9 @@ public record ReportedTransaction(
         String description,
         String notes,
         Instant occurredAt) {
+
+    /** Programado: confirmado con fecha posterior al instante dado (FA-106). */
+    public boolean scheduledAt(Instant ahora) {
+        return occurredAt.isAfter(ahora);
+    }
 }

@@ -1,0 +1,28 @@
+info:
+  name: Cuentas antes de vencer
+  type: http
+  seq: 20
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("todavia no cuenta", function() {
+          const principal = res.getBody().find(function (c) { return c.id === bru.getVar("idPrincipalProgramados"); });
+          expect(principal.currentBalance).to.equal(490000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

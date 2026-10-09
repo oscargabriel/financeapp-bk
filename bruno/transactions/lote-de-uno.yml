@@ -43,7 +43,9 @@ runtime:
 
         test("devuelve el contrato completo del movimiento", function() {
           expect(t).to.have.all.keys("id", "type", "accountId", "destinationAccountId", "categoryId",
-              "amount", "currencyCode", "description", "notes", "occurredAt", "status", "origin");
+              "amount", "currencyCode", "description", "notes", "occurredAt", "status", "origin",
+              "scheduled");
+          expect(t.scheduled).to.equal(false);
           expect(t.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
         });
 
