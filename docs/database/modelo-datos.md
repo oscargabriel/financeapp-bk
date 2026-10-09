@@ -116,6 +116,11 @@ erDiagram
         char color
         smallint sort_order
     }
+
+    registration_allowlist {
+        varchar entry PK
+        timestamptz created_at
+    }
 ```
 
 ## Convenciones
@@ -204,6 +209,21 @@ los usuarios existentes.
 
 `applies_to` (`EXPENSE` / `INCOME` / `BOTH`) evita ofrecer «Salario» al registrar
 un gasto.
+
+### Correos admitidos en el registro
+
+`registration_allowlist` dice quién puede registrarse cuando la restricción del
+alta está encendida (FA-103). Cada `entry`, en minúsculas, es:
+
+- un correo exacto (`ana@correo.com`);
+- o, sin nada antes de la `@`, un dominio completo (`@bruno.local`).
+
+El dominio se compara exacto, así que no admite subdominios. La tabla no se
+relaciona con `users` a propósito: guarda personas que todavía no tienen cuenta,
+y el login no la consulta. Las filas se insertan y se borran, nunca se
+modifican, por eso no lleva `updated_at`. Se mantiene a mano: las sentencias
+están en `docs/despliegue.md`. El porqué del diseño está en el `design.md` de
+`openspec/changes/archive/2026-10-09-fa-103-registro-admitidos/`.
 
 ### El mes se corta en la zona del usuario
 

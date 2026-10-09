@@ -41,6 +41,11 @@ cors:
 status:
   check-timeout: 2s
 
+# Encendida, como en Cloud Run. La lista vive detras de un puerto que los tests mockean.
+registro:
+  admitidos:
+    enabled: true
+
 # Gemini apunta a un puerto sin escucha, como el r2dbc: ningun test de contexto llama a Google. El
 # adapter se prueba contra su propio servidor falso (GeminiAssistantAdapterTest).
 asistente:

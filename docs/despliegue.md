@@ -149,6 +149,34 @@ verdad.
 | `20261005_02_cuentas_saldo_inicial_editable.sql` | 05-10-2026 (FA-49) | Antes de promover FA-24, como pide su encabezado |
 | `20261005_01_categorias_icono_color_obligatorios.sql` | 05-10-2026 (FA-49) | Antes de FA-66 en `main`, aunque su encabezado dice "después": el riesgo que nombra es un alta de categorías sin icono, y la app de `main` no da de alta categorías. No cambió filas |
 
+### Correos admitidos
+
+Con la restricción del alta encendida (FA-103), `POST /api/auth/register` solo registra correos
+que estén en `finance.registration_allowlist`. No hay pantalla ni endpoint para la lista: se mantiene
+con estas sentencias, conectado como arriba y sin la solo lectura (`Remove-Item env:PGOPTIONS`).
+
+```powershell
+# Agregar un invitado. El CHECK exige minúsculas: un correo con mayúsculas falla, no queda sin efecto.
+psql -X -c "INSERT INTO finance.registration_allowlist (entry) VALUES ('ana@correo.com')"
+
+# Quitarlo. Si ya se registró, sigue entrando: el login no consulta la lista. Para cortarle el
+# acceso se pone is_active = false en finance.users.
+psql -X -c "DELETE FROM finance.registration_allowlist WHERE entry = 'ana@correo.com'"
+
+# Ver la lista
+psql -X -c "SELECT entry, created_at FROM finance.registration_allowlist ORDER BY created_at"
+```
+
+Una entrada sin nada antes de la `@` (`@correo.com`) admite **cualquier** cuenta de ese dominio.
+En producción solo van correos exactos: una fila `@gmail.com` abriría el registro a todo Gmail.
+
+**Al promover FA-103 a `main`:**
+
+1. Aplicar `20261009_01_registro_lista_admitidos.sql` antes del merge, como pide su encabezado. La
+   app nueva sin la tabla responde 500 en el alta.
+2. Insertar los correos invitados. La tabla nace vacía, así que hasta ese momento nadie puede
+   registrarse; el dueño ya tiene cuenta y su login no cambia.
+
 ### Respaldo
 
 Lo que da el plan gratuito, según la documentación de Neon consultada el 05-10-2026
@@ -294,6 +322,10 @@ producción.
 
 `ASISTENTE_PROVEEDOR` no se define: vale `gemini` por defecto, y el stub de `bruno/` no existe con el
 perfil `prod` aunque se pida (FA-77).
+
+`REGISTRO_ADMITIDOS_ENABLED` tampoco se define: vale `true` por defecto, y el registro queda
+restringido a la lista de *Correos admitidos* (FA-103). Para abrirlo a cualquiera, se define en
+`false` en el servicio, sin desplegar.
 
 El resto de propiedades (`DB_SSL_MODE`, `JWT_EXPIRATION`, `APP_TIMEZONE`, `STARTUP_DB_CHECK_*`,
 `GEMINI_BASE_URL`, `GEMINI_TIMEOUT`…)

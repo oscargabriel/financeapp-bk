@@ -103,6 +103,24 @@ class CloudRunConfigTest {
                 .isEqualTo("https://generativelanguage.googleapis.com");
     }
 
+    /** Falla cerrado: un servicio que no declara la variable queda con el registro restringido (FA-103). */
+    @Test
+    void laRestriccionDelAltaQuedaEncendidaSinVariable() throws IOException {
+        StandardEnvironment entorno = configuracion(variablesDelServicio());
+
+        assertThat(entorno.getRequiredProperty("registro.admitidos.enabled", Boolean.class)).isTrue();
+    }
+
+    @Test
+    void laRestriccionDelAltaSeApagaPorVariable() throws IOException {
+        Map<String, Object> variables = variablesDelServicio();
+        variables.put("REGISTRO_ADMITIDOS_ENABLED", "false");
+
+        StandardEnvironment entorno = configuracion(variables);
+
+        assertThat(entorno.getRequiredProperty("registro.admitidos.enabled", Boolean.class)).isFalse();
+    }
+
     /**
      * Comprueba que ninguno trae default. Que la ausencia aborte el arranque real lo hace @Value; para
      * DB_USERNAME y DB_PASSWORD, que enlaza el binder de Boot, lo prueba R2dbcCredentialsCheckTest.

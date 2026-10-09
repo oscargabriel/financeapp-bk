@@ -10,7 +10,7 @@ http:
     type: json
     data: |-
       {
-        "email": "PRUEBA@financeapp.local",
+        "email": "{{emailDuplicado}}",
         "password": "unaClaveLarga",
         "firstName": "Otra"
       }
@@ -27,6 +27,10 @@ runtime:
     - expression: res.body.errors[0].field
       operator: eq
       value: email
+  scripts:
+    - type: before-request
+      code: |-
+        bru.setVar("emailDuplicado", bru.getVar("emailNuevo").toUpperCase());
 
 settings:
   encodeUrl: true
@@ -37,8 +41,10 @@ settings:
 docs: |
   # Correo ya registrado
 
-  `prueba@financeapp.local` es el usuario que monta `docs/database/test-data.sql`, asi que este
-  request siempre encuentra el correo ocupado.
+  Repite, en MAYUSCULAS, el correo que acaba de registrar `Registro de usuario`. Va en mayusculas a
+  proposito: el unico de la tabla es sobre `lower(email)`, y sin normalizar el correo antes de
+  comparar, este alta pasaria y crearia un segundo usuario con el mismo buzon.
 
-  Va en MAYUSCULAS a proposito: el unico de la tabla es sobre `lower(email)`, y sin normalizar el
-  correo antes de comparar, este alta pasaria y crearia un segundo usuario con el mismo buzon.
+  Hasta FA-103 usaba `prueba@financeapp.local`. Ese correo no esta en la lista de admitidos, asi que
+  ahora recibe 403 antes de llegar al 409: es lo que prueba `Registro no admitido con cuenta`. Este
+  usa un correo de `@bruno.local`, que si esta admitido.

@@ -155,6 +155,7 @@ Todos los errores salen con la misma forma:
 | 400 | `JSON_PARSING_ERROR` | El cuerpo no es JSON válido o un campo tiene un tipo incompatible (`"amount": "abc"`) |
 | 401 | `UNAUTHENTICATED` | Falta la credencial o no es válida para esa ruta |
 | 401 | `INVALID_CREDENTIALS` | Login con correo o contraseña incorrectos |
+| 403 | `REGISTRATION_NOT_ALLOWED` | Alta con un correo que no está en la lista de admitidos (`field`: `email`) |
 | 404 | `NOT_FOUND` | La ruta no existe (con token válido), o el recurso de la ruta no existe o es de otro usuario (`field`: `id`) |
 | 405 | `VALIDATION_ERROR` | Método no soportado en esa ruta (`description`: "La peticion no pudo ser procesada") |
 | 409 | `DUPLICATE_RESOURCE` | Ya existe: correo registrado, o nombre de cuenta o de categoría repetido |
@@ -170,6 +171,12 @@ Todos los errores salen con la misma forma:
 
 Crea un usuario y le copia las categorías por defecto. **Basic.** No inicia sesión: después hay que
 llamar a login.
+
+**Registro restringido (FA-103).** Solo se registran los correos de una lista de admitidos que
+mantiene a mano el dueño del servicio. No hay endpoint para consultarla ni para modificarla. Una
+entrada admite un correo exacto o un dominio completo, y se compara sin distinguir mayúsculas. Un
+dominio admitido no admite sus subdominios. La restricción está encendida en producción, y en local
+la lista admite `@front.local`.
 
 **Cuerpo**
 
@@ -212,9 +219,17 @@ incluye la contraseña ni su hash.
 
 `phone` sale en `null` si no se envió.
 
-**Errores:** 400 `VALIDATION_ERROR` (por campo; la moneda inexistente sale en `baseCurrencyCode`),
-409 `DUPLICATE_RESOURCE` en `email` si el correo ya está registrado. Las mayúsculas no cuentan:
-`Ana@correo.com` y `ana@correo.com` son el mismo correo.
+**Errores**, en el orden en que se resuelven:
+
+1. 400 `VALIDATION_ERROR`, por campo. Primero el formato del cuerpo; la moneda inexistente sale en
+   `baseCurrencyCode`.
+2. 403 `REGISTRATION_NOT_ALLOWED` en `email` si el correo no está admitido. No se crea nada.
+3. 409 `DUPLICATE_RESOURCE` en `email` si el correo ya está registrado. Las mayúsculas no cuentan:
+   `Ana@correo.com` y `ana@correo.com` son el mismo correo.
+
+Un correo no admitido recibe el 403 aunque ya tenga cuenta: el alta no dice qué correos están
+registrados. Para el cliente, el 403 es un mensaje propio en el campo de correo, distinto del de
+correo repetido.
 
 **A tener en cuenta**
 
@@ -257,6 +272,9 @@ la del usuario en el cuerpo).
   si el correo no existe, si la contraseña está mal o si el usuario está desactivado: así el login
   no sirve para averiguar qué correos están registrados. El cliente debe mostrar un único mensaje
   genérico.
+
+El login **no consulta la lista de admitidos** del registro. Si un correo sale de la lista, el usuario
+que ya se registró con él sigue entrando; para cortarle el acceso se desactiva el usuario.
 
 ### `GET /api/status`
 

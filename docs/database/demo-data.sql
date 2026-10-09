@@ -63,6 +63,13 @@ DELETE FROM finance.users
     OR email = :'email'
     OR (:'email' = 'demo@financeapp.local' AND email LIKE '%@front.local');
 
+-- Los usuarios que el front registra desde la interfaz necesitan su dominio en la
+-- lista de admitidos del alta (FA-103). La lista es compartida con test-data.sql
+-- y este script corre una vez por usuario, por eso ON CONFLICT.
+INSERT INTO finance.registration_allowlist (entry)
+VALUES ('@front.local')
+ON CONFLICT DO NOTHING;
+
 
 -- -----------------------------------------------------------------------------
 -- Usuario

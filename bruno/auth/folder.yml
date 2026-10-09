@@ -11,3 +11,17 @@ request:
     type: basic
     username: "{{basicUser}}"
     password: "{{basicPass}}"
+
+docs: |
+  # Registro y login
+
+  **Lista de admitidos (FA-103).** El alta solo acepta correos que esten en
+  `finance.registration_allowlist`. `test-data.sql` admite el dominio `@bruno.local`, que usan todos
+  los requests de alta de la coleccion, y el correo exacto `invitado@financeapp.local`.
+
+  **Necesita `test-data.sql` recien cargado.** `Registro admitido por correo exacto` crea
+  `invitado@financeapp.local`, y en una segunda corrida sin recargar da 409.
+  `verificar-bruno.ps1 -RecargarDatos` recarga antes de cada corrida.
+
+  `Login` entra con `prueba@financeapp.local`, que no esta en la lista: es la prueba de que el login
+  no la consulta.

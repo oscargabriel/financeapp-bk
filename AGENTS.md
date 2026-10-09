@@ -305,7 +305,7 @@ recrea solo lo suyo:
 
 | Lado | Usuarios | Los recrea o limpia |
 |---|---|---|
-| Back (`bruno/`) | `prueba@`, `inactivo@` y `pendientes@financeapp.local`, `*@bruno.local` | `test-data.sql` |
+| Back (`bruno/`) | `prueba@`, `inactivo@`, `pendientes@` e `invitado@financeapp.local`, `*@bruno.local` | `test-data.sql` |
 | Front | `demo@financeapp.local`, `*@front.local` | `demo-data.sql` |
 | Desarrollador | `dev@financeapp.local` | `demo-data.sql` con `email` y `u = 1` |
 
@@ -317,6 +317,12 @@ Para eso está `dev@`.
 `test-data.sql` recién cargado**: una segunda corrida sin recargar falla. `verificar-bruno.ps1
 -RecargarDatos` ya recarga los datos antes de cada corrida. Los usuarios que el front registre desde la interfaz van con correo
 `@front.local`, que la recarga de la demo borra.
+
+El alta solo acepta los correos de `finance.registration_allowlist` (FA-103). `test-data.sql`
+admite `@bruno.local` y el correo exacto `invitado@financeapp.local`, y `demo-data.sql` admite
+`@front.local`. Un request de alta nuevo en `bruno/` usa un correo `@bruno.local`, o recibe 403.
+`bruno/auth/` registra a `invitado@`, así que también **solo pasa con `test-data.sql` recién
+cargado**, igual que `bruno/pending/`.
 
 El front solo tiene su aplicación contra el API local: no corre psql ni recarga nada. **Por ahora
 solo lee**, así que recargar la demo no le borra trabajo y está permitido. Cuando el front empiece a

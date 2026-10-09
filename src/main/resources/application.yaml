@@ -80,6 +80,12 @@ cors:
 status:
   check-timeout: ${STATUS_CHECK_TIMEOUT:2s}
 
+# Registro restringido a finance.registration_allowlist (FA-103). A diferencia de los secretos lleva
+# default, y es true: un servicio que no declara la variable queda cerrado, no abierto ni caido.
+registro:
+  admitidos:
+    enabled: ${REGISTRO_ADMITIDOS_ENABLED:true}
+
 # Asistente (FA-77). La key y el modelo no tienen default, como los secretos: el modelo no esta
 # decidido y el despliegue lo elige a sabiendas. El stub solo existe fuera de prod (design.md de FA-77).
 asistente:

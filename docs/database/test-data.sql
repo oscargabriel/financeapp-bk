@@ -45,6 +45,16 @@ DELETE FROM finance.users
 -- Recargar este escenario es lo que los limpia.
 DELETE FROM finance.users WHERE email LIKE '%@bruno.local';
 
+-- auth/registro-admitido-exacto lo registra en cada corrida: sin borrarlo, la siguiente daria 409.
+DELETE FROM finance.users WHERE email = 'invitado@financeapp.local';
+
+-- Lista de admitidos del alta (FA-103). El dominio deja registrar a todos los requests de alta de
+-- bruno/, cuyo correo cambia en cada corrida; el correo exacto es el que prueba esa otra forma.
+-- La demo agrega @front.local; la lista es compartida, por eso ON CONFLICT.
+INSERT INTO finance.registration_allowlist (entry)
+VALUES ('@bruno.local'), ('invitado@financeapp.local')
+ON CONFLICT DO NOTHING;
+
 
 -- -----------------------------------------------------------------------------
 -- Usuario
