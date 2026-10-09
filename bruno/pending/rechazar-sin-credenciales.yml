@@ -1,7 +1,7 @@
 info:
   name: Rechazar sin credenciales
   type: http
-  seq: 28
+  seq: 37
 
 http:
   method: POST

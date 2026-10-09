@@ -27,3 +27,9 @@ settings:
   timeout: 0
   followRedirects: true
   maxRedirects: 5
+
+docs: |
+  # Con la cuenta desactivada (FA-102)
+
+  Corre con `Cuenta pendientes` desactivada: rechazar no mira el estado de la cuenta, y es, junto con
+  reactivarla, la salida que tiene el usuario cuando aprobar responde 409.

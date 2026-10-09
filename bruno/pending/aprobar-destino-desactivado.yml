@@ -1,11 +1,11 @@
 info:
-  name: Rechazar un confirmado
+  name: Aprobar con el destino desactivado
   type: http
-  seq: 28
+  seq: 11
 
 http:
   method: POST
-  url: "{{baseUrl}}/transactions/{{idPendienteGasto}}/reject"
+  url: "{{baseUrl}}/transactions/{{idPendienteTraslado}}/approve"
   auth:
     type: bearer
     token: "{{tokenPendientes}}"
@@ -15,12 +15,15 @@ runtime:
     - expression: res.status
       operator: eq
       value: "409"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
     - expression: res.body.errors[0].code
       operator: eq
       value: INVALID_STATE
     - expression: res.body.errors[0].field
       operator: eq
-      value: status
+      value: destinationAccountId
 
 settings:
   encodeUrl: true
@@ -29,6 +32,7 @@ settings:
   maxRedirects: 5
 
 docs: |
-  # Rechazar no borra un confirmado
+  # Solo el destino está desactivado
 
-  Para borrar un movimiento confirmado está `DELETE /api/transactions/{id}`.
+  El origen sigue activo, así que el único error es el del destino. "Saldos con desactivadas"
+  comprueba que ninguna de las dos cuentas se movió.

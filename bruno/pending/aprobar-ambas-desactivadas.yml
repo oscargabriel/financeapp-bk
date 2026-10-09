@@ -1,0 +1,38 @@
+info:
+  name: Aprobar con las dos cuentas desactivadas
+  type: http
+  seq: 14
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/{{idPendienteTraslado}}/approve"
+  auth:
+    type: bearer
+    token: "{{tokenPendientes}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+  scripts:
+    - type: tests
+      code: |-
+        test("un error INVALID_STATE por cada cuenta desactivada", function() {
+          const errores = res.getBody().errors.map(function (e) { return e.code + " " + e.field; });
+          expect(errores).to.have.members([
+            "INVALID_STATE accountId",
+            "INVALID_STATE destinationAccountId"
+          ]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Los dos errores juntos
+
+  El orden de los errores no está garantizado: se comparan por contenido.

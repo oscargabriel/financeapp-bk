@@ -1,7 +1,7 @@
 info:
   name: Reporte de movimientos tras aprobar
   type: http
-  seq: 14
+  seq: 24
 
 http:
   method: GET

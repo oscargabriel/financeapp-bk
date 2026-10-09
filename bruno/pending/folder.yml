@@ -27,6 +27,10 @@ docs: |
   | Transferencia «Al bolsillo» | 100.000 | PENDING | `idPendienteTraslado` |
   | Gasto «Mercado del asistente» | 45.000 | PENDING | `idPendienteGasto` |
 
+  Del 10 al 19 las dos cuentas del usuario están desactivadas (FA-102): aprobar responde 409 sobre la
+  cuenta desactivada, el rechazo pasa y los saldos no se mueven. Al reactivarlas, las aprobaciones
+  siguen como antes.
+
   Saldos con solo el confirmado: Cuenta pendientes 970.000 y Bolsillo pendientes 0. Los requests
   de movimiento ajeno usan el `accessToken` de `auth/`: la carpeta sola, sin `auth/` antes, los
   deja en 401.

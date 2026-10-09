@@ -115,6 +115,13 @@ public final class TransactionMother {
                 TransactionStatus.CONFIRMED, TransactionOrigin.WEB);
     }
 
+    public static Transaction unaTransferenciaPendienteEntre(UUID origen, UUID destino) {
+        Transaction t = unaTransferenciaGuardada();
+        return new Transaction(t.id(), t.userId(), t.type(), origen, destino, t.categoryId(), t.amount(),
+                t.currencyCode(), t.description(), t.notes(), t.occurredAt(), TransactionStatus.PENDING,
+                TransactionOrigin.TELEGRAM);
+    }
+
     public static Parche unParche() {
         return new Parche();
     }

@@ -1,7 +1,7 @@
 info:
   name: Listar pendientes sin credenciales
   type: http
-  seq: 24
+  seq: 33
 
 http:
   method: GET

@@ -1,0 +1,37 @@
+info:
+  name: Desactivar cuenta pendientes
+  type: http
+  seq: 12
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/20000000-0000-7000-8000-000000000007"
+  body:
+    type: json
+    data: |-
+      {
+        "isActive": false
+      }
+  auth:
+    type: bearer
+    token: "{{tokenPendientes}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.isActive
+      operator: eq
+      value: "false"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El origen de todos los pendientes
+
+  `Cuenta pendientes` es el origen del gasto, de la transferencia y del pendiente que se rechaza.
