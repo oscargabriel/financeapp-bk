@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
+import com.oscargabriel.financeapp.domain.model.TransactionOrigin;
 import com.oscargabriel.financeapp.domain.port.in.ApprovePendingTransactionPort;
 import com.oscargabriel.financeapp.domain.port.in.CreateTransactionsPort;
 import com.oscargabriel.financeapp.domain.port.in.DeleteTransactionPort;
@@ -67,7 +68,7 @@ public class TransactionController {
             @RequestBody
             @Size(min = 1, max = TOPE_LOTE, message = "El lote debe tener entre 1 y " + TOPE_LOTE + " movimientos")
             List<@NotNull(message = "El elemento no puede ser nulo") @Valid CreateTransactionRequest> lote) {
-        return Flux.defer(() -> createTransactions.create(UsuarioDelToken.de(jwt),
+        return Flux.defer(() -> createTransactions.create(UsuarioDelToken.de(jwt), TransactionOrigin.WEB,
                         lote.stream().map(CreateTransactionRequest::toCommand).toList()))
                 .map(TransactionResponse::from)
                 .collectList();

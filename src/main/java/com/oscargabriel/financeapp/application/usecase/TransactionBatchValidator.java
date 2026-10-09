@@ -16,7 +16,7 @@ import com.oscargabriel.financeapp.domain.model.Account;
 import com.oscargabriel.financeapp.domain.model.Category;
 import com.oscargabriel.financeapp.domain.model.CreateTransactionCommand;
 import com.oscargabriel.financeapp.domain.model.Transaction;
-import com.oscargabriel.financeapp.domain.model.TransactionStatus;
+import com.oscargabriel.financeapp.domain.model.TransactionOrigin;
 import com.oscargabriel.financeapp.domain.model.TransactionType;
 
 /**
@@ -33,12 +33,15 @@ final class TransactionBatchValidator {
     /** El de los elementos que llegan sin fecha. */
     private final Instant ahora;
 
+    private final TransactionOrigin origen;
+
     TransactionBatchValidator(UUID userId, Map<UUID, Account> cuentas, Map<UUID, Category> categorias,
-            Supplier<UUID> ids, Instant ahora) {
+            Supplier<UUID> ids, Instant ahora, TransactionOrigin origen) {
         this.userId = userId;
         this.referencias = new ReferenciasDelUsuario(cuentas, categorias);
         this.ids = ids;
         this.ahora = ahora;
+        this.origen = origen;
     }
 
     List<Transaction> aMovimientos(List<CreateTransactionCommand> lote) {
@@ -78,7 +81,7 @@ final class TransactionBatchValidator {
         }
         return new Transaction(ids.get(), userId, tipo, cuenta, destino, categoria, elemento.amount(),
                 ReferenciasDelUsuario.MONEDA_UNICA, elemento.description().trim(), elemento.notes(),
-                instante(elemento.occurredAt()), TransactionStatus.CONFIRMED);
+                instante(elemento.occurredAt()), origen.estadoInicial(), origen);
     }
 
     /** El formato ya lo valido CreateTransactionRequest; aqui solo falta decidir el de los vacios. */

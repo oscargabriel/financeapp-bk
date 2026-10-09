@@ -110,6 +110,8 @@ $limpia = Destino (Resolver $plantilla.Url $false)
 Get-ChildItem env: | Where-Object { $_.Name -like 'DB_*' -or $_.Name -like 'SPRING_R2DBC_*' } |
     ForEach-Object { Remove-Item "env:$($_.Name)" }
 $env:SPRING_PROFILES_ACTIVE = 'local'
+# bruno/assistant/ habla con el modelo stub, nunca con Gemini (FA-77).
+$env:ASISTENTE_PROVEEDOR = 'stub'
 # El perfil local lee el puerto de SERVER_PORT (PORT solo lo usa Cloud Run): uno heredado de la
 # terminal sacaria a la app del puerto validado.
 $env:SERVER_PORT = $puerto

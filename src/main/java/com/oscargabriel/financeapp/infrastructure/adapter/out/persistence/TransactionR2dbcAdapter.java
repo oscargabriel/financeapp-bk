@@ -12,6 +12,7 @@ import org.springframework.transaction.ReactiveTransactionManager;
 import org.springframework.transaction.reactive.TransactionalOperator;
 
 import com.oscargabriel.financeapp.domain.model.Transaction;
+import com.oscargabriel.financeapp.domain.model.TransactionOrigin;
 import com.oscargabriel.financeapp.domain.model.TransactionStatus;
 import com.oscargabriel.financeapp.domain.model.TransactionType;
 import com.oscargabriel.financeapp.domain.port.out.TransactionRepositoryPort;
@@ -31,14 +32,14 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
     private static final String INSERTAR = """
             INSERT INTO finance.transactions
                    (id, user_id, account_id, destination_account_id, category_id, type,
-                    amount, currency_code, amount_base, description, notes, occurred_at, status)
+                    amount, currency_code, amount_base, description, notes, occurred_at, status, origin)
             VALUES (:id, :userId, :accountId, :destinationAccountId, :categoryId, :type,
-                    :amount, :currencyCode, :amount, :description, :notes, :occurredAt, :status)
+                    :amount, :currencyCode, :amount, :description, :notes, :occurredAt, :status, :origin)
             """;
 
     private static final String COLUMNAS = """
             id, user_id, type, account_id, destination_account_id, category_id,
-                   amount, currency_code, description, notes, occurred_at, status""";
+                   amount, currency_code, description, notes, occurred_at, status, origin""";
 
     private static final String BUSCAR = """
             SELECT %s
@@ -171,7 +172,8 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
     private Mono<Long> insertar(Transaction t) {
         DatabaseClient.GenericExecuteSpec sentencia = conCamposComunes(databaseClient.sql(INSERTAR), t)
                 .bind("currencyCode", t.currencyCode())
-                .bind("status", t.status().name());
+                .bind("status", t.status().name())
+                .bind("origin", t.origin().name());
         sentencia = t.notes() == null
                 ? sentencia.bindNull("notes", String.class)
                 : sentencia.bind("notes", t.notes());
@@ -210,6 +212,7 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
                 row.get("description", String.class),
                 row.get("notes", String.class),
                 row.get("occurred_at", OffsetDateTime.class).toInstant(),
-                TransactionStatus.valueOf(row.get("status", String.class)));
+                TransactionStatus.valueOf(row.get("status", String.class)),
+                TransactionOrigin.valueOf(row.get("origin", String.class)));
     }
 }

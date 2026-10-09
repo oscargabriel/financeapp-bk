@@ -1,0 +1,48 @@
+info:
+  name: Consultar movimientos
+  type: http
+  seq: 22
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: json
+    data: |-
+      {
+        "data": "consultar_movimientos {\"tipo\": \"EXPENSE\"}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.intent
+      operator: eq
+      value: LIST_TRANSACTIONS
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("reporteAsistente", JSON.stringify(res.getBody().report));
+
+        test("trae el gasto aprobado del mes, y solo el reporte", function() {
+          expect(res.getBody().report.transactions.length).to.equal(1);
+          expect(res.getBody().report.transactions[0].id).to.equal(bru.getVar("idPendienteAsistente"));
+          expect(res.getBody().transaction).to.equal(null);
+          expect(res.getBody().balance).to.equal(null);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # consultar_movimientos sin rango
+
+  El mes en curso. Solo el gasto aprobado: la transferencia sigue pendiente y no cuenta.

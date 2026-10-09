@@ -15,6 +15,7 @@ import com.oscargabriel.financeapp.domain.model.Category;
 import com.oscargabriel.financeapp.domain.model.CategoryScope;
 import com.oscargabriel.financeapp.domain.model.CreateTransactionCommand;
 import com.oscargabriel.financeapp.domain.model.Transaction;
+import com.oscargabriel.financeapp.domain.model.TransactionOrigin;
 import com.oscargabriel.financeapp.domain.model.UuidV7;
 import com.oscargabriel.financeapp.domain.port.in.CreateTransactionsPort;
 import com.oscargabriel.financeapp.domain.port.out.AccountQueryPort;
@@ -42,7 +43,7 @@ public class CreateTransactionsUseCase implements CreateTransactionsPort {
      * El reloj se lee una vez por lote: los elementos sin fecha comparten el instante de la peticion.
      */
     @Override
-    public Flux<Transaction> create(UUID userId, List<CreateTransactionCommand> lote) {
+    public Flux<Transaction> create(UUID userId, TransactionOrigin origen, List<CreateTransactionCommand> lote) {
         return Flux.defer(() -> {
             Mono<Map<UUID, Account>> suyas = cuentas.findByUser(userId, true)
                     .collectMap(Account::id);
@@ -53,7 +54,7 @@ public class CreateTransactionsUseCase implements CreateTransactionsPort {
             Instant ahora = clock.instant();
             return Mono.zip(suyas, vivas)
                     .map(referencias -> new TransactionBatchValidator(userId, referencias.getT1(),
-                            referencias.getT2(), () -> UuidV7.from(clock.instant()), ahora).aMovimientos(lote))
+                            referencias.getT2(), () -> UuidV7.from(clock.instant()), ahora, origen).aMovimientos(lote))
                     .flatMapMany(repositorio::saveAll);
         });
     }

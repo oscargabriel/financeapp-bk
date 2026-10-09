@@ -1,0 +1,41 @@
+info:
+  name: Categoria ambigua
+  type: http
+  seq: 18
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: json
+    data: |-
+      {
+        "data": "crear_movimiento {\"tipo\": \"EXPENSE\", \"monto\": 8000, \"cuenta\": \"Efectivo\", \"categoria\": \"cafe\", \"descripcion\": \"Tinto\"}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.intent
+      operator: eq
+      value: NEEDS_CLARIFICATION
+  scripts:
+    - type: tests
+      code: |-
+        test("pide el nombre completo y no crea nada", function() {
+          expect(res.getBody().message).to.contain("varias");
+          expect(res.getBody().transaction).to.equal(null);
+          expect(res.getBody().report).to.equal(null);
+          expect(res.getBody().balance).to.equal(null);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

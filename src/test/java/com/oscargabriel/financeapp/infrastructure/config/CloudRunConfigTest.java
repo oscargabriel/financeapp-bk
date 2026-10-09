@@ -33,6 +33,8 @@ class CloudRunConfigTest {
         variables.put("BASIC_USERNAME", "basic");
         variables.put("BASIC_PASSWORD", "clave-basic");
         variables.put("CORS_ALLOWED_ORIGINS", "*");
+        variables.put("GEMINI_API_KEY", "clave-de-gemini");
+        variables.put("GEMINI_MODEL", "modelo-de-pruebas");
         return variables;
     }
 
@@ -91,6 +93,16 @@ class CloudRunConfigTest {
         assertThat(entorno.getRequiredProperty("spring.r2dbc.pool.initial-size", Integer.class)).isEqualTo(1);
     }
 
+    /** El stub solo existe fuera de prod; el servicio usa Gemini si nadie dice otra cosa (FA-77). */
+    @Test
+    void elAsistenteUsaGeminiContraLaApiDeGoogle() throws IOException {
+        StandardEnvironment entorno = configuracion(variablesDelServicio());
+
+        assertThat(entorno.getRequiredProperty("asistente.proveedor")).isEqualTo("gemini");
+        assertThat(entorno.getRequiredProperty("asistente.gemini.base-url"))
+                .isEqualTo("https://generativelanguage.googleapis.com");
+    }
+
     /**
      * Comprueba que ninguno trae default. Que la ausencia aborte el arranque real lo hace @Value; para
      * DB_USERNAME y DB_PASSWORD, que enlaza el binder de Boot, lo prueba R2dbcCredentialsCheckTest.
@@ -103,7 +115,9 @@ class CloudRunConfigTest {
             "JWT_SECRET, spring.security.jwt.secret",
             "BASIC_USERNAME, spring.security.basic.username",
             "BASIC_PASSWORD, spring.security.basic.password",
-            "CORS_ALLOWED_ORIGINS, cors.allowed-origins"
+            "CORS_ALLOWED_ORIGINS, cors.allowed-origins",
+            "GEMINI_API_KEY, asistente.gemini.api-key",
+            "GEMINI_MODEL, asistente.gemini.model"
     })
     void noResuelveUnSecretoSinSuVariable(String variable, String propiedad) throws IOException {
         Map<String, Object> variables = variablesDelServicio();

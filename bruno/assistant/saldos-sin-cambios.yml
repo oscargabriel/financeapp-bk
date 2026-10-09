@@ -1,0 +1,30 @@
+info:
+  name: Saldos sin cambios
+  type: http
+  seq: 15
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts"
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("un pendiente no mueve el saldo", function() {
+          const efectivo = res.getBody().find(function (c) { return c.id === bru.getVar("idEfectivo"); });
+          expect(efectivo.currentBalance).to.equal(1000000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

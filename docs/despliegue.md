@@ -271,10 +271,14 @@ la imagen de `deployment/Dockerfile`, ver abajo).
 | `jwt-secret` | `JWT_SECRET` | `spring.security.jwt.secret` | Clave HS256 de los tokens. 32 bytes o más, o `JwtConfig` aborta el arranque |
 | `basic-username` | `BASIC_USERNAME` | `spring.security.basic.username` | Usuario de la credencial compartida de `/auth/register`, `/auth/login` y `/status` |
 | `basic-password` | `BASIC_PASSWORD` | `spring.security.basic.password` | Su contraseña |
+| `gemini-api-key` | `GEMINI_API_KEY` | `asistente.gemini.api-key` | Key de Google AI Studio para el asistente (FA-77). **Todavía no existe en el servicio** |
 
 Si falta cualquiera de estas variables, la revisión no arranca y el log dice
 `Could not resolve placeholder '<VARIABLE>'`. Con `DB_USERNAME` y `DB_PASSWORD` pasa lo mismo, aunque
 `STARTUP_DB_CHECK_ENABLED` esté en `false` (FA-53).
+
+**Antes de promover FA-77 a `main`** hay que crear `gemini-api-key` y `GEMINI_MODEL` en el servicio:
+sin ellos la revisión no arranca. El merge a `dev` no despliega, así que hasta entonces no rompe nada.
 
 Producción y local **no deben** compartir `JWT_SECRET` ni la credencial Basic: así un token emitido
 en local no vale en producción, y quien tenga la Basic de desarrollo no puede registrarse en
@@ -286,8 +290,13 @@ producción.
 |---|---|---|
 | `SPRING_PROFILES_ACTIVE` | `prod` | La imagen ya lo trae; el servicio lo repite |
 | `CORS_ALLOWED_ORIGINS` | `*` | Provisional mientras no haya frontend (26-09-2026). Se reemplaza en FA-65 |
+| `GEMINI_MODEL` | Por decidir | Sin default: el modelo del asistente no está decidido (FA-77). **Todavía no existe en el servicio** |
 
-El resto de propiedades (`DB_SSL_MODE`, `JWT_EXPIRATION`, `APP_TIMEZONE`, `STARTUP_DB_CHECK_*`…)
+`ASISTENTE_PROVEEDOR` no se define: vale `gemini` por defecto, y el stub de `bruno/` no existe con el
+perfil `prod` aunque se pida (FA-77).
+
+El resto de propiedades (`DB_SSL_MODE`, `JWT_EXPIRATION`, `APP_TIMEZONE`, `STARTUP_DB_CHECK_*`,
+`GEMINI_BASE_URL`, `GEMINI_TIMEOUT`…)
 usa el default de `application.yaml`.
 
 ### Rotar un secreto

@@ -23,13 +23,17 @@ runtime:
       code: |-
         const lista = res.getBody();
 
-        test("devuelve el contrato del movimiento, con su estado", function() {
+        test("devuelve el contrato del movimiento, con su estado y su origen", function() {
           expect(lista[0]).to.have.all.keys("id", "type", "accountId", "destinationAccountId",
-              "categoryId", "amount", "currencyCode", "description", "notes", "occurredAt", "status");
+              "categoryId", "amount", "currencyCode", "description", "notes", "occurredAt", "status",
+              "origin");
         });
 
-        test("todos estan pendientes", function() {
-          lista.forEach(function (t) { expect(t.status).to.equal("PENDING"); });
+        test("todos estan pendientes y vienen del asistente", function() {
+          lista.forEach(function (t) {
+            expect(t.status).to.equal("PENDING");
+            expect(t.origin).to.equal("TELEGRAM");
+          });
         });
 
         test("del mas reciente al mas antiguo, sin el confirmado", function() {

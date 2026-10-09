@@ -30,6 +30,10 @@ runtime:
           expect(t.description).to.equal("Mercado del asistente");
         });
 
+        test("conserva el origen del asistente", function() {
+          expect(t.origin).to.equal("TELEGRAM");
+        });
+
 settings:
   encodeUrl: true
   timeout: 0
