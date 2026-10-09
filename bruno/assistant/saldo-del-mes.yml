@@ -1,7 +1,7 @@
 info:
   name: Saldo del mes por la API
   type: http
-  seq: 25
+  seq: 26
 
 http:
   method: GET

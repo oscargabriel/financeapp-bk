@@ -1,7 +1,7 @@
 info:
-  name: Monto invalido
+  name: Gasto sin categoria
   type: http
-  seq: 20
+  seq: 19
 
 http:
   method: POST
@@ -10,7 +10,7 @@ http:
     type: json
     data: |-
       {
-        "data": "crear_movimiento {\"tipo\": \"EXPENSE\", \"monto\": 0, \"cuenta\": \"Efectivo\", \"categoria\": \"Mercado\", \"descripcion\": \"Nada\"}"
+        "data": "crear_movimiento {\"tipo\": \"EXPENSE\", \"monto\": 8000, \"cuenta\": \"Efectivo\", \"descripcion\": \"Tinto\"}"
       }
   auth:
     type: bearer
@@ -27,8 +27,9 @@ runtime:
   scripts:
     - type: tests
       code: |-
-        test("explica la regla del monto y no crea nada", function() {
-          expect(res.getBody().message).to.contain("monto");
+        test("pide la categoria con las de gasto y no crea nada", function() {
+          expect(res.getBody().message).to.contain("Falta la categoria");
+          expect(res.getBody().message).to.contain("Café");
           expect(res.getBody().transaction).to.equal(null);
           expect(res.getBody().report).to.equal(null);
           expect(res.getBody().balance).to.equal(null);
@@ -39,3 +40,10 @@ settings:
   timeout: 0
   followRedirects: true
   maxRedirects: 5
+
+docs: |
+  # El modelo no pudo deducir la categoria (FA-101)
+
+  Con Gemini, el modelo deduce la categoria de lo que describe el usuario y la omite si ninguna
+  encaja o caben varias. Este request simula la omision: el back responde con las categorias de
+  gasto del usuario.

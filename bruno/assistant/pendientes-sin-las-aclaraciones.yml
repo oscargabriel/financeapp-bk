@@ -1,7 +1,7 @@
 info:
   name: Pendientes sin las aclaraciones
   type: http
-  seq: 20
+  seq: 21
 
 http:
   method: GET
@@ -28,4 +28,4 @@ settings:
 docs: |
   # Solo el gasto y la transferencia
 
-  Ninguna de las tres aclaraciones anteriores creo un pendiente.
+  Ninguna de las cuatro aclaraciones anteriores creo un pendiente.

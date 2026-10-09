@@ -16,7 +16,7 @@
         },
         "cuenta": {
           "type": "string",
-          "description": "Nombre de la cuenta de donde sale el gasto, a donde entra el ingreso, o de donde sale la transferencia."
+          "description": "Nombre de la cuenta de donde sale el gasto, a donde entra el ingreso, o de donde sale la transferencia. Vacía si el usuario no la nombra: no se deduce."
         },
         "cuenta_destino": {
           "type": "string",
@@ -24,7 +24,7 @@
         },
         "categoria": {
           "type": "string",
-          "description": "Solo en EXPENSE e INCOME: nombre de la categoría."
+          "description": "Solo en EXPENSE e INCOME: nombre exacto de una categoría del usuario que aplique a ese tipo. Si el usuario no la nombra, dedúcela de lo que describe; si ninguna encaja con claridad o caben varias, omítela."
         },
         "descripcion": {
           "type": "string",

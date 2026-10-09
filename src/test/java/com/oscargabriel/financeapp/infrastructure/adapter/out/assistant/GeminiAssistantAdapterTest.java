@@ -131,6 +131,23 @@ class GeminiAssistantAdapterTest {
         assertThat(cuerpo.path("toolConfig").path("functionCallingConfig").path("mode").asString()).isEqualTo("AUTO");
     }
 
+    /** FA-101: la categoria se deduce de lo que describe el usuario; la cuenta nunca. */
+    @Test
+    void pideDeducirLaCategoriaQueElUsuarioNoNombraPeroNoLaCuenta() {
+        responde("{\"text\":\"hola\"}");
+
+        StepVerifier.create(adapter().interpretar(TEXTO, CONTEXTO)).expectNextCount(1).verifyComplete();
+
+        JsonNode cuerpo = json.readTree(cuerpoRecibido.get());
+        assertThat(cuerpo.path("systemInstruction").path("parts").path(0).path("text").asString())
+                .contains("Si el usuario no nombra la categoría", "deduce la categoría",
+                        "Si ninguna encaja con claridad")
+                .contains("La cuenta nunca se deduce", "envía la cuenta vacía");
+        JsonNode crear = cuerpo.path("tools").path(0).path("functionDeclarations").path(0);
+        assertThat(crear.path("parameters").path("properties").path("categoria").path("description").asString())
+                .contains("dedúcela de lo que describe", "omítela");
+    }
+
     @Test
     void traduceLaLlamadaACrearMovimiento() {
         responde("""
