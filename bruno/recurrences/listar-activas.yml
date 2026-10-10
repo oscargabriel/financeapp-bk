@@ -1,0 +1,43 @@
+info:
+  name: Listado de series activas
+  type: http
+  seq: 37
+
+http:
+  method: GET
+  url: "{{baseUrl}}/recurrences"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const ids = res.getBody().map(function (s) { return s.id; });
+
+        test("trae las activas del usuario", function() {
+          ["idSerieAtrasada", "idSerieMensual", "idSerieDia31", "idSerieCadaDos", "idSerieConFin",
+           "idSerieSinFinHoy", "idSerieSinFinFutura"].forEach(function (v) {
+            expect(ids).to.include(bru.getVar(v));
+          });
+        });
+
+        test("no trae las terminadas ni las de otro usuario", function() {
+          expect(ids).to.not.include(bru.getVar("idSerieTerminada"));
+          expect(ids).to.not.include(bru.getVar("idSerieDesdePasado"));
+          expect(ids).to.not.include(bru.getVar("idSerieAjena"));
+        });
+
+        test("van ordenadas por la proxima ocurrencia", function() {
+          const proximas = res.getBody().map(function (s) { return s.nextOccurrenceAt; });
+          expect(proximas).to.eql(proximas.slice().sort());
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

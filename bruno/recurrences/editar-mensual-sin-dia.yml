@@ -1,0 +1,36 @@
+info:
+  name: Pasar a mensual sin dia del mes
+  type: http
+  seq: 50
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/recurrences/{{idSeriePeriodicidad}}"
+  body:
+    type: json
+    data: |-
+      {
+        "scope": "FUTURE",
+        "frequency": "MONTHLY"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+  scripts:
+    - type: tests
+      code: |-
+        test("la serie resultante mensual exige dayOfMonth", function() {
+          const campos = res.getBody().errors.map(function (e) { return e.field; });
+          expect(campos).to.include("dayOfMonth");
+          res.getBody().errors.forEach(function (e) { expect(e.code).to.equal("VALIDATION_ERROR"); });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

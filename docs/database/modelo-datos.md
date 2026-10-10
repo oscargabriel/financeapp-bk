@@ -20,6 +20,10 @@ erDiagram
     accounts        ||--o{ transactions   : origen
     accounts        ||--o{ transactions   : destino
     categories      ||--o{ transactions   : clasifica
+    users           ||--o{ recurrences    : programa
+    accounts        ||--o{ recurrences    : "carga a"
+    categories      ||--o{ recurrences    : clasifica
+    recurrences     |o--o{ transactions   : "ocurrencia de"
     categories      ||--o{ budgets        : "tope por categoría"
     default_categories ..|| categories    : "se copia al registrarse"
 
@@ -80,6 +84,27 @@ erDiagram
         varchar description
         timestamptz occurred_at
         varchar origin
+        varchar status
+        uuid recurrence_id FK
+    }
+
+    recurrences {
+        uuid id PK
+        uuid user_id FK
+        uuid account_id FK
+        uuid category_id FK
+        varchar type
+        numeric amount
+        varchar description
+        varchar frequency
+        smallint interval_count
+        smallint day_of_week
+        smallint day_of_month
+        date start_date
+        date end_date
+        smallint occurrence_limit
+        integer generated_count
+        integer prior_count
         varchar status
     }
 
@@ -186,6 +211,32 @@ al leer.
 `test-data.sql` recorta a `now()` los movimientos del mes en curso para que
 ninguno quede programado y los totales del escenario no dependan del día en que
 se cargue. El porqué está en el `design.md` del change de FA-106.
+
+### Series recurrentes
+
+Una serie (`recurrences`, FA-107) es la plantilla y la regla de un gasto o
+ingreso que se repite. Sus ocurrencias son movimientos normales con
+`recurrence_id`, a las 00:00 de su día en la zona del usuario, y quedan
+programadas hasta su fecha como cualquier otro movimiento futuro.
+
+- `generated_count` cuenta las ocurrencias de la regla actual ya creadas. La
+  siguiente se crea desde ese número, no desde las filas que existen: una
+  ocurrencia borrada a mano no vuelve. `prior_count` guarda las de reglas
+  anteriores para que el tope de `occurrence_limit` sobreviva a un cambio de
+  periodicidad, que reinicia `start_date` en el día siguiente.
+- Una serie con fin tiene todas sus ocurrencias creadas desde el alta. Una **sin
+  fin** (`end_date` y `occurrence_limit` en NULL) tiene creadas las de hasta hoy
+  y una más. No hay proceso que cree la siguiente cuando llega la fecha: **toda
+  lectura de saldos o de movimientos pone al día las series sin fin del usuario
+  antes de consultar**. Hoy lo hacen las cuentas, `reports/balance`,
+  `reports/transactions`, `monthly-spending` y el listado de series. Una lectura
+  nueva de saldos o movimientos tiene que hacerlo también, o mostrará el saldo
+  sin las ocurrencias atrasadas.
+- La puesta al día escribe las ocurrencias y el contador nuevo en una
+  transacción, con el `UPDATE` condicionado al contador que leyó: dos lecturas a
+  la vez no duplican nada.
+- Cancelar borra las ocurrencias futuras y marca `status = 'CANCELLED'`. La fila
+  se conserva por las ocurrencias pasadas que la referencian.
 
 ### El signo lo da el tipo, nunca el monto
 

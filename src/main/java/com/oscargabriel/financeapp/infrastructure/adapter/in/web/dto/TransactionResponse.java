@@ -8,6 +8,7 @@ import com.oscargabriel.financeapp.domain.model.Transaction;
 /**
  * occurredAt sale en UTC (Instant): el cliente lo muestra en la zona que quiera. scheduled se calcula
  * contra el instante de la respuesta: con fecha posterior, el movimiento esta programado (FA-106).
+ * recurrenceId es la serie de la que es ocurrencia (FA-107), o null.
  */
 public record TransactionResponse(
         String id,
@@ -22,7 +23,8 @@ public record TransactionResponse(
         String occurredAt,
         String status,
         String origin,
-        boolean scheduled) {
+        boolean scheduled,
+        String recurrenceId) {
 
     public static TransactionResponse from(Transaction t, Instant ahora) {
         return new TransactionResponse(
@@ -38,6 +40,7 @@ public record TransactionResponse(
                 t.occurredAt().toString(),
                 t.status().name(),
                 t.origin().name(),
-                t.scheduledAt(ahora));
+                t.scheduledAt(ahora),
+                t.recurrenceId() == null ? null : t.recurrenceId().toString());
     }
 }

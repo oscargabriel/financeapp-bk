@@ -1,0 +1,43 @@
+info:
+  name: Alta de una transferencia
+  type: http
+  seq: 32
+
+http:
+  method: POST
+  url: "{{baseUrl}}/recurrences"
+  body:
+    type: json
+    data: |-
+      {
+        "type": "TRANSFER",
+        "accountId": "{{idCuentaSeries}}",
+        "categoryId": "{{idSuscripcionesSeries}}",
+        "amount": 10000,
+        "description": "Serie inválida",
+        "frequency": "MONTHLY",
+        "interval": 1,
+        "dayOfMonth": 5,
+        "startDate": "{{mananaSeries}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+  scripts:
+    - type: tests
+      code: |-
+        test("una serie solo es de gastos o de ingresos", function() {
+          const campos = res.getBody().errors.map(function (e) { return e.field; });
+          expect(campos).to.include("type");
+          res.getBody().errors.forEach(function (e) { expect(e.code).to.equal("VALIDATION_ERROR"); });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

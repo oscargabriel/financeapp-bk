@@ -1,0 +1,42 @@
+info:
+  name: Alta con varios errores
+  type: http
+  seq: 35
+
+http:
+  method: POST
+  url: "{{baseUrl}}/recurrences"
+  body:
+    type: json
+    data: |-
+      {
+        "type": "EXPENSE",
+        "accountId": "{{idCuentaSeries}}",
+        "categoryId": "{{idSuscripcionesSeries}}",
+        "description": "Serie inválida",
+        "frequency": "MONTHLY",
+        "interval": 0,
+        "dayOfMonth": 5,
+        "startDate": "{{mananaSeries}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+  scripts:
+    - type: tests
+      code: |-
+        test("devuelve los dos errores juntos", function() {
+          const campos = res.getBody().errors.map(function (e) { return e.field; });
+          expect(campos).to.include("amount");
+          expect(campos).to.include("interval");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

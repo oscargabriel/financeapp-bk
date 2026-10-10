@@ -32,6 +32,10 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | `GET` | `/api/transactions/pending` | Bearer | Movimientos pendientes de aprobación |
 | `POST` | `/api/transactions/{id}/approve` | Bearer | Aprobar un pendiente |
 | `POST` | `/api/transactions/{id}/reject` | Bearer | Rechazar un pendiente |
+| `POST` | `/api/recurrences` | Bearer | Crear una serie de gastos o ingresos que se repiten |
+| `GET` | `/api/recurrences` | Bearer | Series activas, con su próxima ocurrencia |
+| `PATCH` | `/api/recurrences/{id}` | Bearer | Modificar una serie, en sus futuras o en todas |
+| `DELETE` | `/api/recurrences/{id}` | Bearer | Cancelar una serie |
 | `GET` | `/api/monthly-spending` | Bearer | Gasto mensual contra la meta |
 | `GET` | `/api/reports/transactions` | Bearer | Movimientos y totales de un rango de días |
 | `GET` | `/api/reports/balance` | Bearer | Ingresos menos gastos de un rango y de siempre, con las cuentas |
@@ -814,7 +818,8 @@ no confirma que un id exista fuera de tus datos.
     "notes": null,
     "occurredAt": "2026-09-20T15:15:00Z",
     "status": "CONFIRMED",
-    "scheduled": false
+    "scheduled": false,
+    "recurrenceId": null
   }
 ]
 ```
@@ -825,6 +830,11 @@ no confirma que un id exista fuera de tus datos.
 `scheduled` es `true` si `occurredAt` es posterior al momento en que el servidor responde: el
 movimiento está **programado** (ver [Movimientos programados](#movimientos-programados)). Lo calcula
 el servidor; si el cuerpo trae un `scheduled`, se ignora.
+
+`recurrenceId` es el id de la serie de la que el movimiento es ocurrencia (ver
+[Series recurrentes](#series-recurrentes)), o `null` si no es de ninguna. Va en toda respuesta de un
+movimiento: alta, modificación, pendientes y aprobación. Lo pone el servidor: si el cuerpo trae un
+`recurrenceId`, se ignora, y un movimiento no se puede agregar a una serie ni sacar de ella.
 
 **Efecto en los saldos.** La base los aplica en la misma transacción. Después del 201, un
 `GET /accounts` ya los muestra, salvo los programados, que esperan a su fecha:
@@ -958,6 +968,131 @@ servidor haya estado encendido. Un pendiente con fecha futura sigue `PENDING` y 
 respuesta comparando `occurredAt` con su reloj. Una misma respuesta puede marcarlo `true` y, unos
 segundos después, otra marcarlo `false`.
 
+### Series recurrentes
+
+Un gasto o ingreso que se repite cada cierto número de semanas o de meses: una suscripción, una
+cuota de gimnasio, el salario. Sus **ocurrencias** son movimientos normales, con el `recurrenceId` de
+la serie, y quedan [programadas](#movimientos-programados) hasta su fecha. **Bearer** en las cuatro
+rutas.
+
+**Fechas.** Cada ocurrencia cae a las 00:00 de su día en la zona del usuario (`05:00:00Z` en Bogotá),
+así que la de hoy ya ocurrió y cuenta. La primera es el primer día pedido desde `startDate`, incluido;
+las siguientes caen cada `interval` semanas o meses. En una mensual el día se mantiene: con
+`dayOfMonth` 31, un mes más corto la pone en su último día (31-ene, 28-feb, 31-mar, 30-abr).
+
+**Con fin y sin fin.** Con `endDate` u `occurrences`, el alta crea todas las ocurrencias de una vez.
+Sin fin, crea las que van hasta hoy y la siguiente. Las demás aparecen solas: al consultar
+`GET /accounts`, `reports/balance`, `reports/transactions`, `monthly-spending` o la lista de series, el
+servidor crea antes las que falten, aunque haya estado apagado.
+
+**Ocurrencias sueltas.** Una ocurrencia se corrige o se borra con `PATCH` o `DELETE` sobre
+`/api/transactions/{id}`, y sigue siendo de su serie. Una borrada a mano no vuelve a aparecer.
+
+#### `POST /api/recurrences`
+
+```json
+{
+  "type": "EXPENSE",
+  "accountId": "0199a1b3-...",
+  "categoryId": "0199a1c0-...",
+  "amount": 44900,
+  "description": "Netflix",
+  "frequency": "MONTHLY",
+  "interval": 1,
+  "dayOfMonth": 15,
+  "startDate": "2026-10-15",
+  "occurrences": 12
+}
+```
+
+| Campo | Obligatorio | Regla |
+|---|---|---|
+| `type` | Sí | `EXPENSE` o `INCOME`. No hay transferencias recurrentes |
+| `accountId` | Sí | Cuenta propia, activa y en COP |
+| `categoryId` | Sí | Categoría propia que aplique al tipo |
+| `amount` | Sí | Mayor que cero, hasta 4 decimales |
+| `description` | Sí | Hasta 255 caracteres; se recorta |
+| `frequency` | Sí | `WEEKLY` o `MONTHLY`. Anual es `MONTHLY` con `interval` 12 |
+| `interval` | No | Cada cuántas semanas (1 a 52) o meses (1 a 12). Por defecto 1 |
+| `dayOfWeek` | En `WEEKLY` | `MONDAY` a `SUNDAY`. No va en una mensual |
+| `dayOfMonth` | En `MONTHLY` | 1 a 31. No va en una semanal |
+| `startDate` | Sí | `YYYY-MM-DD`. Puede ser pasada: las ocurrencias hasta hoy cuentan de una vez |
+| `endDate` | No | `YYYY-MM-DD`, incluida, no anterior a `startDate` |
+| `occurrences` | No | Total de ocurrencias, de 1 a 500. No va junto con `endDate` |
+
+Una serie no crea más de 500 ocurrencias de una vez: con fin, el error va en `endDate`; sin fin y con
+un inicio muy atrás, en `startDate`. Una serie que no tendría ninguna ocurrencia antes de su
+`endDate` también es error en `endDate`.
+
+**201 Created** — la serie:
+
+```json
+{
+  "id": "019a2f10-...",
+  "type": "EXPENSE",
+  "accountId": "0199a1b3-...",
+  "categoryId": "0199a1c0-...",
+  "amount": 44900.0000,
+  "currencyCode": "COP",
+  "description": "Netflix",
+  "frequency": "MONTHLY",
+  "interval": 1,
+  "dayOfWeek": null,
+  "dayOfMonth": 15,
+  "startDate": "2026-10-15",
+  "endDate": null,
+  "occurrences": 12,
+  "nextOccurrenceAt": "2026-10-15T05:00:00Z"
+}
+```
+
+`nextOccurrenceAt` es la ocurrencia más próxima con fecha posterior al momento actual, en UTC. Es
+`null` en una serie con fin a la que ya no le queda ninguna. `startDate` es el inicio de la regla
+actual: cambiar la periodicidad lo mueve (ver abajo).
+
+#### `GET /api/recurrences`
+
+**200 OK** — arreglo de series con la forma del alta, de la próxima ocurrencia a la más lejana. Solo
+las **activas**: no canceladas y con ocurrencias por venir. Una sin fin siempre lo está; una con fin
+deja de estarlo cuando pasa su última ocurrencia. Sin series activas, `[]`.
+
+#### `PATCH /api/recurrences/{id}`
+
+```json
+{ "scope": "FUTURE", "amount": 49900 }
+```
+
+`scope` es obligatorio: `FUTURE` cambia solo las ocurrencias con fecha posterior al momento actual;
+`ALL`, también las pasadas, y los saldos se recalculan. Lo demás es opcional, y ausente o `null` es
+"no cambia": `amount`, `description`, `categoryId`, `accountId`, `frequency`, `interval`, `dayOfWeek`,
+`dayOfMonth`. Al menos uno tiene que venir.
+
+- Las ocurrencias del alcance reciben **solo los campos que trae el parche**, también las que se
+  editaron a mano. Lo que el parche no trae, lo conservan.
+- **Cambiar la periodicidad rehace las futuras, con cualquier `scope`**: se borran y se crean de nuevo
+  con la regla nueva, que empieza mañana en la zona del usuario. Las pasadas no cambian de fecha. Una
+  serie con `occurrences` conserva el total: las ya ocurridas se descuentan. Una con `endDate` llega
+  hasta esa fecha; una sin fin queda con la siguiente.
+- La regla se valida sobre la serie resultante: pasar a `MONTHLY` exige `dayOfMonth` en el parche, y
+  un `dayOfWeek` en una serie que queda mensual es error.
+
+**200 OK** — la serie como quedó.
+
+#### `DELETE /api/recurrences/{id}`
+
+**204 No Content.** Borra las ocurrencias futuras, conserva las pasadas con su `recurrenceId` y saca la
+serie de la lista. No lleva `scope`.
+
+**Errores de las cuatro rutas**
+
+| HTTP | `code` | `field` | Cuándo |
+|---|---|---|---|
+| 400 | `VALIDATION_ERROR` | El del campo | Cualquier regla de las tablas de arriba |
+| 400 | `VALIDATION_ERROR` | `scope` | `PATCH` sin `scope`, o con un valor distinto de `FUTURE` y `ALL` |
+| 400 | `VALIDATION_ERROR` | `body` | `PATCH` sin ningún campo que modificar, además de `scope` |
+| 400 | `VALIDATION_ERROR` | `id` | El id de la ruta no es un UUID |
+| 404 | `NOT_FOUND` | `id` | La serie no existe, es de otro usuario o ya está cancelada |
+
 ### `GET /api/monthly-spending`
 
 Gasto por mes del usuario del token comparado con su meta mensual. **Bearer.**
@@ -1067,7 +1202,8 @@ dos extremos. Errores 400 `VALIDATION_ERROR`, en el campo del parámetro:
       "description": "Cambio de dólares",
       "notes": null,
       "occurredAt": "2026-10-10T20:00:00Z",
-      "scheduled": false
+      "scheduled": false,
+      "recurrenceId": null
     },
     {
       "id": "0192a3b4-...",
@@ -1082,7 +1218,8 @@ dos extremos. Errores 400 `VALIDATION_ERROR`, en el campo del parámetro:
       "description": "Carne y verduras",
       "notes": null,
       "occurredAt": "2026-10-02T15:00:00Z",
-      "scheduled": false
+      "scheduled": false,
+      "recurrenceId": null
     }
   ],
   "totalsByType": [
@@ -1103,6 +1240,7 @@ dos extremos. Errores 400 `VALIDATION_ERROR`, en el campo del parámetro:
 | `amount` / `currencyCode` del movimiento | El monto en la moneda de la cuenta origen |
 | `amountBase` | El mismo monto en la moneda base. Es lo que suman los totales |
 | `scheduled` | `true` si el movimiento está programado: sale en la lista, pero no en los totales ni en `net` |
+| `recurrenceId` | La serie de la que el movimiento es ocurrencia, o `null`. Sirve para mostrar juntas las ocurrencias de una serie |
 | `totalsByType` | Una entrada por tipo consultado (los tres sin filtro de tipo), aunque sea en cero. Sin los programados |
 | `totalsByCategory` | Solo las categorías con movimientos ya ocurridos, de mayor a menor total |
 | `net` | Total de `INCOME` menos total de `EXPENSE`. Puede ser negativo |
@@ -1234,3 +1372,5 @@ Para que el frontend no lo busque:
 - Cambiar la moneda base del usuario (FA-91): el `PATCH /api/users/me` la omite.
 - Recuperar la contraseña olvidada (FA-90).
 - Movimientos en monedas distintas de COP.
+- Transferencias recurrentes, y cambiar el fin (`endDate`, `occurrences`) o el tipo de una serie.
+- Listar las ocurrencias de una serie: se filtran por `recurrenceId` en `reports/transactions`.

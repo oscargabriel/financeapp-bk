@@ -1,0 +1,47 @@
+info:
+  name: Alta sin credenciales
+  type: http
+  seq: 62
+
+http:
+  method: POST
+  url: "{{baseUrl}}/recurrences"
+  body:
+    type: json
+    data: |-
+      {
+        "type": "EXPENSE",
+        "accountId": "{{idCuentaSeries}}",
+        "categoryId": "{{idSuscripcionesSeries}}",
+        "amount": 10000,
+        "description": "Serie inválida",
+        "frequency": "MONTHLY",
+        "interval": 1,
+        "dayOfMonth": 5,
+        "startDate": "{{mananaSeries}}"
+      }
+  auth: none
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: authorization
+  scripts:
+    - type: tests
+      code: |-
+        test("el reto es el de la cadena del JWT", function() {
+          expect(res.getHeader("www-authenticate")).to.equal("Bearer");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

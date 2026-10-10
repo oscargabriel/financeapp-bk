@@ -32,14 +32,14 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
     private static final String INSERTAR = """
             INSERT INTO finance.transactions
                    (id, user_id, account_id, destination_account_id, category_id, type,
-                    amount, currency_code, amount_base, description, notes, occurred_at, status, origin)
+                    amount, currency_code, amount_base, description, notes, occurred_at, status, origin, recurrence_id)
             VALUES (:id, :userId, :accountId, :destinationAccountId, :categoryId, :type,
-                    :amount, :currencyCode, :amount, :description, :notes, :occurredAt, :status, :origin)
+                    :amount, :currencyCode, :amount, :description, :notes, :occurredAt, :status, :origin, :recurrenceId)
             """;
 
     private static final String COLUMNAS = """
             id, user_id, type, account_id, destination_account_id, category_id,
-                   amount, currency_code, description, notes, occurred_at, status, origin""";
+                   amount, currency_code, description, notes, occurred_at, status, origin, recurrence_id""";
 
     private static final String BUSCAR = """
             SELECT %s
@@ -177,6 +177,9 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
         sentencia = t.notes() == null
                 ? sentencia.bindNull("notes", String.class)
                 : sentencia.bind("notes", t.notes());
+        sentencia = t.recurrenceId() == null
+                ? sentencia.bindNull("recurrenceId", UUID.class)
+                : sentencia.bind("recurrenceId", t.recurrenceId());
         return sentencia.fetch().rowsUpdated();
     }
 
@@ -213,6 +216,7 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
                 row.get("notes", String.class),
                 row.get("occurred_at", OffsetDateTime.class).toInstant(),
                 TransactionStatus.valueOf(row.get("status", String.class)),
-                TransactionOrigin.valueOf(row.get("origin", String.class)));
+                TransactionOrigin.valueOf(row.get("origin", String.class)),
+                row.get("recurrence_id", UUID.class));
     }
 }

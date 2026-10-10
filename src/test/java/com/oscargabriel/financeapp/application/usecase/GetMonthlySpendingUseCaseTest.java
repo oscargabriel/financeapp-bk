@@ -3,6 +3,7 @@ package com.oscargabriel.financeapp.application.usecase;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -10,6 +11,7 @@ import java.time.Instant;
 import java.time.YearMonth;
 import java.time.ZoneId;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -24,6 +26,7 @@ import com.oscargabriel.financeapp.domain.port.out.MonthlySpendingQueryPort;
 import com.oscargabriel.financeapp.support.MonthlySpendingMother;
 
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 @ExtendWith(MockitoExtension.class)
@@ -35,6 +38,14 @@ class GetMonthlySpendingUseCaseTest {
 
     @Mock
     private MonthlySpendingQueryPort query;
+
+    @Mock
+    private SeriesAlDia alDia;
+
+    @BeforeEach
+    void seriesAlDia() {
+        lenient().when(alDia.ponerAlDia(any())).thenReturn(Mono.empty());
+    }
 
     @Captor
     private ArgumentCaptor<MonthRange> rangoCapturado;
@@ -102,10 +113,21 @@ class GetMonthlySpendingUseCaseTest {
                         MonthlySpendingMother.USER_ID, YearMonth.of(2026, 5), YearMonth.of(2026, 1)))
                 .verifyError(BadRequestException.class);
 
+        org.mockito.Mockito.verifyNoInteractions(query, alDia);
+    }
+
+    /** El gasto incluye las ocurrencias atrasadas de las series sin fin: se lee despues de crearlas (FA-107). */
+    @Test
+    void poneAlDiaLasSeriesAntesDeConsultarLaVista() {
+        when(alDia.ponerAlDia(MonthlySpendingMother.USER_ID)).thenReturn(Mono.error(new IllegalStateException("sin base")));
+
+        StepVerifier.create(useCase().get(MonthlySpendingMother.USER_ID, null, null))
+                .verifyError(IllegalStateException.class);
+
         org.mockito.Mockito.verifyNoInteractions(query);
     }
 
     private GetMonthlySpendingUseCase useCase() {
-        return new GetMonthlySpendingUseCase(query, RELOJ);
+        return new GetMonthlySpendingUseCase(query, RELOJ, alDia);
     }
 }

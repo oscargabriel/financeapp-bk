@@ -289,6 +289,67 @@ CREATE TRIGGER trg_categories_updated_at
 
 
 -- =============================================================================
+-- RECURRENCES  (series de gastos o ingresos que se repiten, FA-107)
+-- =============================================================================
+
+CREATE TABLE finance.recurrences (
+    id                UUID           PRIMARY KEY,
+    user_id           UUID           NOT NULL REFERENCES finance.users (id) ON DELETE CASCADE,
+    account_id        UUID           NOT NULL REFERENCES finance.accounts (id)   ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
+    category_id       UUID           NOT NULL REFERENCES finance.categories (id) ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
+    type              VARCHAR(10)    NOT NULL,
+    amount            NUMERIC(18,4)  NOT NULL,
+    currency_code     CHAR(3)        NOT NULL REFERENCES finance.currencies (code) ON DELETE RESTRICT,
+    description       VARCHAR(255)   NOT NULL,
+    frequency         VARCHAR(10)    NOT NULL,
+    interval_count    SMALLINT       NOT NULL DEFAULT 1,
+    day_of_week       SMALLINT,
+    day_of_month      SMALLINT,
+    start_date        DATE           NOT NULL,
+    end_date          DATE,
+    occurrence_limit  SMALLINT,
+    generated_count   INTEGER        NOT NULL DEFAULT 0,
+    prior_count       INTEGER        NOT NULL DEFAULT 0,
+    status            VARCHAR(10)    NOT NULL DEFAULT 'ACTIVE',
+    created_at        TIMESTAMPTZ    NOT NULL DEFAULT now(),
+    updated_at        TIMESTAMPTZ    NOT NULL DEFAULT now(),
+    CONSTRAINT ck_recurrences_type      CHECK (type IN ('EXPENSE', 'INCOME')),
+    CONSTRAINT ck_recurrences_amount    CHECK (amount > 0),
+    CONSTRAINT ck_recurrences_frequency CHECK (frequency IN ('WEEKLY', 'MONTHLY')),
+    CONSTRAINT ck_recurrences_status    CHECK (status IN ('ACTIVE', 'CANCELLED')),
+    -- Anual es mensual cada 12 meses: no hay frecuencia propia.
+    CONSTRAINT ck_recurrences_interval CHECK (
+        (frequency = 'WEEKLY'  AND interval_count BETWEEN 1 AND 52)
+        OR
+        (frequency = 'MONTHLY' AND interval_count BETWEEN 1 AND 12)
+    ),
+    -- Día ISO de la semana (1 = lunes) en las semanales; día del mes en las mensuales.
+    CONSTRAINT ck_recurrences_day CHECK (
+        (frequency = 'WEEKLY'  AND day_of_week BETWEEN 1 AND 7 AND day_of_month IS NULL)
+        OR
+        (frequency = 'MONTHLY' AND day_of_month BETWEEN 1 AND 31 AND day_of_week IS NULL)
+    ),
+    CONSTRAINT ck_recurrences_end CHECK (end_date IS NULL OR occurrence_limit IS NULL),
+    CONSTRAINT ck_recurrences_limit CHECK (occurrence_limit IS NULL OR occurrence_limit BETWEEN 1 AND 500),
+    CONSTRAINT ck_recurrences_counts CHECK (generated_count >= 0 AND prior_count >= 0)
+);
+
+COMMENT ON TABLE  finance.recurrences IS 'Plantilla y regla de una serie. Sus ocurrencias son movimientos normales con recurrence_id; la fila se conserva al cancelar para que las pasadas sigan diciendo de qué serie son.';
+COMMENT ON COLUMN finance.recurrences.start_date IS 'Inicio de la regla actual. Cambiar la periodicidad la reinicia en el día siguiente, en la zona del usuario.';
+COMMENT ON COLUMN finance.recurrences.generated_count IS 'Ocurrencias de la regla actual ya creadas. La siguiente se crea desde aquí, no desde las que existen: una borrada a mano no vuelve.';
+COMMENT ON COLUMN finance.recurrences.prior_count IS 'Ocurrencias de reglas anteriores que cuentan contra occurrence_limit.';
+COMMENT ON COLUMN finance.recurrences.end_date IS 'Último día posible de una ocurrencia, incluido. NULL junto con occurrence_limit NULL es una serie sin fin: toda lectura de saldos o movimientos la pone al día.';
+
+-- La puesta al día lee las activas del usuario en cada lectura de saldos.
+CREATE INDEX ix_recurrences_user_active
+    ON finance.recurrences (user_id) WHERE status = 'ACTIVE';
+
+CREATE TRIGGER trg_recurrences_updated_at
+    BEFORE UPDATE ON finance.recurrences
+    FOR EACH ROW EXECUTE FUNCTION finance.set_updated_at();
+
+
+-- =============================================================================
 -- TRANSACTIONS
 -- =============================================================================
 
@@ -314,7 +375,8 @@ CREATE TABLE finance.transactions (
     created_at              TIMESTAMPTZ    NOT NULL DEFAULT now(),
     updated_at              TIMESTAMPTZ    NOT NULL DEFAULT now(),
     status                  VARCHAR(10)    NOT NULL DEFAULT 'CONFIRMED',
-    CONSTRAINT ck_transactions_type        CHECK (type IN ('EXPENSE', 'INCOME', 'TRANSFER')),
+    recurrence_id           UUID                    REFERENCES finance.recurrences (id) ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
+    CONSTRAINT ck_transactions_type       CHECK (type IN ('EXPENSE', 'INCOME', 'TRANSFER')),
     CONSTRAINT ck_transactions_origin      CHECK (origin IN ('WEB', 'TELEGRAM', 'IMPORT')),
     CONSTRAINT ck_transactions_status      CHECK (status IN ('PENDING', 'CONFIRMED')),
     CONSTRAINT ck_transactions_amount      CHECK (amount > 0),
@@ -344,6 +406,7 @@ COMMENT ON COLUMN finance.transactions.destination_amount IS 'Solo en TRANSFER e
 COMMENT ON COLUMN finance.transactions.amount_base IS 'amount convertido a la moneda base del usuario. Es la columna que suman los reportes, para que monedas distintas sean comparables.';
 COMMENT ON COLUMN finance.transactions.occurred_at IS 'Cuándo ocurrió el movimiento, no cuándo se registró (created_at). El bot de Telegram registra gastos de días anteriores.';
 COMMENT ON COLUMN finance.transactions.status IS 'PENDING: registrado por el asistente y sin efecto hasta aprobarse; no mueve current_balance ni cuenta en reportes. CONFIRMED: todo lo demás. Rechazar un pendiente lo borra.';
+COMMENT ON COLUMN finance.transactions.recurrence_id IS 'Serie de la que el movimiento es ocurrencia (FA-107). Editarlo o borrarlo a mano no lo saca de ella.';
 
 CREATE INDEX ix_transactions_user_date
     ON finance.transactions (user_id, occurred_at DESC);
@@ -364,6 +427,10 @@ CREATE INDEX ix_transactions_expense_report
 -- La lista de pendientes del usuario. Son pocos frente al total de movimientos.
 CREATE INDEX ix_transactions_pending
     ON finance.transactions (user_id, occurred_at DESC) WHERE status = 'PENDING';
+
+-- Las ocurrencias de una serie: edición en grupo, cancelación y la próxima del listado.
+CREATE INDEX ix_transactions_recurrence
+    ON finance.transactions (recurrence_id, occurred_at) WHERE recurrence_id IS NOT NULL;
 
 CREATE TRIGGER trg_transactions_updated_at
     BEFORE UPDATE ON finance.transactions

@@ -1,0 +1,40 @@
+info:
+  name: Usuario ajeno — serie
+  type: http
+  seq: 7
+
+http:
+  method: POST
+  url: "{{baseUrl}}/recurrences"
+  body:
+    type: json
+    data: |-
+      {
+        "type": "EXPENSE",
+        "accountId": "{{idCuentaAjena}}",
+        "categoryId": "{{idSuscripcionesAjena}}",
+        "amount": 20000,
+        "description": "Serie ajena",
+        "frequency": "MONTHLY",
+        "dayOfMonth": 1,
+        "startDate": "{{primeroMes4}}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenAjenoSeries}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idSerieAjena", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

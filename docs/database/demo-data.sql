@@ -52,6 +52,7 @@ SET search_path TO finance, public;
 \set dolares    '5000000' :u '-0000-7000-8000-000000000007'
 \set gimnasio   '6000000' :u '-0000-7000-8000-000000000001'
 \set jardin     '6000000' :u '-0000-7000-8000-000000000002'
+\set club       '9000000' :u '-0000-7000-8000-000000000001'
 
 BEGIN;
 
@@ -259,6 +260,34 @@ SELECT gen_random_uuid(), :'uid'::uuid, f.account_id, f.destination_id, 'TRANSFE
                 - make_interval(months => meses.mes) + f.desfase) AT TIME ZONE 'America/Bogota' AS occurred_at
        ) AS t
  WHERE t.occurred_at <= now();
+
+
+-- -----------------------------------------------------------------------------
+-- Serie recurrente (FA-107): club de lectura el 10 de cada mes, sin fin, desde
+-- hace tres meses. Quedan creadas las ocurrencias hasta hoy y la siguiente,
+-- programada, como las deja el API. El contador dice cuántas creó.
+-- -----------------------------------------------------------------------------
+INSERT INTO finance.recurrences
+    (id, user_id, account_id, category_id, type, amount, currency_code, description,
+     frequency, interval_count, day_of_month, start_date, generated_count)
+SELECT :'club'::uuid, :'uid'::uuid, :'tarjeta'::uuid, c.id, 'EXPENSE', 35000, 'COP', 'Club de lectura',
+       'MONTHLY', 1, 10, d.inicio,
+       (SELECT count(*) FROM generate_series(0, 12) k
+         WHERE (d.inicio + make_interval(months => k))::date <= d.hoy) + 1
+  FROM (SELECT (date_trunc('month', now() AT TIME ZONE 'America/Bogota') - INTERVAL '3 months')::date + 9 AS inicio,
+               (now() AT TIME ZONE 'America/Bogota')::date AS hoy) d
+  JOIN finance.categories c
+    ON c.user_id = :'uid'::uuid AND c.name = 'Suscripciones';
+
+INSERT INTO finance.transactions
+    (id, user_id, account_id, category_id, type, amount, currency_code,
+     exchange_rate, amount_base, description, occurred_at, origin, recurrence_id)
+SELECT gen_random_uuid(), s.user_id, s.account_id, s.category_id, s.type, s.amount, 'COP',
+       1, s.amount, s.description,
+       (s.start_date + make_interval(months => k)) AT TIME ZONE 'America/Bogota', 'WEB', s.id
+  FROM finance.recurrences s
+ CROSS JOIN generate_series(0, s.generated_count - 1) k
+ WHERE s.id = :'club'::uuid;
 
 
 -- -----------------------------------------------------------------------------

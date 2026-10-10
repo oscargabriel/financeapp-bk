@@ -10,6 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -50,6 +51,9 @@ class GetTransactionReportUseCaseTest {
     @Mock
     private TransactionReportQueryPort query;
 
+    @Mock
+    private SeriesAlDia alDia;
+
     private GetTransactionReportUseCase casoDeUso;
 
     @Captor
@@ -57,7 +61,8 @@ class GetTransactionReportUseCaseTest {
 
     @BeforeEach
     void setUp() {
-        casoDeUso = new GetTransactionReportUseCase(query, Clock.fixed(AHORA, ZoneOffset.UTC));
+        lenient().when(alDia.ponerAlDia(any())).thenReturn(Mono.empty());
+        casoDeUso = new GetTransactionReportUseCase(query, Clock.fixed(AHORA, ZoneOffset.UTC), alDia);
     }
 
     @Test
@@ -123,6 +128,17 @@ class GetTransactionReportUseCaseTest {
                             .containsExactly(tuple("from", ErrorCodes.VALIDATION_ERROR.getCode()));
                 })
                 .verify();
+
+        verifyNoInteractions(query, alDia);
+    }
+
+    /** El reporte incluye las ocurrencias atrasadas de las series sin fin: se lee despues de crearlas (FA-107). */
+    @Test
+    void poneAlDiaLasSeriesAntesDeConsultar() {
+        when(alDia.ponerAlDia(USER_ID)).thenReturn(Mono.error(new IllegalStateException("sin base")));
+
+        StepVerifier.create(casoDeUso.get(USER_ID, DESDE, HASTA, Set.of(), Set.of(), Set.of()))
+                .verifyError(IllegalStateException.class);
 
         verifyNoInteractions(query);
     }

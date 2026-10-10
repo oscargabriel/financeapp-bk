@@ -1,0 +1,35 @@
+info:
+  name: Modificar una ocurrencia a mano
+  type: http
+  seq: 55
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/transactions/{{idOcurrenciaMensual}}"
+  body:
+    type: json
+    data: |-
+      {
+        "amount": 45000
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("sigue siendo de su serie", function() {
+          expect(res.getBody().recurrenceId).to.equal(bru.getVar("idSerieMensual"));
+          expect(res.getBody().amount).to.equal(45000);
+          expect(res.getBody().scheduled).to.equal(true);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
