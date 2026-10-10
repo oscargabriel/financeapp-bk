@@ -9,11 +9,11 @@ La tasa de cambio de un par de monedas en una fecha, calculada contra USD con la
 
 ### Requirement: Tasa de un par en una fecha
 `GET /api/exchange-rates?from=&to=&date=` SHALL devolver 200 con `{from, to, date, rate, rateDate}`.
-`rate` SHALL ser `(USD→to) / (USD→from)` redondeado a 10 decimales, donde cada pata es la fila
+`rate` SHALL ser `(USD→to) / (USD→from)` redondeado a 10 decimales. Cada pata SHALL ser la fila
 `USD→X` de `exchange_rates` con la `rate_date` más reciente menor o igual a `date`, sin límite de
-antigüedad, y `USD→USD` vale 1. `rateDate` SHALL ser la `rate_date` más vieja de las patas usadas.
-El mismo par SHALL dar `rate` 1 y `rateDate` igual a `date`. Las filas directas entre dos monedas
-distintas de USD MUST NOT usarse.
+antigüedad. Si no hay ninguna, SHALL ser la fila `USD→X` más antigua guardada. `USD→USD` vale 1.
+`rateDate` SHALL ser la `rate_date` más vieja de las patas usadas. El mismo par SHALL dar `rate` 1 y
+`rateDate` igual a `date`. Las filas directas entre dos monedas distintas de USD MUST NOT usarse.
 
 #### Scenario: Tasa del día guardada
 - **WHEN** existe `USD→COP` de hoy en 4100 y un usuario autenticado pide `GET /api/exchange-rates?from=USD&to=COP&date=<hoy>`
@@ -28,16 +28,16 @@ distintas de USD MUST NOT usarse.
 - **THEN** `rate` es 0.0002500000
 
 #### Scenario: Tasa anterior sin límite de antigüedad
-- **WHEN** la única fila `USD→COP` con `rate_date` ≤ hace 10 días es la de hace 30 días, en 3900, y se pide `from=USD&to=COP&date=<hace 10 días>`
-- **THEN** la respuesta es 200 con `rate` 3900 y `rateDate` de hace 30 días
+- **WHEN** la única fila `USD→COP` con `rate_date` ≤ hace 40 días es la de hace 45 días, en 3900, y se pide `from=USD&to=COP&date=<hace 40 días>`
+- **THEN** la respuesta es 200 con `rate` 3900 y `rateDate` de hace 45 días
 
 #### Scenario: Mismo par
 - **WHEN** se pide `from=COP&to=COP&date=2026-01-15`
 - **THEN** la respuesta es 200 con `rate` 1 y `rateDate` `2026-01-15`, sin buscar tasas ni consultar al proveedor
 
 #### Scenario: Sin tasa para la fecha
-- **WHEN** no hay ninguna fila `USD→COP` con `rate_date` ≤ `2000-01-01` y se pide `from=USD&to=COP&date=2000-01-01`
-- **THEN** la respuesta es 404 con un error `NOT_FOUND` en el campo `date`, sin consultar al proveedor
+- **WHEN** la fila `USD→COP` más antigua es la de hace 45 días, en 3900, y se pide `from=USD&to=COP&date=2000-01-01`
+- **THEN** la respuesta es 200 con `rate` 3900 y `rateDate` de hace 45 días, sin consultar al proveedor
 
 ### Requirement: Consulta al proveedor bajo demanda
 Si `date` es hoy o posterior, según la zona `app.timezone`, y a alguna pata le falta su fila con
@@ -68,10 +68,10 @@ al proveedor.
 - **THEN** solo se guardan las de las monedas activas
 
 ### Requirement: Fallo del proveedor
-Un error, una respuesta no exitosa o un timeout del proveedor MUST NOT cortar la resolución: el
+Un error, una respuesta no exitosa o un timeout del proveedor MUST NOT cortar la resolución. El
 fallo SHALL quedar en el log con el status HTTP o el tipo de error, sin el cuerpo de la respuesta, y
-la resolución SHALL seguir con las filas guardadas. Si no queda ninguna tasa ≤ la fecha, la
-respuesta SHALL ser 404 `NOT_FOUND` en el campo `date`, sin detalle del proveedor.
+la resolución SHALL seguir con las filas guardadas. Si alguna pata no tiene ninguna fila guardada,
+la respuesta SHALL ser 404 `NOT_FOUND` en el campo `date`, sin detalle del proveedor.
 
 #### Scenario: Proveedor caído con tasa anterior
 - **WHEN** no hay `USD→COP` de hoy, existe la de ayer en 4050, el proveedor responde 500, y se pide `from=USD&to=COP&date=<hoy>`

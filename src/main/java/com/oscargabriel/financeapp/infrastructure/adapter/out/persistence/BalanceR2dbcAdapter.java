@@ -23,25 +23,27 @@ public class BalanceR2dbcAdapter implements BalanceQueryPort {
      * TransactionReportR2dbcAdapter: los limites del dia en la zona del usuario, no la zona aplicada a la
      * columna. El LEFT JOIN deja una fila con ceros a un usuario sin movimientos. El filtro de estado va
      * en el ON y no en el WHERE: un usuario con solo pendientes tambien sale, con ceros (FA-76). Lo
-     * programado tampoco entra hasta su fecha (FA-106), y se decide con now() de la base.
+     * programado tampoco entra hasta su fecha (FA-106), y se decide con now() de la base. Las sumas van en la
+     * moneda de la persona (FA-122).
      */
     private static final String SQL = """
             SELECT u.base_currency_code,
-                   COALESCE(SUM(t.amount_base) FILTER (WHERE t.type = 'INCOME' AND t.occurred_at >= desde
+                   COALESCE(SUM(monto) FILTER (WHERE t.type = 'INCOME' AND t.occurred_at >= desde
                             AND t.occurred_at < hasta), 0) AS period_income,
-                   COALESCE(SUM(t.amount_base) FILTER (WHERE t.type = 'EXPENSE' AND t.occurred_at >= desde
+                   COALESCE(SUM(monto) FILTER (WHERE t.type = 'EXPENSE' AND t.occurred_at >= desde
                             AND t.occurred_at < hasta), 0) AS period_expense,
-                   COALESCE(SUM(t.amount_base) FILTER (WHERE t.type = 'INCOME'), 0) AS all_income,
-                   COALESCE(SUM(t.amount_base) FILTER (WHERE t.type = 'EXPENSE'), 0) AS all_expense
+                   COALESCE(SUM(monto) FILTER (WHERE t.type = 'INCOME'), 0) AS all_income,
+                   COALESCE(SUM(monto) FILTER (WHERE t.type = 'EXPENSE'), 0) AS all_expense
               FROM finance.users u
              CROSS JOIN LATERAL (
                    SELECT CAST(:from AS date)::timestamp AT TIME ZONE u.timezone AS desde,
                           (CAST(:to AS date) + 1)::timestamp AT TIME ZONE u.timezone AS hasta) r
               LEFT JOIN finance.transactions t ON t.user_id = u.id AND t.status = 'CONFIRMED'
                     AND t.occurred_at <= now()
+             CROSS JOIN LATERAL (SELECT %s AS monto) m
              WHERE u.id = :userId
              GROUP BY u.base_currency_code
-            """;
+            """.formatted(MontoDeLaPersona.DE_T);
 
     private final DatabaseClient databaseClient;
 

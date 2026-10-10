@@ -12,13 +12,23 @@ runtime:
   assertions:
     - expression: res.status
       operator: eq
-      value: "404"
-    - expression: res.body.errors[0].code
+      value: "200"
+    - expression: res.body.rate
       operator: eq
-      value: NOT_FOUND
-    - expression: res.body.errors[0].field
-      operator: eq
-      value: date
+      value: "3900"
+  scripts:
+    - type: before-request
+      code: |-
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const f = new Date();
+        const hace45 = new Date(f.getFullYear(), f.getMonth(), f.getDate() - 45);
+        bru.setVar("tasaHace45", hace45.getFullYear() + "-" + dos(hace45.getMonth() + 1) + "-" + dos(hace45.getDate()));
+    - type: tests
+      code: |-
+        test("usa la tasa mas antigua guardada, la de hace 45 dias", function() {
+          expect(res.getBody().rateDate).to.equal(bru.getVar("tasaHace45"));
+          expect(res.getBody().date).to.equal("2000-01-01");
+        });
 
 settings:
   encodeUrl: true
@@ -27,4 +37,5 @@ settings:
   maxRedirects: 5
 
 docs: |
-  No hay ninguna fila USD->COP con fecha <= 2000-01-01.
+  No hay ninguna fila USD->COP con fecha <= 2000-01-01: se usa la mas antigua guardada, la de hace
+  45 dias en 3900 (FA-122). Un 404 solo sale si el par no tiene ninguna fila.

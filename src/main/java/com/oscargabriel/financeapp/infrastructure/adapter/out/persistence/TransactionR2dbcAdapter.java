@@ -26,9 +26,10 @@ import reactor.core.publisher.Mono;
 public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
 
     /**
-     * Solo COP: exchange_rate queda en su DEFAULT 1 y amount_base es el mismo amount. current_balance
-     * lo mueve trg_transactions_sync_balance fila a fila, dentro de la misma transaccion, y solo si el
-     * movimiento entra CONFIRMED.
+     * exchange_rate y amount_base los fija trg_transactions_usd_equivalent con el equivalente en USD (FA-122);
+     * amount_base va con amount solo porque la columna es NOT NULL y la app nueva puede llegar antes que el
+     * update que crea el trigger. current_balance lo mueve trg_transactions_sync_balance fila a fila, dentro de
+     * la misma transaccion, y solo si el movimiento entra CONFIRMED.
      */
     private static final String INSERTAR = """
             INSERT INTO finance.transactions
@@ -127,6 +128,7 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
                 .concatMap(t -> insertar(t).thenReturn(t))
                 .collectList()
                 .as(transaccion::transactional)
+                .onErrorMap(SinTasaDeCambio::traducir)
                 .flatMapIterable(guardadas -> guardadas);
     }
 
@@ -143,6 +145,7 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
     public Mono<Boolean> update(Transaction t) {
         return conCamposComunes(databaseClient.sql(ACTUALIZAR), t)
                 .fetch().rowsUpdated()
+                .onErrorMap(SinTasaDeCambio::traducir)
                 .map(filas -> filas > 0);
     }
 

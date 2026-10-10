@@ -28,8 +28,6 @@ runtime:
           return comoDia(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + desfase));
         };
         bru.setVar("tasaHoy", dia(0));
-        bru.setVar("tasaHace10", dia(-10));
-        bru.setVar("tasaHace30", dia(-30));
     - type: tests
       code: |-
         test("responde el par, la fecha pedida y la de la fila usada", function() {

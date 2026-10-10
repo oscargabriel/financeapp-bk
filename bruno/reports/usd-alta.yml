@@ -1,0 +1,46 @@
+info:
+  name: Persona en USD — alta
+  type: http
+  seq: 48
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/register"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailUsd}}",
+        "password": "unaClaveLarga",
+        "firstName": "Persona",
+        "lastName": "En dolares",
+        "baseCurrencyCode": "USD",
+        "timezone": "America/Bogota"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: before-request
+      code: |-
+        bru.setVar("emailUsd", "usd-" + Date.now() + "@bruno.local");
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Totales en la moneda de la persona (FA-122)
+
+  Una persona con moneda USD registra gastos en una cuenta COP. Sus reportes salen en dolares: cada
+  gasto aporta su equivalente en USD con la tasa de su fecha. `test-data.sql` deja USD->COP en 4100
+  hoy y en 3900 hace 45 dias, que es la mas antigua. La limpieza vive en `docs/database/test-data.sql`.

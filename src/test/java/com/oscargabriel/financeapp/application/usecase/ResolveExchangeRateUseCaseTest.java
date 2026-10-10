@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeoutException;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -186,7 +187,7 @@ class ResolveExchangeRateUseCaseTest {
     }
 
     @Test
-    void conElProveedorCaidoYSinTasaAnteriorResponde404EnLaFecha() {
+    void conElProveedorCaidoYSinNingunaTasaDelParResponde404EnLaFecha() {
         when(tasas.findLatestFromUsd("COP", HOY)).thenReturn(Mono.empty());
         when(proveedor.latestFromUsd()).thenReturn(Mono.error(new IllegalStateException("caido")));
 
@@ -201,7 +202,63 @@ class ResolveExchangeRateUseCaseTest {
     }
 
     @Test
-    void unaFechaAnteriorATodasLasTasasResponde404SinConsultarAlProveedor() {
+    void refrescarHoySinLaFilaDeHoyConsultaUnaVezYGuarda() {
+        when(tasas.findLatestFromUsd("COP", HOY)).thenReturn(Mono.just(usdA("COP", "4050", HOY.minusDays(1))));
+        when(proveedor.latestFromUsd()).thenReturn(Mono.just(Map.of("COP", new BigDecimal("4100"))));
+        when(monedas.findActive()).thenReturn(Flux.just(CurrencyMother.cop()));
+        when(tasas.saveFromUsd(any(), any())).thenReturn(Mono.empty());
+
+        StepVerifier.create(casoDeUso.refreshToday(Set.of("COP", "USD"))).verifyComplete();
+
+        verify(proveedor, times(1)).latestFromUsd();
+        verify(tasas).saveFromUsd(HOY, Map.of("COP", new BigDecimal("4100")));
+    }
+
+    @Test
+    void refrescarHoyConLaFilaDeHoyNoConsultaAlProveedor() {
+        when(tasas.findLatestFromUsd("COP", HOY)).thenReturn(Mono.just(usdA("COP", "4100", HOY)));
+
+        StepVerifier.create(casoDeUso.refreshToday(Set.of("COP"))).verifyComplete();
+
+        verifyNoInteractions(proveedor);
+    }
+
+    @Test
+    void refrescarHoySoloConDolaresNoBuscaNada() {
+        StepVerifier.create(casoDeUso.refreshToday(Set.of("USD"))).verifyComplete();
+
+        verifyNoInteractions(tasas, proveedor);
+    }
+
+    @Test
+    void refrescarHoyConElProveedorCaidoCompletaSinGuardar() {
+        when(tasas.findLatestFromUsd("COP", HOY)).thenReturn(Mono.empty());
+        when(proveedor.latestFromUsd()).thenReturn(Mono.error(new TimeoutException()));
+
+        StepVerifier.create(casoDeUso.refreshToday(Set.of("COP"))).verifyComplete();
+
+        verify(tasas, never()).saveFromUsd(any(), any());
+    }
+
+    /** El repositorio da la mas antigua cuando no hay anterior (FA-122): la fecha de la tasa queda despues. */
+    @Test
+    void unaFechaAnteriorATodasLasTasasUsaLaMasAntiguaSinConsultarAlProveedor() {
+        LocalDate antigua = LocalDate.of(2000, 1, 1);
+        when(tasas.findLatestFromUsd("COP", antigua)).thenReturn(Mono.just(usdA("COP", "3900", HOY.minusDays(45))));
+
+        StepVerifier.create(casoDeUso.resolve("USD", "COP", antigua))
+                .assertNext(tasa -> {
+                    assertThat(tasa.rate()).isEqualByComparingTo("3900");
+                    assertThat(tasa.date()).isEqualTo(antigua);
+                    assertThat(tasa.rateDate()).isEqualTo(HOY.minusDays(45));
+                })
+                .verifyComplete();
+
+        verifyNoInteractions(proveedor);
+    }
+
+    @Test
+    void unParSinNingunaTasaResponde404SinConsultarAlProveedorEnUnaFechaPasada() {
         LocalDate antigua = LocalDate.of(2000, 1, 1);
         when(tasas.findLatestFromUsd("COP", antigua)).thenReturn(Mono.empty());
 

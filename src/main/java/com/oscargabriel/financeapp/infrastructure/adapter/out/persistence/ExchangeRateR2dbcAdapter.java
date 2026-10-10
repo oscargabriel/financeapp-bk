@@ -18,15 +18,13 @@ import reactor.core.publisher.Mono;
 @AllArgsConstructor
 public class ExchangeRateR2dbcAdapter implements ExchangeRateRepositoryPort {
 
-    /** Recorre ix_exchange_rates_lookup: par fijo y rate_date descendente. */
+    /**
+     * La regla vive en finance.usd_rate (FA-122): la mas reciente <= la fecha o, si no hay, la mas antigua.
+     * La misma funcion congela la tasa de cada movimiento, asi que este endpoint no puede decir otra cosa.
+     */
     private static final String MAS_RECIENTE = """
             SELECT rate, rate_date
-              FROM finance.exchange_rates
-             WHERE from_currency_code = 'USD'
-               AND to_currency_code = :currency
-               AND rate_date <= :date
-             ORDER BY rate_date DESC
-             LIMIT 1
+              FROM finance.usd_rate(:currency, :date)
             """;
 
     /**

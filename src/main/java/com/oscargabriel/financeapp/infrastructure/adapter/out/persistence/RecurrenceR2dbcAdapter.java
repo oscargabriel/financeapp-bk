@@ -125,8 +125,9 @@ public class RecurrenceR2dbcAdapter implements RecurrenceRepositoryPort {
             """;
 
     /**
-     * Solo lo que el parche trae: una ocurrencia editada a mano conserva lo demas. amount_base es amount
-     * mientras todo sea COP. El trigger revierte la fila vieja y aplica la nueva en cada saldo.
+     * Solo lo que el parche trae: una ocurrencia editada a mano conserva lo demas. El amount_base que va aqui
+     * lo reemplaza trg_transactions_usd_equivalent por el equivalente en USD (FA-122). El trigger de saldos
+     * revierte la fila vieja y aplica la nueva en cada saldo.
      */
     private static final String APLICAR_CAMBIOS = """
             UPDATE finance.transactions
@@ -248,7 +249,8 @@ public class RecurrenceR2dbcAdapter implements RecurrenceRepositoryPort {
                         ? Mono.just(false)
                         : futuras.then(aplicar(serie.id(), alcance, ahora, cambios)).then(nuevas)
                                 .then(Mono.just(true)))
-                .as(transaccion::transactional);
+                .as(transaccion::transactional)
+                .onErrorMap(SinTasaDeCambio::traducir);
     }
 
     @Override

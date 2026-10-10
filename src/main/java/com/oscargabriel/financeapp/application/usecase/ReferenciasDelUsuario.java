@@ -24,7 +24,7 @@ import reactor.core.publisher.Mono;
  */
 final class ReferenciasDelUsuario {
 
-    /** Solo COP hasta que la etapa 9 cargue tasas: con eso amount_base = amount y exchange_rate = 1. */
+    /** Solo cuentas en COP hasta FA-51. El equivalente en USD lo congela la base en cada movimiento (FA-122). */
     static final String MONEDA_UNICA = "COP";
 
     private final Map<UUID, Account> cuentas;

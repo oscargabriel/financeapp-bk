@@ -52,7 +52,8 @@ DELETE FROM finance.users
 -- Los requests de alta de bruno/ crean un usuario nuevo en cada corrida: auth/ con el correo
 -- registro-<timestamp>@bruno.local, monthly-spending/ con sin-datos-<timestamp>@bruno.local,
 -- categories/ con categorias-<timestamp>@bruno.local, accounts/ con cuentas-<timestamp>@bruno.local,
--- transactions/ con transacciones-<timestamp>@bruno.local y reports/ con reportes-<timestamp>@bruno.local.
+-- transactions/ con transacciones-<timestamp>@bruno.local y reports/ con reportes-<timestamp>@bruno.local
+-- y usd-<timestamp>@bruno.local.
 -- Sus cuentas y movimientos caen en cascada.
 -- Recargar este escenario es lo que los limpia.
 DELETE FROM finance.users WHERE email LIKE '%@bruno.local';
@@ -154,11 +155,16 @@ VALUES (:'davivienda'::uuid, :'uid'::uuid, 'Davivienda', 'SAVINGS', 'COP', 15000
 -- proveedor real cuando la app se levanta a mano (FA-120). Se vacia entera para que bruno/exchange-rates/
 -- no dependa de esas filas: una real de hace 15 dias cambiaria la tasa anterior que espera. "Hoy" es
 -- el de Bogota, el mismo que usa la app con app.timezone.
+--
+-- Hace 35 dias vale lo mismo que hoy: todo el mes en curso cae despues, asi que el movimiento en USD
+-- del mes vale 4100 por dolar en los reportes sea cual sea el dia (FA-122). La de hace 45 dias es la
+-- mas antigua: la usa lo que tenga fecha anterior, y bruno/exchange-rates/ la pide como tasa anterior.
+-- Van antes que los movimientos: trg_transactions_usd_equivalent las necesita para insertarlos.
 DELETE FROM finance.exchange_rates;
 
 INSERT INTO finance.exchange_rates (from_currency_code, to_currency_code, rate, rate_date)
 SELECT 'USD', 'COP', t.rate, (now() AT TIME ZONE 'America/Bogota')::date - t.dias
-  FROM (VALUES (4100.0000000000, 0), (3900.0000000000, 30)) AS t (rate, dias);
+  FROM (VALUES (4100.0000000000, 0), (4100.0000000000, 35), (3900.0000000000, 45)) AS t (rate, dias);
 
 
 -- -----------------------------------------------------------------------------
