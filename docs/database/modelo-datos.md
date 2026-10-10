@@ -457,6 +457,7 @@ docs/database/
   demo-data.sql                   datos de demo para demo@ y dev@, re-ejecutable
   cargar-datos-local.sql          carga los dos anteriores de una vez
   test-checks.sql                 consultas de verificación
+  check-saldos.sql                todos los saldos cuadran con sus movimientos (FA-29)
   update/
     20260905_01_baseline.sql      línea base
 ```
@@ -566,6 +567,7 @@ Con eso, `psql` entra directo y el ciclo de trabajo es:
 ```powershell
 psql -f docs/database/test-data.sql     # borra y recrea el usuario de pruebas
 psql -f docs/database/test-checks.sql   # saldos, vistas y metas
+psql -v ON_ERROR_STOP=1 -f docs/database/check-saldos.sql   # todos los saldos cuadran; error si no
 psql                                    # sesión interactiva para probar a mano
 ```
 
@@ -583,7 +585,15 @@ Restaurantes se pasa del tope.
 
 [`test-checks.sql`](test-checks.sql) solo lee: saldos y cupo, la comprobación de
 que el saldo del trigger coincide con el derivado de los movimientos, las dos
-vistas, las categorías pasadas de tope y los últimos movimientos.
+vistas, las categorías pasadas de tope y los últimos movimientos. Todo eso es
+del usuario del escenario.
+
+[`check-saldos.sql`](check-saldos.sql) (FA-29) hace la misma comparación del saldo
+sobre todas las cuentas de la base. Cuenta solo los movimientos confirmados,
+programados incluidos, y el `destination_amount` de las transferencias entre
+monedas. Si alguna cuenta no cuadra, termina con error. `verificar-bruno.ps1` lo
+corre después de cada corrida de la colección, así que cubre también los lotes
+que dan de alta los usuarios de `bruno/transactions/`.
 
 ### Reiniciar el estado
 
