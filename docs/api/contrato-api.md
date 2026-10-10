@@ -80,8 +80,9 @@ Una ruta sin el prefijo `/api` no existe: responde 404.
 - `number` de JavaScript es un `double` y pierde precisión pasados ~15 dígitos significativos. Para
   saldos normales alcanza. Si el frontend va a sumar o comparar montos, conviene una librería
   decimal (`decimal.js`, `big.js`) y no la aritmética nativa.
-- Por ahora **toda la operación es en COP**. Las cuentas se pueden crear en otra moneda del
-  catálogo, pero no se les pueden registrar movimientos.
+- Cada movimiento está en la **moneda de su cuenta** (FA-51). Lo que llega en otra moneda se convierte
+  y queda pendiente: ver [`POST /api/transactions`](#post-apitransactions). Las series y las compras
+  en cuotas todavía solo admiten cuentas en COP.
 
 ### Fechas
 
@@ -761,7 +762,7 @@ orden:
 El API recibe y devuelve siempre el `code`; `description` es solo para mostrar.
 
 **`GET /api/catalogs/currencies`** — 200 OK, las monedas activas ordenadas por código. Son las que
-acepta `currencyCode` en `POST /api/accounts`; el alta de movimientos, por ahora, solo admite COP.
+acepta `currencyCode` en `POST /api/accounts` y en el alta de movimientos.
 
 ```json
 [{ "code": "COP", "name": "Peso colombiano", "symbol": "$" }]
@@ -779,7 +780,8 @@ acepta `currencyCode` en `POST /api/accounts`; el alta de movimientos, por ahora
 ### `GET /api/exchange-rates`
 
 La tasa de cambio de un par de monedas en una fecha: cuántas unidades de `to` vale una de `from`.
-**Bearer.** Sirve para mostrar conversiones; el alta de movimientos todavía no la usa (FA-51).
+**Bearer.** Sirve para mostrar conversiones, y es la misma tasa con la que el alta de movimientos
+convierte lo que llega en otra moneda (FA-51).
 
 | Parámetro | Obligatorio | Formato |
 |---|---|---|
@@ -833,18 +835,32 @@ arreglo de un elemento.
 | Campo | Tipo | Obligatorio | Reglas |
 |---|---|---|---|
 | `type` | string | sí | `EXPENSE`, `INCOME` o `TRANSFER` |
-| `accountId` | string (UUID) | sí | Cuenta del usuario, activa y en COP. En una transferencia, la de origen |
-| `destinationAccountId` | string (UUID) | solo `TRANSFER` | Cuenta del usuario, activa, en COP y distinta del origen. Prohibido en los otros tipos |
+| `accountId` | string (UUID) | sí | Cuenta del usuario y activa, en cualquier moneda. En una transferencia, la de origen |
+| `destinationAccountId` | string (UUID) | solo `TRANSFER` | Cuenta del usuario, activa y distinta del origen. Prohibido en los otros tipos |
 | `categoryId` | string (UUID) | `EXPENSE` / `INCOME` | Categoría activa del usuario y compatible con el tipo. **Prohibido en `TRANSFER`** |
-| `amount` | number | sí | Mayor que cero, hasta 4 decimales |
-| `currencyCode` | string | no | Si se manda, tiene que ser `COP` |
+| `amount` | number | sí | Mayor que cero, hasta 4 decimales. En la moneda de `currencyCode` |
+| `currencyCode` | string | no | Moneda en que viene `amount`: código de 3 letras activo en el catálogo, sin importar mayúsculas. Ausente, la de la cuenta |
 | `description` | string | sí | Hasta 255 caracteres. Se recortan los espacios de los extremos |
 | `notes` | string | no | Hasta 1000 caracteres |
 | `occurredAt` | string | no | ISO-8601 con offset. Sin fecha (ausente, `null` o vacío), el instante en que el servidor atiende la petición, el mismo para todo el lote |
-| `destinationAmount` | — | **no se envía** | Reservado para transferencias entre monedas. Hoy es 400 |
+| `destinationAmount` | number | no | Solo en una `TRANSFER` entre cuentas de monedas distintas: lo que entra al destino, en su moneda. Mayor que cero, hasta 4 decimales |
 
 Una cuenta que no existe y una de otro usuario responden lo mismo ("La cuenta no existe"). El API
 no confirma que un id exista fuera de tus datos.
+
+**Monedas** (FA-51). El movimiento se registra siempre en la moneda de su cuenta (`currencyCode` de
+la respuesta), que es lo que cobra el banco.
+
+- Si `currencyCode` es otra moneda, `amount` se convierte a la de la cuenta con la tasa de
+  [`GET /api/exchange-rates`](#get-apiexchange-rates) de la fecha del movimiento, redondeado a los
+  decimales de esa moneda (COP sin decimales, USD con 2). El movimiento entra **`PENDING`**, y
+  `originalAmount` y `originalCurrencyCode` dicen lo que llegó. Se ajusta al cargo real con el PATCH
+  y se aprueba como cualquier pendiente.
+- En una transferencia entre cuentas de monedas distintas, con `destinationAmount` el destino recibe
+  ese monto. Sin él, se calcula con la misma tasa y la transferencia entra `PENDING`.
+- `destinationAmount` entre cuentas de la misma moneda, o en un gasto o un ingreso, es 400.
+- Si una de las dos monedas no tiene ninguna tasa y el proveedor no responde, la respuesta es 502
+  `EXTERNAL_SERVICE_ERROR` en `server` y no se guarda nada.
 
 ```json
 [
@@ -885,13 +901,21 @@ no confirma que un id exista fuera de tus datos.
     "origin": "WEB",
     "scheduled": false,
     "recurrenceId": null,
-    "installment": null
+    "installment": null,
+    "destinationAmount": null,
+    "originalAmount": null,
+    "originalCurrencyCode": null
   }
 ]
 ```
 
-`status` es `CONFIRMED` en todo lo que entra por aquí; si el cuerpo trae un `status`, se ignora.
-`PENDING` solo lo pone el asistente (ver [Movimientos pendientes](#movimientos-pendientes)).
+`status` es `CONFIRMED` en todo lo que entra por aquí, salvo lo que se convierte de otra moneda; si el
+cuerpo trae un `status`, se ignora. Lo demás que entra `PENDING` lo pone el asistente (ver
+[Movimientos pendientes](#movimientos-pendientes)).
+
+`destinationAmount`, `originalAmount` y `originalCurrencyCode` van en toda respuesta de un movimiento,
+en `null` cuando no aplican: el primero solo en una transferencia entre monedas distintas, y los otros
+dos solo si el movimiento se convirtió.
 
 `origin` dice por dónde entró el movimiento, y no cambia después:
 
@@ -924,7 +948,7 @@ una cuota. Va en las mismas respuestas que `recurrenceId` y, como él, se ignora
 |---|---|---|
 | `EXPENSE` | resta `amount` | — |
 | `INCOME` | suma `amount` | — |
-| `TRANSFER` | resta `amount` | suma `amount` |
+| `TRANSFER` | resta `amount` | suma `destinationAmount`, o `amount` si es `null` |
 
 **Ejemplo de 400:**
 
@@ -949,17 +973,23 @@ Modifica un movimiento del usuario del token. **Bearer.** Se envían solo los ca
 | Campo | Tipo | Reglas |
 |---|---|---|
 | `type` | string | `EXPENSE`, `INCOME` o `TRANSFER` |
-| `accountId` | string (UUID) | Cuenta del usuario, activa y en COP |
-| `destinationAccountId` | string (UUID) | Solo si el movimiento queda como `TRANSFER`. Cuenta del usuario, activa, en COP y distinta del origen |
+| `accountId` | string (UUID) | Cuenta del usuario, activa y en la moneda del movimiento (`currencyCode`) |
+| `destinationAccountId` | string (UUID) | Solo si el movimiento queda como `TRANSFER`. Cuenta del usuario, activa y distinta del origen |
 | `categoryId` | string (UUID) | Solo si el movimiento queda como `EXPENSE` o `INCOME`. Categoría activa del usuario y compatible con el tipo |
 | `amount` | number | Mayor que cero, hasta 4 decimales |
 | `description` | string | Hasta 255 caracteres, no en blanco. Se recortan los espacios de los extremos |
 | `occurredAt` | string | ISO-8601 con offset, no en blanco. A diferencia del alta, vacío no significa "ahora" |
+| `destinationAmount` | number | Solo si el movimiento queda como `TRANSFER` entre cuentas de monedas distintas. Mayor que cero, hasta 4 decimales |
 
 - **Ausente o `null` es "no cambia".** No hay forma de vaciar un campo enviándolo en `null`.
 - Un parche sin ningún campo (`{}`, o todo en `null`) es 400 en `body`.
-- `notes`, `currencyCode` y `destinationAmount` **no se modifican**: si vienen en el cuerpo, se
-  ignoran sin error.
+- `notes`, `currencyCode`, `originalAmount` y `originalCurrencyCode` **no se modifican**: si vienen en
+  el cuerpo, se ignoran sin error. Ajustar `amount` de un movimiento convertido no cambia su original.
+- `destinationAmount` (FA-51) sale de cómo queda la transferencia:
+  - entre cuentas de la misma moneda, o si deja de ser transferencia, queda en `null`, y mandarlo es
+    400;
+  - entre monedas distintas, vale el del parche o, si no trae, el que tenía, mientras el destino
+    siga en la misma moneda. Sin ninguno es 400 en `destinationAmount`.
 - Las reglas del tipo se miran sobre **cómo queda** el movimiento, no sobre el parche:
   - Pasar a `TRANSFER` exige `destinationAccountId`, salvo que ya fuera transferencia. La categoría
     se vacía sola.
@@ -1010,7 +1040,8 @@ Borra un movimiento del usuario del token. **Bearer.** El borrado es físico: no
 Lo que registre el asistente de IA entra **pendiente** (`"status": "PENDING"`) hasta que el usuario
 lo aprueba. Mientras tanto no mueve saldos ni cuenta en `monthly-spending`, `reports/transactions`
 ni `reports/balance`. Los crea [`POST /api/assistant/messages`](#post-apiassistantmessages), con
-`"origin": "TELEGRAM"`: ningún otro endpoint crea pendientes.
+`"origin": "TELEGRAM"`. También entra pendiente lo que [`POST /api/transactions`](#post-apitransactions)
+convierte de otra moneda (FA-51), con su origen de siempre.
 
 Los tres endpoints son **Bearer**.
 
@@ -1091,7 +1122,7 @@ servidor crea antes las que falten, aunque haya estado apagado.
 | Campo | Obligatorio | Regla |
 |---|---|---|
 | `type` | Sí | `EXPENSE` o `INCOME`. No hay transferencias recurrentes |
-| `accountId` | Sí | Cuenta propia, activa y en COP |
+| `accountId` | Sí | Cuenta propia, activa y en COP: por ahora las series solo admiten cuentas en COP |
 | `categoryId` | Sí | Categoría propia que aplique al tipo |
 | `amount` | Sí | Mayor que cero, hasta 4 decimales |
 | `description` | Sí | Hasta 255 caracteres; se recorta |
@@ -1231,7 +1262,7 @@ Los dos reciben el mismo cuerpo y aplican las mismas reglas:
 
 | Campo | Obligatorio | Regla |
 |---|---|---|
-| `accountId` | Sí | Tarjeta `CREDIT` propia, activa y en COP, con día de corte y día de pago |
+| `accountId` | Sí | Tarjeta `CREDIT` propia, activa y en COP (por ahora las cuotas solo se registran en tarjetas en COP), con día de corte y día de pago |
 | `categoryId` | Sí | Categoría propia que aplique a gastos |
 | `amount` | Sí | Total de la compra, sin interés. Mayor que cero, hasta 4 decimales, y no menor que `installmentCount`: cada cuota lleva al menos 1 peso de capital |
 | `description` | Sí | Hasta 255 caracteres; se recorta. Es la de cada cuota |
@@ -1691,7 +1722,7 @@ Para que el frontend no lo busque:
 - Refresh token o logout. El token simplemente vence, también después de cambiar la contraseña.
 - Cambiar la moneda base del usuario (FA-91): el `PATCH /api/users/me` la omite.
 - Recuperar la contraseña olvidada (FA-90).
-- Movimientos en monedas distintas de COP.
+- Series y compras en cuotas en monedas distintas de COP.
 - Transferencias recurrentes, y cambiar el fin (`endDate`, `occurrences`) o el tipo de una serie.
 - Listar las ocurrencias de una serie: se filtran por `recurrenceId` en `reports/transactions`.
 - Cambiar el monto, el número de cuotas, la tarjeta o la fecha de una compra en cuotas, o recalcular

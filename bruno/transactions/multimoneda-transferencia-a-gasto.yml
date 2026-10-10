@@ -1,0 +1,39 @@
+info:
+  name: Multimoneda — transferencia entre monedas que pasa a gasto
+  type: http
+  seq: 54
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/transactions/{{idTransferenciaConDestino}}"
+  body:
+    type: json
+    data: |-
+      {
+        "type": "EXPENSE",
+        "categoryId": "{{idMercado}}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.destinationAmount
+      operator: isNull
+    - expression: res.body.destinationAccountId
+      operator: isNull
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El UPDATE limpia destination_amount
+
+  Sin limpiarlo, ck_transactions_destination_amount rechazaria un gasto con monto de destino.

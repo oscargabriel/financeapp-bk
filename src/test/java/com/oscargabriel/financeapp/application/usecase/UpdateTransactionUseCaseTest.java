@@ -9,6 +9,7 @@ import static com.oscargabriel.financeapp.support.TransactionMother.ORIGEN_ID;
 import static com.oscargabriel.financeapp.support.TransactionMother.SALARIO_ID;
 import static com.oscargabriel.financeapp.support.TransactionMother.TRANSFERENCIA_GUARDADA_ID;
 import static com.oscargabriel.financeapp.support.TransactionMother.USER_ID;
+import static com.oscargabriel.financeapp.support.TransactionMother.USD_ID;
 import static com.oscargabriel.financeapp.support.TransactionMother.unGastoGuardado;
 import static com.oscargabriel.financeapp.support.TransactionMother.unGastoGuardadoEn;
 import static com.oscargabriel.financeapp.support.TransactionMother.unParche;
@@ -40,6 +41,7 @@ import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.exceptions.responses.ErrorDetail;
 import com.oscargabriel.financeapp.domain.model.InstallmentRef;
+import com.oscargabriel.financeapp.domain.model.OriginalAmount;
 import com.oscargabriel.financeapp.domain.model.Transaction;
 import com.oscargabriel.financeapp.domain.model.TransactionType;
 import com.oscargabriel.financeapp.domain.model.UpdateTransactionCommand;
@@ -255,6 +257,99 @@ class UpdateTransactionUseCaseTest {
     @Test
     void unaCategoriaAjenaSeRechaza() {
         rechazaEn(modificarGasto(unParche().categoryId(UUID.randomUUID().toString()).build()), "categoryId");
+    }
+
+    /** FA-51: currencyCode no cambia, asi que la cuenta nueva tiene que estar en la moneda del movimiento. */
+    @Test
+    void unaCuentaEnOtraMonedaSeRechaza() {
+        rechazaEn(modificarGasto(unParche().accountId(USD_ID.toString()).build()), "accountId");
+    }
+
+    @Test
+    void unMontoDeDestinoEnUnGastoSeRechaza() {
+        rechazaEn(modificarGasto(unParche().destinationAmount(BigDecimal.TEN).build()), "destinationAmount");
+    }
+
+    @Test
+    void unMontoDeDestinoEntreCuentasDeLaMismaMonedaSeRechaza() {
+        rechazaEn(modificarTransferencia(unParche().destinationAmount(BigDecimal.TEN).build()), "destinationAmount");
+    }
+
+    @Test
+    void gastoATransferenciaEntreMonedasSinMontoDeDestinoSeRechaza() {
+        rechazaEn(modificarGasto(unParche().type("TRANSFER").destinationAccountId(USD_ID.toString()).build()),
+                "destinationAmount");
+    }
+
+    @Test
+    void gastoATransferenciaEntreMonedasConMontoDeDestino() {
+        StepVerifier.create(modificarGasto(unParche().type("TRANSFER").destinationAccountId(USD_ID.toString())
+                        .destinationAmount(new BigDecimal("7.5")).build()))
+                .assertNext(movimiento -> {
+                    assertThat(movimiento.destinationAccountId()).isEqualTo(USD_ID);
+                    assertThat(movimiento.destinationAmount()).isEqualByComparingTo("7.5");
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    void ajustaElMontoDeDestinoDeUnaTransferenciaEntreMonedas() {
+        transferenciaEntreMonedasGuardada();
+
+        StepVerifier.create(modificarTransferencia(unParche().destinationAmount(new BigDecimal("90")).build()))
+                .assertNext(movimiento -> assertThat(movimiento.destinationAmount()).isEqualByComparingTo("90"))
+                .verifyComplete();
+    }
+
+    @Test
+    void conservaElMontoDeDestinoMientrasElDestinoSigaEnSuMoneda() {
+        transferenciaEntreMonedasGuardada();
+
+        StepVerifier.create(modificarTransferencia(unParche().amount(new BigDecimal("400000")).build()))
+                .assertNext(movimiento -> assertThat(movimiento.destinationAmount()).isEqualByComparingTo("95"))
+                .verifyComplete();
+    }
+
+    @Test
+    void unaTransferenciaEntreMonedasQuePasaAGastoPierdeElMontoDeDestino() {
+        transferenciaEntreMonedasGuardada();
+
+        StepVerifier.create(modificarTransferencia(unParche().type("EXPENSE").categoryId(MERCADO_ID.toString())
+                        .build()))
+                .assertNext(movimiento -> {
+                    assertThat(movimiento.destinationAccountId()).isNull();
+                    assertThat(movimiento.destinationAmount()).isNull();
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    void unDestinoEnLaMonedaDelMovimientoPierdeElMontoDeDestino() {
+        transferenciaEntreMonedasGuardada();
+
+        StepVerifier.create(modificarTransferencia(unParche().destinationAccountId(DESTINO_ID.toString()).build()))
+                .assertNext(movimiento -> assertThat(movimiento.destinationAmount()).isNull())
+                .verifyComplete();
+    }
+
+    @Test
+    void elMontoOriginalDeUnConvertidoNoCambiaAlAjustarElMonto() {
+        OriginalAmount original = new OriginalAmount(new BigDecimal("8"), "USD");
+        when(repositorio.findByIdAndUser(GASTO_GUARDADO_ID, USER_ID))
+                .thenReturn(Mono.just(TransactionMother.convertidoDesde(unGastoGuardado(), original)));
+
+        StepVerifier.create(modificarGasto(unParche().amount(new BigDecimal("32000")).build()))
+                .assertNext(movimiento -> {
+                    assertThat(movimiento.amount()).isEqualByComparingTo("32000");
+                    assertThat(movimiento.original()).isEqualTo(original);
+                })
+                .verifyComplete();
+    }
+
+    /** De Efectivo (COP) a la cuenta en USD, con 95 dolares de destino. */
+    private void transferenciaEntreMonedasGuardada() {
+        when(repositorio.findByIdAndUser(TRANSFERENCIA_GUARDADA_ID, USER_ID)).thenReturn(Mono.just(
+                TransactionMother.haciaOtraMoneda(unaTransferenciaGuardada(), USD_ID, new BigDecimal("95"))));
     }
 
     @Test

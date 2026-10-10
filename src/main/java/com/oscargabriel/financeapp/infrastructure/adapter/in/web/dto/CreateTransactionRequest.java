@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Null;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
@@ -18,10 +17,11 @@ import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.validation.
 
 /**
  * Un elemento del lote. Los ids y occurredAt llegan como texto para que un valor mal formado salga
- * como error de su indice y no como un cuerpo ilegible; destinationAmount, solo para rechazarlo.
+ * como error de su indice y no como un cuerpo ilegible.
  *
  * Aqui van las reglas que se deciden mirando solo el elemento. Que las cuentas y la categoria existan
- * y sean del usuario lo decide el caso de uso: por eso un id mal formado se reporta alli como "no existe".
+ * y sean del usuario lo decide el caso de uso: por eso un id mal formado se reporta alli como "no existe". Tambien
+ * que currencyCode sea una moneda activa y que destinationAmount una cuentas de monedas distintas (FA-51).
  */
 @ReglasDeTransferencia
 public record CreateTransactionRequest(
@@ -42,11 +42,13 @@ public record CreateTransactionRequest(
         @MontoNumeric(message = "El monto admite hasta 4 decimales y menos de 14 digitos enteros")
         BigDecimal amount,
 
-        @Null(message = "destinationAmount no se admite mientras todas las cuentas sean COP")
+        /** Lo que entra al destino de una transferencia entre monedas distintas, en la moneda del destino (FA-51). */
+        @Positive(message = "El monto de destino debe ser mayor que cero")
+        @MontoNumeric(message = "El monto de destino admite hasta 4 decimales y menos de 14 digitos enteros")
         BigDecimal destinationAmount,
 
-        /** Solo COP hasta FA-51, que registra cada movimiento en la moneda de su cuenta. */
-        @Pattern(regexp = "(?i)^\\s*COP\\s*$", message = "Por ahora solo se admiten movimientos en COP")
+        /** Opcional: sin el, el monto esta en la moneda de la cuenta; con otra, se convierte y queda pendiente (FA-51). */
+        @Pattern(regexp = "^\\s*[A-Za-z]{3}\\s*$", message = "La moneda debe ser un codigo ISO 4217 de 3 letras")
         String currencyCode,
 
         @NotBlank(message = "La descripcion es obligatoria")

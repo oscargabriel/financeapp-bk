@@ -1,0 +1,40 @@
+info:
+  name: Multimoneda — PATCH a una cuenta de otra moneda
+  type: http
+  seq: 51
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/transactions/{{idGastoUsd}}"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idOrigen}}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+  scripts:
+    - type: tests
+      code: |-
+        test("el error va en la cuenta", function() {
+          expect(res.getBody().errors.map(function (e) { return e.field; })).to.eql(["accountId"]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # La moneda del movimiento no cambia
+
+  El gasto es en USD y Efectivo es en COP: moverlo ahi lo dejaria en una moneda que no es la de su cuenta.

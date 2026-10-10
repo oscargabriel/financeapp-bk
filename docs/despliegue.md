@@ -125,6 +125,10 @@ diferencia, hay un update aplicado que no está en el registro, o uno del regist
      `GET /api/exchange-rates?from=USD&to=COP&date=<hoy>` al servicio con un token. Sin esa tasa,
      el script aborta sin cambiar nada. Entre el despliegue y el script, el reporte y el saldo
      fallan.
+   - Si en un mismo despliegue van updates de los dos tipos, se respeta cada uno. Con FA-122 y FA-51
+     juntos: `20261010_02_monto_original.sql` (FA-51, aditivo) **antes** del merge a `main`, y
+     `20261010_01_moneda_del_servicio.sql` después del despliegue, con su paso previo. El orden de los
+     nombres no es el de aplicación: `_02` no depende de `_01`.
 2. **Snapshot.** En la consola de Neon, en el branch de producción, **Backup & Restore → Create
    snapshot**. Reemplaza al anterior (ver *Respaldo*).
 3. **Conectarse** como arriba y quitar la solo lectura: `Remove-Item env:PGOPTIONS`.

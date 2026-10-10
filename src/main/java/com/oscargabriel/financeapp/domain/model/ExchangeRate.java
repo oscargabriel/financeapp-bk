@@ -27,4 +27,13 @@ public record ExchangeRate(String from, String to, LocalDate date, BigDecimal ra
     public static ExchangeRate mismoPar(String moneda, LocalDate date) {
         return new ExchangeRate(moneda, moneda, date, BigDecimal.ONE, date);
     }
+
+    /**
+     * monto en from, llevado a to y redondeado a sus decimales (FA-51). Nunca da cero: ck_transactions_amount
+     * exige un monto positivo, asi que lo que redondea a cero vale la unidad minima de esa escala.
+     */
+    public BigDecimal convertir(BigDecimal monto, int decimales) {
+        BigDecimal convertido = monto.multiply(rate).setScale(decimales, RoundingMode.HALF_EVEN);
+        return convertido.signum() > 0 ? convertido : BigDecimal.ONE.movePointLeft(decimales);
+    }
 }

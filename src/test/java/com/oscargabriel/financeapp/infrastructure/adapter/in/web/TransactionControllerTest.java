@@ -28,6 +28,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.model.CreateTransactionCommand;
+import com.oscargabriel.financeapp.domain.model.OriginalAmount;
 import com.oscargabriel.financeapp.domain.model.Transaction;
 import com.oscargabriel.financeapp.domain.model.TransactionOrigin;
 import com.oscargabriel.financeapp.domain.model.TransactionStatus;
@@ -134,6 +135,33 @@ class TransactionControllerTest {
                 .jsonPath("$[1].categoryId").isEqualTo(null);
     }
 
+    /** FA-51: lo que entra al destino y lo recibido antes de convertir, en null cuando no aplican. */
+    @Test
+    void devuelveLosCamposDeMonedaDeCadaMovimiento() {
+        Transaction convertido = TransactionMother.convertidoDesde(gasto(),
+                new OriginalAmount(new BigDecimal("12.5"), "USD"));
+        Transaction entreMonedas = TransactionMother.haciaOtraMoneda(transferencia(), TransactionMother.USD_ID,
+                new BigDecimal("24.39"));
+        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), anyList()))
+                .thenReturn(Flux.just(convertido, entreMonedas, gasto()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(LOTE)
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody()
+                .jsonPath("$[0].status").isEqualTo("PENDING")
+                .jsonPath("$[0].originalAmount").isEqualTo(12.5)
+                .jsonPath("$[0].originalCurrencyCode").isEqualTo("USD")
+                .jsonPath("$[0].destinationAmount").isEqualTo(null)
+                .jsonPath("$[1].destinationAmount").isEqualTo(24.39)
+                .jsonPath("$[1].originalAmount").isEqualTo(null)
+                .jsonPath("$[2].destinationAmount").isEqualTo(null)
+                .jsonPath("$[2].originalAmount").isEqualTo(null)
+                .jsonPath("$[2].originalCurrencyCode").isEqualTo(null);
+    }
+
     @Test
     void marcaComoProgramadoElMovimientoConFechaPosteriorAlReloj() {
         when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), anyList()))
@@ -222,7 +250,7 @@ class TransactionControllerTest {
                           "categoryId": "40000000-0000-7000-8000-000000000001", "amount": 50000,
                           "description": "Mercado", "occurredAt": "2026-09-20T10:15:00-05:00"},
                          {"type": "TRANSFER", "accountId": "30000000-0000-7000-8000-000000000001",
-                          "amount": -5, "currencyCode": "USD", "description": "Ahorro",
+                          "amount": -5, "currencyCode": "USDX", "description": "Ahorro",
                           "occurredAt": "2026-09-20T11:00:00-05:00"}]
                         """)
                 .exchange()
@@ -232,7 +260,7 @@ class TransactionControllerTest {
                 .jsonPath("$.errors[?(@.field == '[1].amount')].description")
                 .isEqualTo("El monto debe ser mayor que cero: el signo lo da el tipo")
                 .jsonPath("$.errors[?(@.field == '[1].currencyCode')].description")
-                .isEqualTo("Por ahora solo se admiten movimientos en COP")
+                .isEqualTo("La moneda debe ser un codigo ISO 4217 de 3 letras")
                 .jsonPath("$.errors[?(@.field == '[1].destinationAccountId')].description")
                 .isEqualTo("La cuenta destino es obligatoria")
                 .jsonPath("$.errors[?(@.code != 'VALIDATION_ERROR')]").isEmpty();
@@ -371,7 +399,7 @@ class TransactionControllerTest {
                 .jsonPath("$.userId").doesNotExist();
 
         verify(updateTransaction).update(TransactionMother.USER_ID, GASTO_ID,
-                new UpdateTransactionCommand(null, null, null, null, new BigDecimal("50000"), "Mercado", null));
+                new UpdateTransactionCommand(null, null, null, null, new BigDecimal("50000"), "Mercado", null, null));
     }
 
     @Test
@@ -674,13 +702,13 @@ class TransactionControllerTest {
         return new Transaction(GASTO_ID, TransactionMother.USER_ID, TransactionType.EXPENSE,
                 TransactionMother.ORIGEN_ID, null, TransactionMother.MERCADO_ID, new BigDecimal("50000"),
                 "COP", "Mercado", "Pagado en efectivo", Instant.parse("2026-09-20T15:15:00Z"),
-                TransactionStatus.CONFIRMED, TransactionOrigin.WEB, null, null);
+                TransactionStatus.CONFIRMED, TransactionOrigin.WEB, null, null, null, null);
     }
 
     private static Transaction transferencia() {
         return new Transaction(TRANSFERENCIA_ID, TransactionMother.USER_ID, TransactionType.TRANSFER,
                 TransactionMother.ORIGEN_ID, TransactionMother.DESTINO_ID, null, new BigDecimal("100000"),
                 "COP", "Ahorro", null, Instant.parse("2026-09-20T16:00:00Z"),
-                TransactionStatus.CONFIRMED, TransactionOrigin.WEB, null, null);
+                TransactionStatus.CONFIRMED, TransactionOrigin.WEB, null, null, null, null);
     }
 }

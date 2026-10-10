@@ -12,6 +12,7 @@ import org.springframework.transaction.ReactiveTransactionManager;
 import org.springframework.transaction.reactive.TransactionalOperator;
 
 import com.oscargabriel.financeapp.domain.model.InstallmentRef;
+import com.oscargabriel.financeapp.domain.model.OriginalAmount;
 import com.oscargabriel.financeapp.domain.model.Transaction;
 import com.oscargabriel.financeapp.domain.model.TransactionOrigin;
 import com.oscargabriel.financeapp.domain.model.TransactionStatus;
@@ -35,17 +36,20 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
             INSERT INTO finance.transactions
                    (id, user_id, account_id, destination_account_id, category_id, type,
                     amount, currency_code, amount_base, description, notes, occurred_at, status, origin, recurrence_id,
-                    installment_purchase_id, installment_number, installment_principal)
+                    installment_purchase_id, installment_number, installment_principal,
+                    destination_amount, original_amount, original_currency_code)
             VALUES (:id, :userId, :accountId, :destinationAccountId, :categoryId, :type,
                     :amount, :currencyCode, :amount, :description, :notes, :occurredAt, :status, :origin, :recurrenceId,
-                    :installmentPurchaseId, :installmentNumber, :installmentPrincipal)
+                    :installmentPurchaseId, :installmentNumber, :installmentPrincipal,
+                    :destinationAmount, :originalAmount, :originalCurrencyCode)
             """;
 
     /** La compra de una cuota da su total de cuotas (FA-108). */
     private static final String COLUMNAS = """
             t.id, t.user_id, t.type, t.account_id, t.destination_account_id, t.category_id,
                    t.amount, t.currency_code, t.description, t.notes, t.occurred_at, t.status, t.origin,
-                   t.recurrence_id, %s""".formatted(CuotaDeLaFila.COLUMNAS);
+                   t.recurrence_id, t.destination_amount, t.original_amount, t.original_currency_code, %s"""
+            .formatted(CuotaDeLaFila.COLUMNAS);
 
     private static final String BUSCAR = """
             SELECT %s
@@ -65,7 +69,8 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
             """.formatted(COLUMNAS, CuotaDeLaFila.JOIN);
 
     /**
-     * notes y currency_code no se tocan: no son modificables. Tampoco la serie ni la cuota: un movimiento
+     * notes, currency_code y el monto original no se tocan: no son modificables. destination_amount si: el PATCH
+     * lo ajusta, o lo limpia al dejar de ser una transferencia entre monedas (FA-51). Tampoco la serie ni la cuota: un movimiento
      * editado sigue en su grupo. El trigger revierte la fila vieja y aplica la nueva, asi que un cambio de
      * cuenta, tipo o monto deja los saldos coherentes.
      */
@@ -77,6 +82,7 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
                    category_id = :categoryId,
                    amount = :amount,
                    amount_base = :amount,
+                   destination_amount = :destinationAmount,
                    description = :description,
                    occurred_at = :occurredAt
              WHERE id = :id
@@ -185,6 +191,12 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
                 .bind("currencyCode", t.currencyCode())
                 .bind("status", t.status().name())
                 .bind("origin", t.origin().name());
+        OriginalAmount original = t.original();
+        sentencia = original == null
+                ? sentencia.bindNull("originalAmount", BigDecimal.class)
+                        .bindNull("originalCurrencyCode", String.class)
+                : sentencia.bind("originalAmount", original.amount())
+                        .bind("originalCurrencyCode", original.currencyCode());
         sentencia = t.notes() == null
                 ? sentencia.bindNull("notes", String.class)
                 : sentencia.bind("notes", t.notes());
@@ -213,6 +225,9 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
                 .bind("amount", t.amount())
                 .bind("description", t.description())
                 .bind("occurredAt", OffsetDateTime.ofInstant(t.occurredAt(), ZoneOffset.UTC));
+        sentencia = t.destinationAmount() == null
+                ? sentencia.bindNull("destinationAmount", BigDecimal.class)
+                : sentencia.bind("destinationAmount", t.destinationAmount());
         sentencia = t.destinationAccountId() == null
                 ? sentencia.bindNull("destinationAccountId", UUID.class)
                 : sentencia.bind("destinationAccountId", t.destinationAccountId());
@@ -237,6 +252,13 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
                 TransactionStatus.valueOf(row.get("status", String.class)),
                 TransactionOrigin.valueOf(row.get("origin", String.class)),
                 row.get("recurrence_id", UUID.class),
-                CuotaDeLaFila.de(row));
+                CuotaDeLaFila.de(row),
+                row.get("destination_amount", BigDecimal.class),
+                original(row));
+    }
+
+    private static OriginalAmount original(Row row) {
+        String moneda = row.get("original_currency_code", String.class);
+        return moneda == null ? null : new OriginalAmount(row.get("original_amount", BigDecimal.class), moneda);
     }
 }

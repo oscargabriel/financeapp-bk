@@ -40,8 +40,8 @@ http:
           "accountId": "{{idOrigen}}",
           "categoryId": "{{idSalario}}",
           "amount": 1000,
-          "currencyCode": "USD",
-          "description": "Moneda distinta de COP",
+          "currencyCode": "DOLAR",
+          "description": "Moneda que no es un codigo de 3 letras",
           "occurredAt": "2026-09-21T10:00:00-05:00"
         },
         {

@@ -1,0 +1,35 @@
+info:
+  name: Multimoneda — PATCH con monto de destino en un gasto
+  type: http
+  seq: 52
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/transactions/{{idGastoUsd}}"
+  body:
+    type: json
+    data: |-
+      {
+        "destinationAmount": 100
+      }
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+  scripts:
+    - type: tests
+      code: |-
+        test("el error va en el monto de destino", function() {
+          expect(res.getBody().errors.map(function (e) { return e.field; })).to.eql(["destinationAmount"]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

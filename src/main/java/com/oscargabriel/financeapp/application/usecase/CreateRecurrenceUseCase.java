@@ -34,6 +34,9 @@ import reactor.core.publisher.Mono;
 @AllArgsConstructor
 public class CreateRecurrenceUseCase implements CreateRecurrencePort {
 
+    /** La limitacion de las series que FA-51 no levanta; la comparte el PATCH de la serie. */
+    static final String SOLO_EN_COP = "Por ahora las series solo admiten cuentas en COP";
+
     private final AccountQueryPort cuentas;
     private final CategoryQueryPort categorias;
     private final UserRepositoryPort usuarios;
@@ -54,7 +57,7 @@ public class CreateRecurrenceUseCase implements CreateRecurrencePort {
     private Nueva preparar(UUID userId, CreateRecurrenceCommand alta, ReferenciasDelUsuario referencias,
             ZoneId zona) {
         List<ErrorDetail> errores = new ArrayList<>();
-        UUID cuenta = referencias.cuentaPropia(alta.accountId(), "accountId", "La cuenta", errores);
+        UUID cuenta = referencias.cuentaEnCop(alta.accountId(), "accountId", SOLO_EN_COP, errores);
         UUID categoria = referencias.categoria(alta.categoryId(), alta.type(), "categoryId", errores);
         if (!errores.isEmpty()) {
             throw new BadRequestException(HttpStatus.BAD_REQUEST, errores);

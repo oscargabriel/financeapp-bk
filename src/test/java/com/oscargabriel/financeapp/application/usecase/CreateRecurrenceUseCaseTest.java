@@ -160,6 +160,19 @@ class CreateRecurrenceUseCaseTest {
         verify(series, never()).save(any(), anyList());
     }
 
+    /** Los movimientos sueltos admiten cualquier moneda desde FA-51; las series siguen en COP. */
+    @Test
+    void unaCuentaEnUsdEsErrorSobreAccountId() {
+        CreateRecurrenceCommand alta = unAlta().accountId(TransactionMother.USD_ID.toString()).build();
+
+        StepVerifier.create(casoDeUso.create(USER_ID, alta))
+                .verifyErrorSatisfies(e -> assertThat(errores(e))
+                        .extracting(ErrorDetail::getField, ErrorDetail::getDescription)
+                        .containsExactly(tuple("accountId", "Por ahora las series solo admiten cuentas en COP")));
+
+        verify(series, never()).save(any(), anyList());
+    }
+
     @Test
     void unaCategoriaQueNoAplicaAlTipoEsErrorSobreCategoryId() {
         CreateRecurrenceCommand alta = unAlta().categoryId(TransactionMother.SALARIO_ID.toString()).build();

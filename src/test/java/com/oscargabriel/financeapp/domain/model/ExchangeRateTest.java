@@ -60,4 +60,26 @@ class ExchangeRateTest {
         assertThat(tasa.rate()).isEqualByComparingTo("1");
         assertThat(tasa.rateDate()).isEqualTo(LocalDate.of(2026, 1, 15));
     }
+
+    @Test
+    void convierteYRedondeaALosDecimalesDelDestino() {
+        ExchangeRate pesosADolares = ExchangeRate.cruzada(HOY, usdA("COP", "4100", HOY), UsdRate.usd());
+
+        assertThat(pesosADolares.convertir(new BigDecimal("41000"), 2)).isEqualTo(new BigDecimal("10.00"));
+    }
+
+    @Test
+    void convierteAPesosEnterosConMitadAlPar() {
+        ExchangeRate dolaresAPesos = ExchangeRate.cruzada(HOY, UsdRate.usd(), usdA("COP", "4100.5", HOY));
+
+        assertThat(dolaresAPesos.convertir(BigDecimal.ONE, 0)).isEqualTo(new BigDecimal("4100"));
+        assertThat(dolaresAPesos.convertir(new BigDecimal("3"), 0)).isEqualTo(new BigDecimal("12302"));
+    }
+
+    @Test
+    void unConvertidoQueRedondeaACeroValeLaUnidadMinima() {
+        ExchangeRate pesosADolares = ExchangeRate.cruzada(HOY, usdA("COP", "4100", HOY), UsdRate.usd());
+
+        assertThat(pesosADolares.convertir(new BigDecimal("10"), 2)).isEqualTo(new BigDecimal("0.01"));
+    }
 }
