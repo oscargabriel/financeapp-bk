@@ -309,14 +309,11 @@ la imagen de `deployment/Dockerfile`, ver abajo).
 | `jwt-secret` | `JWT_SECRET` | `spring.security.jwt.secret` | Clave HS256 de los tokens. 32 bytes o más, o `JwtConfig` aborta el arranque |
 | `basic-username` | `BASIC_USERNAME` | `spring.security.basic.username` | Usuario de la credencial compartida de `/auth/register`, `/auth/login` y `/status` |
 | `basic-password` | `BASIC_PASSWORD` | `spring.security.basic.password` | Su contraseña |
-| `gemini-api-key` | `GEMINI_API_KEY` | `asistente.gemini.api-key` | Key de Google AI Studio para el asistente (FA-77). **Todavía no existe en el servicio** |
+| `gemini-api-key` | `GEMINI_API_KEY` | `asistente.gemini.api-key` | Key de Google AI Studio para el asistente (FA-77). Hoy es la misma que la de local (decisión del 10-10-2026, FA-100) |
 
 Si falta cualquiera de estas variables, la revisión no arranca y el log dice
 `Could not resolve placeholder '<VARIABLE>'`. Con `DB_USERNAME` y `DB_PASSWORD` pasa lo mismo, aunque
 `STARTUP_DB_CHECK_ENABLED` esté en `false` (FA-53).
-
-**Antes de promover FA-77 a `main`** hay que crear `gemini-api-key` y `GEMINI_MODEL` en el servicio:
-sin ellos la revisión no arranca. El merge a `dev` no despliega, así que hasta entonces no rompe nada.
 
 Producción y local **no deben** compartir `JWT_SECRET` ni la credencial Basic: así un token emitido
 en local no vale en producción, y quien tenga la Basic de desarrollo no puede registrarse en
@@ -328,7 +325,7 @@ producción.
 |---|---|---|
 | `SPRING_PROFILES_ACTIVE` | `prod` | La imagen ya lo trae; el servicio lo repite |
 | `CORS_ALLOWED_ORIGINS` | `*` | Provisional mientras no haya frontend (26-09-2026). Se reemplaza en FA-65 |
-| `GEMINI_MODEL` | Por decidir | Sin default: el modelo del asistente no está decidido (FA-77). **Todavía no existe en el servicio** |
+| `GEMINI_MODEL` | `gemini-3.5-flash-lite` | Elegido en FA-100 (10-10-2026): el de la prueba contra Gemini real de FA-101. En local se usa `gemini-3.1-flash-lite`. El asistente solo elige una de tres funciones y extrae sus argumentos; `gemini-3.5-flash` quedó descartado por costo. Cambiarlo no requiere desplegar |
 
 `ASISTENTE_PROVEEDOR` no se define: vale `gemini` por defecto, y el stub de `bruno/` no existe con el
 perfil `prod` aunque se pida (FA-77).
@@ -380,6 +377,11 @@ Lo propio de cada uno:
   nuevas. Actualizar también `application-prod.yaml` en local.
 - **`db-host`, `db-port`, `db-name`, `db-username`**: solo cambian si se mueve la base de proyecto o
   de rol en Neon.
+- **`gemini-api-key`**: la key nueva se genera en Google AI Studio. Hoy producción y local comparten
+  la misma (FA-100): comparten cuota, el uso no se distingue y revocarla corta las dos, así que al
+  rotarla se actualizan también `application-local.yaml` y `application-prod.yaml`. La vieja se borra
+  en AI Studio después del paso 3, comprobando además un `POST /api/assistant/messages` real:
+  deshabilitar la versión del secreto no revoca la key.
 
 ### Cuenta de servicio
 
@@ -389,8 +391,8 @@ el proyecto. Es una decisión (FA-48, 04-10-2026): una sola cuenta para todo, ad
 usuario.
 
 El precio: si la app se compromete, quien la controle puede leer **cualquier** secreto del proyecto
-y redesplegar servicios, no solo leer sus ocho credenciales. La alternativa descartada era una cuenta
-de ejecución con `secretAccessor` solo sobre esos ocho secretos y otra de despliegue con los roles
+y redesplegar servicios, no solo leer sus nueve credenciales. La alternativa descartada era una cuenta
+de ejecución con `secretAccessor` solo sobre esos secretos y otra de despliegue con los roles
 de Run.
 
 ### Escalado
