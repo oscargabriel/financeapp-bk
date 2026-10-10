@@ -9,7 +9,8 @@ import com.oscargabriel.financeapp.domain.model.Transaction;
  * occurredAt sale en UTC (Instant): el cliente lo muestra en la zona que quiera. scheduled se calcula
  * contra el instante de la respuesta: con fecha posterior, el movimiento esta programado (FA-106).
  * recurrenceId es la serie de la que es ocurrencia (FA-107), o null; installment, la cuota de una compra que
- * es (FA-108), o null.
+ * es (FA-108), o null. destinationAmount es lo que entra al destino de una transferencia entre monedas, y
+ * originalAmount con originalCurrencyCode lo que llego antes de convertirse a la moneda de la cuenta (FA-51).
  */
 public record TransactionResponse(
         String id,
@@ -26,7 +27,10 @@ public record TransactionResponse(
         String origin,
         boolean scheduled,
         String recurrenceId,
-        InstallmentResponse installment) {
+        InstallmentResponse installment,
+        BigDecimal destinationAmount,
+        BigDecimal originalAmount,
+        String originalCurrencyCode) {
 
     public static TransactionResponse from(Transaction t, Instant ahora) {
         return new TransactionResponse(
@@ -44,6 +48,9 @@ public record TransactionResponse(
                 t.origin().name(),
                 t.scheduledAt(ahora),
                 t.recurrenceId() == null ? null : t.recurrenceId().toString(),
-                InstallmentResponse.from(t.installment()));
+                InstallmentResponse.from(t.installment()),
+                t.destinationAmount(),
+                t.original() == null ? null : t.original().amount(),
+                t.original() == null ? null : t.original().currencyCode());
     }
 }

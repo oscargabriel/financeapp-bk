@@ -1,5 +1,6 @@
 package com.oscargabriel.financeapp.application.usecase;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -90,6 +91,13 @@ public class UpdateTransactionUseCase implements UpdateTransactionPort {
                 }
             }
 
+            if (parche.accountId() != null && cuenta != null
+                    && !referencias.moneda(cuenta).equals(guardado.currencyCode())) {
+                errores.add(ReferenciasDelUsuario.detalle("La cuenta tiene que estar en " + guardado.currencyCode()
+                        + ", la moneda del movimiento", "accountId"));
+            }
+            BigDecimal montoDestino = montoDestino(guardado, parche, tipo, destino);
+
             if (!errores.isEmpty()) {
                 throw new BadRequestException(HttpStatus.BAD_REQUEST, errores);
             }
@@ -100,7 +108,40 @@ public class UpdateTransactionUseCase implements UpdateTransactionPort {
                     parche.occurredAt() == null
                             ? guardado.occurredAt()
                             : OffsetDateTime.parse(parche.occurredAt().trim()).toInstant(),
-                    guardado.status(), guardado.origin(), guardado.recurrenceId(), guardado.installment());
+                    guardado.status(), guardado.origin(), guardado.recurrenceId(), guardado.installment(), montoDestino, guardado.original());
+        }
+
+        /**
+         * Lo que entra al destino solo existe en una transferencia entre monedas distintas (FA-51). Vale el del parche;
+         * si no trae, el guardado, mientras el destino siga en la misma moneda. Sin ninguno, no hay como mover el
+         * destino. El original de un convertido no se toca: registra lo que llego.
+         */
+        private BigDecimal montoDestino(Transaction guardado, UpdateTransactionCommand parche, TransactionType tipo,
+                UUID destino) {
+            if (tipo == TransactionType.TRANSFER && destino == null) {
+                return null;
+            }
+            boolean entreMonedas = tipo == TransactionType.TRANSFER
+                    && !referencias.moneda(destino).equals(guardado.currencyCode());
+            if (!entreMonedas) {
+                if (parche.destinationAmount() != null) {
+                    errores.add(ReferenciasDelUsuario.detalle(
+                            "El monto de destino solo aplica a una transferencia entre cuentas de monedas distintas",
+                            "destinationAmount"));
+                }
+                return null;
+            }
+            if (parche.destinationAmount() != null) {
+                return parche.destinationAmount();
+            }
+            if (guardado.destinationAmount() != null
+                    && referencias.moneda(guardado.destinationAccountId()).equals(referencias.moneda(destino))) {
+                return guardado.destinationAmount();
+            }
+            errores.add(ReferenciasDelUsuario.detalle(
+                    "Una transferencia entre cuentas de monedas distintas necesita destinationAmount",
+                    "destinationAmount"));
+            return null;
         }
 
         /** La guardada sirve si ya era transferencia; si no, el parche tiene que traerla. */

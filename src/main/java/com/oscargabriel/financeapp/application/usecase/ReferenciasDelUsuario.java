@@ -24,7 +24,10 @@ import reactor.core.publisher.Mono;
  */
 final class ReferenciasDelUsuario {
 
-    /** Solo cuentas en COP hasta FA-51. El equivalente en USD lo congela la base en cada movimiento (FA-122). */
+    /**
+     * La unica moneda de las series y las cuotas: los movimientos sueltos admiten cualquiera desde FA-51, pero
+     * InstallmentPlan redondea a pesos enteros y una serie en otra moneda necesita sus propias reglas.
+     */
     static final String MONEDA_UNICA = "COP";
 
     private final Map<UUID, Account> cuentas;
@@ -59,11 +62,22 @@ final class ReferenciasDelUsuario {
             errores.add(detalle(sujeto + " esta desactivada", campo));
             return null;
         }
-        if (!MONEDA_UNICA.equals(cuenta.currencyCode())) {
-            errores.add(detalle(sujeto + " no es en COP: por ahora solo se admiten movimientos en COP", campo));
+        return id;
+    }
+
+    /** Una cuenta propia en COP, la unica moneda que admiten las series y las cuotas. */
+    UUID cuentaEnCop(String valor, String campo, String limitacion, List<ErrorDetail> errores) {
+        UUID id = cuentaPropia(valor, campo, "La cuenta", errores);
+        if (id != null && !MONEDA_UNICA.equals(moneda(id))) {
+            errores.add(detalle(limitacion, campo));
             return null;
         }
         return id;
+    }
+
+    /** La moneda de una cuenta del usuario, activa o no. */
+    String moneda(UUID cuenta) {
+        return cuentas.get(cuenta).currencyCode();
     }
 
     /**
@@ -71,7 +85,7 @@ final class ReferenciasDelUsuario {
      * (FA-108). Devuelve la cuenta entera: el plan necesita sus dias y su tasa.
      */
     Account tarjetaParaCuotas(String valor, String campo, List<ErrorDetail> errores) {
-        UUID id = cuentaPropia(valor, campo, "La cuenta", errores);
+        UUID id = cuentaEnCop(valor, campo, "Por ahora las cuotas solo se registran en tarjetas en COP", errores);
         if (id == null) {
             return null;
         }

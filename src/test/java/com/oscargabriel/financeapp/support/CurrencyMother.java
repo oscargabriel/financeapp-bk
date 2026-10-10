@@ -9,10 +9,10 @@ public final class CurrencyMother {
     }
 
     public static Currency cop() {
-        return new Currency("COP", "Peso colombiano", "$");
+        return new Currency("COP", "Peso colombiano", "$", 0);
     }
 
     public static Currency usd() {
-        return new Currency("USD", "Dólar estadounidense", "US$");
+        return new Currency("USD", "Dólar estadounidense", "US$", 2);
     }
 }

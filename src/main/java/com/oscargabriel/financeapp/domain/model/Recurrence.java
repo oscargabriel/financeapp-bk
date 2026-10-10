@@ -72,7 +72,7 @@ public record Recurrence(
     public Transaction ocurrencia(UUID transactionId, LocalDate dia, ZoneId zona) {
         return new Transaction(transactionId, userId, type, accountId, null, categoryId, amount, currencyCode,
                 description, null, RecurrenceRule.medianoche(dia, zona), TransactionStatus.CONFIRMED,
-                TransactionOrigin.WEB, id, null);
+                TransactionOrigin.WEB, id, null, null, null);
     }
 
     /** La fecha de la ocurrencia que la serie va a crear a continuacion. */

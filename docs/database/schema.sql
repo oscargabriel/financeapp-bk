@@ -466,6 +466,8 @@ CREATE TABLE finance.transactions (
     installment_purchase_id UUID                    REFERENCES finance.installment_purchases (id) ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
     installment_number      SMALLINT,
     installment_principal   NUMERIC(18,4),
+    original_amount         NUMERIC(18,4),
+    original_currency_code  CHAR(3)                 REFERENCES finance.currencies (code) ON DELETE RESTRICT,
     CONSTRAINT ck_transactions_type      CHECK (type IN ('EXPENSE', 'INCOME', 'TRANSFER')),
     CONSTRAINT ck_transactions_origin      CHECK (origin IN ('WEB', 'TELEGRAM', 'IMPORT')),
     CONSTRAINT ck_transactions_status      CHECK (status IN ('PENDING', 'CONFIRMED')),
@@ -493,12 +495,20 @@ CREATE TABLE finance.transactions (
         (installment_purchase_id IS NULL AND installment_number IS NULL AND installment_principal IS NULL)
         OR
         (installment_purchase_id IS NOT NULL AND installment_number >= 1 AND installment_principal > 0)
+    ),
+    -- Lo recibido antes de convertir va completo o no va.
+    CONSTRAINT ck_transactions_original CHECK (
+        (original_amount IS NULL AND original_currency_code IS NULL)
+        OR
+        (original_amount > 0 AND original_currency_code IS NOT NULL)
     )
 );
 
 COMMENT ON TABLE  finance.transactions IS 'Todo movimiento de dinero. Se borran físicamente: no llevan borrado lógico.';
-COMMENT ON COLUMN finance.transactions.amount IS 'Monto siempre positivo, en la moneda de la cuenta origen. El signo lo determina el tipo.';
-COMMENT ON COLUMN finance.transactions.destination_amount IS 'Solo en TRANSFER entre cuentas de distinta moneda: lo que efectivamente entra al destino. NULL significa el mismo monto.';
+COMMENT ON COLUMN finance.transactions.amount IS 'Monto siempre positivo, en la moneda de la cuenta origen (currency_code). El signo lo determina el tipo. Si llegó en otra moneda, es el convertido con la tasa interna (FA-51).';
+COMMENT ON COLUMN finance.transactions.destination_amount IS 'Solo en TRANSFER entre cuentas de distinta moneda: lo que efectivamente entra al destino, en la moneda del destino. NULL significa el mismo monto.';
+COMMENT ON COLUMN finance.transactions.original_amount IS 'Monto recibido cuando llegó en una moneda distinta a la de la cuenta y se convirtió a amount (FA-51). No cambia aunque se ajuste amount antes de aprobar.';
+COMMENT ON COLUMN finance.transactions.original_currency_code IS 'Moneda en que llegó original_amount. NULL si el movimiento llegó en la moneda de su cuenta.';
 COMMENT ON COLUMN finance.transactions.exchange_rate IS 'Tasa USD→currency_code de la fecha del movimiento con la que se calculó amount_base (1 si es USD). La fija trg_transactions_usd_equivalent: la aplicación nunca la escribe.';
 COMMENT ON COLUMN finance.transactions.amount_base IS 'amount en USD, la moneda del servicio: amount / exchange_rate. Es la base común entre monedas; los reportes la convierten a la moneda de la persona con finance.in_currency. La fija trg_transactions_usd_equivalent.';
 COMMENT ON COLUMN finance.transactions.occurred_at IS 'Cuándo ocurrió el movimiento, no cuándo se registró (created_at). El bot de Telegram registra gastos de días anteriores.';

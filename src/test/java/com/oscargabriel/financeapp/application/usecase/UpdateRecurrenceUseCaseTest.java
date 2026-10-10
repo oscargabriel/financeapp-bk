@@ -147,6 +147,17 @@ class UpdateRecurrenceUseCaseTest {
     }
 
     @Test
+    void unaCuentaEnUsdEsErrorSobreAccountIdYNoGuarda() {
+        guardadaEs(unaSerie().build());
+
+        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(GroupScope.ALL)
+                        .accountId(TransactionMother.USD_ID.toString()).build()))
+                .verifyErrorSatisfies(e -> assertThat(campos(e)).containsExactly("accountId"));
+
+        verify(series, never()).update(any(), any(), any(), any(), any());
+    }
+
+    @Test
     void unaCuentaAjenaEsErrorSobreAccountIdYNoGuarda() {
         guardadaEs(unaSerie().build());
 

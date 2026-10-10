@@ -1,0 +1,55 @@
+info:
+  name: Multimoneda — gasto en la moneda de la cuenta
+  type: http
+  seq: 41
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idUsd}}",
+          "categoryId": "{{idMercado}}",
+          "amount": 25,
+          "currencyCode": "usd",
+          "description": "Suscripcion en dolares"
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        const t = res.getBody()[0];
+        bru.setVar("idGastoUsd", t.id);
+
+        test("se registra en la moneda de la cuenta, confirmado y sin conversion", function() {
+          expect(t.currencyCode).to.equal("USD");
+          expect(t.amount).to.equal(25);
+          expect(t.status).to.equal("CONFIRMED");
+          expect(t.destinationAmount).to.equal(null);
+          expect(t.originalAmount).to.equal(null);
+          expect(t.originalCurrencyCode).to.equal(null);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Cuenta en USD, currencyCode igual al de la cuenta
+
+  `currencyCode` se compara sin importar mayusculas: `usd` sobre una cuenta en USD es el alta de siempre.

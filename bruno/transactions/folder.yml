@@ -17,3 +17,6 @@ docs: |
   Los requests de movimiento ajeno (`Modificar movimiento ajeno`, `Eliminar movimiento ajeno`) usan
   el `accessToken` de `auth/`, el usuario del escenario, contra un movimiento de esta carpeta: la
   carpeta sola, sin `auth/` antes, los deja en 401.
+
+  Los `multimoneda-*` del final (FA-51) le agregan una cuenta en USD y cuentan con la tasa USD->COP
+  de hoy en 4100 que deja `test-data.sql`: 41000 COP son 10 USD.

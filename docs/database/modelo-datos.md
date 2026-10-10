@@ -313,7 +313,7 @@ Tres niveles de moneda (FA-122, decidido el 10-10-2026):
 - **Servicio (USD).** `amount_base` es el equivalente en dólares de cada
   movimiento: la base común entre monedas, que no depende de quién lo mire.
 - **Cuenta.** `amount` y `currency_code` están en la moneda de la cuenta: es el
-  cargo real. Hasta FA-51 la aplicación solo admite cuentas en COP.
+  cargo real. Las series y las cuotas todavía solo admiten cuentas en COP.
 - **Persona.** `users.base_currency_code` es solo la moneda en que la persona ve
   sus totales. Cambiarla no reescribe nada.
 
@@ -337,6 +337,20 @@ movimiento ya está en esa moneda, aporta su `amount` tal cual, así quien solo 
 COP no arrastra el redondeo de ida y vuelta por el dólar. Si no, aporta su
 `amount_base` por la tasa `USD→moneda_persona` de su fecha: lo que valía ese día,
 no lo que vale hoy.
+
+Un movimiento que llega en una moneda distinta a la de su cuenta lo convierte la
+aplicación, no la base (FA-51):
+
+- `amount` es el convertido con la tasa de su fecha, redondeado a los
+  `decimal_places` de la moneda de la cuenta;
+- `original_amount` y `original_currency_code` guardan lo recibido;
+- el movimiento entra `PENDING`, porque la tasa interna solo aproxima el cargo
+  del banco.
+
+Ajustar `amount` antes de aprobarlo no cambia el original. En una transferencia
+entre cuentas de monedas distintas, `destination_amount` está en la moneda del
+destino: lo da el cliente o, si no, se calcula igual y la transferencia queda
+pendiente. El porqué está en el `design.md` del change de FA-51.
 
 ### Categorías
 

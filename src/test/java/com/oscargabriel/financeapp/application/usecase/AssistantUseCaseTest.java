@@ -312,16 +312,16 @@ class AssistantUseCaseTest {
             verifyNoInteractions(createTransactions);
         }
 
-        /** Lo que rechaza el alta (aqui, una cuenta en dolares) se le explica al usuario con el mismo mensaje. */
+        /** Lo que rechaza el alta (aqui, una cuenta desactivada) se le explica al usuario con el mismo mensaje. */
         @Test
         void loQueRechazaElAltaPideAclaracionConSuMensaje() {
             when(createTransactions.create(eq(USUARIO), eq(TransactionOrigin.TELEGRAM), anyList()))
                     .thenReturn(Flux.error(new BadRequestException(HttpStatus.BAD_REQUEST, List.of(ErrorDetail.of(
-                            ErrorCodes.VALIDATION_ERROR.getCode(), "La cuenta no es en COP", "[0].accountId")))));
+                            ErrorCodes.VALIDATION_ERROR.getCode(), "La cuenta esta desactivada", "[0].accountId")))));
             elModeloDecide(gasto("20000", "Ahorros USD", "Mercado", "Almuerzo", null));
 
             StepVerifier.create(useCase().atender(USUARIO, TEXTO))
-                    .assertNext(r -> esAclaracion(r, "La cuenta no es en COP"))
+                    .assertNext(r -> esAclaracion(r, "La cuenta esta desactivada"))
                     .verifyComplete();
         }
     }

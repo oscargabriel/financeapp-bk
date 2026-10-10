@@ -124,6 +124,13 @@ class PreviewInstallmentPurchaseUseCaseTest {
     }
 
     @Test
+    void unaCuentaEnUsdEsErrorSobreAccountId() {
+        rechaza(unaCompra().accountId(TransactionMother.USD_ID.toString()), AHORA, errores ->
+                assertThat(errores).containsExactly(
+                        error("Por ahora las cuotas solo se registran en tarjetas en COP", "accountId")));
+    }
+
+    @Test
     void unaTarjetaAjenaNoExiste() {
         rechaza(unaCompra().accountId(TransactionMother.AJENA_ID.toString()), AHORA, errores ->
                 assertThat(errores).containsExactly(error("La cuenta no existe", "accountId")));

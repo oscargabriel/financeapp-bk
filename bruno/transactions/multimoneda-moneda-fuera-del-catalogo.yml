@@ -1,0 +1,44 @@
+info:
+  name: Multimoneda — moneda fuera del catalogo
+  type: http
+  seq: 46
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idUsd}}",
+          "categoryId": "{{idMercado}}",
+          "amount": 1000,
+          "currencyCode": "XYZ",
+          "description": "Moneda que no existe"
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+  scripts:
+    - type: tests
+      code: |-
+        test("el error va en la moneda del elemento", function() {
+          const errores = res.getBody().errors;
+          expect(errores.map(function (e) { return e.field; })).to.eql(["[0].currencyCode"]);
+          expect(errores[0].code).to.equal("VALIDATION_ERROR");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

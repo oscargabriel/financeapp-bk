@@ -67,7 +67,7 @@ class ResolveExchangeRateUseCaseTest {
     }
 
     private static Currency moneda(String codigo) {
-        return new Currency(codigo, codigo, codigo);
+        return new Currency(codigo, codigo, codigo, 2);
     }
 
     private static void esError(Throwable error, HttpStatus status, ErrorCodes codigo, String campo) {

@@ -26,8 +26,11 @@ runtime:
         test("devuelve el contrato del movimiento, con su estado y su origen", function() {
           expect(lista[0]).to.have.all.keys("id", "type", "accountId", "destinationAccountId",
               "categoryId", "amount", "currencyCode", "description", "notes", "occurredAt", "status",
-              "origin", "scheduled", "recurrenceId", "installment");
+              "origin", "scheduled", "recurrenceId", "installment", "destinationAmount", "originalAmount",
+              "originalCurrencyCode");
           lista.forEach(function (t) {
+            expect(t.originalAmount).to.equal(null);
+            expect(t.originalCurrencyCode).to.equal(null);
             expect(t.scheduled).to.equal(false);
             expect(t.recurrenceId).to.equal(null);
             expect(t.installment).to.equal(null);

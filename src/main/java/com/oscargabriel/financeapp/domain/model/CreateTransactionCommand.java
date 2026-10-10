@@ -7,7 +7,8 @@ import java.math.BigDecimal;
  * como texto para que un valor mal formado salga como error del campo con su indice, y no como un
  * JSON_PARSING_ERROR sobre el cuerpo entero.
  *
- * destinationAmount viaja solo para poder rechazarlo mientras todo sea COP.
+ * currencyCode es la moneda en que llego amount, y destinationAmount lo que entra al destino de una transferencia
+ * entre monedas distintas (FA-51).
  */
 public record CreateTransactionCommand(
         String type,

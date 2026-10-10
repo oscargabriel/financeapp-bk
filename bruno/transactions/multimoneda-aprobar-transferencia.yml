@@ -1,0 +1,29 @@
+info:
+  name: Multimoneda — aprobar la transferencia ajustada
+  type: http
+  seq: 50
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/{{idTransferenciaConvertida}}/approve"
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: eq
+      value: CONFIRMED
+    - expression: res.body.destinationAmount
+      operator: eq
+      value: "40000"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
