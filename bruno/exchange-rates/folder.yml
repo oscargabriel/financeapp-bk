@@ -1,0 +1,15 @@
+info:
+  name: Exchange rates
+  type: folder
+  seq: 15
+
+request:
+  auth: inherit
+
+docs: |
+  # GET /api/exchange-rates (FA-120)
+
+  La tasa de un par en una fecha, calculada contra USD con la fila mas reciente <= la fecha. La app
+  la levanta `verificar-bruno.ps1` con `TASAS_PROVEEDOR=stub`, que responde tasas fijas (EUR 0.8,
+  COP 4000...). `test-data.sql` vacia la tabla y siembra USD->COP de hoy en 4100 y de hace 30 dias
+  en 3900, las dos MANUAL: el stub no las pisa. Las fechas se calculan en cada request.

@@ -43,7 +43,9 @@ la variable que lee el perfil `local`, y falla si no termina escuchando en el pu
 
 El script también arranca la app con `ASISTENTE_PROVEEDOR=stub` (FA-77): `bruno/assistant/` habla
 con un modelo de mentira que entiende `<funcion> <json>`, nunca con Gemini. Contra una app levantada
-a mano sin esa variable, esa carpeta falla. El stub no existe con el perfil `prod`.
+a mano sin esa variable, esa carpeta falla. Lo mismo con `TASAS_PROVEEDOR=stub` (FA-120):
+`bruno/exchange-rates/` recibe tasas fijas en vez de las de ExchangeRate-API. Ninguno de los dos
+stubs existe con el perfil `prod`.
 
 Para depurar un request suelto, desde `bruno/` y con una app que hayas levantado tú contra la base
 local:

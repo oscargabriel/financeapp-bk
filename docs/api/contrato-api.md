@@ -26,6 +26,7 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | `GET` | `/api/catalogs/transaction-types` | Bearer | Tipos de movimiento válidos |
 | `GET` | `/api/catalogs/currencies` | Bearer | Monedas activas |
 | `GET` | `/api/catalogs/categories` | Bearer | Categorías del usuario para elegir `categoryId` |
+| `GET` | `/api/exchange-rates` | Bearer | Tasa de cambio de un par de monedas en una fecha |
 | `POST` | `/api/transactions` | Bearer | Registrar un lote de movimientos |
 | `PATCH` | `/api/transactions/{id}` | Bearer | Modificar un movimiento |
 | `DELETE` | `/api/transactions/{id}` | Bearer | Eliminar un movimiento |
@@ -774,6 +775,40 @@ acepta `currencyCode` en `POST /api/accounts`; el alta de movimientos, por ahora
 ```json
 [{ "id": "0199a1c0-...", "name": "Mercado" }]
 ```
+
+### `GET /api/exchange-rates`
+
+La tasa de cambio de un par de monedas en una fecha: cuántas unidades de `to` vale una de `from`.
+**Bearer.** Sirve para mostrar conversiones; el alta de movimientos todavía no la usa (FA-51).
+
+| Parámetro | Obligatorio | Formato |
+|---|---|---|
+| `from` | sí | Código de una moneda activa (`GET /api/catalogs/currencies`) |
+| `to` | sí | Código de una moneda activa |
+| `date` | sí | `YYYY-MM-DD` |
+
+**200 OK:**
+
+```json
+{ "from": "EUR", "to": "COP", "date": "2026-10-10", "rate": 5125.0000000000, "rateDate": "2026-10-10" }
+```
+
+- `rate` va con 10 decimales. El mismo par vale 1.
+- Toda tasa se calcula contra el dólar: `from→to = (USD→to) / (USD→from)`. Cada lado sale de la tasa
+  guardada más reciente con fecha menor o igual a `date`, por vieja que sea.
+- `rateDate` es la fecha del dato más viejo que se usó. Si es anterior a `date`, la tasa no está al
+  día y conviene mostrarlo.
+- Para hoy o una fecha futura, si falta la tasa del día, el API la pide a ExchangeRate-API y la
+  guarda. Si el proveedor no responde, se usa la anterior.
+
+**Atribución obligatoria.** Las tasas vienen del plan gratuito de ExchangeRate-API, cuyos términos
+exigen mostrar `Rates By Exchange Rate API` con un enlace a `https://www.exchangerate-api.com`
+donde se muestren las tasas.
+
+| Status | `code` | `field` | Cuándo |
+|---|---|---|---|
+| 400 | `VALIDATION_ERROR` | `from`, `to` o `date` | Falta el parámetro, la moneda no está activa o la fecha no es un día válido |
+| 404 | `NOT_FOUND` | `date` | No hay ninguna tasa guardada en esa fecha o antes, ni el proveedor la dio |
 
 ### `POST /api/transactions`
 

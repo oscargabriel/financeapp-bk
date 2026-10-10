@@ -148,11 +148,17 @@ VALUES (:'davivienda'::uuid, :'uid'::uuid, 'Davivienda', 'SAVINGS', 'COP', 15000
 
 
 -- -----------------------------------------------------------------------------
--- Tasa de cambio del día
+-- Tasas de cambio
 -- -----------------------------------------------------------------------------
+-- La tabla no es por usuario y en la base local la llenan el stub de verificar-bruno.ps1 y el
+-- proveedor real cuando la app se levanta a mano (FA-120). Se vacia entera para que bruno/exchange-rates/
+-- no dependa de esas filas: una real de hace 15 dias cambiaria la tasa anterior que espera. "Hoy" es
+-- el de Bogota, el mismo que usa la app con app.timezone.
+DELETE FROM finance.exchange_rates;
+
 INSERT INTO finance.exchange_rates (from_currency_code, to_currency_code, rate, rate_date)
-VALUES ('USD', 'COP', 4100.0000000000, CURRENT_DATE)
-ON CONFLICT (from_currency_code, to_currency_code, rate_date) DO UPDATE SET rate = EXCLUDED.rate;
+SELECT 'USD', 'COP', t.rate, (now() AT TIME ZONE 'America/Bogota')::date - t.dias
+  FROM (VALUES (4100.0000000000, 0), (3900.0000000000, 30)) AS t (rate, dias);
 
 
 -- -----------------------------------------------------------------------------

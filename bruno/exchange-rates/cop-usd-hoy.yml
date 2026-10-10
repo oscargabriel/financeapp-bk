@@ -1,0 +1,43 @@
+info:
+  name: COP a USD hoy
+  type: http
+  seq: 3
+
+http:
+  method: GET
+  url: "{{baseUrl}}/exchange-rates?from=COP&to=USD&date={{tasaHoy}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: before-request
+      code: |-
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const comoDia = function (f) {
+          return f.getFullYear() + "-" + dos(f.getMonth() + 1) + "-" + dos(f.getDate());
+        };
+        const hoy = new Date();
+        const dia = function (desfase) {
+          return comoDia(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + desfase));
+        };
+        bru.setVar("tasaHoy", dia(0));
+        bru.setVar("tasaHace10", dia(-10));
+        bru.setVar("tasaHace30", dia(-30));
+    - type: tests
+      code: |-
+        test("es la inversa de 4100 a 10 decimales", function() {
+          expect(res.getBody().rate).to.equal(0.0002439024);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  El par inverso sale del mismo calculo: (USD->USD) / (USD->COP) = 1 / 4100.
