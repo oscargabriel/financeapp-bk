@@ -762,7 +762,11 @@ orden:
 El API recibe y devuelve siempre el `code`; `description` es solo para mostrar.
 
 **`GET /api/catalogs/currencies`** — 200 OK, las monedas activas ordenadas por código. Son las que
-acepta `currencyCode` en `POST /api/accounts` y en el alta de movimientos.
+acepta `currencyCode` en `POST /api/accounts`. El alta de movimientos admite cuentas en cualquiera
+de ellas: cada movimiento va en la moneda de su cuenta, y uno que llegue en otra moneda activa se
+convierte y queda pendiente (ver [`POST /api/transactions`](#post-apitransactions)). Las
+[series recurrentes](#series-recurrentes) y las [compras en cuotas](#compras-en-cuotas), por ahora,
+solo admiten cuentas en COP.
 
 ```json
 [{ "code": "COP", "name": "Peso colombiano", "symbol": "$" }]
