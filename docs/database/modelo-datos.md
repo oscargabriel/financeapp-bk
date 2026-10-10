@@ -24,6 +24,10 @@ erDiagram
     accounts        ||--o{ recurrences    : "carga a"
     categories      ||--o{ recurrences    : clasifica
     recurrences     |o--o{ transactions   : "ocurrencia de"
+    users           ||--o{ installment_purchases : compra
+    accounts        ||--o{ installment_purchases : "se difiere en"
+    categories      ||--o{ installment_purchases : clasifica
+    installment_purchases |o--o{ transactions : "cuota de"
     categories      ||--o{ budgets        : "tope por categoría"
     default_categories ..|| categories    : "se copia al registrarse"
 
@@ -86,6 +90,9 @@ erDiagram
         varchar origin
         varchar status
         uuid recurrence_id FK
+        uuid installment_purchase_id FK
+        smallint installment_number
+        numeric installment_principal
     }
 
     recurrences {
@@ -105,6 +112,19 @@ erDiagram
         smallint occurrence_limit
         integer generated_count
         integer prior_count
+        varchar status
+    }
+
+    installment_purchases {
+        uuid id PK
+        uuid user_id FK
+        uuid account_id FK
+        uuid category_id FK
+        numeric amount
+        varchar description
+        date purchase_date
+        smallint installment_count
+        numeric monthly_interest_rate
         varchar status
     }
 
@@ -247,13 +267,33 @@ como el trigger.
 ### Tarjetas de crédito
 
 Una cuenta `CREDIT` con saldo vigente negativo está en deuda; el cupo
-disponible es `credit_limit` más el saldo vigente. Los campos `credit_limit`,
+disponible es `credit_limit` más el saldo vigente, menos lo comprometido por
+compras en cuotas (ver abajo). Los campos `credit_limit`,
 `statement_day`, `payment_due_day` y `monthly_interest_rate` solo pueden tener
 valor si `type = 'CREDIT'` (lo garantiza `ck_accounts_credit_fields`).
 
 `monthly_interest_rate` es la tasa de interés mensual en **porcentaje**, no en
 fracción: `2.15` es el 2,15 % mensual. Va de 0 a 10; el tope atrapa una tasa
 anual escrita por error en el campo mensual (FA-105).
+
+### Compras en cuotas
+
+Una compra en cuotas (`installment_purchases`, FA-108) es una compra con
+tarjeta diferida a N cuotas. Cada cuota es un gasto normal de la tarjeta con
+`installment_purchase_id`, `installment_number` e `installment_principal`, a las
+00:00 de su día de pago en la zona del usuario, y queda programada hasta su
+fecha. La compra copia la tasa de la tarjeta al registrarse: cambiarla después
+no mueve las cuotas.
+
+- `installment_principal` es el capital de la cuota; `amount` es capital más
+  interés. Se guarda en la fila porque el reparto del capital y su redondeo los
+  decide la aplicación, y lo que cuenta es lo que se creó.
+- **El cupo disponible de una tarjeta es `credit_limit` más el saldo vigente
+  menos `finance.committed_credit(id)`**: el capital de las cuotas que todavía
+  no llegan. Al registrar la compra el cupo baja por el total; al llegar una
+  cuota, su capital sale de la función y la cuota entera entra al saldo.
+- Cancelar borra las cuotas futuras y marca `status = 'CANCELLED'`. La fila se
+  conserva por las cuotas pasadas que la referencian.
 
 ### Transferencias
 

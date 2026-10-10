@@ -31,6 +31,13 @@ public final class AccountMother {
                 true);
     }
 
+    /** La misma Visa con 1.200.000 de capital comprometido por cuotas que todavia no llegan. */
+    public static Account visaConCuotas() {
+        return new Account(VISA_ID, "Visa", AccountType.CREDIT, "COP", BigDecimal.ZERO,
+                new BigDecimal("-658000.0000"), new BigDecimal("5000000.0000"), 15, 5, new BigDecimal("2.1000"),
+                true, new BigDecimal("1200000.0000"));
+    }
+
     /** Saldo a favor: se pago de mas y el cupo disponible supera el limite. */
     public static Account visaConSaldoAFavor() {
         return new Account(VISA_ID, "Visa", AccountType.CREDIT, "COP", BigDecimal.ZERO,

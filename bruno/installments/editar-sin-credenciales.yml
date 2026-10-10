@@ -1,0 +1,40 @@
+info:
+  name: Editar sin credenciales
+  type: http
+  seq: 53
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/installment-purchases/{{idCompraHoy}}"
+  body:
+    type: json
+    data: |-
+      {
+        "scope": "ALL",
+        "description": "TV"
+      }
+  auth: none
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: authorization
+  scripts:
+    - type: tests
+      code: |-
+        test("el reto es el de la cadena del JWT", function() {
+          expect(res.getHeader("www-authenticate")).to.equal("Bearer");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

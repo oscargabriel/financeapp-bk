@@ -1,0 +1,47 @@
+info:
+  name: Simular con redondeo en la ultima
+  type: http
+  seq: 4
+
+http:
+  method: POST
+  url: "{{baseUrl}}/installment-purchases/preview"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idVisa}}",
+        "categoryId": "{{idTecnologia}}",
+        "amount": 1000000,
+        "description": "Televisor",
+        "purchaseDate": "{{hoyCuotas}}",
+        "installmentCount": 3
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const p = res.getBody();
+
+        test("la ultima se lleva el resto del capital", function() {
+          expect(p.installments.map(function (c) { return c.principal; })).to.eql([333333, 333333, 333334]);
+        });
+
+        test("el interes se redondea a pesos enteros", function() {
+          expect(p.installments.map(function (c) { return c.interest; })).to.eql([20000, 13333, 6667]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  Tasa 2: 2 % de 1.000.000, de 666.667 y de 333.334.

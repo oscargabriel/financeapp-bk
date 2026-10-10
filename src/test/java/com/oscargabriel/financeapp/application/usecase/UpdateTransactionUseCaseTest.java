@@ -39,6 +39,7 @@ import org.springframework.http.HttpStatus;
 import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.exceptions.responses.ErrorDetail;
+import com.oscargabriel.financeapp.domain.model.InstallmentRef;
 import com.oscargabriel.financeapp.domain.model.Transaction;
 import com.oscargabriel.financeapp.domain.model.TransactionType;
 import com.oscargabriel.financeapp.domain.model.UpdateTransactionCommand;
@@ -139,8 +140,19 @@ class UpdateTransactionUseCaseTest {
     }
 
     @Test
-    void guardaElMovimientoQueDevuelve() {
-        StepVerifier.create(modificarGasto(unParche().description("Fruta y verdura").build()))
+    void unaCuotaSigueEnSuCompraConSuNumero() {
+        UUID compra = UUID.fromString("90000000-0000-7000-8000-000000000001");
+        when(repositorio.findByIdAndUser(GASTO_GUARDADO_ID, USER_ID))
+                .thenReturn(Mono.just(TransactionMother.cuota(unGastoGuardado(), compra)));
+
+        StepVerifier.create(modificarGasto(unParche().amount(new BigDecimal("400000")).build()))
+                .assertNext(movimiento -> assertThat(movimiento.installment())
+                        .isEqualTo(new InstallmentRef(compra, 2, 3, new BigDecimal("400000"))))
+                .verifyComplete();
+    }
+
+    @Test
+    void guardaElMovimientoQueDevuelve() {        StepVerifier.create(modificarGasto(unParche().description("Fruta y verdura").build()))
                 .expectNextCount(1)
                 .verifyComplete();
 

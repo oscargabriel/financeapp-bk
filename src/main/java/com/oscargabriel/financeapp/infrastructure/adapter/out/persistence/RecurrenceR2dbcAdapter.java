@@ -18,7 +18,7 @@ import org.springframework.transaction.reactive.TransactionalOperator;
 import com.oscargabriel.financeapp.domain.model.Frequency;
 import com.oscargabriel.financeapp.domain.model.Recurrence;
 import com.oscargabriel.financeapp.domain.model.RecurrenceRule;
-import com.oscargabriel.financeapp.domain.model.RecurrenceScope;
+import com.oscargabriel.financeapp.domain.model.GroupScope;
 import com.oscargabriel.financeapp.domain.model.RecurrenceStatus;
 import com.oscargabriel.financeapp.domain.model.RecurrenceTemplateChange;
 import com.oscargabriel.financeapp.domain.model.RecurrenceView;
@@ -233,7 +233,7 @@ public class RecurrenceR2dbcAdapter implements RecurrenceRepositoryPort {
     }
 
     @Override
-    public Mono<Boolean> update(Recurrence serie, RecurrenceScope alcance, Instant ahora,
+    public Mono<Boolean> update(Recurrence serie, GroupScope alcance, Instant ahora,
             RecurrenceTemplateChange cambios, List<Transaction> rehechas) {
         Mono<Void> futuras = rehechas == null
                 ? Mono.empty()
@@ -272,14 +272,14 @@ public class RecurrenceR2dbcAdapter implements RecurrenceRepositoryPort {
     }
 
     /** Un parche sin cambios de plantilla, como uno que solo cambia la periodicidad, no toca las filas. */
-    private Mono<Void> aplicar(UUID id, RecurrenceScope alcance, Instant ahora, RecurrenceTemplateChange cambios) {
+    private Mono<Void> aplicar(UUID id, GroupScope alcance, Instant ahora, RecurrenceTemplateChange cambios) {
         if (cambios.accountId() == null && cambios.categoryId() == null && cambios.amount() == null
                 && cambios.description() == null) {
             return Mono.empty();
         }
         DatabaseClient.GenericExecuteSpec sentencia = databaseClient.sql(APLICAR_CAMBIOS)
                 .bind("id", id)
-                .bind("todas", alcance == RecurrenceScope.ALL)
+                .bind("todas", alcance == GroupScope.ALL)
                 .bind("ahora", OffsetDateTime.ofInstant(ahora, ZoneOffset.UTC));
         sentencia = cambios.accountId() == null
                 ? sentencia.bindNull("accountId", UUID.class)

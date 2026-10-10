@@ -35,13 +35,19 @@ SET search_path TO finance, public;
 \set cuenta_series       '20000000-0000-7000-8000-000000000010'
 \set cuenta_series_otra  '20000000-0000-7000-8000-000000000011'
 \set serie_atrasada      '80000000-0000-7000-8000-000000000001'
+\set cuotas              '10000000-0000-7000-8000-000000000005'
+\set visa                '20000000-0000-7000-8000-000000000012'
+\set visa_31             '20000000-0000-7000-8000-000000000013'
+\set visa_sin_corte      '20000000-0000-7000-8000-000000000014'
+\set ahorros_cuotas      '20000000-0000-7000-8000-000000000015'
+\set compra_ajena        '90000000-0000-7000-8000-000000000001'
 
 BEGIN;
 
 -- Borrado del escenario anterior. El resto cae en cascada desde users.
 DELETE FROM finance.users
  WHERE email IN ('prueba@financeapp.local', 'inactivo@financeapp.local', 'pendientes@financeapp.local',
-                 'series@financeapp.local');
+                 'series@financeapp.local', 'cuotas@financeapp.local');
 
 -- Los requests de alta de bruno/ crean un usuario nuevo en cada corrida: auth/ con el correo
 -- registro-<timestamp>@bruno.local, monthly-spending/ con sin-datos-<timestamp>@bruno.local,
@@ -404,6 +410,54 @@ SELECT gen_random_uuid(), :'series'::uuid, s.account_id, s.category_id, s.type, 
        1, s.amount, s.description, s.start_date::timestamp AT TIME ZONE 'America/Bogota', 'WEB', s.id
   FROM finance.recurrences s
  WHERE s.id = :'serie_atrasada'::uuid;
+
+
+-- -----------------------------------------------------------------------------
+-- Compras en cuotas (FA-108)
+--
+-- Usuario aparte para bruno/installments/, con la misma clave: registra,
+-- edita y cancela compras, y eso mueve saldos y cupos. Entre dos corridas hay
+-- que recargar este script. Las cuatro cuentas empiezan en 0:
+--   Visa            cupo 5.000.000, corte 20, pago 5, tasa 2
+--   Visa 31         cupo 2.000.000, corte 31, pago 31, sin tasa
+--   Visa sin corte  cupo 1.000.000, sin corte, pago 5
+--   Ahorros         SAVINGS
+--
+-- La compra ajena es de prueba@, sobre su tarjeta y sin cuotas: solo existe
+-- para que la edición y la cancelación de cuotas@ den 404. Sin cuotas no mueve
+-- el saldo ni el cupo que verifican las demás carpetas.
+-- -----------------------------------------------------------------------------
+INSERT INTO finance.users
+    (id, email, password_hash, first_name, base_currency_code, timezone)
+VALUES
+    (:'cuotas'::uuid, 'cuotas@financeapp.local',
+     '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy',
+     'Cuotas', 'COP', 'America/Bogota');
+
+INSERT INTO finance.categories
+    (id, user_id, name, applies_to, icon, color, sort_order, is_system)
+SELECT gen_random_uuid(), :'cuotas'::uuid, d.name, d.applies_to, d.icon, d.color, d.sort_order, TRUE
+  FROM finance.default_categories d
+ WHERE d.is_active;
+
+INSERT INTO finance.accounts
+    (id, user_id, name, type, currency_code, initial_balance,
+     credit_limit, statement_day, payment_due_day, monthly_interest_rate)
+VALUES
+    (:'visa'::uuid,           :'cuotas'::uuid, 'Visa',           'CREDIT',  'COP', 0, 5000000,   20,    5,    2),
+    (:'visa_31'::uuid,        :'cuotas'::uuid, 'Visa 31',        'CREDIT',  'COP', 0, 2000000,   31,   31, NULL),
+    (:'visa_sin_corte'::uuid, :'cuotas'::uuid, 'Visa sin corte', 'CREDIT',  'COP', 0, 1000000, NULL,    5, NULL),
+    (:'ahorros_cuotas'::uuid, :'cuotas'::uuid, 'Ahorros',        'SAVINGS', 'COP', 0,    NULL, NULL, NULL, NULL);
+
+INSERT INTO finance.installment_purchases
+    (id, user_id, account_id, category_id, amount, currency_code, description,
+     purchase_date, installment_count, monthly_interest_rate)
+SELECT :'compra_ajena'::uuid, :'uid'::uuid, :'credit'::uuid, c.id, 600000, 'COP', 'Compra ajena',
+       (now() AT TIME ZONE 'America/Bogota')::date, 3, 0
+  FROM finance.categories c
+ WHERE c.user_id = :'uid'::uuid AND c.applies_to = 'EXPENSE' AND c.deleted_at IS NULL
+ ORDER BY c.name
+ LIMIT 1;
 
 COMMIT;
 

@@ -97,7 +97,7 @@ class RecurrenceTest {
         assertThat(ocurrencia).isEqualTo(new Transaction(id, TransactionMother.USER_ID, TransactionType.EXPENSE,
                 TransactionMother.ORIGEN_ID, null, TransactionMother.MERCADO_ID, new BigDecimal("44900"), "COP",
                 "Netflix", null, Instant.parse("2026-10-15T05:00:00Z"), TransactionStatus.CONFIRMED,
-                TransactionOrigin.WEB, SERIE_ID));
+                TransactionOrigin.WEB, SERIE_ID, null));
     }
 
     @Test

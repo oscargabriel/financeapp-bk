@@ -9,7 +9,7 @@ import com.oscargabriel.financeapp.domain.model.CreateRecurrenceCommand;
 import com.oscargabriel.financeapp.domain.model.Frequency;
 import com.oscargabriel.financeapp.domain.model.Recurrence;
 import com.oscargabriel.financeapp.domain.model.RecurrenceRule;
-import com.oscargabriel.financeapp.domain.model.RecurrenceScope;
+import com.oscargabriel.financeapp.domain.model.GroupScope;
 import com.oscargabriel.financeapp.domain.model.RecurrenceStatus;
 import com.oscargabriel.financeapp.domain.model.TransactionType;
 import com.oscargabriel.financeapp.domain.model.UpdateRecurrenceCommand;
@@ -35,7 +35,7 @@ public final class RecurrenceMother {
         return new Alta();
     }
 
-    public static Parche unParche(RecurrenceScope alcance) {
+    public static Parche unParche(GroupScope alcance) {
         return new Parche(alcance);
     }
 
@@ -191,7 +191,7 @@ public final class RecurrenceMother {
     /** Builder del parche de una serie: todo en null, que es "no cambia", salvo el alcance. */
     public static final class Parche {
 
-        private final RecurrenceScope scope;
+        private final GroupScope scope;
         private String accountId;
         private String categoryId;
         private BigDecimal amount;
@@ -201,7 +201,7 @@ public final class RecurrenceMother {
         private DayOfWeek dayOfWeek;
         private Integer dayOfMonth;
 
-        private Parche(RecurrenceScope scope) {
+        private Parche(GroupScope scope) {
             this.scope = scope;
         }
 

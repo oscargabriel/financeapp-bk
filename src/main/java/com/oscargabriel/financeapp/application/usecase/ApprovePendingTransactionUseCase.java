@@ -61,6 +61,6 @@ public class ApprovePendingTransactionUseCase implements ApprovePendingTransacti
     private static Transaction confirmado(Transaction t) {
         return new Transaction(t.id(), t.userId(), t.type(), t.accountId(), t.destinationAccountId(),
                 t.categoryId(), t.amount(), t.currencyCode(), t.description(), t.notes(), t.occurredAt(),
-                TransactionStatus.CONFIRMED, t.origin(), t.recurrenceId());
+                TransactionStatus.CONFIRMED, t.origin(), t.recurrenceId(), t.installment());
     }
 }

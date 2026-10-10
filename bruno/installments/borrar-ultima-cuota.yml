@@ -1,0 +1,21 @@
+info:
+  name: Pagar por adelantado la ultima cuota
+  type: http
+  seq: 30
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/transactions/{{idUltimaPasada}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -1,0 +1,38 @@
+info:
+  name: Comprar sin monto y a cero cuotas
+  type: http
+  seq: 25
+
+http:
+  method: POST
+  url: "{{baseUrl}}/installment-purchases"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idVisa}}",
+        "categoryId": "{{idTecnologia}}",
+        "description": "Sin monto",
+        "purchaseDate": "{{hoyCuotas}}",
+        "installmentCount": 0
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+  scripts:
+    - type: tests
+      code: |-
+        test("reporta los dos errores juntos", function() {
+          const campos = res.getBody().errors.map(function (e) { return e.field; });
+          expect(campos).to.include.members(["amount", "installmentCount"]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -1,0 +1,42 @@
+info:
+  name: Compra del 21 del mes pasado
+  type: http
+  seq: 7
+
+http:
+  method: POST
+  url: "{{baseUrl}}/installment-purchases/preview"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idVisa}}",
+        "categoryId": "{{idTecnologia}}",
+        "amount": 1200000,
+        "description": "Televisor",
+        "purchaseDate": "{{dia21MesPasado}}",
+        "installmentCount": 3
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const aBogota = function (dia) { return dia + "T05:00:00Z"; };
+        test("la primera cuota vence el vence5MesSiguiente", function() {
+          expect(res.getBody().installments[0].dueAt).to.equal(aBogota(bru.getVar("vence5MesSiguiente")));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  Pasado el corte, la compra entra en el del mes siguiente.

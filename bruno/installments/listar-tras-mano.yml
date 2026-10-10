@@ -1,0 +1,31 @@
+info:
+  name: Listado tras editar una cuota
+  type: http
+  seq: 29
+
+http:
+  method: GET
+  url: "{{baseUrl}}/installment-purchases"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const p = res.getBody().find(function (c) { return c.id === bru.getVar("idCompraHoy"); });
+
+        test("lo que falta usa el monto nuevo y las otras cuotas no cambian", function() {
+          expect(p.remainingAmount).to.equal(424000 + 400000 + 408000);
+          expect(p.remainingPrincipal).to.equal(1200000);
+          expect(p.nextInstallment.amount).to.equal(424000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

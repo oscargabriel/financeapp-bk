@@ -1,0 +1,31 @@
+info:
+  name: Listado tras borrar una cuota
+  type: http
+  seq: 31
+
+http:
+  method: GET
+  url: "{{baseUrl}}/installment-purchases"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const p = res.getBody().find(function (c) { return c.id === bru.getVar("idCompraPasada"); });
+        const pagadas = Number(bru.getVar("pagadasPasada"));
+
+        test("la cuota borrada cuenta como pagada", function() {
+          expect(p.paidCount).to.equal(pagadas + 1);
+          expect(p.remainingPrincipal).to.equal(100000 * (5 - pagadas));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

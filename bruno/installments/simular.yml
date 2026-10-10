@@ -1,0 +1,67 @@
+info:
+  name: Simular 1.200.000 a 3 cuotas
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{baseUrl}}/installment-purchases/preview"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idVisa}}",
+        "categoryId": "{{idTecnologia}}",
+        "amount": 1200000,
+        "description": "Televisor",
+        "purchaseDate": "{{hoyCuotas}}",
+        "installmentCount": 3
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const aBogota = function (dia) { return dia + "T05:00:00Z"; };
+        const p = res.getBody();
+
+        test("devuelve el contrato de la simulacion", function() {
+          expect(p).to.have.all.keys("accountId", "amount", "currencyCode", "purchaseDate", "installmentCount",
+              "monthlyInterestRate", "totalInterest", "totalAmount", "installments");
+          p.installments.forEach(function (c) {
+            expect(c).to.have.all.keys("number", "dueAt", "principal", "interest", "amount");
+          });
+        });
+
+        test("capital fijo e interes sobre el saldo pendiente", function() {
+          expect(p.installments.map(function (c) { return c.principal; })).to.eql([400000, 400000, 400000]);
+          expect(p.installments.map(function (c) { return c.interest; })).to.eql([24000, 16000, 8000]);
+          expect(p.installments.map(function (c) { return c.amount; })).to.eql([424000, 416000, 408000]);
+          expect(p.totalInterest).to.equal(48000);
+          expect(p.totalAmount).to.equal(1248000);
+        });
+
+        test("vencen el 5 de cada mes desde el primer corte", function() {
+          expect(p.installments.map(function (c) { return c.dueAt; })).to.eql(
+              [bru.getVar("hoyVence1"), bru.getVar("hoyVence2"), bru.getVar("hoyVence3")].map(aBogota));
+          expect(p.installments.map(function (c) { return c.number; })).to.eql([1, 2, 3]);
+        });
+
+        test("trae la tasa de la tarjeta y los datos de la compra", function() {
+          expect(p.monthlyInterestRate).to.equal(2);
+          expect(p.amount).to.equal(1200000);
+          expect(p.currencyCode).to.equal("COP");
+          expect(p.purchaseDate).to.equal(bru.getVar("hoyCuotas"));
+          expect(p.installmentCount).to.equal(3);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

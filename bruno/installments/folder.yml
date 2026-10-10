@@ -1,0 +1,25 @@
+info:
+  name: Installments
+  type: folder
+  seq: 14
+
+request:
+  auth:
+    type: bearer
+    token: "{{tokenCuotas}}"
+
+docs: |
+  # Compras en cuotas (FA-108)
+
+  Corre con el usuario `cuotas@financeapp.local` que siembra `docs/database/test-data.sql`, con su
+  token en `tokenCuotas`. Es un usuario aparte porque registrar compras mueve saldos y cupos.
+
+  **Necesita `test-data.sql` recién cargado**: las compras se registran en cada corrida y los cupos
+  que verifica parten de cero. `verificar-bruno.ps1 -RecargarDatos` recarga antes de cada corrida.
+
+  Lo sembrado, todo en COP y con saldo 0: `Visa` (cupo 5.000.000, corte 20, pago 5, tasa 2),
+  `Visa 31` (cupo 2.000.000, corte y pago 31, sin tasa), `Visa sin corte` y `Ahorros`. La compra
+  ajena es de `prueba@`, sin cuotas, solo para los 404.
+
+  Las cuotas se leen de `reports/transactions` filtradas por `installment.purchaseId`, y cada una
+  vence a medianoche de Bogotá: `T05:00:00Z`.

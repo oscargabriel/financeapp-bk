@@ -1,0 +1,44 @@
+info:
+  name: Alta sin credenciales
+  type: http
+  seq: 50
+
+http:
+  method: POST
+  url: "{{baseUrl}}/installment-purchases"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idVisa}}",
+        "categoryId": "{{idTecnologia}}",
+        "amount": 1200000,
+        "description": "Televisor",
+        "purchaseDate": "{{hoyCuotas}}",
+        "installmentCount": 3
+      }
+  auth: none
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: authorization
+  scripts:
+    - type: tests
+      code: |-
+        test("el reto es el de la cadena del JWT", function() {
+          expect(res.getHeader("www-authenticate")).to.equal("Bearer");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
