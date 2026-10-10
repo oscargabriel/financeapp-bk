@@ -1,0 +1,35 @@
+info:
+  name: Editar el monto de las futuras
+  type: http
+  seq: 40
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/recurrences/{{idSerieEditar}}"
+  body:
+    type: json
+    data: |-
+      {
+        "scope": "FUTURE",
+        "amount": 35000
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("devuelve la serie con el monto nuevo", function() {
+          expect(res.getBody().id).to.equal(bru.getVar("idSerieEditar"));
+          expect(res.getBody().amount).to.equal(35000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

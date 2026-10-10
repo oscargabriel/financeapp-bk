@@ -81,7 +81,7 @@ final class TransactionBatchValidator {
         }
         return new Transaction(ids.get(), userId, tipo, cuenta, destino, categoria, elemento.amount(),
                 ReferenciasDelUsuario.MONEDA_UNICA, elemento.description().trim(), elemento.notes(),
-                instante(elemento.occurredAt()), origen.estadoInicial(), origen);
+                instante(elemento.occurredAt()), origen.estadoInicial(), origen, null);
     }
 
     /** El formato ya lo valido CreateTransactionRequest; aqui solo falta decidir el de los vacios. */

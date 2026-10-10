@@ -25,14 +25,20 @@ public class GetTransactionReportUseCase implements GetTransactionReportPort {
 
     private final TransactionReportQueryPort query;
     private final Clock clock;
+    private final SeriesAlDia alDia;
 
-    /** El defer hace que un rango invertido salga como senal de error, no al ensamblar la cadena. */
+    /**
+     * El defer hace que un rango invertido salga como senal de error, no al ensamblar la cadena. Las
+     * series se ponen al dia despues de validar: una peticion invalida no escribe nada (FA-107).
+     */
     @Override
     public Mono<TransactionReport> get(UUID userId, LocalDate from, LocalDate to, Set<UUID> categoryIds,
             Set<UUID> accountIds, Set<TransactionType> types) {
         return Mono.defer(() -> {
             TransactionReportFilter filtro = filtro(from, to, categoryIds, accountIds, types);
-            return Mono.zip(query.findBaseCurrency(userId), query.findByUser(userId, filtro).collectList())
+            return alDia.ponerAlDia(userId)
+                    .then(Mono.defer(() -> Mono.zip(query.findBaseCurrency(userId),
+                            query.findByUser(userId, filtro).collectList())))
                     .map(t -> TransactionReport.of(t.getT1(), filtro, t.getT2(), clock.instant()));
         });
     }

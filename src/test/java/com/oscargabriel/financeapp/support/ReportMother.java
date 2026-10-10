@@ -44,19 +44,26 @@ public final class ReportMother {
 
     public static ReportedTransaction unGasto(UUID categoria, String nombre, String montoBase, String instante) {
         return new ReportedTransaction(UUID.randomUUID(), TransactionType.EXPENSE, CUENTA_ID, null, categoria, nombre,
-                new BigDecimal(montoBase), "COP", new BigDecimal(montoBase), "Gasto", null, Instant.parse(instante));
+                new BigDecimal(montoBase), "COP", new BigDecimal(montoBase), "Gasto", null, Instant.parse(instante), null);
+    }
+
+    /** El mismo movimiento como ocurrencia de una serie (FA-107). */
+    public static ReportedTransaction deLaSerie(ReportedTransaction t, UUID serie) {
+        return new ReportedTransaction(t.id(), t.type(), t.accountId(), t.destinationAccountId(), t.categoryId(),
+                t.categoryName(), t.amount(), t.currencyCode(), t.amountBase(), t.description(), t.notes(),
+                t.occurredAt(), serie);
     }
 
     public static ReportedTransaction unIngreso(String montoBase, String instante) {
         return new ReportedTransaction(UUID.randomUUID(), TransactionType.INCOME, CUENTA_ID, null, SALARIO_ID,
                 "Salario", new BigDecimal(montoBase), "COP", new BigDecimal(montoBase), "Ingreso", null,
-                Instant.parse(instante));
+                Instant.parse(instante), null);
     }
 
     /** 100 USD que valen 410.000 COP: amount y amountBase distintos a proposito. */
     public static ReportedTransaction unaTransferenciaEnDolares(String instante) {
         return new ReportedTransaction(UUID.randomUUID(), TransactionType.TRANSFER, CUENTA_ID, DESTINO_ID, null, null,
                 new BigDecimal("100.0000"), "USD", new BigDecimal("410000.0000"), "Cambio de dolares", null,
-                Instant.parse(instante));
+                Instant.parse(instante), null);
     }
 }

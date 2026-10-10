@@ -9,6 +9,7 @@ import static com.oscargabriel.financeapp.support.ReportMother.MERCADO_ID;
 import static com.oscargabriel.financeapp.support.ReportMother.RESTAURANTES_ID;
 import static com.oscargabriel.financeapp.support.ReportMother.SALARIO_ID;
 import static com.oscargabriel.financeapp.support.ReportMother.USER_ID;
+import static com.oscargabriel.financeapp.support.ReportMother.deLaSerie;
 import static com.oscargabriel.financeapp.support.ReportMother.sinFiltros;
 import static com.oscargabriel.financeapp.support.ReportMother.unGasto;
 import static com.oscargabriel.financeapp.support.ReportMother.unaTransferenciaEnDolares;
@@ -25,6 +26,7 @@ import static org.springframework.security.test.web.reactive.server.SecurityMock
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
@@ -164,6 +166,23 @@ class TransactionReportControllerTest {
                 .jsonPath("$.transactions[1].scheduled").isEqualTo(false)
                 .jsonPath("$.totalsByType[0].total").isEqualTo(85000.0)
                 .jsonPath("$.net").isEqualTo(-85000.0);
+    }
+
+    @Test
+    void cadaMovimientoTraeLaSerieDeLaQueEsOcurrencia() {
+        UUID serie = UUID.fromString("80000000-0000-7000-8000-000000000001");
+        TransactionReport reporte = TransactionReport.of("COP", sinFiltros(), List.of(
+                unGasto(MERCADO_ID, "Mercado", "85000.0000", "2026-09-02T15:00:00Z"),
+                deLaSerie(unGasto(MERCADO_ID, "Mercado", "44900.0000", "2026-09-15T05:00:00Z"), serie)),
+                AHORA);
+        when(getTransactionReport.get(eq(USER_ID), any(), any(), any(), any(), any())).thenReturn(Mono.just(reporte));
+
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(RANGO)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.transactions[0].recurrenceId").isEqualTo(serie.toString())
+                .jsonPath("$.transactions[1].recurrenceId").isEqualTo(null);
     }
 
     static Stream<Arguments> unParametroInvalido() {

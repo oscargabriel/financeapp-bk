@@ -25,14 +25,19 @@ public class GetBalanceUseCase implements GetBalancePort {
     private final BalanceQueryPort query;
     private final AccountQueryPort accounts;
     private final Clock clock;
+    private final SeriesAlDia alDia;
 
-    /** El defer hace que un rango invalido salga como senal de error, no al ensamblar la cadena. */
+    /**
+     * El defer hace que un rango invalido salga como senal de error, no al ensamblar la cadena. Las
+     * series se ponen al dia despues de validar: una peticion invalida no escribe nada (FA-107).
+     */
     @Override
     public Mono<Balance> get(UUID userId, LocalDate from, LocalDate to) {
         return Mono.defer(() -> {
             Rango rango = rango(from, to);
-            return Mono.zip(query.findSums(userId, rango.from(), rango.to()),
-                            accounts.findByUser(userId, false).collectList())
+            return alDia.ponerAlDia(userId).then(Mono.defer(() -> Mono.zip(
+                            query.findSums(userId, rango.from(), rango.to()),
+                            accounts.findByUser(userId, false).collectList())))
                     .map(t -> Balance.of(rango.from(), rango.to(), t.getT1(), t.getT2()));
         });
     }

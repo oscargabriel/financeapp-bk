@@ -2,7 +2,6 @@ package com.oscargabriel.financeapp.application.usecase;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.UUID;
 
@@ -13,9 +12,6 @@ import org.springframework.stereotype.Service;
 import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.exceptions.responses.ErrorDetail;
-import com.oscargabriel.financeapp.domain.model.Account;
-import com.oscargabriel.financeapp.domain.model.Category;
-import com.oscargabriel.financeapp.domain.model.CategoryScope;
 import com.oscargabriel.financeapp.domain.model.Transaction;
 import com.oscargabriel.financeapp.domain.model.TransactionType;
 import com.oscargabriel.financeapp.domain.model.UpdateTransactionCommand;
@@ -44,21 +40,13 @@ public class UpdateTransactionUseCase implements UpdateTransactionPort {
     public Mono<Transaction> update(UUID userId, UUID transactionId, UpdateTransactionCommand parche) {
         return repositorio.findByIdAndUser(transactionId, userId)
                 .switchIfEmpty(Mono.error(UpdateTransactionUseCase::noEncontrado))
-                .zipWith(referenciasDe(userId))
+                .zipWith(ReferenciasDelUsuario.de(userId, cuentas, categorias))
                 .map(guardadoYReferencias -> new ParcheDeMovimiento(guardadoYReferencias.getT2())
                         .aplicar(guardadoYReferencias.getT1(), parche))
                 .flatMap(modificado -> repositorio.update(modificado)
                         .flatMap(actualizado -> actualizado
                                 ? Mono.just(modificado)
                                 : Mono.error(noEncontrado())));
-    }
-
-    private Mono<ReferenciasDelUsuario> referenciasDe(UUID userId) {
-        return Mono.zip(
-                        cuentas.findByUser(userId, true).collectMap(Account::id),
-                        categorias.findActiveByUser(userId, EnumSet.allOf(CategoryScope.class))
-                                .collectMap(Category::id))
-                .map(mapas -> new ReferenciasDelUsuario(mapas.getT1(), mapas.getT2()));
     }
 
     /** Inexistente y ajeno dan lo mismo: distinguirlos confirmaria que el id existe para otro usuario. */
@@ -112,7 +100,7 @@ public class UpdateTransactionUseCase implements UpdateTransactionPort {
                     parche.occurredAt() == null
                             ? guardado.occurredAt()
                             : OffsetDateTime.parse(parche.occurredAt().trim()).toInstant(),
-                    guardado.status(), guardado.origin());
+                    guardado.status(), guardado.origin(), guardado.recurrenceId());
         }
 
         /** La guardada sirve si ya era transferencia; si no, el parche tiene que traerla. */

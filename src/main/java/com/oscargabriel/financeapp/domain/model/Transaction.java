@@ -21,7 +21,8 @@ public record Transaction(
         String notes,
         Instant occurredAt,
         TransactionStatus status,
-        TransactionOrigin origin) {
+        TransactionOrigin origin,
+        UUID recurrenceId) {
 
     /** Con fecha posterior al instante dado: no cuenta en saldos ni reportes hasta entonces (FA-106). */
     public boolean scheduledAt(Instant ahora) {

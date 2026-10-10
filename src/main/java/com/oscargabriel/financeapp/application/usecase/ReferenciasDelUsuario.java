@@ -1,5 +1,6 @@
 package com.oscargabriel.financeapp.application.usecase;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -10,10 +11,14 @@ import com.oscargabriel.financeapp.domain.model.Account;
 import com.oscargabriel.financeapp.domain.model.Category;
 import com.oscargabriel.financeapp.domain.model.CategoryScope;
 import com.oscargabriel.financeapp.domain.model.TransactionType;
+import com.oscargabriel.financeapp.domain.port.out.AccountQueryPort;
+import com.oscargabriel.financeapp.domain.port.out.CategoryQueryPort;
+
+import reactor.core.publisher.Mono;
 
 /**
  * Las cuentas y categorias del usuario contra las que se valida un movimiento, en el alta y en la
- * modificacion. Comparten esta clase para que un mismo id invalido de el mismo mensaje en los dos.
+ * modificacion de movimientos y de series. Comparten esta clase para que un mismo id invalido de el mismo mensaje en los dos.
  * Cada metodo devuelve null si el valor no sirve y deja el error, sobre el campo recibido, en la lista.
  */
 final class ReferenciasDelUsuario {
@@ -27,6 +32,15 @@ final class ReferenciasDelUsuario {
     ReferenciasDelUsuario(Map<UUID, Account> cuentas, Map<UUID, Category> categorias) {
         this.cuentas = cuentas;
         this.categorias = categorias;
+    }
+
+    /** Las cuentas activas o no y las categorias vivas del usuario, leidas una vez. */
+    static Mono<ReferenciasDelUsuario> de(UUID userId, AccountQueryPort cuentas, CategoryQueryPort categorias) {
+        return Mono.zip(
+                        cuentas.findByUser(userId, true).collectMap(Account::id),
+                        categorias.findActiveByUser(userId, EnumSet.allOf(CategoryScope.class))
+                                .collectMap(Category::id))
+                .map(mapas -> new ReferenciasDelUsuario(mapas.getT1(), mapas.getT2()));
     }
 
     /**

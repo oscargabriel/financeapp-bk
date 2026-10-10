@@ -9,7 +9,8 @@ import com.oscargabriel.financeapp.domain.model.TransactionReport;
 
 /**
  * El reporte de movimientos. occurredAt sale en UTC, como en el resto del API. scheduled marca los
- * programados (FA-106): salen en la lista y no en los totales.
+ * programados (FA-106): salen en la lista y no en los totales. recurrenceId es la serie de la que el
+ * movimiento es ocurrencia (FA-107), o null.
  */
 public record TransactionReportResponse(
         String from,
@@ -33,7 +34,8 @@ public record TransactionReportResponse(
             String description,
             String notes,
             String occurredAt,
-            boolean scheduled) {
+            boolean scheduled,
+            String recurrenceId) {
 
         static Item from(ReportedTransaction t, boolean scheduled) {
             return new Item(
@@ -49,7 +51,8 @@ public record TransactionReportResponse(
                     t.description(),
                     t.notes(),
                     t.occurredAt().toString(),
-                    scheduled);
+                    scheduled,
+                    texto(t.recurrenceId()));
         }
     }
 

@@ -30,12 +30,18 @@ SET search_path TO finance, public;
 \set pendiente_gasto     '70000000-0000-7000-8000-000000000001'
 \set pendiente_traslado  '70000000-0000-7000-8000-000000000002'
 \set pendiente_rechazo   '70000000-0000-7000-8000-000000000003'
+\set series              '10000000-0000-7000-8000-000000000004'
+\set cuenta_atrasada     '20000000-0000-7000-8000-000000000009'
+\set cuenta_series       '20000000-0000-7000-8000-000000000010'
+\set cuenta_series_otra  '20000000-0000-7000-8000-000000000011'
+\set serie_atrasada      '80000000-0000-7000-8000-000000000001'
 
 BEGIN;
 
 -- Borrado del escenario anterior. El resto cae en cascada desde users.
 DELETE FROM finance.users
- WHERE email IN ('prueba@financeapp.local', 'inactivo@financeapp.local', 'pendientes@financeapp.local');
+ WHERE email IN ('prueba@financeapp.local', 'inactivo@financeapp.local', 'pendientes@financeapp.local',
+                 'series@financeapp.local');
 
 -- Los requests de alta de bruno/ crean un usuario nuevo en cada corrida: auth/ con el correo
 -- registro-<timestamp>@bruno.local, monthly-spending/ con sin-datos-<timestamp>@bruno.local,
@@ -345,6 +351,59 @@ SELECT m.id, :'pendientes'::uuid, :'cuenta_pendientes'::uuid, m.destino,
         (:'pendiente_traslado'::uuid, :'bolsillo_pendientes'::uuid,   NULL,      'TRANSFER', 100000::numeric, 'Al bolsillo',         INTERVAL '0 day 12 hours', 'PENDING'),
         (:'pendiente_gasto'::uuid,    NULL::uuid,                     'Mercado', 'EXPENSE',   45000::numeric, 'Mercado del asistente', INTERVAL '0 day 13 hours', 'PENDING')
        ) AS m(id, destino, category_name, type, amount, description, desfase, status);
+
+
+-- -----------------------------------------------------------------------------
+-- Series recurrentes (FA-107)
+--
+-- Usuario aparte para bruno/recurrences/, con la misma clave: crea, edita y
+-- cancela series, y eso mueve saldos que otras carpetas verifican en prueba@.
+-- Entre dos corridas hay que recargar este script.
+--
+-- La serie atrasada es semanal y sin fin, del mismo día de la semana que hoy, y
+-- empezó hace cuatro semanas. Su contador dice que ya creó dos ocurrencias, pero
+-- solo existe la primera: la segunda la "borró a mano" el usuario. La primera
+-- lectura de saldos tiene que crear las de hace dos semanas, hace una y hoy, más
+-- la de dentro de una semana, y no volver a crear la borrada.
+--
+-- Saldos al cargar: Serie atrasada 990.000 (solo la primera ocurrencia),
+-- Series 2.000.000 y Series otra 0.
+-- -----------------------------------------------------------------------------
+INSERT INTO finance.users
+    (id, email, password_hash, first_name, base_currency_code, timezone)
+VALUES
+    (:'series'::uuid, 'series@financeapp.local',
+     '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy',
+     'Series', 'COP', 'America/Bogota');
+
+INSERT INTO finance.categories
+    (id, user_id, name, applies_to, icon, color, sort_order, is_system)
+SELECT gen_random_uuid(), :'series'::uuid, d.name, d.applies_to, d.icon, d.color, d.sort_order, TRUE
+  FROM finance.default_categories d
+ WHERE d.is_active;
+
+INSERT INTO finance.accounts (id, user_id, name, type, currency_code, initial_balance)
+VALUES
+    (:'cuenta_atrasada'::uuid,    :'series'::uuid, 'Serie atrasada', 'CASH', 'COP', 1000000),
+    (:'cuenta_series'::uuid,      :'series'::uuid, 'Series',         'CASH', 'COP', 2000000),
+    (:'cuenta_series_otra'::uuid, :'series'::uuid, 'Series otra',    'CASH', 'COP',       0);
+
+INSERT INTO finance.recurrences
+    (id, user_id, account_id, category_id, type, amount, currency_code, description,
+     frequency, interval_count, day_of_week, start_date, generated_count)
+SELECT :'serie_atrasada'::uuid, :'series'::uuid, :'cuenta_atrasada'::uuid, c.id, 'EXPENSE', 10000, 'COP',
+       'Gimnasio semanal', 'WEEKLY', 1, EXTRACT(ISODOW FROM r.inicio), r.inicio, 2
+  FROM (SELECT (now() AT TIME ZONE 'America/Bogota')::date - 28 AS inicio) r
+  JOIN finance.categories c
+    ON c.user_id = :'series'::uuid AND c.name = 'Suscripciones';
+
+INSERT INTO finance.transactions
+    (id, user_id, account_id, category_id, type, amount, currency_code,
+     exchange_rate, amount_base, description, occurred_at, origin, recurrence_id)
+SELECT gen_random_uuid(), :'series'::uuid, s.account_id, s.category_id, s.type, s.amount, 'COP',
+       1, s.amount, s.description, s.start_date::timestamp AT TIME ZONE 'America/Bogota', 'WEB', s.id
+  FROM finance.recurrences s
+ WHERE s.id = :'serie_atrasada'::uuid;
 
 COMMIT;
 

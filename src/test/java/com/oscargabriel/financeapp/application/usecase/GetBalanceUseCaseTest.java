@@ -7,6 +7,7 @@ import static com.oscargabriel.financeapp.support.BalanceMother.sumasDelEscenari
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -49,11 +50,15 @@ class GetBalanceUseCaseTest {
     @Mock
     private AccountQueryPort accounts;
 
+    @Mock
+    private SeriesAlDia alDia;
+
     private GetBalanceUseCase casoDeUso;
 
     @BeforeEach
     void setUp() {
-        casoDeUso = new GetBalanceUseCase(query, accounts, RELOJ);
+        lenient().when(alDia.ponerAlDia(any())).thenReturn(Mono.empty());
+        casoDeUso = new GetBalanceUseCase(query, accounts, RELOJ, alDia);
     }
 
     @Test
@@ -123,6 +128,16 @@ class GetBalanceUseCaseTest {
                             .containsExactly(tuple(campo, ErrorCodes.VALIDATION_ERROR.getCode()));
                 })
                 .verify();
+
+        verifyNoInteractions(query, accounts, alDia);
+    }
+
+    /** El saldo incluye las ocurrencias atrasadas de las series sin fin: se lee despues de crearlas (FA-107). */
+    @Test
+    void poneAlDiaLasSeriesAntesDeConsultar() {
+        when(alDia.ponerAlDia(USER_ID)).thenReturn(Mono.error(new IllegalStateException("sin base")));
+
+        StepVerifier.create(casoDeUso.get(USER_ID, null, null)).verifyError(IllegalStateException.class);
 
         verifyNoInteractions(query, accounts);
     }

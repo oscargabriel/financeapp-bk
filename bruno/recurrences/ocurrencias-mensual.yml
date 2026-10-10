@@ -1,0 +1,43 @@
+info:
+  name: Ocurrencias de la serie mensual
+  type: http
+  seq: 13
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{desdeSeries}}&to={{hastaSeries}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const comoDia = function (f) {
+          return f.getFullYear() + "-" + dos(f.getMonth() + 1) + "-" + dos(f.getDate());
+        };
+        const aBogota = function (dia) { return dia + "T05:00:00Z"; };
+        const ocurrencias = res.getBody().transactions
+            .filter(function (t) { return t.recurrenceId === bru.getVar("idSerieMensual"); })
+            .sort(function (a, b) { return a.occurredAt < b.occurredAt ? -1 : 1; });
+        const fechas = ocurrencias.map(function (t) { return t.occurredAt; });
+        bru.setVar("idOcurrenciaMensual", ocurrencias[0].id);
+
+        test("crea las tres el dia 15, todas programadas", function() {
+          expect(fechas).to.eql([4, 5, 6].map(function (n) { return aBogota(bru.getVar("quinceMes" + n)); }));
+          ocurrencias.forEach(function (t) {
+            expect(t.scheduled).to.equal(true);
+            expect(t.amount).to.equal(44900);
+            expect(t.type).to.equal("EXPENSE");
+          });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

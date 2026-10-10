@@ -1,0 +1,44 @@
+info:
+  name: Alta de la serie que se edita
+  type: http
+  seq: 38
+
+http:
+  method: POST
+  url: "{{baseUrl}}/recurrences"
+  body:
+    type: json
+    data: |-
+      {
+        "type": "EXPENSE",
+        "accountId": "{{idCuentaSeries}}",
+        "categoryId": "{{idSuscripcionesSeries}}",
+        "amount": 30000,
+        "description": "Para editar",
+        "frequency": "MONTHLY",
+        "dayOfMonth": 1,
+        "startDate": "{{primeroMes3}}",
+        "occurrences": 3
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idSerieEditar", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Una pasada y dos futuras
+
+  El día 1 del mes en curso ya ocurrió; los del mes siguiente y el otro son futuros.

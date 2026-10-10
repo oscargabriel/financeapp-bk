@@ -1,0 +1,38 @@
+info:
+  name: Ocurrencias hasta la fecha de fin
+  type: http
+  seq: 19
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{desdeSeries}}&to={{hastaSeries}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const comoDia = function (f) {
+          return f.getFullYear() + "-" + dos(f.getMonth() + 1) + "-" + dos(f.getDate());
+        };
+        const aBogota = function (dia) { return dia + "T05:00:00Z"; };
+        const ocurrencias = res.getBody().transactions
+            .filter(function (t) { return t.recurrenceId === bru.getVar("idSerieConFin"); })
+            .sort(function (a, b) { return a.occurredAt < b.occurredAt ? -1 : 1; });
+        const fechas = ocurrencias.map(function (t) { return t.occurredAt; });
+
+        test("crea las cuatro hasta el fin incluido, todas programadas", function() {
+          expect(fechas).to.eql([0, 1, 2, 3].map(function (i) { return aBogota(bru.getVar("lunesConFin" + i)); }));
+          ocurrencias.forEach(function (t) { expect(t.scheduled).to.equal(true); });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

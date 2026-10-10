@@ -1,0 +1,39 @@
+info:
+  name: Ocurrencias del dia 31
+  type: http
+  seq: 15
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{anioSiguiente}}-01-01&to={{anioSiguiente}}-04-30"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const comoDia = function (f) {
+          return f.getFullYear() + "-" + dos(f.getMonth() + 1) + "-" + dos(f.getDate());
+        };
+        const aBogota = function (dia) { return dia + "T05:00:00Z"; };
+        const ocurrencias = res.getBody().transactions
+            .filter(function (t) { return t.recurrenceId === bru.getVar("idSerieDia31"); })
+            .sort(function (a, b) { return a.occurredAt < b.occurredAt ? -1 : 1; });
+        const fechas = ocurrencias.map(function (t) { return t.occurredAt; });
+        const anio = bru.getVar("anioSiguiente");
+
+        test("en un mes mas corto cae el ultimo dia, sin mover las siguientes", function() {
+          expect(fechas).to.eql([anio + "-01-31", bru.getVar("finFebreroSiguiente"), anio + "-03-31", anio + "-04-30"]
+              .map(aBogota));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

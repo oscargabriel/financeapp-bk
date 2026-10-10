@@ -1,0 +1,101 @@
+info:
+  name: Usuario de series — login
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/login"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "series@financeapp.local",
+        "password": "{{testUserPassword}}"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: after-response
+      code: |-
+        bru.setVar("tokenSeries", res.getBody().accessToken);
+        bru.setVar("idSerieAtrasada", "80000000-0000-7000-8000-000000000001");
+        bru.setVar("idCuentaAtrasada", "20000000-0000-7000-8000-000000000009");
+        bru.setVar("idCuentaSeries", "20000000-0000-7000-8000-000000000010");
+        bru.setVar("idCuentaSeriesOtra", "20000000-0000-7000-8000-000000000011");
+
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const comoDia = function (f) {
+          return f.getFullYear() + "-" + dos(f.getMonth() + 1) + "-" + dos(f.getDate());
+        };
+        const aBogota = function (dia) { return dia + "T05:00:00Z"; };
+        const ahora = new Date();
+        const hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+        const enDias = function (n) { return new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + n); };
+        const enMeses = function (n, dia) { return new Date(hoy.getFullYear(), hoy.getMonth() + n, dia); };
+        const desde = function (diaSemana, inicio) {
+          const d = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate());
+          while (d.getDay() !== diaSemana) { d.setDate(d.getDate() + 1); }
+          return d;
+        };
+        const nombres = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+
+        bru.setVar("hoySeries", comoDia(hoy));
+        bru.setVar("mananaSeries", comoDia(enDias(1)));
+        bru.setVar("diaSemanaHoy", nombres[hoy.getDay()]);
+        bru.setVar("desdeSeries", comoDia(enDias(-150)));
+        bru.setVar("hastaSeries", comoDia(enDias(450)));
+        [-28, -14, -7, 0, 7].forEach(function (n) { bru.setVar("atrasada" + (n + 28), comoDia(enDias(n))); });
+        bru.setVar("atrasadaBorrada", comoDia(enDias(-21)));
+
+        [-3, -2, -1, 0, 1, 2, 3].forEach(function (n) {
+          bru.setVar("primeroMes" + (n + 3), comoDia(enMeses(n, 1)));
+          bru.setVar("quinceMes" + (n + 3), comoDia(enMeses(n, 15)));
+        });
+
+        const anio = hoy.getFullYear() + 1;
+        bru.setVar("anioSiguiente", String(anio));
+        bru.setVar("finFebreroSiguiente", comoDia(new Date(anio, 2, 0)));
+
+        const miercoles = desde(3, enDias(1));
+        bru.setVar("miercolesSeries", comoDia(miercoles));
+        [5, 19, 33].forEach(function (n, i) {
+          bru.setVar("lunesCadaDos" + i, comoDia(new Date(miercoles.getFullYear(), miercoles.getMonth(), miercoles.getDate() + n)));
+        });
+
+        const lunes = desde(1, enDias(1));
+        [0, 7, 14, 21].forEach(function (n, i) {
+          bru.setVar("lunesConFin" + i, comoDia(new Date(lunes.getFullYear(), lunes.getMonth(), lunes.getDate() + n)));
+        });
+
+        const viernes = desde(5, enDias(1));
+        [0, 7, 14, 21].forEach(function (n, i) {
+          bru.setVar("viernes" + i, comoDia(new Date(viernes.getFullYear(), viernes.getMonth(), viernes.getDate() + n)));
+        });
+
+        bru.setVar("enUnaSemana", comoDia(enDias(7)));
+        bru.setVar("enDiezDias", comoDia(enDias(10)));
+        bru.setVar("diaEnDiezDias", String(enDias(10).getDate()));
+        bru.setVar("enDiezAnios", comoDia(new Date(hoy.getFullYear() + 10, hoy.getMonth(), hoy.getDate())));
+        bru.setVar("ayerSeries", comoDia(enDias(-1)));
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Login del usuario sembrado
+
+  Misma clave que el usuario del escenario. Si da 401, `test-data.sql` no está cargado o es
+  anterior a FA-107. El script calcula todas las fechas de la carpeta, con la hora local de la
+  máquina, como el resto de la colección.

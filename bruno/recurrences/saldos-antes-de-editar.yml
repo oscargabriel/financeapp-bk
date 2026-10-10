@@ -1,0 +1,29 @@
+info:
+  name: Saldos antes de editar
+  type: http
+  seq: 39
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const saldo = function (v) {
+          return res.getBody().find(function (c) { return c.id === bru.getVar(v); }).currentBalance;
+        };
+        bru.setVar("saldoSeriesAntes", saldo("idCuentaSeries"));
+        bru.setVar("saldoOtraAntes", saldo("idCuentaSeriesOtra"));
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -1,0 +1,50 @@
+info:
+  name: Ocurrencias de la serie atrasada
+  type: http
+  seq: 9
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{desdeSeries}}&to={{hastaSeries}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const comoDia = function (f) {
+          return f.getFullYear() + "-" + dos(f.getMonth() + 1) + "-" + dos(f.getDate());
+        };
+        const aBogota = function (dia) { return dia + "T05:00:00Z"; };
+        const ocurrencias = res.getBody().transactions
+            .filter(function (t) { return t.recurrenceId === bru.getVar("idSerieAtrasada"); })
+            .sort(function (a, b) { return a.occurredAt < b.occurredAt ? -1 : 1; });
+        const fechas = ocurrencias.map(function (t) { return t.occurredAt; });
+
+        test("existen la primera, las creadas al leer y la siguiente, sin la borrada", function() {
+          expect(fechas).to.eql([0, 14, 21, 28, 35].map(function (n) { return aBogota(bru.getVar("atrasada" + n)); }));
+          expect(fechas).to.not.include(aBogota(bru.getVar("atrasadaBorrada")));
+        });
+
+        test("solo la de dentro de una semana esta programada", function() {
+          expect(ocurrencias.map(function (t) { return t.scheduled; })).to.eql([false, false, false, false, true]);
+        });
+
+        test("cada ocurrencia es un gasto con los datos de la serie", function() {
+          ocurrencias.forEach(function (t) {
+            expect(t.amount).to.equal(10000);
+            expect(t.description).to.equal("Gimnasio semanal");
+            expect(t.accountId).to.equal(bru.getVar("idCuentaAtrasada"));
+          });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
