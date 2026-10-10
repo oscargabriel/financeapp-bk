@@ -242,7 +242,7 @@ cors:
 asistente:
   gemini:
     api-key: ...         # sin default; con el stub de verificar-bruno.ps1 vale cualquier texto
-    model: ...           # sin default: el modelo del asistente no esta decidido (FA-77)
+    model: ...           # sin default; local usa gemini-3.1-flash-lite y el servicio gemini-3.5-flash-lite (FA-100)
 ```
 
 ## Tests
