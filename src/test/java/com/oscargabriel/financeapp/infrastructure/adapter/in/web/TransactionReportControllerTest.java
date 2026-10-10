@@ -9,6 +9,7 @@ import static com.oscargabriel.financeapp.support.ReportMother.MERCADO_ID;
 import static com.oscargabriel.financeapp.support.ReportMother.RESTAURANTES_ID;
 import static com.oscargabriel.financeapp.support.ReportMother.SALARIO_ID;
 import static com.oscargabriel.financeapp.support.ReportMother.USER_ID;
+import static com.oscargabriel.financeapp.support.ReportMother.cuota;
 import static com.oscargabriel.financeapp.support.ReportMother.deLaSerie;
 import static com.oscargabriel.financeapp.support.ReportMother.sinFiltros;
 import static com.oscargabriel.financeapp.support.ReportMother.unGasto;
@@ -185,8 +186,27 @@ class TransactionReportControllerTest {
                 .jsonPath("$.transactions[1].recurrenceId").isEqualTo(null);
     }
 
-    static Stream<Arguments> unParametroInvalido() {
-        return Stream.of(
+    @Test
+    void cadaMovimientoTraeLaCuotaQueEs() {
+        UUID compra = UUID.fromString("90000000-0000-7000-8000-000000000001");
+        TransactionReport reporte = TransactionReport.of("COP", sinFiltros(), List.of(
+                unGasto(MERCADO_ID, "Mercado", "85000.0000", "2026-09-02T15:00:00Z"),
+                cuota(unGasto(MERCADO_ID, "Mercado", "424000.0000", "2026-09-05T05:00:00Z"), compra)),
+                AHORA);
+        when(getTransactionReport.get(eq(USER_ID), any(), any(), any(), any(), any())).thenReturn(Mono.just(reporte));
+
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(RANGO)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.transactions[0].installment.purchaseId").isEqualTo(compra.toString())
+                .jsonPath("$.transactions[0].installment.number").isEqualTo(1)
+                .jsonPath("$.transactions[0].installment.count").isEqualTo(3)
+                .jsonPath("$.transactions[0].installment.principal").doesNotExist()
+                .jsonPath("$.transactions[1].installment").isEqualTo(null);
+    }
+
+    static Stream<Arguments> unParametroInvalido() {        return Stream.of(
                 Arguments.of(RUTA + "?to=2026-09-30", "from"),
                 Arguments.of(RUTA + "?from=2026-09-01", "to"),
                 Arguments.of(RUTA + "?from=&to=2026-09-30", "from"),

@@ -12,7 +12,7 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 import com.oscargabriel.financeapp.domain.model.Frequency;
-import com.oscargabriel.financeapp.domain.model.RecurrenceScope;
+import com.oscargabriel.financeapp.domain.model.GroupScope;
 import com.oscargabriel.financeapp.domain.model.UpdateRecurrenceCommand;
 import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.validation.Formatos;
 import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.validation.MontoNumeric;
@@ -25,7 +25,7 @@ import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.validation.
 public record UpdateRecurrenceRequest(
 
         @NotBlank(message = "El alcance es obligatorio: FUTURE o ALL")
-        @ValorDeEnum(value = RecurrenceScope.class, message = "El alcance debe ser FUTURE o ALL")
+        @ValorDeEnum(value = GroupScope.class, message = "El alcance debe ser FUTURE o ALL")
         String scope,
 
         String accountId,
@@ -63,7 +63,7 @@ public record UpdateRecurrenceRequest(
     /** Solo se llama con el cuerpo ya validado. Un texto en blanco de un enum es "no cambia". */
     public UpdateRecurrenceCommand toCommand() {
         return new UpdateRecurrenceCommand(
-                RecurrenceScope.valueOf(CreateRecurrenceRequest.normalizado(scope)),
+                GroupScope.valueOf(CreateRecurrenceRequest.normalizado(scope)),
                 accountId,
                 categoryId,
                 amount,

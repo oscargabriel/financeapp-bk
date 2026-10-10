@@ -53,6 +53,7 @@ SET search_path TO finance, public;
 \set gimnasio   '6000000' :u '-0000-7000-8000-000000000001'
 \set jardin     '6000000' :u '-0000-7000-8000-000000000002'
 \set club       '9000000' :u '-0000-7000-8000-000000000001'
+\set televisor  'a000000' :u '-0000-7000-8000-000000000001'
 
 BEGIN;
 
@@ -288,6 +289,35 @@ SELECT gen_random_uuid(), s.user_id, s.account_id, s.category_id, s.type, s.amou
   FROM finance.recurrences s
  CROSS JOIN generate_series(0, s.generated_count - 1) k
  WHERE s.id = :'club'::uuid;
+
+
+-- -----------------------------------------------------------------------------
+-- Compra en cuotas (FA-108): televisor de 2.400.000 a 6 cuotas en la tarjeta,
+-- comprado el 15 de hace dos meses. Con corte 20 y pago 5, la cuota k vence el
+-- 5 del mes k después de la compra: capital fijo de 400.000 más el 1,89 % del
+-- capital pendiente, como las calcula el API. Las vencidas ya cuentan.
+-- -----------------------------------------------------------------------------
+INSERT INTO finance.installment_purchases
+    (id, user_id, account_id, category_id, amount, currency_code, description,
+     purchase_date, installment_count, monthly_interest_rate)
+SELECT :'televisor'::uuid, :'uid'::uuid, :'tarjeta'::uuid, c.id, 2400000, 'COP', 'Televisor',
+       (date_trunc('month', now() AT TIME ZONE 'America/Bogota') - INTERVAL '2 months')::date + 14, 6, 1.89
+  FROM finance.categories c
+ WHERE c.user_id = :'uid'::uuid AND c.name = 'Tecnología';
+
+INSERT INTO finance.transactions
+    (id, user_id, account_id, category_id, type, amount, currency_code, exchange_rate, amount_base,
+     description, occurred_at, origin, installment_purchase_id, installment_number, installment_principal)
+SELECT gen_random_uuid(), p.user_id, p.account_id, p.category_id, 'EXPENSE', c.monto, 'COP', 1, c.monto,
+       p.description,
+       (date_trunc('month', p.purchase_date) + make_interval(months => k) + INTERVAL '4 days')::timestamp
+           AT TIME ZONE 'America/Bogota',
+       'WEB', p.id, k, 400000
+  FROM finance.installment_purchases p
+ CROSS JOIN generate_series(1, 6) k
+ CROSS JOIN LATERAL (SELECT 400000 + round(p.amount * p.monthly_interest_rate / 100
+                                           * (7 - k) / 6) AS monto) c
+ WHERE p.id = :'televisor'::uuid;
 
 
 -- -----------------------------------------------------------------------------

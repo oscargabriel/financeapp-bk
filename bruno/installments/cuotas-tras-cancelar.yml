@@ -1,0 +1,35 @@
+info:
+  name: Cuotas tras cancelar
+  type: http
+  seq: 44
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{desdeCuotas}}&to={{hastaCuotas}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const cuotas = res.getBody().transactions
+            .filter(function (t) { return t.installment && t.installment.purchaseId === bru.getVar("idCompraPasada"); })
+            .sort(function (a, b) { return a.installment.number - b.installment.number; });
+
+        test("solo quedan las pasadas, con su compra", function() {
+          expect(cuotas).to.have.length(Number(bru.getVar("pagadasPasada")));
+          cuotas.forEach(function (t) {
+            expect(t.scheduled).to.equal(false);
+            expect(t.installment.count).to.equal(6);
+          });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

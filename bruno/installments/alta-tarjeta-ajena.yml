@@ -1,0 +1,40 @@
+info:
+  name: Comprar en la tarjeta de otro usuario
+  type: http
+  seq: 24
+
+http:
+  method: POST
+  url: "{{baseUrl}}/installment-purchases"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idTarjetaAjena}}",
+        "categoryId": "{{idTecnologia}}",
+        "amount": 1200000,
+        "description": "Televisor",
+        "purchaseDate": "{{hoyCuotas}}",
+        "installmentCount": 3
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+  scripts:
+    - type: tests
+      code: |-
+        test("la tarjeta ajena no existe para este usuario", function() {
+          const error = res.getBody().errors.find(function (e) { return e.field === "accountId"; });
+          expect(error.code).to.equal("VALIDATION_ERROR");
+          expect(error.description).to.equal("La cuenta no existe");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

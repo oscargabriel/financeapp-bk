@@ -36,6 +36,11 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | `GET` | `/api/recurrences` | Bearer | Series activas, con su próxima ocurrencia |
 | `PATCH` | `/api/recurrences/{id}` | Bearer | Modificar una serie, en sus futuras o en todas |
 | `DELETE` | `/api/recurrences/{id}` | Bearer | Cancelar una serie |
+| `POST` | `/api/installment-purchases/preview` | Bearer | Simular las cuotas de una compra con tarjeta |
+| `POST` | `/api/installment-purchases` | Bearer | Registrar una compra con tarjeta en cuotas |
+| `GET` | `/api/installment-purchases` | Bearer | Compras con cuotas por venir |
+| `PATCH` | `/api/installment-purchases/{id}` | Bearer | Modificar una compra, en sus cuotas futuras o en todas |
+| `DELETE` | `/api/installment-purchases/{id}` | Bearer | Cancelar las cuotas que faltan |
 | `GET` | `/api/monthly-spending` | Bearer | Gasto mensual contra la meta |
 | `GET` | `/api/reports/transactions` | Bearer | Movimientos y totales de un rango de días |
 | `GET` | `/api/reports/balance` | Bearer | Ingresos menos gastos de un rango y de siempre, con las cuentas |
@@ -445,7 +450,7 @@ sin distinguir mayúsculas.
 | `initialBalance` | Saldo con el que la cuenta entró al sistema |
 | `currentBalance` | Saldo vigente: `initialBalance` más el efecto de los movimientos que ya ocurrieron; los [programados](#movimientos-programados) no cuentan hasta su fecha. Lo calcula la base y el cliente nunca lo escribe. **En una tarjeta de crédito, negativo es deuda** |
 | `creditLimit` | Solo en `CREDIT`: el cupo. `null` en los demás tipos o si la tarjeta no lo tiene |
-| `availableCredit` | Solo en `CREDIT`: `creditLimit + currentBalance`. `null` en los demás tipos o si la tarjeta no tiene cupo |
+| `availableCredit` | Solo en `CREDIT`: `creditLimit + currentBalance` menos el capital de las cuotas de [compras en cuotas](#compras-en-cuotas) que todavía no llegan. `null` en los demás tipos o si la tarjeta no tiene cupo |
 | `statementDay`, `paymentDueDay` | Solo en `CREDIT`: día de corte y día de pago, 1 a 31. `null` en los demás tipos |
 | `monthlyInterestRate` | Solo en `CREDIT`: tasa de interés **mensual en porcentaje** (`2.15` es el 2,15 % mensual, no 0.0215). `null` en los demás tipos o si la tarjeta no la tiene cargada |
 
@@ -819,7 +824,8 @@ no confirma que un id exista fuera de tus datos.
     "occurredAt": "2026-09-20T15:15:00Z",
     "status": "CONFIRMED",
     "scheduled": false,
-    "recurrenceId": null
+    "recurrenceId": null,
+    "installment": null
   }
 ]
 ```
@@ -835,6 +841,10 @@ el servidor; si el cuerpo trae un `scheduled`, se ignora.
 [Series recurrentes](#series-recurrentes)), o `null` si no es de ninguna. Va en toda respuesta de un
 movimiento: alta, modificación, pendientes y aprobación. Lo pone el servidor: si el cuerpo trae un
 `recurrenceId`, se ignora, y un movimiento no se puede agregar a una serie ni sacar de ella.
+
+`installment` dice si el movimiento es una cuota de una [compra en cuotas](#compras-en-cuotas):
+`{"purchaseId": "…", "number": 3, "count": 12}` es la cuota 3 de 12 de esa compra. Es `null` si no es
+una cuota. Va en las mismas respuestas que `recurrenceId` y, como él, se ignora si llega en el cuerpo.
 
 **Efecto en los saldos.** La base los aplica en la misma transacción. Después del 201, un
 `GET /accounts` ya los muestra, salvo los programados, que esperan a su fecha:
@@ -1093,6 +1103,162 @@ serie de la lista. No lleva `scope`.
 | 400 | `VALIDATION_ERROR` | `id` | El id de la ruta no es un UUID |
 | 404 | `NOT_FOUND` | `id` | La serie no existe, es de otro usuario o ya está cancelada |
 
+### Compras en cuotas
+
+Una compra con tarjeta de crédito diferida a cuotas. Cada **cuota** es un gasto normal de la tarjeta,
+con su `installment` (ver [`POST /api/transactions`](#post-apitransactions)), y queda
+[programada](#movimientos-programados) hasta su fecha. **Bearer** en las cinco rutas.
+
+**Solo en una tarjeta** `CREDIT` con `statementDay` (corte) y `paymentDueDay` (pago).
+
+**Fechas.** El primer corte es el día de corte del mes de la compra si la compra cae ese día o antes
+—**una compra del mismo día del corte entra en ese corte**—, y si no, el del mes siguiente. La primera
+cuota vence el día de pago del mes del corte si el pago es posterior al corte, y del mes siguiente si
+no; las demás, el día de pago de cada mes. Un día que el mes no tiene cae en su último día (31-ene,
+28-feb, 31-mar). Cada cuota vence a las 00:00 de su día en la zona del usuario (`05:00:00Z` en Bogotá).
+Con corte 20 y pago 5, una compra del 9 o del 20 de octubre vence el 5 de noviembre; una del 21, el 5
+de diciembre.
+
+**Capital e interés.** El capital de cada cuota es el total entre las cuotas, en pesos enteros y
+redondeado hacia abajo; la última se lleva el resto, de modo que los capitales suman el total exacto.
+El interés de cada cuota es la tasa mensual de la tarjeta sobre el capital que falta antes de esa cuota,
+en pesos enteros, la mitad hacia arriba. Con 1 cuota, o con tasa 0 o sin tasa, no hay interés. La tasa
+se copia en la compra: cambiar la de la tarjeta después no mueve las cuotas.
+
+| Cuota (1.200.000 a 3, tasa 2) | Capital | Interés | Total |
+|---|---|---|---|
+| 1 | 400.000 | 24.000 (2 % de 1.200.000) | 424.000 |
+| 2 | 400.000 | 16.000 (2 % de 800.000) | 416.000 |
+| 3 | 400.000 | 8.000 (2 % de 400.000) | 408.000 |
+
+**El cupo.** Desde la compra, `availableCredit` de la tarjeta descuenta el capital de las cuotas que
+todavía no llegan, aunque esas cuotas no cuenten en `currentBalance`. Al llegar una cuota, su capital
+deja de estar comprometido y la cuota entera entra al saldo: el interés consume cupo cuando se cobra.
+En el ejemplo, una tarjeta en cero con cupo 5.000.000 queda en 3.800.000 al comprar, y en 3.776.000
+cuando vence la primera cuota.
+
+**Cuotas sueltas.** Una cuota se corrige o se borra con `PATCH` o `DELETE` sobre
+`/api/transactions/{id}` y sigue siendo de su compra, con su número. Un **pago adelantado** se
+registra así: adelantando la fecha de la cuota o borrándola. Una cuota borrada cuenta como pagada.
+
+#### `POST /api/installment-purchases/preview` y `POST /api/installment-purchases`
+
+Los dos reciben el mismo cuerpo y aplican las mismas reglas:
+
+```json
+{
+  "accountId": "0199a1b2-...",
+  "categoryId": "0199a1c0-...",
+  "amount": 1200000,
+  "description": "Televisor",
+  "purchaseDate": "2026-10-09",
+  "installmentCount": 3
+}
+```
+
+| Campo | Obligatorio | Regla |
+|---|---|---|
+| `accountId` | Sí | Tarjeta `CREDIT` propia, activa y en COP, con día de corte y día de pago |
+| `categoryId` | Sí | Categoría propia que aplique a gastos |
+| `amount` | Sí | Total de la compra, sin interés. Mayor que cero, hasta 4 decimales, y no menor que `installmentCount`: cada cuota lleva al menos 1 peso de capital |
+| `description` | Sí | Hasta 255 caracteres; se recorta. Es la de cada cuota |
+| `purchaseDate` | Sí | `YYYY-MM-DD`, hoy o antes en la zona del usuario. Si es pasada, las cuotas vencidas cuentan de una vez |
+| `installmentCount` | Sí | De 1 a 48 |
+
+`preview` responde **200 OK** sin guardar nada:
+
+```json
+{
+  "accountId": "0199a1b2-...",
+  "amount": 1200000,
+  "currencyCode": "COP",
+  "purchaseDate": "2026-10-09",
+  "installmentCount": 3,
+  "monthlyInterestRate": 2.0000,
+  "totalInterest": 48000,
+  "totalAmount": 1248000,
+  "installments": [
+    { "number": 1, "dueAt": "2026-11-05T05:00:00Z", "principal": 400000, "interest": 24000, "amount": 424000 },
+    { "number": 2, "dueAt": "2026-12-05T05:00:00Z", "principal": 400000, "interest": 16000, "amount": 416000 },
+    { "number": 3, "dueAt": "2027-01-05T05:00:00Z", "principal": 400000, "interest": 8000, "amount": 408000 }
+  ]
+}
+```
+
+El alta responde **201 Created** con la compra y su plan, cada cuota con el `transactionId` de su
+movimiento:
+
+```json
+{
+  "id": "019a3c20-...",
+  "accountId": "0199a1b2-...",
+  "categoryId": "0199a1c0-...",
+  "amount": 1200000.0000,
+  "currencyCode": "COP",
+  "description": "Televisor",
+  "purchaseDate": "2026-10-09",
+  "installmentCount": 3,
+  "monthlyInterestRate": 2.0000,
+  "paidCount": 0,
+  "remainingPrincipal": 1200000,
+  "remainingAmount": 1248000,
+  "nextInstallment": {
+    "number": 1, "transactionId": "019a3c20-...", "dueAt": "2026-11-05T05:00:00Z", "amount": 424000
+  },
+  "installments": [
+    { "number": 1, "transactionId": "019a3c20-...", "dueAt": "2026-11-05T05:00:00Z",
+      "principal": 400000, "interest": 24000, "amount": 424000 }
+  ]
+}
+```
+
+| Campo | Significado |
+|---|---|
+| `monthlyInterestRate` | La tasa de la tarjeta al registrar la compra; `0` si no tenía |
+| `paidCount` | `installmentCount` menos las cuotas que existen con fecha posterior al momento actual. Una cuota borrada a mano cuenta como pagada |
+| `remainingPrincipal` | Capital de esas cuotas: lo que la compra tiene comprometido del cupo |
+| `remainingAmount` | Lo que falta por pagar: el monto actual de esas cuotas, también si se editó a mano |
+| `nextInstallment` | La cuota más próxima con fecha posterior al momento actual, o `null` si no queda ninguna |
+| `installments` | Solo en el alta: el plan completo |
+
+#### `GET /api/installment-purchases`
+
+**200 OK** — arreglo de compras con la forma del alta, **sin** `installments`, de la próxima cuota a la
+más lejana. Solo las **activas**: no canceladas y con alguna cuota por venir. Una compra cuyas cuotas
+ya pasaron todas deja de aparecer. Sin compras activas, `[]`. Cada cuota está en
+`reports/transactions` con su `installment`.
+
+#### `PATCH /api/installment-purchases/{id}`
+
+```json
+{ "scope": "FUTURE", "description": "Televisor sala" }
+```
+
+`scope` es obligatorio: `FUTURE` cambia solo las cuotas con fecha posterior al momento actual; `ALL`,
+también las pasadas. Se puede cambiar `description` y `categoryId`; ausente o `null` es "no cambia", y
+al menos uno tiene que venir. Las cuotas del alcance reciben los cambios también si se editaron a mano.
+Ningún saldo cambia. El monto, las cuotas, la tarjeta y la fecha no se editan: se cancela y se registra
+de nuevo.
+
+**200 OK** — la compra como quedó, sin `installments`.
+
+#### `DELETE /api/installment-purchases/{id}`
+
+**204 No Content.** Borra las cuotas futuras, conserva las pasadas con su `installment` y saca la compra
+de la lista. El capital de las cuotas borradas vuelve al cupo. No lleva `scope`.
+
+**Errores de las cinco rutas**
+
+| HTTP | `code` | `field` | Cuándo |
+|---|---|---|---|
+| 400 | `VALIDATION_ERROR` | El del campo | Cualquier regla de la tabla del alta |
+| 400 | `VALIDATION_ERROR` | `accountId` | La cuenta no es una tarjeta, o la tarjeta no tiene día de corte o de pago |
+| 400 | `VALIDATION_ERROR` | `purchaseDate` | La fecha es posterior a hoy en la zona del usuario |
+| 400 | `VALIDATION_ERROR` | `scope` | `PATCH` sin `scope`, o con un valor distinto de `FUTURE` y `ALL` |
+| 400 | `VALIDATION_ERROR` | `body` | `PATCH` sin `description` ni `categoryId` |
+| 400 | `VALIDATION_ERROR` | `id` | El id de la ruta no es un UUID |
+| 404 | `NOT_FOUND` | `id` | La compra no existe, es de otro usuario o ya está cancelada |
+
 ### `GET /api/monthly-spending`
 
 Gasto por mes del usuario del token comparado con su meta mensual. **Bearer.**
@@ -1203,7 +1369,8 @@ dos extremos. Errores 400 `VALIDATION_ERROR`, en el campo del parámetro:
       "notes": null,
       "occurredAt": "2026-10-10T20:00:00Z",
       "scheduled": false,
-      "recurrenceId": null
+      "recurrenceId": null,
+      "installment": null
     },
     {
       "id": "0192a3b4-...",
@@ -1219,7 +1386,8 @@ dos extremos. Errores 400 `VALIDATION_ERROR`, en el campo del parámetro:
       "notes": null,
       "occurredAt": "2026-10-02T15:00:00Z",
       "scheduled": false,
-      "recurrenceId": null
+      "recurrenceId": null,
+      "installment": null
     }
   ],
   "totalsByType": [
@@ -1241,6 +1409,7 @@ dos extremos. Errores 400 `VALIDATION_ERROR`, en el campo del parámetro:
 | `amountBase` | El mismo monto en la moneda base. Es lo que suman los totales |
 | `scheduled` | `true` si el movimiento está programado: sale en la lista, pero no en los totales ni en `net` |
 | `recurrenceId` | La serie de la que el movimiento es ocurrencia, o `null`. Sirve para mostrar juntas las ocurrencias de una serie |
+| `installment` | `{purchaseId, number, count}` si el movimiento es una cuota de una [compra en cuotas](#compras-en-cuotas) ("3 de 12"), o `null` |
 | `totalsByType` | Una entrada por tipo consultado (los tres sin filtro de tipo), aunque sea en cero. Sin los programados |
 | `totalsByCategory` | Solo las categorías con movimientos ya ocurridos, de mayor a menor total |
 | `net` | Total de `INCOME` menos total de `EXPENSE`. Puede ser negativo |
@@ -1374,3 +1543,6 @@ Para que el frontend no lo busque:
 - Movimientos en monedas distintas de COP.
 - Transferencias recurrentes, y cambiar el fin (`endDate`, `occurrences`) o el tipo de una serie.
 - Listar las ocurrencias de una serie: se filtran por `recurrenceId` en `reports/transactions`.
+- Cambiar el monto, el número de cuotas, la tarjeta o la fecha de una compra en cuotas, o recalcular
+  sus cuotas si cambian los datos de la tarjeta. Tampoco valida que la compra quepa en el cupo.
+- Listar las cuotas de una compra: se filtran por `installment.purchaseId` en `reports/transactions`.

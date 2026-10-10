@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.oscargabriel.financeapp.domain.model.Recurrence;
-import com.oscargabriel.financeapp.domain.model.RecurrenceScope;
+import com.oscargabriel.financeapp.domain.model.GroupScope;
 import com.oscargabriel.financeapp.domain.model.RecurrenceTemplateChange;
 import com.oscargabriel.financeapp.domain.model.RecurrenceView;
 import com.oscargabriel.financeapp.domain.model.Transaction;
@@ -44,7 +44,7 @@ public interface RecurrenceRepositoryPort {
      * a ahora; con ALL, todas. Si rehechas no es null, antes borra las futuras e inserta esas. Todo en
      * una transaccion; false si la serie ya no estaba activa.
      */
-    Mono<Boolean> update(Recurrence serie, RecurrenceScope alcance, Instant ahora, RecurrenceTemplateChange cambios,
+    Mono<Boolean> update(Recurrence serie, GroupScope alcance, Instant ahora, RecurrenceTemplateChange cambios,
             List<Transaction> rehechas);
 
     /** Borra las ocurrencias posteriores a ahora y la marca cancelada; false si no habia una activa. */

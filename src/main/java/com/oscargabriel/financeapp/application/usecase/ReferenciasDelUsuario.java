@@ -8,6 +8,7 @@ import java.util.UUID;
 import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.exceptions.responses.ErrorDetail;
 import com.oscargabriel.financeapp.domain.model.Account;
+import com.oscargabriel.financeapp.domain.model.AccountType;
 import com.oscargabriel.financeapp.domain.model.Category;
 import com.oscargabriel.financeapp.domain.model.CategoryScope;
 import com.oscargabriel.financeapp.domain.model.TransactionType;
@@ -63,6 +64,27 @@ final class ReferenciasDelUsuario {
             return null;
         }
         return id;
+    }
+
+    /**
+     * Una cuenta propia que ademas es una tarjeta con corte y pago, sin los cuales no hay fechas de cuotas
+     * (FA-108). Devuelve la cuenta entera: el plan necesita sus dias y su tasa.
+     */
+    Account tarjetaParaCuotas(String valor, String campo, List<ErrorDetail> errores) {
+        UUID id = cuentaPropia(valor, campo, "La cuenta", errores);
+        if (id == null) {
+            return null;
+        }
+        Account cuenta = cuentas.get(id);
+        if (cuenta.type() != AccountType.CREDIT) {
+            errores.add(detalle("Las cuotas solo se registran sobre una tarjeta de credito", campo));
+            return null;
+        }
+        if (cuenta.statementDay() == null || cuenta.paymentDueDay() == null) {
+            errores.add(detalle("La tarjeta necesita dia de corte y dia de pago para calcular las cuotas", campo));
+            return null;
+        }
+        return cuenta;
     }
 
     UUID categoria(String valor, TransactionType tipo, String campo, List<ErrorDetail> errores) {

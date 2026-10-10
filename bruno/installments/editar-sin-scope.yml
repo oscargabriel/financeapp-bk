@@ -1,0 +1,35 @@
+info:
+  name: Editar sin alcance
+  type: http
+  seq: 38
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/installment-purchases/{{idCompraPasada}}"
+  body:
+    type: json
+    data: |-
+      {
+        "description": "TV"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+  scripts:
+    - type: tests
+      code: |-
+        test("el alcance es obligatorio", function() {
+          const campos = res.getBody().errors.map(function (e) { return e.field; });
+          expect(campos).to.include("scope");
+          res.getBody().errors.forEach(function (e) { expect(e.code).to.equal("VALIDATION_ERROR"); });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -37,7 +37,7 @@ import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.domain.exceptions.responses.ErrorDetail;
 import com.oscargabriel.financeapp.domain.model.Frequency;
 import com.oscargabriel.financeapp.domain.model.Recurrence;
-import com.oscargabriel.financeapp.domain.model.RecurrenceScope;
+import com.oscargabriel.financeapp.domain.model.GroupScope;
 import com.oscargabriel.financeapp.domain.model.RecurrenceTemplateChange;
 import com.oscargabriel.financeapp.domain.model.Transaction;
 import com.oscargabriel.financeapp.domain.model.UserProfile;
@@ -102,7 +102,7 @@ class UpdateRecurrenceUseCaseTest {
     void unaSerieInexistenteAjenaOCanceladaEs404SobreId() {
         when(series.findActiveByIdAndUser(SERIE_ID, USER_ID)).thenReturn(Mono.empty());
 
-        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(RecurrenceScope.ALL).amount("1").build()))
+        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(GroupScope.ALL).amount("1").build()))
                 .verifyErrorSatisfies(e -> {
                     BadRequestException error = (BadRequestException) e;
                     assertThat(error.getHttpStatus()).isEqualTo(HttpStatus.NOT_FOUND);
@@ -118,14 +118,14 @@ class UpdateRecurrenceUseCaseTest {
         guardadaEs(unaSerie().veces(3).creadas(3).build());
 
         StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID,
-                        unParche(RecurrenceScope.FUTURE).amount("35000").build()))
+                        unParche(GroupScope.FUTURE).amount("35000").build()))
                 .assertNext(vista -> {
                     assertThat(vista.recurrence().amount()).isEqualByComparingTo("35000");
                     assertThat(vista.nextOccurrenceAt()).isEqualTo(PROXIMA);
                 })
                 .verifyComplete();
 
-        verify(series).update(guardada.capture(), eq(RecurrenceScope.FUTURE), eq(AHORA), cambios.capture(), isNull());
+        verify(series).update(guardada.capture(), eq(GroupScope.FUTURE), eq(AHORA), cambios.capture(), isNull());
         assertThat(cambios.getValue()).isEqualTo(new RecurrenceTemplateChange(null, null,
                 new BigDecimal("35000"), null));
         assertThat(guardada.getValue().generatedCount()).isEqualTo(3);
@@ -135,12 +135,12 @@ class UpdateRecurrenceUseCaseTest {
     void cambiarLaCuentaYLaDescripcionLasValidaYRecortaLaDescripcion() {
         guardadaEs(unaSerie().build());
 
-        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(RecurrenceScope.ALL)
+        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(GroupScope.ALL)
                         .accountId(TransactionMother.DESTINO_ID.toString()).description("  Netflix premium  ").build()))
                 .expectNextCount(1)
                 .verifyComplete();
 
-        verify(series).update(guardada.capture(), eq(RecurrenceScope.ALL), eq(AHORA), cambios.capture(), isNull());
+        verify(series).update(guardada.capture(), eq(GroupScope.ALL), eq(AHORA), cambios.capture(), isNull());
         assertThat(cambios.getValue()).isEqualTo(new RecurrenceTemplateChange(TransactionMother.DESTINO_ID, null,
                 null, "Netflix premium"));
         assertThat(guardada.getValue().accountId()).isEqualTo(TransactionMother.DESTINO_ID);
@@ -150,7 +150,7 @@ class UpdateRecurrenceUseCaseTest {
     void unaCuentaAjenaEsErrorSobreAccountIdYNoGuarda() {
         guardadaEs(unaSerie().build());
 
-        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(RecurrenceScope.ALL)
+        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(GroupScope.ALL)
                         .accountId(TransactionMother.AJENA_ID.toString()).build()))
                 .verifyErrorSatisfies(e -> assertThat(campos(e)).containsExactly("accountId"));
 
@@ -161,7 +161,7 @@ class UpdateRecurrenceUseCaseTest {
     void unaCategoriaQueNoAplicaAlTipoDeLaSerieEsErrorSobreCategoryId() {
         guardadaEs(unaSerie().build());
 
-        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(RecurrenceScope.ALL)
+        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(GroupScope.ALL)
                         .categoryId(TransactionMother.SALARIO_ID.toString()).build()))
                 .verifyErrorSatisfies(e -> assertThat(campos(e)).containsExactly("categoryId"));
     }
@@ -170,13 +170,13 @@ class UpdateRecurrenceUseCaseTest {
     void cambiarLaPeriodicidadRehaceLasFuturasDesdeMananaConservandoElTotal() {
         guardadaEs(unaSerie().mensual(1, 1, LocalDate.of(2026, 9, 1)).veces(6).creadas(6).build());
 
-        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(RecurrenceScope.FUTURE)
+        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(GroupScope.FUTURE)
                         .frequency(Frequency.WEEKLY).dayOfWeek(DayOfWeek.FRIDAY).build()))
                 .assertNext(vista -> assertThat(vista.nextOccurrenceAt())
                         .isEqualTo(Instant.parse("2026-10-16T05:00:00Z")))
                 .verifyComplete();
 
-        verify(series).update(guardada.capture(), eq(RecurrenceScope.FUTURE), eq(AHORA), any(), rehechas.capture());
+        verify(series).update(guardada.capture(), eq(GroupScope.FUTURE), eq(AHORA), any(), rehechas.capture());
         Recurrence serie = guardada.getValue();
         assertThat(serie.rule().frequency()).isEqualTo(Frequency.WEEKLY);
         assertThat(serie.rule().dayOfMonth()).isNull();
@@ -193,7 +193,7 @@ class UpdateRecurrenceUseCaseTest {
     void cambiarSoloElDiaDeUnaSemanalConservaLaFrecuenciaYRehace() {
         guardadaEs(unaSerie().semanal(1, DayOfWeek.FRIDAY, HOY).build());
 
-        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(RecurrenceScope.FUTURE)
+        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(GroupScope.FUTURE)
                         .dayOfWeek(DayOfWeek.MONDAY).build()))
                 .expectNextCount(1)
                 .verifyComplete();
@@ -208,7 +208,7 @@ class UpdateRecurrenceUseCaseTest {
     void mandarLaMismaReglaNoRehaceNada() {
         guardadaEs(unaSerie().build());
 
-        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(RecurrenceScope.ALL)
+        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(GroupScope.ALL)
                         .frequency(Frequency.MONTHLY).dayOfMonth(15).interval(1).build()))
                 .expectNextCount(1)
                 .verifyComplete();
@@ -220,7 +220,7 @@ class UpdateRecurrenceUseCaseTest {
     void pasarAMensualSinDiaDelMesEsErrorSobreDayOfMonth() {
         guardadaEs(unaSerie().semanal(1, DayOfWeek.FRIDAY, HOY).build());
 
-        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(RecurrenceScope.FUTURE)
+        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(GroupScope.FUTURE)
                         .frequency(Frequency.MONTHLY).build()))
                 .verifyErrorSatisfies(e -> assertThat(campos(e)).containsExactly("dayOfMonth"));
     }
@@ -229,7 +229,7 @@ class UpdateRecurrenceUseCaseTest {
     void unDiaDeLaSemanaEnUnaSerieQueQuedaMensualEsErrorSobreDayOfWeek() {
         guardadaEs(unaSerie().build());
 
-        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(RecurrenceScope.FUTURE)
+        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(GroupScope.FUTURE)
                         .dayOfWeek(DayOfWeek.MONDAY).build()))
                 .verifyErrorSatisfies(e -> assertThat(campos(e)).containsExactly("dayOfWeek"));
     }
@@ -238,7 +238,7 @@ class UpdateRecurrenceUseCaseTest {
     void elIntervaloSeValidaContraLaFrecuenciaResultante() {
         guardadaEs(unaSerie().semanal(20, DayOfWeek.FRIDAY, HOY).build());
 
-        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(RecurrenceScope.FUTURE)
+        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(GroupScope.FUTURE)
                         .frequency(Frequency.MONTHLY).dayOfMonth(5).build()))
                 .verifyErrorSatisfies(e -> assertThat(campos(e)).containsExactly("interval"));
     }
@@ -248,7 +248,7 @@ class UpdateRecurrenceUseCaseTest {
         guardadaEs(unaSerie().build());
         when(series.update(any(), any(), any(), any(), any())).thenReturn(Mono.just(false));
 
-        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(RecurrenceScope.ALL).amount("1").build()))
+        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(GroupScope.ALL).amount("1").build()))
                 .verifyErrorSatisfies(e -> assertThat(((BadRequestException) e).getHttpStatus())
                         .isEqualTo(HttpStatus.NOT_FOUND));
     }
@@ -258,7 +258,7 @@ class UpdateRecurrenceUseCaseTest {
         guardadaEs(unaSerie().semanal(1, DayOfWeek.FRIDAY, HOY.minusDays(7)).creadas(3).build());
         when(series.findNextOccurrence(SERIE_ID)).thenReturn(Mono.empty());
 
-        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(RecurrenceScope.ALL).amount("1").build()))
+        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(GroupScope.ALL).amount("1").build()))
                 .assertNext(vista -> assertThat(vista.nextOccurrenceAt())
                         .isEqualTo(Instant.parse("2026-10-23T05:00:00Z")))
                 .verifyComplete();
@@ -269,7 +269,7 @@ class UpdateRecurrenceUseCaseTest {
         guardadaEs(unaSerie().veces(1).creadas(1).build());
         when(series.findNextOccurrence(SERIE_ID)).thenReturn(Mono.empty());
 
-        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(RecurrenceScope.ALL).amount("1").build()))
+        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(GroupScope.ALL).amount("1").build()))
                 .assertNext(vista -> assertThat(vista.nextOccurrenceAt()).isNull())
                 .verifyComplete();
     }

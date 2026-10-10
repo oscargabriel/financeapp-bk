@@ -47,8 +47,8 @@ public class UpdateAccountUseCase implements UpdateAccountPort {
     }
 
     /**
-     * El saldo vigente se copia tal cual: si cambia el inicial, la base lo corre en la misma
-     * diferencia (trg_accounts_shift_balance) y el RETURNING del update trae el resultado.
+     * El saldo vigente y el cupo comprometido se copian tal cual: si cambia el inicial, la base lo corre
+     * en la misma diferencia (trg_accounts_shift_balance) y el RETURNING del update trae el resultado.
      */
     private static Account aplicar(Account guardada, UpdateAccountCommand parche) {
         return new Account(
@@ -64,7 +64,8 @@ public class UpdateAccountUseCase implements UpdateAccountPort {
                 parche.statementDay() == null ? guardada.statementDay() : parche.statementDay(),
                 parche.paymentDueDay() == null ? guardada.paymentDueDay() : parche.paymentDueDay(),
                 parche.monthlyInterestRate() == null ? guardada.monthlyInterestRate() : parche.monthlyInterestRate(),
-                parche.isActive() == null ? guardada.active() : parche.isActive());
+                parche.isActive() == null ? guardada.active() : parche.isActive(),
+                guardada.committedCredit());
     }
 
     /**

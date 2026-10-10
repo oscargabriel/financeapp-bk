@@ -100,7 +100,7 @@ public class UpdateTransactionUseCase implements UpdateTransactionPort {
                     parche.occurredAt() == null
                             ? guardado.occurredAt()
                             : OffsetDateTime.parse(parche.occurredAt().trim()).toInstant(),
-                    guardado.status(), guardado.origin(), guardado.recurrenceId());
+                    guardado.status(), guardado.origin(), guardado.recurrenceId(), guardado.installment());
         }
 
         /** La guardada sirve si ya era transferencia; si no, el parche tiene que traerla. */

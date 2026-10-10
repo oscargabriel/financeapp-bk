@@ -1,0 +1,30 @@
+info:
+  name: Cuentas tras borrar una cuota
+  type: http
+  seq: 32
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const visa = res.getBody().find(function (c) { return c.id === bru.getVar("idVisa"); });
+        bru.setVar("saldoVisaAntesDeEditar", String(visa.currentBalance));
+
+        test("el capital de la cuota borrada vuelve al cupo", function() {
+          expect(visa.availableCredit).to.equal(Number(bru.getVar("cupoAntesDeBorrar")) + 100000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

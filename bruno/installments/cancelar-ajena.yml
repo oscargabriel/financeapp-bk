@@ -1,0 +1,27 @@
+info:
+  name: Cancelar la compra de otro usuario
+  type: http
+  seq: 48
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/installment-purchases/{{idCompraAjena}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "404"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: NOT_FOUND
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: id
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

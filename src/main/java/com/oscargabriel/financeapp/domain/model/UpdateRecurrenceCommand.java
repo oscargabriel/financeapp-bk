@@ -5,7 +5,7 @@ import java.time.DayOfWeek;
 
 /** El parche de una serie con su formato ya validado. Null es "no cambia", salvo scope, que siempre va. */
 public record UpdateRecurrenceCommand(
-        RecurrenceScope scope,
+        GroupScope scope,
         String accountId,
         String categoryId,
         BigDecimal amount,

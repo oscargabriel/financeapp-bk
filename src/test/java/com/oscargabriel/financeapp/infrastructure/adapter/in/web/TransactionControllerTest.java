@@ -367,6 +367,7 @@ class TransactionControllerTest {
                 .jsonPath("$.amount").isEqualTo(50000)
                 .jsonPath("$.occurredAt").isEqualTo("2026-09-20T15:15:00Z")
                 .jsonPath("$.recurrenceId").isEqualTo(null)
+                .jsonPath("$.installment").isEqualTo(null)
                 .jsonPath("$.userId").doesNotExist();
 
         verify(updateTransaction).update(TransactionMother.USER_ID, GASTO_ID,
@@ -391,8 +392,25 @@ class TransactionControllerTest {
     }
 
     @Test
-    void unaOcurrenciaModificadaDevuelveSuSerie() {
-        UUID serie = UUID.fromString("80000000-0000-7000-8000-000000000001");
+    void unaCuotaModificadaDiceDeQueCompraEsYSuNumeroSinElCapital() {
+        UUID compra = UUID.fromString("90000000-0000-7000-8000-000000000001");
+        when(updateTransaction.update(eq(TransactionMother.USER_ID), eq(GASTO_ID), any()))
+                .thenReturn(Mono.just(TransactionMother.cuota(gasto(), compra)));
+
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/" + GASTO_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"amount\": 400000, \"installment\": null}")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.installment.purchaseId").isEqualTo(compra.toString())
+                .jsonPath("$.installment.number").isEqualTo(2)
+                .jsonPath("$.installment.count").isEqualTo(3)
+                .jsonPath("$.installment.principal").doesNotExist();
+    }
+
+    @Test
+    void unaOcurrenciaModificadaDevuelveSuSerie() {        UUID serie = UUID.fromString("80000000-0000-7000-8000-000000000001");
         when(updateTransaction.update(eq(TransactionMother.USER_ID), eq(GASTO_ID), any()))
                 .thenReturn(Mono.just(TransactionMother.deLaSerie(gasto(), serie)));
 
@@ -656,13 +674,13 @@ class TransactionControllerTest {
         return new Transaction(GASTO_ID, TransactionMother.USER_ID, TransactionType.EXPENSE,
                 TransactionMother.ORIGEN_ID, null, TransactionMother.MERCADO_ID, new BigDecimal("50000"),
                 "COP", "Mercado", "Pagado en efectivo", Instant.parse("2026-09-20T15:15:00Z"),
-                TransactionStatus.CONFIRMED, TransactionOrigin.WEB, null);
+                TransactionStatus.CONFIRMED, TransactionOrigin.WEB, null, null);
     }
 
     private static Transaction transferencia() {
         return new Transaction(TRANSFERENCIA_ID, TransactionMother.USER_ID, TransactionType.TRANSFER,
                 TransactionMother.ORIGEN_ID, TransactionMother.DESTINO_ID, null, new BigDecimal("100000"),
                 "COP", "Ahorro", null, Instant.parse("2026-09-20T16:00:00Z"),
-                TransactionStatus.CONFIRMED, TransactionOrigin.WEB, null);
+                TransactionStatus.CONFIRMED, TransactionOrigin.WEB, null, null);
     }
 }

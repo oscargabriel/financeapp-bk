@@ -22,7 +22,8 @@ public record ReportedTransaction(
         String description,
         String notes,
         Instant occurredAt,
-        UUID recurrenceId) {
+        UUID recurrenceId,
+        InstallmentRef installment) {
 
     /** Programado: confirmado con fecha posterior al instante dado (FA-106). */
     public boolean scheduledAt(Instant ahora) {

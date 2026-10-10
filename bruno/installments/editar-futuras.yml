@@ -1,0 +1,39 @@
+info:
+  name: Cambiar la descripcion de las futuras
+  type: http
+  seq: 33
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/installment-purchases/{{idCompraPasada}}"
+  body:
+    type: json
+    data: |-
+      {
+        "scope": "FUTURE",
+        "description": "Nevera cocina"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const p = res.getBody();
+
+        test("devuelve la compra sin el plan, con la descripcion nueva", function() {
+          expect(p).to.have.all.keys("id", "accountId", "categoryId", "amount", "currencyCode", "description", "purchaseDate",
+              "installmentCount", "monthlyInterestRate", "paidCount", "remainingPrincipal", "remainingAmount",
+              "nextInstallment");
+          expect(p.description).to.equal("Nevera cocina");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

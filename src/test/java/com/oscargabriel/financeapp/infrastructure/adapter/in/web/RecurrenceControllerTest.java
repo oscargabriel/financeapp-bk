@@ -26,7 +26,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 
 import com.oscargabriel.financeapp.domain.model.CreateRecurrenceCommand;
 import com.oscargabriel.financeapp.domain.model.Frequency;
-import com.oscargabriel.financeapp.domain.model.RecurrenceScope;
+import com.oscargabriel.financeapp.domain.model.GroupScope;
 import com.oscargabriel.financeapp.domain.model.RecurrenceView;
 import com.oscargabriel.financeapp.domain.model.TransactionType;
 import com.oscargabriel.financeapp.domain.model.UpdateRecurrenceCommand;
@@ -172,7 +172,7 @@ class RecurrenceControllerTest {
 
         ArgumentCaptor<UpdateRecurrenceCommand> parche = ArgumentCaptor.forClass(UpdateRecurrenceCommand.class);
         verify(updateRecurrence).update(eq(TransactionMother.USER_ID), eq(SERIE_ID), parche.capture());
-        assertThat(parche.getValue().scope()).isEqualTo(RecurrenceScope.FUTURE);
+        assertThat(parche.getValue().scope()).isEqualTo(GroupScope.FUTURE);
         assertThat(parche.getValue().frequency()).isEqualTo(Frequency.WEEKLY);
         assertThat(parche.getValue().dayOfWeek()).isEqualTo(DayOfWeek.FRIDAY);
     }

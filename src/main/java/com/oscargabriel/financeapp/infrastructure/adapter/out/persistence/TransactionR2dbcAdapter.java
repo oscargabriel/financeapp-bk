@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.ReactiveTransactionManager;
 import org.springframework.transaction.reactive.TransactionalOperator;
 
+import com.oscargabriel.financeapp.domain.model.InstallmentRef;
 import com.oscargabriel.financeapp.domain.model.Transaction;
 import com.oscargabriel.financeapp.domain.model.TransactionOrigin;
 import com.oscargabriel.financeapp.domain.model.TransactionStatus;
@@ -32,33 +33,40 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
     private static final String INSERTAR = """
             INSERT INTO finance.transactions
                    (id, user_id, account_id, destination_account_id, category_id, type,
-                    amount, currency_code, amount_base, description, notes, occurred_at, status, origin, recurrence_id)
+                    amount, currency_code, amount_base, description, notes, occurred_at, status, origin, recurrence_id,
+                    installment_purchase_id, installment_number, installment_principal)
             VALUES (:id, :userId, :accountId, :destinationAccountId, :categoryId, :type,
-                    :amount, :currencyCode, :amount, :description, :notes, :occurredAt, :status, :origin, :recurrenceId)
+                    :amount, :currencyCode, :amount, :description, :notes, :occurredAt, :status, :origin, :recurrenceId,
+                    :installmentPurchaseId, :installmentNumber, :installmentPrincipal)
             """;
 
+    /** La compra de una cuota da su total de cuotas (FA-108). */
     private static final String COLUMNAS = """
-            id, user_id, type, account_id, destination_account_id, category_id,
-                   amount, currency_code, description, notes, occurred_at, status, origin, recurrence_id""";
+            t.id, t.user_id, t.type, t.account_id, t.destination_account_id, t.category_id,
+                   t.amount, t.currency_code, t.description, t.notes, t.occurred_at, t.status, t.origin,
+                   t.recurrence_id, %s""".formatted(CuotaDeLaFila.COLUMNAS);
 
     private static final String BUSCAR = """
             SELECT %s
-              FROM finance.transactions
-             WHERE id = :id
-               AND user_id = :userId
-            """.formatted(COLUMNAS);
+              FROM finance.transactions t
+              %s
+             WHERE t.id = :id
+               AND t.user_id = :userId
+            """.formatted(COLUMNAS, CuotaDeLaFila.JOIN);
 
     private static final String PENDIENTES = """
             SELECT %s
-              FROM finance.transactions
-             WHERE user_id = :userId
-               AND status = 'PENDING'
-             ORDER BY occurred_at DESC, id DESC
-            """.formatted(COLUMNAS);
+              FROM finance.transactions t
+              %s
+             WHERE t.user_id = :userId
+               AND t.status = 'PENDING'
+             ORDER BY t.occurred_at DESC, t.id DESC
+            """.formatted(COLUMNAS, CuotaDeLaFila.JOIN);
 
     /**
-     * notes y currency_code no se tocan: no son modificables. El trigger revierte la fila vieja y
-     * aplica la nueva, asi que un cambio de cuenta, tipo o monto deja los saldos coherentes.
+     * notes y currency_code no se tocan: no son modificables. Tampoco la serie ni la cuota: un movimiento
+     * editado sigue en su grupo. El trigger revierte la fila vieja y aplica la nueva, asi que un cambio de
+     * cuenta, tipo o monto deja los saldos coherentes.
      */
     private static final String ACTUALIZAR = """
             UPDATE finance.transactions
@@ -180,6 +188,14 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
         sentencia = t.recurrenceId() == null
                 ? sentencia.bindNull("recurrenceId", UUID.class)
                 : sentencia.bind("recurrenceId", t.recurrenceId());
+        InstallmentRef cuota = t.installment();
+        sentencia = cuota == null
+                ? sentencia.bindNull("installmentPurchaseId", UUID.class)
+                        .bindNull("installmentNumber", Short.class)
+                        .bindNull("installmentPrincipal", BigDecimal.class)
+                : sentencia.bind("installmentPurchaseId", cuota.purchaseId())
+                        .bind("installmentNumber", (short) cuota.number())
+                        .bind("installmentPrincipal", cuota.principal());
         return sentencia.fetch().rowsUpdated();
     }
 
@@ -217,6 +233,7 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
                 row.get("occurred_at", OffsetDateTime.class).toInstant(),
                 TransactionStatus.valueOf(row.get("status", String.class)),
                 TransactionOrigin.valueOf(row.get("origin", String.class)),
-                row.get("recurrence_id", UUID.class));
+                row.get("recurrence_id", UUID.class),
+                CuotaDeLaFila.de(row));
     }
 }

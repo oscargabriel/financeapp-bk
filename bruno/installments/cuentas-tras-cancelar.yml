@@ -1,0 +1,31 @@
+info:
+  name: Cuentas tras cancelar
+  type: http
+  seq: 45
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const visa = res.getBody().find(function (c) { return c.id === bru.getVar("idVisa"); });
+        const pagadas = Number(bru.getVar("pagadasPasada"));
+
+        test("el capital que faltaba vuelve al cupo", function() {
+          expect(visa.availableCredit).to.equal(Number(bru.getVar("cupoAntesDeBorrar")) + 100000 * (6 - pagadas));
+          expect(visa.currentBalance).to.equal(Number(bru.getVar("saldoVisaAntesDeEditar")));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

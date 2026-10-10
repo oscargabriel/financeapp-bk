@@ -28,11 +28,13 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
     /**
      * current_balance incluye lo programado: el trigger aplica todo movimiento confirmado sin mirar la
      * fecha. El saldo vigente le resta lo que todavia no ha ocurrido (FA-106), y es el que sale de aqui.
+     * committed_credit es el capital de las cuotas que todavia no llegan: ya ocupa cupo (FA-108).
      */
     private static final String COLUMNAS = """
             id, name, type, currency_code, initial_balance,
                    current_balance - finance.scheduled_balance_delta(id) AS current_balance,
-                   credit_limit, statement_day, payment_due_day, monthly_interest_rate, is_active""";
+                   credit_limit, statement_day, payment_due_day, monthly_interest_rate, is_active,
+                   finance.committed_credit(id) AS committed_credit""";
 
     private static final String SQL = """
             SELECT %s
@@ -216,7 +218,8 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
                 comoEntero(row.get("statement_day", Short.class)),
                 comoEntero(row.get("payment_due_day", Short.class)),
                 row.get("monthly_interest_rate", BigDecimal.class),
-                Boolean.TRUE.equals(row.get("is_active", Boolean.class)));
+                Boolean.TRUE.equals(row.get("is_active", Boolean.class)),
+                row.get("committed_credit", BigDecimal.class));
     }
 
     private static Integer comoEntero(Short dia) {

@@ -15,7 +15,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import com.oscargabriel.financeapp.domain.model.Frequency;
-import com.oscargabriel.financeapp.domain.model.RecurrenceScope;
+import com.oscargabriel.financeapp.domain.model.GroupScope;
 import com.oscargabriel.financeapp.domain.model.UpdateRecurrenceCommand;
 import com.oscargabriel.financeapp.support.RecurrenceMother;
 import com.oscargabriel.financeapp.support.TransactionMother;
@@ -82,7 +82,7 @@ class UpdateRecurrenceRequestTest {
         UpdateRecurrenceCommand parche = unCuerpoDeParche().scope(" all ").frequency("weekly").dayOfWeek("friday")
                 .request().toCommand();
 
-        assertThat(parche.scope()).isEqualTo(RecurrenceScope.ALL);
+        assertThat(parche.scope()).isEqualTo(GroupScope.ALL);
         assertThat(parche.frequency()).isEqualTo(Frequency.WEEKLY);
         assertThat(parche.dayOfWeek()).isEqualTo(DayOfWeek.FRIDAY);
         assertThat(parche.interval()).isNull();
