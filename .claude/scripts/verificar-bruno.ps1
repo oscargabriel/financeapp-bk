@@ -13,7 +13,8 @@ param(
 # Corre bruno/ contra la app de esta rama y la base local de pruebas, nunca contra otra (FA-61).
 # Valida antes de tocar nada: puerto libre y conexion R2DBC del perfil local apuntando a localhost
 # y a financeapp, resuelta con las variables de la terminal. Levanta la app sin esas variables, corre
-# bru y la apaga siempre. Codigos: 0 verde, 2 validacion, 3 arranque, otro = el de bru.
+# bru, comprueba que los saldos cuadren (FA-29) y la apaga siempre. Codigos: 0 verde, 2 validacion,
+# 3 arranque, 4 saldos descuadrados con bru en verde, otro = el de bru.
 $ErrorActionPreference = 'Stop'
 
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
@@ -121,14 +122,22 @@ $env:SERVER_PORT = $puerto
 $bru = Get-Command bru -ErrorAction SilentlyContinue
 if (-not $bru) { Detener 2 'bru no esta en el PATH (FA-39).' }
 
-# 3. Datos, siempre contra localhost explicito.
-if ($RecargarDatos) {
+# Corre un script de docs/database con psql, siempre contra localhost explicito. Devuelve el codigo de psql.
+function PsqlLocal([string]$script) {
     $env:PGPASSWORD = Resolver $plantilla.Clave $false
-    $puertoBase = if ($limpia.Puerto) { $limpia.Puerto } else { '5432' }
-    & psql -h localhost -p $puertoBase -U (Resolver $plantilla.Usuario $false) -d $baseDePruebas `
-        -v ON_ERROR_STOP=1 -q -f (Join-Path $repo 'docs\database\test-data.sql')
-    Remove-Item env:PGPASSWORD
-    if ($LASTEXITCODE -ne 0) { Detener 3 'la recarga de test-data.sql fallo.' }
+    try {
+        $puertoBase = if ($limpia.Puerto) { $limpia.Puerto } else { '5432' }
+        & psql -h localhost -p $puertoBase -U (Resolver $plantilla.Usuario $false) -d $baseDePruebas `
+            -X -v ON_ERROR_STOP=1 -q -f (Join-Path $repo "docs\database\$script") | Out-Host
+        $LASTEXITCODE
+    } finally {
+        Remove-Item env:PGPASSWORD
+    }
+}
+
+# 3. Datos.
+if ($RecargarDatos) {
+    if ((PsqlLocal 'test-data.sql') -ne 0) { Detener 3 'la recarga de test-data.sql fallo.' }
 }
 
 # 4. Arranque, corrida y apagado.
@@ -173,6 +182,13 @@ try {
         $codigo = $LASTEXITCODE
     } finally {
         Pop-Location
+    }
+
+    # 5. Saldos (FA-29): el trigger que los mantiene no tiene cobertura en Gradle. Corre aunque bru haya
+    # fallado, para no esconder un descuadre detras de otro error; el codigo de bru tiene prioridad.
+    if ((PsqlLocal 'check-saldos.sql') -ne 0) {
+        Write-Host 'Hay cuentas con el saldo descuadrado (check-saldos.sql).' -ForegroundColor Red
+        if ($codigo -eq 0) { $codigo = 4 }
     }
 } catch {
     if ($codigo -eq 0) { $codigo = 3 }

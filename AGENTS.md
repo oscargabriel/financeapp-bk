@@ -28,7 +28,7 @@ colección Bruno; no prometas un paso de lint que no existe.
 Verificación contra la app real. El script se detiene si el puerto está ocupado o si la base
 resuelta, con las variables `DB_*` y `SPRING_R2DBC_URL` de la terminal, no es `localhost/financeapp`.
 Si pasa, levanta la app de la rama con el perfil `local`, recarga `test-data.sql`, corre la
-colección y apaga la app (FA-61):
+colección, comprueba los saldos y apaga la app (FA-61):
 
 ```powershell
 pwsh -NoProfile -File .claude/scripts/verificar-bruno.ps1 -RecargarDatos
@@ -46,6 +46,16 @@ con un modelo de mentira que entiende `<funcion> <json>`, nunca con Gemini. Cont
 a mano sin esa variable, esa carpeta falla. Lo mismo con `TASAS_PROVEEDOR=stub` (FA-120):
 `bruno/exchange-rates/` recibe tasas fijas en vez de las de ExchangeRate-API. Ninguno de los dos
 stubs existe con el perfil `prod`.
+
+Después de la colección, el script corre `docs/database/check-saldos.sql` (FA-29). Ese script
+compara el `current_balance` de **todas** las cuentas con el que sale de sus movimientos
+confirmados: el trigger que lo mantiene no tiene cobertura en Gradle, y el alta en lote lo dispara N
+veces en una misma transacción.
+
+- Lista solo las cuentas descuadradas.
+- Si hay alguna, el script sale con código 4, aunque Bruno haya pasado.
+- Para correrlo a mano, tras un lote o un cambio de datos:
+  `psql -U postgres -d financeapp -v ON_ERROR_STOP=1 -f docs/database/check-saldos.sql`.
 
 Para depurar un request suelto, desde `bruno/` y con una app que hayas levantado tú contra la base
 local:
