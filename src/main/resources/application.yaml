@@ -96,6 +96,14 @@ asistente:
     base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
     timeout: ${GEMINI_TIMEOUT:20s}
 
+# Tasas de cambio (FA-120): ExchangeRate-API sin clave, consultada bajo demanda como mucho una vez al
+# dia. La URL es fija de configuracion, nunca de la peticion. El stub solo existe fuera de prod.
+tasas:
+  proveedor: ${TASAS_PROVEEDOR:exchangerate-api}
+  exchangerate-api:
+    url: ${TASAS_URL:https://open.er-api.com/v6/latest/USD}
+    timeout: ${TASAS_TIMEOUT:5s}
+
 # Verificacion de conectividad con la base al arrancar: si no responde tras agotar los intentos,
 # el contexto no termina de levantar y la aplicacion no queda escuchando. Se apaga solo donde no
 # hay base que responder (la suite de tests).

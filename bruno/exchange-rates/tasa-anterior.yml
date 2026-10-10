@@ -1,0 +1,48 @@
+info:
+  name: Tasa anterior
+  type: http
+  seq: 5
+
+http:
+  method: GET
+  url: "{{baseUrl}}/exchange-rates?from=USD&to=COP&date={{tasaHace10}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.rate
+      operator: eq
+      value: "3900"
+  scripts:
+    - type: before-request
+      code: |-
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const comoDia = function (f) {
+          return f.getFullYear() + "-" + dos(f.getMonth() + 1) + "-" + dos(f.getDate());
+        };
+        const hoy = new Date();
+        const dia = function (desfase) {
+          return comoDia(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + desfase));
+        };
+        bru.setVar("tasaHoy", dia(0));
+        bru.setVar("tasaHace10", dia(-10));
+        bru.setVar("tasaHace30", dia(-30));
+    - type: tests
+      code: |-
+        test("usa la fila de hace 30 dias, sin limite de antiguedad", function() {
+          expect(res.getBody().rateDate).to.equal(bru.getVar("tasaHace30"));
+          expect(res.getBody().date).to.equal(bru.getVar("tasaHace10"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  Hace 10 dias no hay fila: se usa la mas reciente anterior, la de hace 30. Una fecha pasada
+  nunca consulta al proveedor.

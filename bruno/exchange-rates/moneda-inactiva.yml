@@ -1,0 +1,44 @@
+info:
+  name: Moneda inactiva
+  type: http
+  seq: 8
+
+http:
+  method: GET
+  url: "{{baseUrl}}/exchange-rates?from=USD&to=XTS&date={{tasaHoy}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: to
+  scripts:
+    - type: before-request
+      code: |-
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const comoDia = function (f) {
+          return f.getFullYear() + "-" + dos(f.getMonth() + 1) + "-" + dos(f.getDate());
+        };
+        const hoy = new Date();
+        const dia = function (desfase) {
+          return comoDia(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + desfase));
+        };
+        bru.setVar("tasaHoy", dia(0));
+        bru.setVar("tasaHace10", dia(-10));
+        bru.setVar("tasaHace30", dia(-30));
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  `XTS` existe pero esta inactiva en `test-data.sql`.
