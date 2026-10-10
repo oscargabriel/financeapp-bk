@@ -175,7 +175,7 @@ Todos los errores salen con la misma forma:
 | 409 | `INVALID_STATE` | El recurso no está en el estado que la acción exige: aprobar o rechazar un movimiento ya confirmado (`field`: `status`), o aprobar un pendiente con una cuenta desactivada (`field`: `accountId` o `destinationAccountId`) |
 | 413 | `PAYLOAD_TOO_LARGE` | El cuerpo pasa de 1 MB |
 | 500 | `INTERNAL_SERVER_ERROR` | Error inesperado. Nunca trae detalle técnico |
-| 502 | `EXTERNAL_SERVICE_ERROR` | El modelo del asistente falló o no respondió a tiempo (`field`: `server`). Ver [`POST /api/assistant/messages`](#post-apiassistantmessages) |
+| 502 | `EXTERNAL_SERVICE_ERROR` | El modelo del asistente falló o no respondió a tiempo (`field`: `server`). Ver [`POST /api/assistant/messages`](#post-apiassistantmessages). También al registrar o modificar un movimiento cuya moneda no tiene ninguna tasa de cambio guardada y el proveedor no respondió: no se guardó nada y se puede reintentar |
 | 503 | — | Solo en `/status`, cuando la base no responde (ver su sección) |
 
 ## Endpoints
@@ -795,9 +795,10 @@ La tasa de cambio de un par de monedas en una fecha: cuántas unidades de `to` v
 
 - `rate` va con 10 decimales. El mismo par vale 1.
 - Toda tasa se calcula contra el dólar: `from→to = (USD→to) / (USD→from)`. Cada lado sale de la tasa
-  guardada más reciente con fecha menor o igual a `date`, por vieja que sea.
+  guardada más reciente con fecha menor o igual a `date`, por vieja que sea. Si no hay ninguna (una
+  fecha anterior a la primera tasa guardada), se usa la más antigua (FA-122).
 - `rateDate` es la fecha del dato más viejo que se usó. Si es anterior a `date`, la tasa no está al
-  día y conviene mostrarlo.
+  día; si es posterior, `date` es anterior a todas las tasas guardadas. Conviene mostrar los dos casos.
 - Para hoy o una fecha futura, si falta la tasa del día, el API la pide a ExchangeRate-API y la
   guarda. Si el proveedor no responde, se usa la anterior.
 
@@ -808,7 +809,7 @@ donde se muestren las tasas.
 | Status | `code` | `field` | Cuándo |
 |---|---|---|---|
 | 400 | `VALIDATION_ERROR` | `from`, `to` o `date` | Falta el parámetro, la moneda no está activa o la fecha no es un día válido |
-| 404 | `NOT_FOUND` | `date` | No hay ninguna tasa guardada en esa fecha o antes, ni el proveedor la dio |
+| 404 | `NOT_FOUND` | `date` | Una de las monedas no tiene ninguna tasa guardada, ni el proveedor la dio |
 
 ### `POST /api/transactions`
 
@@ -1376,7 +1377,7 @@ extremos. Errores 400 `VALIDATION_ERROR`:
 
 | Campo | Significado |
 |---|---|
-| `totalSpent` | Suma de los gastos (`EXPENSE`) confirmados del mes que ya ocurrieron. Ingresos, transferencias, pendientes y programados no cuentan |
+| `totalSpent` | Suma de los gastos (`EXPENSE`) confirmados del mes que ya ocurrieron, en la moneda base del usuario con la misma regla que `amountBase` del reporte de movimientos. Ingresos, transferencias, pendientes y programados no cuentan |
 | `budgetAmount` | Meta de gasto total del mes, o `null` si no hay |
 | `remaining` | `budgetAmount - totalSpent`. Negativo si se pasó de la meta. `null` sin meta |
 | `percentUsed` | Porcentaje consumido de la meta, con 2 decimales. Puede pasar de 100. `null` sin meta |
@@ -1478,7 +1479,7 @@ dos extremos. Errores 400 `VALIDATION_ERROR`, en el campo del parámetro:
 |---|---|
 | `currencyCode` | La moneda base del usuario: la de `amountBase` y la de todos los totales |
 | `amount` / `currencyCode` del movimiento | El monto en la moneda de la cuenta origen |
-| `amountBase` | El mismo monto en la moneda base. Es lo que suman los totales |
+| `amountBase` | El mismo monto en la moneda base. Si el movimiento ya está en esa moneda, es su `amount` tal cual; si no, se convierte con la tasa de su fecha, no con la de hoy. Es lo que suman los totales |
 | `scheduled` | `true` si el movimiento está programado: sale en la lista, pero no en los totales ni en `net` |
 | `recurrenceId` | La serie de la que el movimiento es ocurrencia, o `null`. Sirve para mostrar juntas las ocurrencias de una serie |
 | `installment` | `{purchaseId, number, count}` si el movimiento es una cuota de una [compra en cuotas](#compras-en-cuotas) ("3 de 12"), o `null` |

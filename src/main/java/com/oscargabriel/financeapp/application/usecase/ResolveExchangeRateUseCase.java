@@ -2,7 +2,8 @@ package com.oscargabriel.financeapp.application.usecase;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.util.stream.Stream;
+import java.util.Collection;
+import java.util.List;
 
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -44,6 +45,11 @@ public class ResolveExchangeRateUseCase implements ResolveExchangeRatePort {
                         : cruzar(from, to, date)));
     }
 
+    @Override
+    public Mono<Void> refreshToday(Collection<String> currencies) {
+        return Mono.defer(() -> alDia(LocalDate.now(clock), currencies));
+    }
+
     private Mono<Void> activa(String moneda, String campo) {
         return monedas.exists(moneda)
                 .filter(Boolean::booleanValue)
@@ -54,21 +60,22 @@ public class ResolveExchangeRateUseCase implements ResolveExchangeRatePort {
 
     private Mono<ExchangeRate> cruzar(String from, String to, LocalDate date) {
         LocalDate hoy = LocalDate.now(clock);
-        Mono<Void> alDia = date.isBefore(hoy) ? Mono.empty() : alDia(hoy, from, to);
+        Mono<Void> alDia = date.isBefore(hoy) ? Mono.empty() : alDia(hoy, List.of(from, to));
         return alDia
                 .then(Mono.defer(() -> Mono.zip(pata(from, date), pata(to, date))))
                 .map(patas -> ExchangeRate.cruzada(date, patas.getT1(), patas.getT2()))
                 .switchIfEmpty(Mono.error(() -> new BadRequestException(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND,
-                        "No hay tasa de cambio de " + from + " a " + to + " para esa fecha", "date")));
+                        "No hay ninguna tasa de cambio de " + from + " a " + to, "date")));
     }
 
     private Mono<UsdRate> pata(String moneda, LocalDate date) {
         return UsdRate.USD.equals(moneda) ? Mono.just(UsdRate.usd()) : tasas.findLatestFromUsd(moneda, date);
     }
 
-    /** Consulta al proveedor una vez si a alguna pata distinta de USD le falta la fila de hoy. */
-    private Mono<Void> alDia(LocalDate hoy, String from, String to) {
-        return Flux.fromStream(Stream.of(from, to).filter(m -> !UsdRate.USD.equals(m)))
+    /** Consulta al proveedor una vez si a alguna moneda distinta de USD le falta la fila de hoy. */
+    private Mono<Void> alDia(LocalDate hoy, Collection<String> currencies) {
+        return Flux.fromIterable(currencies)
+                .filter(m -> !UsdRate.USD.equals(m))
                 .concatMap(moneda -> tasas.findLatestFromUsd(moneda, hoy)
                         .filter(fila -> hoy.equals(fila.rateDate()))
                         .hasElement())

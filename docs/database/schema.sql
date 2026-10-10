@@ -80,11 +80,62 @@ CREATE TABLE finance.exchange_rates (
     CONSTRAINT ux_exchange_rates_pair_date UNIQUE (from_currency_code, to_currency_code, rate_date)
 );
 
-COMMENT ON TABLE  finance.exchange_rates IS 'Tasa de cambio por par de monedas y fecha. Se consulta la fila con rate_date más reciente <= fecha del movimiento.';
+COMMENT ON TABLE  finance.exchange_rates IS 'Tasa de cambio por par de monedas y fecha. La app solo lee filas USD→X: toda conversión pasa por el dólar (finance.usd_rate).';
 COMMENT ON COLUMN finance.exchange_rates.rate IS 'Unidades de to_currency que equivalen a 1 unidad de from_currency.';
 
 CREATE INDEX ix_exchange_rates_lookup
     ON finance.exchange_rates (from_currency_code, to_currency_code, rate_date DESC);
+
+-- La tasa USD→p_currency de una fecha: la fila más reciente <= p_on o, si no
+-- hay ninguna, la más antigua guardada (FA-122: el proveedor no tiene histórico,
+-- y el pasado anterior a la primera tasa usa esa). El dólar vale 1. Sin ninguna
+-- fila del par no devuelve nada. La usan el trigger que congela la tasa de cada
+-- movimiento, la conversión de los reportes y GET /api/exchange-rates, para que
+-- los tres apliquen la misma regla.
+CREATE OR REPLACE FUNCTION finance.usd_rate(p_currency TEXT, p_on DATE)
+RETURNS TABLE (rate NUMERIC, rate_date DATE)
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT c.rate, c.rate_date
+      FROM (SELECT 1::NUMERIC AS rate, p_on AS rate_date, 0 AS prioridad
+             WHERE p_currency = 'USD'
+            UNION ALL
+            (SELECT r.rate, r.rate_date, 1
+               FROM finance.exchange_rates r
+              WHERE r.from_currency_code = 'USD'
+                AND r.to_currency_code = p_currency
+                AND r.rate_date <= p_on
+              ORDER BY r.rate_date DESC
+              LIMIT 1)
+            UNION ALL
+            (SELECT r.rate, r.rate_date, 2
+               FROM finance.exchange_rates r
+              WHERE r.from_currency_code = 'USD'
+                AND r.to_currency_code = p_currency
+              ORDER BY r.rate_date
+              LIMIT 1)) c
+     ORDER BY c.prioridad
+     LIMIT 1;
+$$;
+
+-- Un movimiento expresado en la moneda p_target, la de la persona que lo ve
+-- (FA-122): su monto tal cual si ya está en esa moneda, su equivalente en USD si
+-- la persona ve dólares, y si no, ese equivalente por la tasa USD→p_target de su
+-- fecha. Lo que ya está en la moneda de la persona no pasa por el dólar, así no
+-- arrastra el redondeo de ida y vuelta. NULL si p_target no tiene ninguna tasa.
+CREATE OR REPLACE FUNCTION finance.in_currency(p_target TEXT, p_currency TEXT, p_amount NUMERIC,
+                                               p_amount_base NUMERIC, p_on DATE)
+RETURNS NUMERIC
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT CASE
+               WHEN p_currency = p_target THEN p_amount
+               WHEN p_target = 'USD' THEN p_amount_base
+               ELSE round(p_amount_base * (SELECT u.rate FROM finance.usd_rate(p_target, p_on) u), 4)
+           END;
+$$;
 
 
 -- =============================================================================
@@ -114,7 +165,7 @@ CREATE TABLE finance.users (
 
 COMMENT ON TABLE  finance.users IS 'Persona que registra finanzas. La autenticación es propia (email + hash); Telegram es un canal adicional que se vincula después.';
 COMMENT ON COLUMN finance.users.password_hash IS 'Hash BCrypt/Argon2 calculado en la aplicación. Jamás la contraseña en claro.';
-COMMENT ON COLUMN finance.users.base_currency_code IS 'Moneda en la que se consolidan los reportes del usuario (columna amount_base de transactions).';
+COMMENT ON COLUMN finance.users.base_currency_code IS 'Moneda en la que la persona ve sus totales y reportes. Solo es de presentación: lo guardado está en la moneda de cada cuenta y en USD (amount_base), y cambiarla no reescribe nada (FA-122).';
 COMMENT ON COLUMN finance.users.timezone IS 'Zona IANA. Determina dónde corta el mes en las vistas de gasto: un gasto del 30 a las 21:00 en Bogotá no puede caer en el mes siguiente.';
 
 -- Únicos parciales: una fila borrada lógicamente libera el email y el chat de Telegram.
@@ -448,7 +499,8 @@ CREATE TABLE finance.transactions (
 COMMENT ON TABLE  finance.transactions IS 'Todo movimiento de dinero. Se borran físicamente: no llevan borrado lógico.';
 COMMENT ON COLUMN finance.transactions.amount IS 'Monto siempre positivo, en la moneda de la cuenta origen. El signo lo determina el tipo.';
 COMMENT ON COLUMN finance.transactions.destination_amount IS 'Solo en TRANSFER entre cuentas de distinta moneda: lo que efectivamente entra al destino. NULL significa el mismo monto.';
-COMMENT ON COLUMN finance.transactions.amount_base IS 'amount convertido a la moneda base del usuario. Es la columna que suman los reportes, para que monedas distintas sean comparables.';
+COMMENT ON COLUMN finance.transactions.exchange_rate IS 'Tasa USD→currency_code de la fecha del movimiento con la que se calculó amount_base (1 si es USD). La fija trg_transactions_usd_equivalent: la aplicación nunca la escribe.';
+COMMENT ON COLUMN finance.transactions.amount_base IS 'amount en USD, la moneda del servicio: amount / exchange_rate. Es la base común entre monedas; los reportes la convierten a la moneda de la persona con finance.in_currency. La fija trg_transactions_usd_equivalent.';
 COMMENT ON COLUMN finance.transactions.occurred_at IS 'Cuándo ocurrió el movimiento, no cuándo se registró (created_at). El bot de Telegram registra gastos de días anteriores.';
 COMMENT ON COLUMN finance.transactions.status IS 'PENDING: registrado por el asistente y sin efecto hasta aprobarse; no mueve current_balance ni cuenta en reportes. CONFIRMED: todo lo demás. Rechazar un pendiente lo borra.';
 COMMENT ON COLUMN finance.transactions.recurrence_id IS 'Serie de la que el movimiento es ocurrencia (FA-107). Editarlo o borrarlo a mano no lo saca de ella.';
@@ -486,6 +538,51 @@ CREATE INDEX ix_transactions_installment
 CREATE TRIGGER trg_transactions_updated_at
     BEFORE UPDATE ON finance.transactions
     FOR EACH ROW EXECUTE FUNCTION finance.set_updated_at();
+
+
+-- Congela el equivalente en USD de cada movimiento (FA-122): exchange_rate es la
+-- tasa USD→currency_code de su fecha local y amount_base, amount en dólares. Lo
+-- que mande la aplicación en esas dos columnas se ignora. En UPDATE solo se
+-- recalcula si cambian el monto, la moneda o la fecha: aprobar un pendiente o
+-- cambiarle la descripción no le cambia la tasa. Sin ninguna tasa de la moneda
+-- falla con FX001, que la aplicación traduce a un 502.
+CREATE OR REPLACE FUNCTION finance.set_usd_equivalent()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_rate NUMERIC;
+BEGIN
+    IF TG_OP = 'UPDATE'
+       AND NEW.amount = OLD.amount
+       AND NEW.currency_code = OLD.currency_code
+       AND NEW.occurred_at = OLD.occurred_at THEN
+        NEW.exchange_rate := OLD.exchange_rate;
+        NEW.amount_base := OLD.amount_base;
+        RETURN NEW;
+    END IF;
+
+    SELECT r.rate
+      INTO v_rate
+      FROM finance.users u
+     CROSS JOIN LATERAL finance.usd_rate(NEW.currency_code, (NEW.occurred_at AT TIME ZONE u.timezone)::date) r
+     WHERE u.id = NEW.user_id;
+
+    IF v_rate IS NULL THEN
+        RAISE EXCEPTION 'No hay tasa de cambio USD→% para el movimiento', NEW.currency_code
+              USING ERRCODE = 'FX001';
+    END IF;
+
+    -- Un monto de menos de medio peso redondearía a cero, y ck_transactions_amount_base exige > 0.
+    NEW.exchange_rate := v_rate;
+    NEW.amount_base := GREATEST(round(NEW.amount / v_rate, 4), 0.0001);
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_transactions_usd_equivalent
+    BEFORE INSERT OR UPDATE ON finance.transactions
+    FOR EACH ROW EXECUTE FUNCTION finance.set_usd_equivalent();
 
 
 -- Mantiene accounts.current_balance. En UPDATE revierte el efecto de la fila
@@ -592,7 +689,7 @@ CREATE TABLE finance.budgets (
 
 COMMENT ON TABLE  finance.budgets IS 'Meta de gasto de un mes. La fila con category_id NULL es el tope global del mes; las demás son topes por categoría.';
 COMMENT ON COLUMN finance.budgets.period_month IS 'Siempre el día 1 del mes (el CHECK lo garantiza), para que la comparación sea exacta.';
-COMMENT ON COLUMN finance.budgets.amount IS 'Expresado en la moneda base del usuario, que es la unidad de amount_base en transactions.';
+COMMENT ON COLUMN finance.budgets.amount IS 'Expresado en la moneda en que la persona ve sus totales (users.base_currency_code), la misma de total_spent en las vistas.';
 
 -- Dos únicos parciales porque en Postgres NULL no colisiona con NULL:
 -- sin el segundo índice se podrían crear varias metas globales para el mismo mes.
@@ -616,7 +713,9 @@ CREATE TRIGGER trg_budgets_updated_at
 --   * Solo cuentan los CONFIRMED: un pendiente no es gasto hasta aprobarse.
 --   * Solo cuentan los que ya ocurrieron: un programado (occurred_at > now())
 --     no es gasto hasta su fecha (FA-106).
---   * Suman amount_base para que monedas distintas sean comparables.
+--   * Suman en la moneda de la persona con finance.in_currency (FA-122): el monto
+--     tal cual si ya está en esa moneda, si no su equivalente en USD convertido
+--     con la tasa de su fecha.
 --   * El mes se corta en la zona horaria del usuario.
 --   * FULL OUTER JOIN contra budgets: un mes con meta y sin gastos aparece con
 --     total 0, y un mes con gastos y sin meta aparece con budget_amount NULL.
@@ -626,7 +725,8 @@ CREATE OR REPLACE VIEW finance.v_monthly_spending AS
 WITH spent AS (
     SELECT t.user_id,
            date_trunc('month', t.occurred_at AT TIME ZONE u.timezone)::date AS period_month,
-           SUM(t.amount_base)                                               AS total_spent,
+           SUM(finance.in_currency(u.base_currency_code, t.currency_code, t.amount, t.amount_base,
+                                 (t.occurred_at AT TIME ZONE u.timezone)::date))     AS total_spent,
            COUNT(*)                                                         AS transaction_count
       FROM finance.transactions t
       JOIN finance.users u ON u.id = t.user_id
@@ -667,7 +767,8 @@ WITH spent AS (
     SELECT t.user_id,
            date_trunc('month', t.occurred_at AT TIME ZONE u.timezone)::date AS period_month,
            t.category_id,
-           SUM(t.amount_base)                                               AS total_spent,
+           SUM(finance.in_currency(u.base_currency_code, t.currency_code, t.amount, t.amount_base,
+                                 (t.occurred_at AT TIME ZONE u.timezone)::date))     AS total_spent,
            COUNT(*)                                                         AS transaction_count
       FROM finance.transactions t
       JOIN finance.users u ON u.id = t.user_id

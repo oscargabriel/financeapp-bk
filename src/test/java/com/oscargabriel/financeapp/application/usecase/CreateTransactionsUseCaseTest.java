@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -16,6 +17,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +30,7 @@ import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -43,12 +46,14 @@ import com.oscargabriel.financeapp.domain.model.Transaction;
 import com.oscargabriel.financeapp.domain.model.TransactionOrigin;
 import com.oscargabriel.financeapp.domain.model.TransactionStatus;
 import com.oscargabriel.financeapp.domain.model.TransactionType;
+import com.oscargabriel.financeapp.domain.port.in.ResolveExchangeRatePort;
 import com.oscargabriel.financeapp.domain.port.out.AccountQueryPort;
 import com.oscargabriel.financeapp.domain.port.out.CategoryQueryPort;
 import com.oscargabriel.financeapp.domain.port.out.TransactionRepositoryPort;
 import com.oscargabriel.financeapp.support.TransactionMother;
 
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 @ExtendWith(MockitoExtension.class)
@@ -67,6 +72,9 @@ class CreateTransactionsUseCaseTest {
     @Mock
     private TransactionRepositoryPort repositorio;
 
+    @Mock
+    private ResolveExchangeRatePort tasas;
+
     @Captor
     private ArgumentCaptor<List<Transaction>> guardadas;
 
@@ -78,6 +86,7 @@ class CreateTransactionsUseCaseTest {
                 .thenReturn(Flux.fromIterable(TransactionMother.categoriasDelUsuario()));
         when(repositorio.saveAll(anyList()))
                 .thenAnswer(invocacion -> Flux.fromIterable(invocacion.<List<Transaction>>getArgument(0)));
+        when(tasas.refreshToday(any())).thenReturn(Mono.empty());
     }
 
     @Test
@@ -177,7 +186,7 @@ class CreateTransactionsUseCaseTest {
                 TransactionMother.unIngreso().occurredAt(null).build(),
                 TransactionMother.unGasto().occurredAt(null).build());
 
-        StepVerifier.create(new CreateTransactionsUseCase(cuentas, categorias, repositorio, queAvanza)
+        StepVerifier.create(new CreateTransactionsUseCase(cuentas, categorias, repositorio, tasas, queAvanza)
                         .create(TransactionMother.USER_ID, TransactionOrigin.WEB, lote).map(Transaction::occurredAt).distinct())
                 .expectNextCount(1)
                 .verifyComplete();
@@ -330,8 +339,51 @@ class CreateTransactionsUseCaseTest {
         verifyNoInteractions(cuentas, categorias, repositorio);
     }
 
+    /** FA-122: la tasa del dia se pide antes de guardar, para que el equivalente en USD de lo reciente no quede viejo. */
+    @Test
+    void pideLaTasaDeHoyAntesDeGuardarCuandoHayUnElementoDeHoy() {
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB,
+                        List.of(TransactionMother.unGasto().build(), TransactionMother.unGasto().occurredAt(null).build())))
+                .expectNextCount(2)
+                .verifyComplete();
+
+        InOrder orden = inOrder(tasas, repositorio);
+        orden.verify(tasas).refreshToday(Set.of("COP"));
+        orden.verify(repositorio).saveAll(anyList());
+    }
+
+    @Test
+    void pideLaTasaDeHoyCuandoHayUnElementoProgramado() {
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB,
+                        List.of(TransactionMother.unGasto().occurredAt("2026-10-15T10:00:00-05:00").build())))
+                .expectNextCount(1)
+                .verifyComplete();
+
+        verify(tasas).refreshToday(Set.of("COP"));
+    }
+
+    @Test
+    void noPideLaTasaDeHoyCuandoTodoEsPasado() {
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB,
+                        List.of(TransactionMother.unGasto().build())))
+                .expectNextCount(1)
+                .verifyComplete();
+
+        verifyNoInteractions(tasas);
+    }
+
+    @Test
+    void noPideLaTasaDeHoySiElLoteEsInvalido() {
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB,
+                        List.of(TransactionMother.unGasto().occurredAt(null).accountId("no-es-un-uuid").build())))
+                .expectError(BadRequestException.class)
+                .verify();
+
+        verifyNoInteractions(tasas);
+    }
+
     private CreateTransactionsUseCase useCase() {
-        return new CreateTransactionsUseCase(cuentas, categorias, repositorio, RELOJ);
+        return new CreateTransactionsUseCase(cuentas, categorias, repositorio, tasas, RELOJ);
     }
 
     /** Avanza un milisegundo en cada lectura. */

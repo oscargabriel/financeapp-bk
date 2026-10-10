@@ -29,10 +29,11 @@ public class TransactionReportR2dbcAdapter implements TransactionReportQueryPort
      * Los limites del rango se calculan sobre el dia en la zona del usuario, no aplicando la zona a la
      * columna: asi la condicion usa ix_transactions_user_date. Es el mismo corte que v_monthly_spending.
      * Los pendientes quedan fuera hasta aprobarse (FA-76). La compra da el total de cuotas (FA-108).
+     * amount_base sale en la moneda de la persona, no la columna, que esta en USD (FA-122).
      */
     private static final String SQL_MOVIMIENTOS = """
             SELECT t.id, t.type, t.account_id, t.destination_account_id, t.category_id,
-                   c.name AS category_name, t.amount, t.currency_code, t.amount_base,
+                   c.name AS category_name, t.amount, t.currency_code, %s AS amount_base,
                    t.description, t.notes, t.occurred_at, t.recurrence_id, %s
               FROM finance.transactions t
               JOIN finance.users u ON u.id = t.user_id
@@ -42,7 +43,7 @@ public class TransactionReportR2dbcAdapter implements TransactionReportQueryPort
                AND t.status = 'CONFIRMED'
                AND t.occurred_at >=(CAST(:from AS date)::timestamp AT TIME ZONE u.timezone)
                AND t.occurred_at < ((CAST(:to AS date) + 1)::timestamp AT TIME ZONE u.timezone)
-            """.formatted(CuotaDeLaFila.COLUMNAS, CuotaDeLaFila.JOIN);
+            """.formatted(MontoDeLaPersona.DE_T, CuotaDeLaFila.COLUMNAS, CuotaDeLaFila.JOIN);
 
     private static final String FILTRO_CATEGORIAS = "   AND t.category_id = ANY(:categoryIds)\n";
     /** Origen o destino en el mismo WHERE: una transferencia entre dos cuentas filtradas sale una vez. */

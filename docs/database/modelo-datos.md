@@ -308,15 +308,35 @@ cuentas propias, no lo consumen. Los pendientes tampoco cuentan, hasta aprobarse
 
 ### Multi-moneda
 
-Cada movimiento guarda tres cosas: `amount` en la moneda de la cuenta,
-`exchange_rate` usada, y `amount_base` ya convertido a la moneda base del
-usuario. Los reportes suman `amount_base`, que es lo único comparable entre
-monedas. Mientras todo se lleve en pesos, `currency_code = 'COP'`,
-`exchange_rate = 1` y `amount_base = amount`.
+Tres niveles de moneda (FA-122, decidido el 10-10-2026):
 
-La tasa se busca en `exchange_rates` tomando la fila con `rate_date` más reciente
-menor o igual a la fecha del movimiento. El valor se congela en la transacción:
-recalcularlo después cambiaría el histórico.
+- **Servicio (USD).** `amount_base` es el equivalente en dólares de cada
+  movimiento: la base común entre monedas, que no depende de quién lo mire.
+- **Cuenta.** `amount` y `currency_code` están en la moneda de la cuenta: es el
+  cargo real. Hasta FA-51 la aplicación solo admite cuentas en COP.
+- **Persona.** `users.base_currency_code` es solo la moneda en que la persona ve
+  sus totales. Cambiarla no reescribe nada.
+
+`exchange_rate` es la tasa `USD→currency_code` de la fecha local del movimiento
+(4100 para COP) y `amount_base = amount / exchange_rate`. Los dos los fija
+`trg_transactions_usd_equivalent`, nunca la aplicación, en todo camino que
+escriba movimientos. Se congelan: en un `UPDATE` solo se recalculan si cambian el
+monto, la moneda o la fecha. Si la moneda no tiene ninguna tasa, el trigger falla
+con `FX001`, que la aplicación devuelve como 502.
+
+La tasa de una fecha la decide `finance.usd_rate(moneda, fecha)`: la fila
+`USD→moneda` con `rate_date` más reciente menor o igual a la fecha o, si no hay
+ninguna, la más antigua guardada. El proveedor no tiene histórico, así que el
+pasado anterior a la primera tasa usa esa. La misma función la usan los reportes
+y `GET /api/exchange-rates`. Toda conversión pasa por el dólar: las filas entre
+dos monedas que no son USD no se leen.
+
+Los totales se calculan en la moneda de la persona con
+`finance.in_currency(moneda_persona, moneda, amount, amount_base, fecha)`. Si el
+movimiento ya está en esa moneda, aporta su `amount` tal cual, así quien solo usa
+COP no arrastra el redondeo de ida y vuelta por el dólar. Si no, aporta su
+`amount_base` por la tasa `USD→moneda_persona` de su fecha: lo que valía ese día,
+no lo que vale hoy.
 
 ### Categorías
 
@@ -371,6 +391,9 @@ SELECT * FROM finance.v_monthly_spending
  WHERE user_id = $1
    AND period_month = date_trunc('month', CURRENT_DATE)::date;
 ```
+
+`total_spent` y `currency_code` están en la moneda de la persona: la vista suma
+`finance.in_currency` (ver *Multi-moneda*), igual que la meta.
 
 `budget_amount`, `remaining` y `percent_used` son `NULL` cuando el mes no tiene
 meta definida — no cero, para poder distinguir «no configuró meta» de «su meta es

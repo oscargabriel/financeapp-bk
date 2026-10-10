@@ -45,7 +45,7 @@ public record CreateTransactionRequest(
         @Null(message = "destinationAmount no se admite mientras todas las cuentas sean COP")
         BigDecimal destinationAmount,
 
-        /** Solo COP hasta que la etapa 9 cargue tasas: con eso amount_base = amount y exchange_rate = 1. */
+        /** Solo COP hasta FA-51, que registra cada movimiento en la moneda de su cuenta. */
         @Pattern(regexp = "(?i)^\\s*COP\\s*$", message = "Por ahora solo se admiten movimientos en COP")
         String currencyCode,
 
