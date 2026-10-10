@@ -44,6 +44,7 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | `GET` | `/api/monthly-spending` | Bearer | Gasto mensual contra la meta |
 | `GET` | `/api/reports/transactions` | Bearer | Movimientos y totales de un rango de días |
 | `GET` | `/api/reports/balance` | Bearer | Ingresos menos gastos de un rango y de siempre, con las cuentas |
+| `POST` | `/api/assistant/messages` | Bearer | Registrar o consultar con un mensaje en lenguaje natural |
 
 ## Generalidades
 
@@ -62,7 +63,8 @@ Una ruta sin el prefijo `/api` no existe: responde 404.
 
 - Cuerpos en JSON, con `Content-Type: application/json`. Los campos van en `camelCase`.
 - Los identificadores son UUID en texto (versión 7, ordenables por fecha de creación).
-- Los campos sin valor salen como `null`. No se omiten.
+- Los campos sin valor salen como `null`. No se omiten, con una excepción: `installments` de una
+  [compra en cuotas](#compras-en-cuotas) solo sale en el alta, y en las demás respuestas no viene.
 - Los enums se escriben en mayúsculas (`EXPENSE`, `CREDIT`…). En el cuerpo de un `POST` o un `PATCH`, el
   API acepta minúsculas y espacios alrededor y los normaliza. En los query params tiene que llegar exacto.
 - El cuerpo de una petición no puede pasar de **1 MB**. Si lo supera, la respuesta es 413
@@ -169,9 +171,10 @@ Todos los errores salen con la misma forma:
 | 405 | `VALIDATION_ERROR` | Método no soportado en esa ruta (`description`: "La peticion no pudo ser procesada") |
 | 409 | `DUPLICATE_RESOURCE` | Ya existe: correo registrado, o nombre de cuenta o de categoría repetido |
 | 409 | `RESOURCE_IN_USE` | El cambio dejaría inconsistentes otros datos que usan el recurso: el alcance de una categoría con movimientos que no admitiría (`field`: `appliesTo`), la moneda de una cuenta con movimientos (`field`: `currencyCode`), o borrar una cuenta con saldo (`field`: `currentBalance`) |
-| 409 | `INVALID_STATE` | El recurso no está en el estado que la acción exige: aprobar o rechazar un movimiento ya confirmado (`field`: `status`) |
+| 409 | `INVALID_STATE` | El recurso no está en el estado que la acción exige: aprobar o rechazar un movimiento ya confirmado (`field`: `status`), o aprobar un pendiente con una cuenta desactivada (`field`: `accountId` o `destinationAccountId`) |
 | 413 | `PAYLOAD_TOO_LARGE` | El cuerpo pasa de 1 MB |
 | 500 | `INTERNAL_SERVER_ERROR` | Error inesperado. Nunca trae detalle técnico |
+| 502 | `EXTERNAL_SERVICE_ERROR` | El modelo del asistente falló o no respondió a tiempo (`field`: `server`). Ver [`POST /api/assistant/messages`](#post-apiassistantmessages) |
 | 503 | — | Solo en `/status`, cuando la base no responde (ver su sección) |
 
 ## Endpoints
@@ -453,6 +456,7 @@ sin distinguir mayúsculas.
 | `availableCredit` | Solo en `CREDIT`: `creditLimit + currentBalance` menos el capital de las cuotas de [compras en cuotas](#compras-en-cuotas) que todavía no llegan. `null` en los demás tipos o si la tarjeta no tiene cupo |
 | `statementDay`, `paymentDueDay` | Solo en `CREDIT`: día de corte y día de pago, 1 a 31. `null` en los demás tipos |
 | `monthlyInterestRate` | Solo en `CREDIT`: tasa de interés **mensual en porcentaje** (`2.15` es el 2,15 % mensual, no 0.0215). `null` en los demás tipos o si la tarjeta no la tiene cargada |
+| `isActive` | `false` si la cuenta está [desactivada](#patch-apiaccountsid). Solo sale en `false` con `includeInactive=true` o en la respuesta del parche que la desactivó |
 
 ### `POST /api/accounts`
 
@@ -513,7 +517,8 @@ cuenta desactivada se modifica igual que una activa.
 | `statementDay` | integer | **Solo `CREDIT`.** 1 a 31 |
 | `paymentDueDay` | integer | **Solo `CREDIT`.** 1 a 31 |
 | `monthlyInterestRate` | number | **Solo `CREDIT`.** Tasa mensual en porcentaje, de 0 a 10 con hasta 4 decimales |
-| `currentBalance`, `type`, `isActive` | — | **No se envían.** Si llegan con valor, 400 en su campo |
+| `isActive` | boolean | `false` desactiva la cuenta y `true` la reactiva (ver abajo) |
+| `currentBalance`, `type` | — | **No se envían.** Si llegan con valor, 400 en su campo |
 
 - **Ausente o `null` es "no cambia".** El parche no vacía campos: no hay forma de quitarle el cupo,
   las fechas o la tasa a una tarjeta.
@@ -524,6 +529,24 @@ cuenta desactivada se modifica igual que una activa.
   150000), pasar el inicial a 300000 deja el saldo en 250000.
 - Mandar la moneda que la cuenta ya tiene, en cualquier caja, no es un cambio y no da 409.
 - Cambiar solo las mayúsculas del nombre de la propia cuenta no es un choque.
+
+**Desactivar y reactivar (FA-68).** `{"isActive": false}` desactiva la cuenta y `{"isActive": true}`
+la reactiva, con cualquier saldo: a favor, en deuda o en cero. El cambio de estado no toca el saldo
+ni los movimientos. Pedir el estado que la cuenta ya tiene responde 200 sin cambios. Puede ir junto
+con otros campos del parche, y si el parche se rechaza, el estado tampoco cambia. Mientras está
+desactivada:
+
+- No sale en `GET /api/accounts` salvo con `includeInactive=true`, ni en `accounts` de
+  `reports/balance`.
+- No se puede elegir como origen ni destino de un movimiento nuevo, una serie o una compra en cuotas:
+  400 `VALIDATION_ERROR` en ese campo. Los movimientos que ya tiene se corrigen y se borran como
+  siempre.
+- Un pendiente con esa cuenta no se puede aprobar: 409 `INVALID_STATE` (ver
+  [Movimientos pendientes](#movimientos-pendientes)). Sí se puede rechazar.
+- El asistente no la reconoce por su nombre.
+- Se sigue pudiendo modificar y borrar.
+
+Al reactivarla, todo vuelve a funcionar como antes.
 
 ```json
 {
@@ -542,7 +565,7 @@ cuenta desactivada se modifica igual que una activa.
 |---|---|---|---|
 | 400 | `VALIDATION_ERROR` | `id` | El id de la ruta no es un UUID |
 | 400 | `VALIDATION_ERROR` | `body` | El parche no trae ningún campo modificable |
-| 400 | `VALIDATION_ERROR` | el campo | Formato inválido, campo en blanco, campo de crédito en una cuenta que no es `CREDIT`, o `currentBalance`, `type` o `isActive` en el cuerpo |
+| 400 | `VALIDATION_ERROR` | el campo | Formato inválido, campo en blanco, campo de crédito en una cuenta que no es `CREDIT`, o `currentBalance` o `type` en el cuerpo |
 | 400 | `VALIDATION_ERROR` | `currencyCode` | La moneda nueva no existe o no está activa |
 | 404 | `NOT_FOUND` | `id` | La cuenta no existe, está borrada o es de otro usuario: la respuesta es la misma |
 | 409 | `DUPLICATE_RESOURCE` | `name` | Otra cuenta viva del usuario ya usa ese nombre |
@@ -823,6 +846,7 @@ no confirma que un id exista fuera de tus datos.
     "notes": null,
     "occurredAt": "2026-09-20T15:15:00Z",
     "status": "CONFIRMED",
+    "origin": "WEB",
     "scheduled": false,
     "recurrenceId": null,
     "installment": null
@@ -832,6 +856,17 @@ no confirma que un id exista fuera de tus datos.
 
 `status` es `CONFIRMED` en todo lo que entra por aquí; si el cuerpo trae un `status`, se ignora.
 `PENDING` solo lo pone el asistente (ver [Movimientos pendientes](#movimientos-pendientes)).
+
+`origin` dice por dónde entró el movimiento, y no cambia después:
+
+| Valor | Quién lo pone |
+|---|---|
+| `WEB` | Este endpoint, las ocurrencias de una [serie](#series-recurrentes) y las cuotas de una [compra en cuotas](#compras-en-cuotas) |
+| `TELEGRAM` | El [asistente](#post-apiassistantmessages). Entra `PENDING` |
+| `IMPORT` | Reservado para una importación de archivos. Hoy ningún endpoint lo produce |
+
+Va en las mismas respuestas que `status`. Lo pone el servidor: si el cuerpo trae un `origin`, se
+ignora.
 
 `scheduled` es `true` si `occurredAt` es posterior al momento en que el servidor responde: el
 movimiento está **programado** (ver [Movimientos programados](#movimientos-programados)). Lo calcula
@@ -938,7 +973,8 @@ Borra un movimiento del usuario del token. **Bearer.** El borrado es físico: no
 
 Lo que registre el asistente de IA entra **pendiente** (`"status": "PENDING"`) hasta que el usuario
 lo aprueba. Mientras tanto no mueve saldos ni cuenta en `monthly-spending`, `reports/transactions`
-ni `reports/balance`. Hoy ningún endpoint crea pendientes: llegan con el asistente.
+ni `reports/balance`. Los crea [`POST /api/assistant/messages`](#post-apiassistantmessages), con
+`"origin": "TELEGRAM"`: ningún otro endpoint crea pendientes.
 
 Los tres endpoints son **Bearer**.
 
@@ -957,6 +993,7 @@ deja rastro.
 | 400 | `VALIDATION_ERROR` | `id` | El id de la ruta no es un UUID |
 | 404 | `NOT_FOUND` | `id` | No existe, ya se rechazó, o es de otro usuario: la respuesta es la misma |
 | 409 | `INVALID_STATE` | `status` | Ya está confirmado. Para borrar un confirmado está `DELETE /api/transactions/{id}` |
+| 409 | `INVALID_STATE` | `accountId` / `destinationAccountId` | Solo al aprobar: la cuenta de ese campo está desactivada, un error por cuenta. Sigue pendiente y ningún saldo cambia; se aprueba después de reactivarla |
 
 Un pendiente también se corrige con `PATCH` y se borra con `DELETE`, igual que uno confirmado.
 
@@ -1501,8 +1538,8 @@ el campo del parámetro:
 | `period` | Ingresos, gastos y neto del rango, con las fechas que se usaron |
 | `allTime` | Lo mismo con todos los movimientos del usuario, sin importar el rango |
 | `net` | `income` menos `expense`. Puede ser negativo |
-| `accounts` | Las cuentas activas por nombre, cada una con su saldo en **su** moneda |
-| `availableCredit` | En una tarjeta, `creditLimit` + `currentBalance`: lo que queda por gastar |
+| `accounts` | Las cuentas activas por nombre, cada una con su saldo en **su** moneda. Las desactivadas no salen |
+| `availableCredit` | En una tarjeta, lo que queda por gastar: igual que en `GET /accounts`, `creditLimit` + `currentBalance` menos el capital de las cuotas de [compras en cuotas](#compras-en-cuotas) que todavía no llegan |
 
 **A tener en cuenta**
 
@@ -1519,6 +1556,85 @@ el campo del parámetro:
   `reports/transactions`. El mes por defecto sale del reloj del servidor, que hoy está en la misma
   zona.
 
+### `POST /api/assistant/messages`
+
+Recibe un mensaje en lenguaje natural ("gasté 20 mil en almuerzo con la Nequi", "¿cuánto gasté este
+mes?") y lo resuelve con un modelo de IA (FA-77). **Bearer.** Registra un movimiento, consulta los
+movimientos o consulta el saldo, siempre del usuario del token.
+
+**Cuerpo**
+
+| Campo | Tipo | Obligatorio | Reglas |
+|---|---|---|---|
+| `data` | string | sí | El mensaje. No en blanco, hasta 1000 caracteres |
+
+```json
+{ "data": "gaste 20000 en almuerzo con la Nequi" }
+```
+
+**200 OK** — también cuando el asistente no pudo hacer lo pedido: `intent` dice qué pasó.
+
+```json
+{
+  "intent": "CREATE_TRANSACTION",
+  "message": "Registre un gasto de 20.000 COP en Nequi (Restaurantes). Queda pendiente de tu aprobacion.",
+  "transaction": {
+    "id": "0199a1d0-...",
+    "type": "EXPENSE",
+    "accountId": "0199a1b3-...",
+    "destinationAccountId": null,
+    "categoryId": "0199a1c2-...",
+    "amount": 20000,
+    "currencyCode": "COP",
+    "description": "Almuerzo",
+    "notes": null,
+    "occurredAt": "2026-10-10T17:30:12.345Z",
+    "status": "PENDING",
+    "origin": "TELEGRAM",
+    "scheduled": false,
+    "recurrenceId": null,
+    "installment": null
+  },
+  "report": null,
+  "balance": null
+}
+```
+
+| `intent` | Qué hizo | Objeto que trae |
+|---|---|---|
+| `CREATE_TRANSACTION` | Registró un gasto, ingreso o transferencia **pendiente** de aprobación | `transaction`, con la forma de un elemento del alta de [`POST /api/transactions`](#post-apitransactions) |
+| `LIST_TRANSACTIONS` | Consultó los movimientos | `report`, con la forma de [`GET /api/reports/transactions`](#get-apireportstransactions) |
+| `GET_BALANCE` | Consultó ingresos, gastos y cuentas | `balance`, con la forma de [`GET /api/reports/balance`](#get-apireportsbalance) |
+| `NEEDS_CLARIFICATION` | Nada: le falta o no reconoce un dato, y `message` dice cuál | Ninguno |
+| `UNSUPPORTED` | Nada: lo pedido no es ninguna de las tres acciones | Ninguno |
+
+Solo viene el objeto del `intent`; los otros dos salen en `null`. `message` es un texto para
+mostrar al usuario, escrito siempre por el servidor y nunca por el modelo. Como toda `description`,
+no se compara: para decidir se usa `intent`.
+
+**A tener en cuenta**
+
+- **Lo que registra queda pendiente.** Entra con `"status": "PENDING"` y `"origin": "TELEGRAM"`, y no
+  mueve saldos hasta que el usuario lo aprueba (ver [Movimientos pendientes](#movimientos-pendientes)).
+- **Los nombres se buscan exactos** entre las cuentas activas y las categorías del usuario, sin
+  distinguir mayúsculas ni tildes ("nequi" encuentra "Nequi", pero "tarjeta" no encuentra
+  "Tarjeta Débito"). Un nombre que no está, o que coincide con dos, es `NEEDS_CLARIFICATION`, y
+  `message` lista los nombres válidos. Una cuenta desactivada no se encuentra.
+- **Fechas.** Un movimiento sin fecha, o con la de hoy, queda en el instante de la petición; con otro
+  día, a las 12:00 de ese día. Una consulta sin rango usa el mes en curso; con una sola de las dos
+  fechas es `NEEDS_CLARIFICATION`.
+- Lo que el alta o los reportes rechazarían (una cuenta en otra moneda, una categoría que no aplica
+  al tipo, un monto inválido) no es un 400: es `NEEDS_CLARIFICATION`, con los motivos en `message`.
+- Cada mensaje es independiente: el asistente no recuerda los anteriores.
+
+**Errores**
+
+| HTTP | `code` | `field` | Cuándo |
+|---|---|---|---|
+| 400 | `VALIDATION_ERROR` | `data` | Falta, está en blanco o pasa de 1000 caracteres |
+| 401 | `UNAUTHENTICATED` | `authorization` | Sin token, token inválido o la credencial Basic |
+| 502 | `EXTERNAL_SERVICE_ERROR` | `server` | El modelo falló o no respondió a tiempo. No se registró nada: se puede reintentar |
+
 ## CORS
 
 El servicio acepta los orígenes que declare su configuración (`CORS_ALLOWED_ORIGINS`). Mientras no
@@ -1530,11 +1646,10 @@ desplegar un frontend en un dominio nuevo, hay que pedir que se agregue a la lis
 
 Para que el frontend no lo busque:
 
-- Desactivar o reactivar cuentas (`isActive`).
 - Recuperar o listar las cuentas borradas.
 - Recuperar o listar las categorías borradas.
 - Consultar un movimiento por su id. Para listarlos está `GET /api/reports/transactions`.
-- Crear movimientos pendientes: los creará el asistente (FA-77).
+- Crear movimientos pendientes por otra vía que el asistente.
 - Aprobar o rechazar pendientes en lote.
 - Crear metas de gasto.
 - Refresh token o logout. El token simplemente vence, también después de cambiar la contraseña.
