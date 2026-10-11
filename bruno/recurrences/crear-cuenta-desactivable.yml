@@ -1,0 +1,41 @@
+info:
+  name: Crear la cuenta Desactivable
+  type: http
+  seq: 77
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Desactivable",
+        "type": "CASH",
+        "currencyCode": "COP",
+        "initialBalance": 0
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: after-response
+      code: |-
+        bru.setVar("idDesactivable", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Series activas que impiden desactivar y borrar (FA-116)
+
+  `Desactivable` y la categoria `Club` llevan una sola serie sin fin que empieza dentro de diez
+  dias, asi que no mueven ningun saldo de hoy. Los requests siguientes recorren los 409 y, al
+  cancelar la serie, el camino feliz.

@@ -1,0 +1,37 @@
+info:
+  name: El listado no trae las series que no pueden crecer
+  type: http
+  seq: 76
+
+http:
+  method: GET
+  url: "{{baseUrl}}/recurrences"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const ids = res.getBody().map(function (s) { return s.id; });
+
+        test("no trae las tres series sin ocurrencias por venir", function() {
+          ["idSerieDesactivada", "idSerieCuentaBorrada", "idSerieSinCategoria"].forEach(function (v) {
+            expect(ids).to.not.include(bru.getVar(v));
+          });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Sin ocurrencias por venir, fuera del listado (FA-116)
+
+  Una serie sin fin cuya cuenta esta desactivada o borrada, o cuya categoria esta borrada, no tiene
+  ocurrencias por venir: sale del listado como una serie terminada.

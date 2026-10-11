@@ -27,8 +27,17 @@ public interface RecurrenceRepositoryPort {
     /** Vacio si no existe, es de otro usuario o esta cancelada. */
     Mono<Recurrence> findActiveByIdAndUser(UUID id, UUID userId);
 
-    /** Las activas sin fin del usuario: las que la puesta al dia revisa. */
+    /**
+     * Las activas sin fin del usuario cuya cuenta esta activa y viva y cuya categoria esta viva: las que la
+     * puesta al dia revisa (FA-116).
+     */
     Flux<Recurrence> findOpenActiveByUser(UUID userId);
+
+    /** Cuantas series activas, con la definicion del listado, tiene la cuenta del usuario. */
+    Mono<Long> countActiveByAccount(UUID accountId, UUID userId);
+
+    /** Cuantas series activas usan la categoria viva del usuario; 0 si esta borrada o es ajena. */
+    Mono<Long> countActiveByCategory(UUID categoryId, UUID userId);
 
     /** La ocurrencia existente mas proxima con fecha posterior a ahora; vacio si no hay. */
     Mono<Instant> findNextOccurrence(UUID recurrenceId);

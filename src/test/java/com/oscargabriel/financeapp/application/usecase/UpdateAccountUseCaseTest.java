@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,6 +28,7 @@ import com.oscargabriel.financeapp.domain.model.AccountType;
 import com.oscargabriel.financeapp.domain.model.UpdateAccountCommand;
 import com.oscargabriel.financeapp.domain.port.out.AccountRepositoryPort;
 import com.oscargabriel.financeapp.domain.port.out.CurrencyQueryPort;
+import com.oscargabriel.financeapp.domain.port.out.RecurrenceRepositoryPort;
 import com.oscargabriel.financeapp.support.AccountMother;
 
 import reactor.core.publisher.Mono;
@@ -40,6 +42,9 @@ class UpdateAccountUseCaseTest {
 
     @Mock
     private CurrencyQueryPort monedas;
+
+    @Mock
+    private RecurrenceRepositoryPort series;
 
     @Captor
     private ArgumentCaptor<Account> cuentaGuardada;
@@ -140,6 +145,7 @@ class UpdateAccountUseCaseTest {
     @Test
     void desactivaUnaCuentaConSaldoSinTocarElResto() {
         guardada(AccountMother.efectivo());
+        conSeries(AccountMother.EFECTIVO_ID, 0L);
         actualizacionPosible();
 
         StepVerifier.create(useCase().update(AccountMother.USER_ID, AccountMother.EFECTIVO_ID,
@@ -152,6 +158,63 @@ class UpdateAccountUseCaseTest {
                 .isEqualTo(new Account(AccountMother.EFECTIVO_ID, "Efectivo", AccountType.CASH, "COP",
                         new BigDecimal("500000.0000"), AccountMother.efectivo().currentBalance(),
                         null, null, null, null, false));
+    }
+
+    @Test
+    void rechazaDesactivarUnaCuentaConSeriesActivasSinGuardarNada() {
+        guardada(AccountMother.efectivo());
+        conSeries(AccountMother.EFECTIVO_ID, 1L);
+
+        StepVerifier.create(useCase().update(AccountMother.USER_ID, AccountMother.EFECTIVO_ID,
+                        new UpdateAccountCommand("Vieja", null, null, null, null, null, null, null, false)))
+                .expectErrorSatisfies(error -> {
+                    esError(error, HttpStatus.CONFLICT, ErrorCodes.RESOURCE_IN_USE, "isActive");
+                    assertThat(((BadRequestException) error).getErrorResponse().getErrors().getFirst().getDescription())
+                            .contains("1 serie activa");
+                })
+                .verify();
+
+        verify(cuentas, never()).update(any(), any());
+    }
+
+    @Test
+    void elRechazoDiceCuantasSeriesActivasHay() {
+        guardada(AccountMother.efectivo());
+        conSeries(AccountMother.EFECTIVO_ID, 3L);
+
+        StepVerifier.create(useCase().update(AccountMother.USER_ID, AccountMother.EFECTIVO_ID,
+                        new UpdateAccountCommand(null, null, null, null, null, null, null, null, false)))
+                .expectErrorSatisfies(error -> assertThat(((BadRequestException) error).getErrorResponse()
+                        .getErrors().getFirst().getDescription()).contains("3 series activas"))
+                .verify();
+    }
+
+    /** Pedir el estado que ya tiene no es desactivar: no hay nada que comprobar. */
+    @Test
+    void desactivarUnaCuentaYaDesactivadaNoConsultaLasSeries() {
+        Account nequi = AccountMother.inactiva();
+        guardada(nequi);
+        actualizacionPosible();
+
+        StepVerifier.create(useCase().update(AccountMother.USER_ID, nequi.id(),
+                        new UpdateAccountCommand(null, null, null, null, null, null, null, null, false)))
+                .expectNextCount(1)
+                .verifyComplete();
+
+        verifyNoInteractions(series);
+    }
+
+    @Test
+    void unParcheQueNoDesactivaNoConsultaLasSeries() {
+        guardada(AccountMother.efectivo());
+        actualizacionPosible();
+
+        StepVerifier.create(useCase().update(AccountMother.USER_ID, AccountMother.EFECTIVO_ID,
+                        new UpdateAccountCommand("Bolsillo", null, null, null, null, null, null, null, true)))
+                .expectNextCount(1)
+                .verifyComplete();
+
+        verifyNoInteractions(series);
     }
 
     @Test
@@ -379,6 +442,10 @@ class UpdateAccountUseCaseTest {
         when(cuentas.findActiveByIdAndUser(cuenta.id(), AccountMother.USER_ID)).thenReturn(Mono.just(cuenta));
     }
 
+    private void conSeries(UUID cuenta, long cuantas) {
+        when(series.countActiveByAccount(cuenta, AccountMother.USER_ID)).thenReturn(Mono.just(cuantas));
+    }
+
     private void actualizacionPosible() {
         when(cuentas.update(any(), any())).thenAnswer(invocacion -> Mono.just(invocacion.getArgument(1)));
     }
@@ -392,6 +459,6 @@ class UpdateAccountUseCaseTest {
     }
 
     private UpdateAccountUseCase useCase() {
-        return new UpdateAccountUseCase(cuentas, monedas);
+        return new UpdateAccountUseCase(cuentas, monedas, series);
     }
 }

@@ -1,0 +1,38 @@
+info:
+  name: Alta de una serie sin fin sobre Desactivable y Club
+  type: http
+  seq: 79
+
+http:
+  method: POST
+  url: "{{baseUrl}}/recurrences"
+  body:
+    type: json
+    data: |-
+      {
+        "type": "EXPENSE",
+        "accountId": "{{idDesactivable}}",
+        "categoryId": "{{idClub}}",
+        "amount": 50000,
+        "description": "Cuota del club",
+        "frequency": "MONTHLY",
+        "dayOfMonth": {{diaEnDiezDias}},
+        "startDate": "{{enDiezDias}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: after-response
+      code: |-
+        bru.setVar("idSerieDesactivable", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

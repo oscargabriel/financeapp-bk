@@ -1,0 +1,21 @@
+info:
+  name: Cancelar la serie de Desactivable
+  type: http
+  seq: 87
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/recurrences/{{idSerieDesactivable}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

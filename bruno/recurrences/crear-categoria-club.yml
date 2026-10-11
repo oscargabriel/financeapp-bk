@@ -1,0 +1,34 @@
+info:
+  name: Crear la categoria Club
+  type: http
+  seq: 78
+
+http:
+  method: POST
+  url: "{{baseUrl}}/categories"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Club",
+        "appliesTo": "EXPENSE",
+        "icon": "dumbbell",
+        "color": "#6D4C41"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: after-response
+      code: |-
+        bru.setVar("idClub", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

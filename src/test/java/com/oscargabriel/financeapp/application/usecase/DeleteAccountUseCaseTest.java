@@ -21,6 +21,7 @@ import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.exceptions.responses.ErrorDetail;
 import com.oscargabriel.financeapp.domain.model.Account;
 import com.oscargabriel.financeapp.domain.port.out.AccountRepositoryPort;
+import com.oscargabriel.financeapp.domain.port.out.RecurrenceRepositoryPort;
 import com.oscargabriel.financeapp.support.AccountMother;
 
 import reactor.core.publisher.Mono;
@@ -31,6 +32,9 @@ class DeleteAccountUseCaseTest {
 
     @Mock
     private AccountRepositoryPort cuentas;
+
+    @Mock
+    private RecurrenceRepositoryPort series;
 
     @Test
     void borraUnaCuentaEnCeroAunqueTengaHistoria() {
@@ -125,6 +129,67 @@ class DeleteAccountUseCaseTest {
         verify(cuentas, never()).softDelete(any(), any());
     }
 
+    /** Toda serie sin fin activa tiene una programada: los dos van en el mismo error de id. */
+    @Test
+    void conSerieYProgramadoDaUnSoloErrorEnElIdQueMencionaLosDos() {
+        guardada(AccountMother.cajaChicaEnCero());
+        conProgramados(AccountMother.CAJA_CHICA_ID, 1L);
+        conSeries(AccountMother.CAJA_CHICA_ID, 1L);
+
+        StepVerifier.create(useCase().delete(AccountMother.USER_ID, AccountMother.CAJA_CHICA_ID))
+                .expectErrorSatisfies(error -> {
+                    esError(error, HttpStatus.CONFLICT, ErrorCodes.RESOURCE_IN_USE, "id");
+                    assertThat(descripcion(error)).contains("1 serie activa", "1 movimiento programado");
+                })
+                .verify();
+
+        verify(cuentas, never()).softDelete(any(), any());
+    }
+
+    /** El hueco de FA-115: la programada de la serie se borro a mano y la serie sigue activa. */
+    @Test
+    void conSerieYSinProgramadosRechazaPorLaSerie() {
+        guardada(AccountMother.cajaChicaEnCero());
+        conSeries(AccountMother.CAJA_CHICA_ID, 2L);
+
+        StepVerifier.create(useCase().delete(AccountMother.USER_ID, AccountMother.CAJA_CHICA_ID))
+                .expectErrorSatisfies(error -> {
+                    esError(error, HttpStatus.CONFLICT, ErrorCodes.RESOURCE_IN_USE, "id");
+                    assertThat(descripcion(error)).contains("2 series activas").doesNotContain("programado");
+                })
+                .verify();
+
+        verify(cuentas, never()).softDelete(any(), any());
+    }
+
+    @Test
+    void sinSeriesElMensajeDeLosProgramadosNoCambia() {
+        guardada(AccountMother.cajaChicaEnCero());
+        conProgramados(AccountMother.CAJA_CHICA_ID, 2L);
+
+        StepVerifier.create(useCase().delete(AccountMother.USER_ID, AccountMother.CAJA_CHICA_ID))
+                .expectErrorSatisfies(error -> assertThat(descripcion(error)).isEqualTo(
+                        "La cuenta tiene 2 movimientos programados: cancela la serie o la compra en cuotas, o borra"
+                                + " esos movimientos, antes de borrarla"))
+                .verify();
+    }
+
+    @Test
+    void conSaldoYUnaSerieReportaLosDosErrores() {
+        guardada(AccountMother.efectivo());
+        conSeries(AccountMother.EFECTIVO_ID, 1L);
+
+        StepVerifier.create(useCase().delete(AccountMother.USER_ID, AccountMother.EFECTIVO_ID))
+                .expectErrorSatisfies(error -> assertThat(((BadRequestException) error).getErrorResponse().getErrors())
+                        .extracting(ErrorDetail::getCode, ErrorDetail::getField)
+                        .containsExactlyInAnyOrder(
+                                tuple(ErrorCodes.RESOURCE_IN_USE.getCode(), "currentBalance"),
+                                tuple(ErrorCodes.RESOURCE_IN_USE.getCode(), "id")))
+                .verify();
+
+        verify(cuentas, never()).softDelete(any(), any());
+    }
+
     /** Borrada entre la lectura y el UPDATE. */
     @Test
     void daNotFoundCuandoElUpdateNoEncuentraLaFila() {
@@ -140,10 +205,21 @@ class DeleteAccountUseCaseTest {
         UUID id = cuenta.id();
         when(cuentas.findActiveByIdAndUser(id, AccountMother.USER_ID)).thenReturn(Mono.just(cuenta));
         lenient().when(cuentas.countScheduled(id)).thenReturn(Mono.just(0L));
+        lenient().when(series.countActiveByAccount(id, AccountMother.USER_ID)).thenReturn(Mono.just(0L));
     }
 
     private void conProgramados(UUID id, long cuantos) {
         when(cuentas.countScheduled(id)).thenReturn(Mono.just(cuantos));
+    }
+
+    private void conSeries(UUID id, long cuantas) {
+        when(series.countActiveByAccount(id, AccountMother.USER_ID)).thenReturn(Mono.just(cuantas));
+    }
+
+    private static String descripcion(Throwable error) {
+        return ((BadRequestException) error).getErrorResponse().getErrors().stream()
+                .filter(detalle -> "id".equals(detalle.getField()))
+                .findFirst().orElseThrow().getDescription();
     }
 
     private static void esError(Throwable error, HttpStatus status, ErrorCodes codigo, String campo) {
@@ -155,6 +231,6 @@ class DeleteAccountUseCaseTest {
     }
 
     private DeleteAccountUseCase useCase() {
-        return new DeleteAccountUseCase(cuentas);
+        return new DeleteAccountUseCase(cuentas, series);
     }
 }

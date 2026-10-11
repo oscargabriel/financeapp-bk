@@ -31,6 +31,11 @@ runtime:
         bru.setVar("idCuentaAtrasada", "20000000-0000-7000-8000-000000000009");
         bru.setVar("idCuentaSeries", "20000000-0000-7000-8000-000000000010");
         bru.setVar("idCuentaSeriesOtra", "20000000-0000-7000-8000-000000000011");
+        bru.setVar("idSerieDesactivada", "80000000-0000-7000-8000-000000000002");
+        bru.setVar("idSerieCuentaBorrada", "80000000-0000-7000-8000-000000000003");
+        bru.setVar("idSerieSinCategoria", "80000000-0000-7000-8000-000000000004");
+        bru.setVar("idCuentaDesactivada", "20000000-0000-7000-8000-000000000016");
+        bru.setVar("idCuentaSinCategoria", "20000000-0000-7000-8000-000000000018");
 
         const dos = function (n) { return String(n).padStart(2, "0"); };
         const comoDia = function (f) {
