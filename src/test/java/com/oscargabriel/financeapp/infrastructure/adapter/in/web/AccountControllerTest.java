@@ -276,6 +276,23 @@ class AccountControllerTest {
         verifyNoInteractions(createAccount);
     }
 
+    @Test
+    void devuelve400PorElSaldoInicialNegativoDeUnaCuentaQueNoEsDeCredito() {
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name": "Ahorros", "type": "SAVINGS", "currencyCode": "COP", "initialBalance": -1000}
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors.length()").isEqualTo(1)
+                .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.errors[0].field").isEqualTo("initialBalance");
+
+        verifyNoInteractions(createAccount);
+    }
+
     /** Lo que necesita la base, como que la moneda este activa, lo sigue reportando el caso de uso. */
     @Test
     void devuelveElErrorDeValidacionDelCasoDeUso() {

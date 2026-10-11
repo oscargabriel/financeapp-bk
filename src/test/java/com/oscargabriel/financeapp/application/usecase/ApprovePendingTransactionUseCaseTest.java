@@ -10,11 +10,13 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -28,6 +30,7 @@ import com.oscargabriel.financeapp.domain.model.TransactionStatus;
 import com.oscargabriel.financeapp.domain.port.out.AccountRepositoryPort;
 import com.oscargabriel.financeapp.domain.port.out.TransactionRepositoryPort;
 import com.oscargabriel.financeapp.support.AccountMother;
+import com.oscargabriel.financeapp.support.RelojFijo;
 import com.oscargabriel.financeapp.support.TransactionMother;
 
 import reactor.core.publisher.Mono;
@@ -42,8 +45,13 @@ class ApprovePendingTransactionUseCaseTest {
     @Mock
     private AccountRepositoryPort cuentas;
 
-    @InjectMocks
     private ApprovePendingTransactionUseCase casoDeUso;
+
+    @BeforeEach
+    void reloj() {
+        casoDeUso = new ApprovePendingTransactionUseCase(repositorio, cuentas,
+                Clock.fixed(RelojFijo.AHORA, ZoneOffset.UTC));
+    }
 
     @Test
     void confirmaElPendienteYLoDevuelveConfirmado() {
@@ -172,5 +180,49 @@ class ApprovePendingTransactionUseCaseTest {
         assertThat(bre.getErrorResponse().getErrors())
                 .extracting(ErrorDetail::getField, ErrorDetail::getCode)
                 .containsExactly(tuple(campo, codigo.getCode()));
+    }
+
+    @Test
+    void aprobarUnGastoSinSaldoEsUnConflictoSobreElMontoYSiguePendiente() {
+        Transaction pendiente = TransactionMother.conEstado(
+                TransactionMother.en(TransactionMother.unGastoGuardado(), AccountMother.NOMINA_ID, null, "150000"),
+                TransactionStatus.PENDING);
+        when(repositorio.findByIdAndUser(GASTO_GUARDADO_ID, USER_ID)).thenReturn(Mono.just(pendiente));
+        conCuenta(AccountMother.nomina("100000"), AccountMother.NOMINA_ID);
+
+        StepVerifier.create(casoDeUso.approve(USER_ID, GASTO_GUARDADO_ID))
+                .expectErrorSatisfies(error -> esError(error, HttpStatus.CONFLICT, "amount",
+                        ErrorCodes.INSUFFICIENT_FUNDS))
+                .verify();
+
+        verify(repositorio, never()).confirm(any(), any());
+    }
+
+    @Test
+    void conLaCuentaDesactivadaSoloSaleElErrorDeEstado() {
+        Account inactiva = AccountMother.inactiva();
+        Transaction pendiente = TransactionMother.conEstado(
+                TransactionMother.en(TransactionMother.unGastoGuardado(), inactiva.id(), null, "500000"),
+                TransactionStatus.PENDING);
+        when(repositorio.findByIdAndUser(GASTO_GUARDADO_ID, USER_ID)).thenReturn(Mono.just(pendiente));
+        conCuenta(inactiva, inactiva.id());
+
+        StepVerifier.create(casoDeUso.approve(USER_ID, GASTO_GUARDADO_ID))
+                .expectErrorSatisfies(error -> esError(error, HttpStatus.CONFLICT, "accountId", ErrorCodes.INVALID_STATE))
+                .verify();
+    }
+
+    @Test
+    void unPendienteProgramadoSeApruebaAunqueSuperaElSaldo() {
+        Transaction pendiente = TransactionMother.conFecha(TransactionMother.conEstado(
+                TransactionMother.en(TransactionMother.unGastoGuardado(), AccountMother.NOMINA_ID, null, "150000"),
+                TransactionStatus.PENDING), RelojFijo.DESPUES);
+        when(repositorio.findByIdAndUser(GASTO_GUARDADO_ID, USER_ID)).thenReturn(Mono.just(pendiente));
+        conCuenta(AccountMother.nomina("100000"), AccountMother.NOMINA_ID);
+        when(repositorio.confirm(GASTO_GUARDADO_ID, USER_ID)).thenReturn(Mono.just(true));
+
+        StepVerifier.create(casoDeUso.approve(USER_ID, GASTO_GUARDADO_ID))
+                .expectNextCount(1)
+                .verifyComplete();
     }
 }

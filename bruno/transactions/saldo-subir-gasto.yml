@@ -1,0 +1,37 @@
+info:
+  name: Saldo — subir un gasto sin saldo
+  type: http
+  seq: 63
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/transactions/{{idGastoNomina}}"
+  body:
+    type: json
+    data: |-
+      { "amount": 190000 }
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+  scripts:
+    - type: tests
+      code: |-
+        test("un solo INSUFFICIENT_FUNDS en amount", function() {
+          expect(res.getBody().errors).to.eql([{
+            code: "INSUFFICIENT_FUNDS",
+            description: "Saldo insuficiente en Nómina: quedaría en -10000 COP",
+            field: "amount"
+          }]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

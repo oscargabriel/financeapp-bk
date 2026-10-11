@@ -41,5 +41,5 @@ settings:
 docs: |
   # Historia y saldo en la cuenta
 
-  Con este gasto `Caja chica` queda en -30000 y tiene un movimiento que el borrado no puede tocar.
+  Con este gasto `Caja chica` queda en 20000 y tiene un movimiento que el borrado no puede tocar.
   Guarda su id en `idGastoCajaChica`.

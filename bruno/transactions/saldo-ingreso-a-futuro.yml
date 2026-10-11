@@ -1,0 +1,40 @@
+info:
+  name: Saldo — pasar un ingreso ya gastado a fecha futura
+  type: http
+  seq: 65
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/transactions/{{idIngresoNomina}}"
+  body:
+    type: json
+    data: |-
+      { "occurredAt": "{{diaFuturoSaldo}}T12:00:00-05:00" }
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+  scripts:
+    - type: tests
+      code: |-
+        test("un solo INSUFFICIENT_FUNDS en amount", function() {
+          expect(res.getBody().errors).to.eql([{
+            code: "INSUFFICIENT_FUNDS",
+            description: "Saldo insuficiente en Nómina: quedaría en -50000 COP",
+            field: "amount"
+          }]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  Un ingreso que pasa a fecha futura deja de contar en el saldo vigente hasta su fecha.

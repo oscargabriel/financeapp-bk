@@ -14,6 +14,12 @@ import static com.oscargabriel.financeapp.support.TransactionMother.unGastoGuard
 import static com.oscargabriel.financeapp.support.TransactionMother.unGastoGuardadoEn;
 import static com.oscargabriel.financeapp.support.TransactionMother.unParche;
 import static com.oscargabriel.financeapp.support.TransactionMother.unaTransferenciaGuardada;
+import static com.oscargabriel.financeapp.support.TransactionMother.INGRESO_GUARDADO_ID;
+import static com.oscargabriel.financeapp.support.TransactionMother.conEstado;
+import static com.oscargabriel.financeapp.support.TransactionMother.en;
+import static com.oscargabriel.financeapp.support.TransactionMother.unIngresoGuardado;
+import static com.oscargabriel.financeapp.support.AccountMother.BOLSILLO_ID;
+import static com.oscargabriel.financeapp.support.AccountMother.NOMINA_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
@@ -23,7 +29,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.stream.Stream;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +57,10 @@ import com.oscargabriel.financeapp.domain.model.UpdateTransactionCommand;
 import com.oscargabriel.financeapp.domain.port.out.AccountQueryPort;
 import com.oscargabriel.financeapp.domain.port.out.CategoryQueryPort;
 import com.oscargabriel.financeapp.domain.port.out.TransactionRepositoryPort;
+import com.oscargabriel.financeapp.domain.model.Account;
+import com.oscargabriel.financeapp.domain.model.TransactionStatus;
+import com.oscargabriel.financeapp.support.AccountMother;
+import com.oscargabriel.financeapp.support.RelojFijo;
 import com.oscargabriel.financeapp.support.TransactionMother;
 
 import reactor.core.publisher.Flux;
@@ -74,7 +87,8 @@ class UpdateTransactionUseCaseTest {
 
     @BeforeEach
     void escenario() {
-        casoDeUso = new UpdateTransactionUseCase(cuentas, categorias, repositorio);
+        casoDeUso = new UpdateTransactionUseCase(cuentas, categorias, repositorio,
+                Clock.fixed(RelojFijo.AHORA, ZoneOffset.UTC));
         when(cuentas.findByUser(USER_ID, true))
                 .thenReturn(Flux.fromIterable(TransactionMother.cuentasDelUsuario()));
         when(categorias.findActiveByUser(eq(USER_ID), any()))
@@ -386,5 +400,80 @@ class UpdateTransactionUseCaseTest {
         when(repositorio.update(any())).thenReturn(Mono.just(false));
 
         respondeNoEncontrado(modificarGasto(unParche().description("Fruta").build()));
+    }
+
+    /** Las cuentas del usuario mas Nomina y Bolsillo con los saldos dados. */
+    private void conSaldos(Account... extra) {
+        when(cuentas.findByUser(USER_ID, true)).thenReturn(Flux.fromStream(Stream.concat(
+                TransactionMother.cuentasDelUsuario().stream(), Stream.of(extra))));
+    }
+
+    private void rechazaPorSaldo(Mono<Transaction> resultado, String descripcion) {
+        StepVerifier.create(resultado)
+                .expectErrorSatisfies(error -> {
+                    BadRequestException bre = (BadRequestException) error;
+                    assertThat(bre.getHttpStatus()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(bre.getErrorResponse().getErrors())
+                            .extracting(ErrorDetail::getCode, ErrorDetail::getField, ErrorDetail::getDescription)
+                            .containsExactly(tuple(ErrorCodes.INSUFFICIENT_FUNDS.getCode(), "amount", descripcion));
+                })
+                .verify();
+        verify(repositorio, never()).update(any());
+    }
+
+    @Test
+    void subirUnGastoPorEncimaDelSaldoSeRechaza() {
+        rechazaPorSaldo(modificarGasto(unParche().amount(new BigDecimal("1100000")).build()),
+                "Saldo insuficiente en Efectivo: quedaría en -69999.5 COP");
+    }
+
+    @Test
+    void cambiarElGastoAUnaCuentaSinSaldoSeRechaza() {
+        conSaldos(AccountMother.bolsillo("10000"));
+
+        rechazaPorSaldo(modificarGasto(unParche().accountId(BOLSILLO_ID.toString()).build()),
+                "Saldo insuficiente en Bolsillo: quedaría en -20000.5 COP");
+    }
+
+    @Test
+    void reducirUnIngresoYaGastadoSeRechaza() {
+        conSaldos(AccountMother.nomina("10000"));
+        when(repositorio.findByIdAndUser(INGRESO_GUARDADO_ID, USER_ID))
+                .thenReturn(Mono.just(en(unIngresoGuardado(), NOMINA_ID, null, "100000")));
+
+        rechazaPorSaldo(casoDeUso.update(USER_ID, INGRESO_GUARDADO_ID, unParche().amount(new BigDecimal("50000")).build()),
+                "Saldo insuficiente en Nómina: quedaría en -40000 COP");
+    }
+
+    @Test
+    void pasarUnIngresoYaGastadoAFechaFuturaSeRechaza() {
+        conSaldos(AccountMother.nomina("10000"));
+        when(repositorio.findByIdAndUser(INGRESO_GUARDADO_ID, USER_ID))
+                .thenReturn(Mono.just(en(unIngresoGuardado(), NOMINA_ID, null, "100000")));
+
+        rechazaPorSaldo(casoDeUso.update(USER_ID, INGRESO_GUARDADO_ID,
+                unParche().occurredAt("2026-12-01T10:00:00-05:00").build()),
+                "Saldo insuficiente en Nómina: quedaría en -90000 COP");
+    }
+
+    @Test
+    void bajarUnGastoDeUnaCuentaEnNegativoSePermite() {
+        conSaldos(AccountMother.bolsillo("-5000"));
+        when(repositorio.findByIdAndUser(GASTO_GUARDADO_ID, USER_ID))
+                .thenReturn(Mono.just(en(unGastoGuardado(), BOLSILLO_ID, null, "30000")));
+
+        StepVerifier.create(modificarGasto(unParche().amount(new BigDecimal("20000")).build()))
+                .assertNext(t -> assertThat(t.amount()).isEqualByComparingTo("20000"))
+                .verifyComplete();
+    }
+
+    @Test
+    void unPendienteNoSeValidaContraElSaldo() {
+        when(repositorio.findByIdAndUser(GASTO_GUARDADO_ID, USER_ID))
+                .thenReturn(Mono.just(conEstado(unGastoGuardado(), TransactionStatus.PENDING)));
+
+        StepVerifier.create(modificarGasto(unParche().amount(new BigDecimal("5000000")).build()))
+                .expectNextCount(1)
+                .verifyComplete();
     }
 }

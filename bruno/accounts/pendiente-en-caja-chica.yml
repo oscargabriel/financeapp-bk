@@ -44,4 +44,4 @@ docs: |
   # Un gasto pendiente sobre la cuenta que se va a borrar (FA-97)
 
   Lo registra el asistente con el modelo stub de `verificar-bruno.ps1`. No mueve el saldo de
-  `Caja chica`, que sigue en -30000 por el gasto confirmado.
+  `Caja chica`, que sigue en 20000 por el gasto confirmado.

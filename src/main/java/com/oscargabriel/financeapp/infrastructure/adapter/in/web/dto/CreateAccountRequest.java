@@ -12,6 +12,7 @@ import com.oscargabriel.financeapp.domain.model.CreateAccountCommand;
 import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.validation.CamposDeCredito;
 import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.validation.Formatos;
 import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.validation.MontoNumeric;
+import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.validation.SaldoInicialSegunElTipo;
 import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.validation.ValorDeEnum;
 
 /**
@@ -20,6 +21,7 @@ import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.validation.
  * Aqui va el formato; que la moneda este activa en el catalogo lo decide el caso de uso.
  */
 @CamposDeCredito
+@SaldoInicialSegunElTipo
 public record CreateAccountRequest(
 
         @NotBlank(message = "El nombre es obligatorio")

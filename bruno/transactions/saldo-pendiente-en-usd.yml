@@ -1,0 +1,47 @@
+info:
+  name: Saldo — pendiente convertido mayor que el saldo
+  type: http
+  seq: 67
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idNomina}}",
+          "categoryId": "{{idMercado}}",
+          "amount": 100,
+          "currencyCode": "USD",
+          "description": "Compra en dólares"
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body[0].status
+      operator: eq
+      value: PENDING
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idPendienteNomina", res.getBody()[0].id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  Llega en otra moneda, así que se convierte (100 USD a 4100 son 410.000 COP) y queda pendiente: el
+  alta no valida el saldo de un pendiente; se valida al aprobarlo.

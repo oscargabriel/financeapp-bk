@@ -1,6 +1,8 @@
 package com.oscargabriel.financeapp.application.usecase;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,20 +32,31 @@ public class UpdateTransactionUseCase implements UpdateTransactionPort {
     private final AccountQueryPort cuentas;
     private final CategoryQueryPort categorias;
     private final TransactionRepositoryPort repositorio;
+    private final Clock clock;
 
     /**
      * El formato de cada campo ya lo valido UpdateTransactionRequest. Aqui se aplica el parche sobre
      * lo guardado y se validan las reglas que dependen del tipo resultante y de las referencias del
      * usuario. El UPDATE vuelve a filtrar por usuario: si la fila desaparecio entre la lectura y la
      * escritura, tambien es 404.
+     *
+     * Despues de los 400, el saldo (FA-133): lo que el movimiento resultante le hace a cada cuenta, menos lo que le
+     * hacia el guardado. Cubre cambiar cuenta, tipo, monto, destino y fecha sin casos aparte.
      */
     @Override
     public Mono<Transaction> update(UUID userId, UUID transactionId, UpdateTransactionCommand parche) {
         return repositorio.findByIdAndUser(transactionId, userId)
                 .switchIfEmpty(Mono.error(UpdateTransactionUseCase::noEncontrado))
                 .zipWith(ReferenciasDelUsuario.de(userId, cuentas, categorias))
-                .map(guardadoYReferencias -> new ParcheDeMovimiento(guardadoYReferencias.getT2())
-                        .aplicar(guardadoYReferencias.getT1(), parche))
+                .map(guardadoYReferencias -> {
+                    Transaction guardado = guardadoYReferencias.getT1();
+                    ReferenciasDelUsuario referencias = guardadoYReferencias.getT2();
+                    Transaction modificado = new ParcheDeMovimiento(referencias).aplicar(guardado, parche);
+                    Instant ahora = clock.instant();
+                    referencias.saldos().exigir(SaldoNoNegativo.diferencia(SaldoNoNegativo.efecto(modificado, ahora),
+                            SaldoNoNegativo.efecto(guardado, ahora)), "amount");
+                    return modificado;
+                })
                 .flatMap(modificado -> repositorio.update(modificado)
                         .flatMap(actualizado -> actualizado
                                 ? Mono.just(modificado)

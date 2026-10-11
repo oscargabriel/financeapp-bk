@@ -34,4 +34,4 @@ settings:
 docs: |
   # Dejarla en cero corrigiendo el saldo inicial
 
-  El camino de FA-24: el inicial pasa a 30000 y el gasto de 30000 deja el vigente en 0.
+  El camino de FA-24: el inicial baja de 50000 a 30000 y el gasto de 30000 deja el vigente en 0.

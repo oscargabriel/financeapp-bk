@@ -248,7 +248,7 @@ class CreateTransactionsUseCaseTest {
 
     @Test
     void aceptaElTopeDeQuinientos() {
-        List<CreateTransactionCommand> lote = Collections.nCopies(500, TransactionMother.unGasto().build());
+        List<CreateTransactionCommand> lote = Collections.nCopies(500, TransactionMother.unIngreso().build());
 
         StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB, lote))
                 .expectNextCount(500)
@@ -535,6 +535,54 @@ class CreateTransactionsUseCaseTest {
 
     private static ExchangeRate tasa(String desde, String hacia, String valor) {
         return new ExchangeRate(desde, hacia, DIA, new BigDecimal(valor), DIA);
+    }
+
+    @Test
+    void unGastoMayorQueElSaldoRechazaElLoteSinGuardarNada() {
+        List<CreateTransactionCommand> lote = List.of(TransactionMother.unIngreso().build(),
+                TransactionMother.unGasto().amount(new BigDecimal("1300000")).build());
+
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB, lote))
+                .expectErrorSatisfies(error -> {
+                    BadRequestException bre = (BadRequestException) error;
+                    assertThat(bre.getHttpStatus()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(bre.getErrorResponse().getErrors())
+                            .extracting(ErrorDetail::getCode, ErrorDetail::getField, ErrorDetail::getDescription)
+                            .containsExactly(Tuple.tuple(ErrorCodes.INSUFFICIENT_FUNDS.getCode(), "[1].amount",
+                                    "Saldo insuficiente en Efectivo: quedaría en -100000 COP"));
+                })
+                .verify();
+        verify(repositorio, never()).saveAll(anyList());
+    }
+
+    @Test
+    void unIngresoDelMismoLoteCompensaElGasto() {
+        List<CreateTransactionCommand> lote = List.of(
+                TransactionMother.unGasto().amount(new BigDecimal("1100000")).build(),
+                TransactionMother.unIngreso().build());
+
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB, lote))
+                .expectNextCount(2)
+                .verifyComplete();
+    }
+
+    @Test
+    void unGastoProgramadoNoSeValidaContraElSaldo() {
+        CreateTransactionCommand programado = TransactionMother.unGasto().amount(new BigDecimal("5000000"))
+                .occurredAt("2026-12-01T10:00:00-05:00").build();
+
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB, List.of(programado)))
+                .expectNextCount(1)
+                .verifyComplete();
+    }
+
+    @Test
+    void loQueQuedaPendienteNoSeValidaContraElSaldo() {
+        CreateTransactionCommand gasto = TransactionMother.unGasto().amount(new BigDecimal("5000000")).build();
+
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.TELEGRAM, List.of(gasto)))
+                .expectNextCount(1)
+                .verifyComplete();
     }
 
     private CreateTransactionsUseCase useCase() {

@@ -174,10 +174,37 @@ Todos los errores salen con la misma forma:
 | 409 | `DUPLICATE_RESOURCE` | Ya existe: correo registrado, o nombre de cuenta o de categoría repetido |
 | 409 | `RESOURCE_IN_USE` | El cambio dejaría inconsistentes otros datos que usan el recurso: el alcance de una categoría con movimientos que no admitiría (`field`: `appliesTo`), la moneda de una cuenta con movimientos (`field`: `currencyCode`), o borrar una cuenta con saldo (`field`: `currentBalance`) |
 | 409 | `INVALID_STATE` | El recurso no está en el estado que la acción exige: aprobar o rechazar un movimiento ya confirmado (`field`: `status`), o aprobar un pendiente con una cuenta desactivada (`field`: `accountId` o `destinationAccountId`) |
+| 409 | `INSUFFICIENT_FUNDS` | La petición dejaría por debajo de cero el saldo de una cuenta que no es de crédito. Ver [Saldo no negativo](#saldo-no-negativo) |
 | 413 | `PAYLOAD_TOO_LARGE` | El cuerpo pasa de 1 MB |
 | 500 | `INTERNAL_SERVER_ERROR` | Error inesperado. Nunca trae detalle técnico |
 | 502 | `EXTERNAL_SERVICE_ERROR` | El modelo del asistente falló o no respondió a tiempo (`field`: `server`). Ver [`POST /api/assistant/messages`](#post-apiassistantmessages). También al registrar o modificar un movimiento cuya moneda no tiene ninguna tasa de cambio guardada y el proveedor no respondió: no se guardó nada y se puede reintentar |
 | 503 | — | Solo en `/status`, cuando la base no responde (ver su sección) |
+
+### Saldo no negativo
+
+Una cuenta `CASH`, `DEBIT`, `SAVINGS`, `INVESTMENT` u `OTHER` no puede quedar por debajo de cero
+(FA-133). Una tarjeta `CREDIT` sí: ahí el negativo es la deuda.
+
+- Se mide sobre el `currentBalance`, el saldo vigente. Lo programado y lo pendiente no cuentan hasta
+  que lo mueven.
+- Solo se rechaza una petición que **baja** el saldo de la cuenta. Una cuenta que ya está en negativo
+  —por datos anteriores a esta regla o por un programado que llegó a su fecha— sigue recibiendo
+  dinero aunque no salga de cero, y no acepta salidas.
+- El rechazo es 409 `INSUFFICIENT_FUNDS`, uno por cuenta afectada, y no cambia nada. La `description`
+  nombra la cuenta y el saldo en que quedaría, y se puede mostrar tal cual:
+  `"Saldo insuficiente en Nómina: quedaría en -50000 COP"`.
+
+| Ruta | Se rechaza cuando… | `field` |
+|---|---|---|
+| `POST /api/transactions` | El efecto neto del lote deja la cuenta en negativo | `[i].amount` |
+| `PATCH /api/transactions/{id}` | El movimiento resultante baja la cuenta por debajo de cero | `amount` |
+| `DELETE /api/transactions/{id}` | Borrar un ingreso o una transferencia entrante deja la cuenta en negativo | `id` |
+| `POST /api/transactions/{id}/approve` | Aprobar el pendiente deja la cuenta en negativo | `amount` |
+| `PATCH /api/accounts/{id}` | Bajar `initialBalance` deja el saldo en negativo | `initialBalance` |
+
+**No se valida** en lo que llega solo: un programado que alcanza su fecha, ni las ocurrencias que las
+series crean al consultar. Esas pueden dejar una cuenta en negativo. Tampoco en el alta ni la
+edición de una serie (ver [Series recurrentes](#series-recurrentes)).
 
 ## Endpoints
 
@@ -471,7 +498,7 @@ Crea una cuenta del usuario del token. **Bearer.**
 | `name` | string | sí | Hasta 80 caracteres. Único por usuario sin distinguir mayúsculas |
 | `type` | string | sí | `CASH`, `DEBIT`, `CREDIT`, `SAVINGS`, `INVESTMENT`, `OTHER` |
 | `currencyCode` | string | sí | 3 letras, debe existir y estar activa en el catálogo |
-| `initialBalance` | number | no | Saldo con el que entra la cuenta. Por defecto `0`. Puede ser negativo (la deuda actual de una tarjeta) |
+| `initialBalance` | number | no | Saldo con el que entra la cuenta. Por defecto `0`. **Solo `CREDIT`** puede ser negativo (la deuda actual de la tarjeta) |
 | `creditLimit` | number | no | **Solo `CREDIT`.** Mayor que cero |
 | `statementDay` | integer | no | **Solo `CREDIT`.** Día de corte, 1 a 31 |
 | `paymentDueDay` | integer | no | **Solo `CREDIT`.** Día de pago, 1 a 31 |
@@ -479,7 +506,8 @@ Crea una cuenta del usuario del token. **Bearer.**
 | `currentBalance` | — | **no se envía** | Si llega, es 400: el saldo vigente lo calcula el sistema. Para fijar el saldo de arranque se usa `initialBalance` |
 
 En una cuenta que no es `CREDIT`, mandar `creditLimit`, `statementDay`, `paymentDueDay` o
-`monthlyInterestRate` es 400, uno por campo.
+`monthlyInterestRate` es 400, uno por campo, y un `initialBalance` negativo es 400 en
+`initialBalance`.
 
 El tope de 10 en la tasa existe para atrapar la tasa **efectiva anual** del extracto (por ejemplo
 28,5) escrita en el campo mensual: como mensual daría cuotas con diez veces el interés real.
@@ -514,7 +542,7 @@ cuenta desactivada se modifica igual que una activa.
 |---|---|---|
 | `name` | string | Hasta 80 caracteres, no en blanco. Se recorta. Único entre las cuentas vivas del usuario sin distinguir mayúsculas |
 | `currencyCode` | string | 3 letras, debe existir y estar activa. **Solo si la cuenta no tiene movimientos** |
-| `initialBalance` | number | Hasta 4 decimales. **Corre `currentBalance` en la misma diferencia**, con o sin movimientos |
+| `initialBalance` | number | Hasta 4 decimales. **Corre `currentBalance` en la misma diferencia**, con o sin movimientos. Negativo solo en `CREDIT` |
 | `creditLimit` | number | **Solo `CREDIT`.** Mayor que cero |
 | `statementDay` | integer | **Solo `CREDIT`.** 1 a 31 |
 | `paymentDueDay` | integer | **Solo `CREDIT`.** 1 a 31 |
@@ -528,7 +556,9 @@ cuenta desactivada se modifica igual que una activa.
 - El tipo es el de la cuenta guardada: `creditLimit`, `statementDay`, `paymentDueDay` o
   `monthlyInterestRate` sobre una cuenta que no es `CREDIT` son 400, uno por campo.
 - Corregir el saldo inicial no descuadra nada: si la cuenta arrancó en 200000 y gastó 50000 (saldo
-  150000), pasar el inicial a 300000 deja el saldo en 250000.
+  150000), pasar el inicial a 300000 deja el saldo en 250000. En una cuenta que no es `CREDIT`, bajarlo
+  hasta dejar el saldo en negativo es 409 `INSUFFICIENT_FUNDS` en `initialBalance`: con esos mismos
+  movimientos, el inicial puede bajar hasta 50000 (saldo 0), no más.
 - Mandar la moneda que la cuenta ya tiene, en cualquier caja, no es un cambio y no da 409.
 - Cambiar solo las mayúsculas del nombre de la propia cuenta no es un choque.
 
@@ -567,11 +597,12 @@ Al reactivarla, todo vuelve a funcionar como antes.
 |---|---|---|---|
 | 400 | `VALIDATION_ERROR` | `id` | El id de la ruta no es un UUID |
 | 400 | `VALIDATION_ERROR` | `body` | El parche no trae ningún campo modificable |
-| 400 | `VALIDATION_ERROR` | el campo | Formato inválido, campo en blanco, campo de crédito en una cuenta que no es `CREDIT`, o `currentBalance` o `type` en el cuerpo |
+| 400 | `VALIDATION_ERROR` | el campo | Formato inválido, campo en blanco, campo de crédito o `initialBalance` negativo en una cuenta que no es `CREDIT`, o `currentBalance` o `type` en el cuerpo |
 | 400 | `VALIDATION_ERROR` | `currencyCode` | La moneda nueva no existe o no está activa |
 | 404 | `NOT_FOUND` | `id` | La cuenta no existe, está borrada o es de otro usuario: la respuesta es la misma |
 | 409 | `DUPLICATE_RESOURCE` | `name` | Otra cuenta viva del usuario ya usa ese nombre |
 | 409 | `RESOURCE_IN_USE` | `currencyCode` | La cuenta tiene movimientos, como origen o destino. No cambia nada del parche |
+| 409 | `INSUFFICIENT_FUNDS` | `initialBalance` | El inicial nuevo dejaría el saldo de una cuenta que no es `CREDIT` por debajo de cero. No cambia nada del parche |
 
 ### `DELETE /api/accounts/{id}`
 
@@ -830,6 +861,12 @@ arreglo de un elemento.
 - **Todo o nada.** Si un solo elemento es inválido, no se guarda ninguno, y la respuesta trae los
   errores de **todos** los elementos, cada uno con su índice (`[0].amount`, `[3].categoryId`). El
   cliente puede marcarlos todos de una vez.
+- **Saldo suficiente** (FA-133). Con todos los elementos válidos, el lote se rechaza entero con 409
+  `INSUFFICIENT_FUNDS` si deja por debajo de cero una cuenta que no es de crédito (ver
+  [Saldo no negativo](#saldo-no-negativo)). Cuenta el efecto neto del lote: un ingreso del mismo lote
+  compensa un gasto. Sale un error por cuenta, en `[i].amount` del primer elemento que saca dinero de
+  ella y la deja en negativo, en el orden del lote. Los programados y los que quedan pendientes no
+  cuentan.
 - **No es idempotente.** Reenviar el mismo lote crea los movimientos otra vez. Si la petición
   falla por red sin respuesta, revisa los saldos antes de reintentar. Un duplicado se borra con
   [`DELETE /api/transactions/{id}`](#delete-apitransactionsid).
@@ -1027,6 +1064,7 @@ aplica el movimiento, y al revés lo retira hasta que llegue; `scheduled` sale s
 | 400 | `body` | El parche no trae ningún campo |
 | 400 | el campo | Formato inválido, o una regla del tipo resultante, sin índice (`amount`, `categoryId`) |
 | 404 | `id` | El movimiento no existe o es de otro usuario: la respuesta es la misma |
+| 409 | `amount` | `INSUFFICIENT_FUNDS`: el movimiento resultante bajaría por debajo de cero una cuenta que no es de crédito, un error por cuenta. Pasa al subir un gasto, cambiar de cuenta o de tipo, reducir un ingreso o una transferencia entrante, o pasar un ingreso a fecha futura. No cambia nada |
 
 ### `DELETE /api/transactions/{id}`
 
@@ -1038,6 +1076,7 @@ Borra un movimiento del usuario del token. **Bearer.** El borrado es físico: no
 |---|---|---|
 | 400 | `id` | El id de la ruta no es un UUID |
 | 404 | `id` | El movimiento no existe, ya se borró, o es de otro usuario |
+| 409 | `id` | `INSUFFICIENT_FUNDS`: borrar un ingreso o una transferencia ya gastados dejaría una cuenta que no es de crédito en negativo. Un gasto, un pendiente o un programado siempre se pueden borrar |
 
 ### Movimientos pendientes
 
@@ -1065,6 +1104,7 @@ deja rastro.
 | 404 | `NOT_FOUND` | `id` | No existe, ya se rechazó, o es de otro usuario: la respuesta es la misma |
 | 409 | `INVALID_STATE` | `status` | Ya está confirmado. Para borrar un confirmado está `DELETE /api/transactions/{id}` |
 | 409 | `INVALID_STATE` | `accountId` / `destinationAccountId` | Solo al aprobar: la cuenta de ese campo está desactivada, un error por cuenta. Sigue pendiente y ningún saldo cambia; se aprueba después de reactivarla |
+| 409 | `INSUFFICIENT_FUNDS` | `amount` | Solo al aprobar, con las cuentas activas: aprobarlo dejaría por debajo de cero una cuenta que no es de crédito. Sigue pendiente y ningún saldo cambia. Un pendiente con fecha futura se aprueba sin este chequeo |
 
 Un pendiente también se corrige con `PATCH` y se borra con `DELETE`, igual que uno confirmado.
 
@@ -1081,6 +1121,11 @@ Un movimiento confirmado con `occurredAt` posterior al momento actual está **pr
 Cuando llega la fecha empieza a contar solo: nada lo "activa", y no hace falta modificarlo ni que el
 servidor haya estado encendido. Un pendiente con fecha futura sigue `PENDING` y además sale con
 `"scheduled": true`; al aprobarlo, queda programado hasta su fecha.
+
+Un programado **no se valida contra el saldo** (FA-133): ni al registrarlo ni al llegar su fecha. Un
+gasto programado mayor que el saldo se acepta y, si al llegar la fecha deja la cuenta en negativo,
+queda así; desde ahí la cuenta no acepta salidas hasta recibir dinero (ver
+[Saldo no negativo](#saldo-no-negativo)).
 
 `scheduled` no es un estado que se guarde ni que el cliente envíe: el servidor lo calcula en cada
 respuesta comparando `occurredAt` con su reloj. Una misma respuesta puede marcarlo `true` y, unos
@@ -1104,7 +1149,14 @@ Sin fin, crea las que van hasta hoy y la siguiente. Las demás aparecen solas: a
 servidor crea antes las que falten, aunque haya estado apagado.
 
 **Ocurrencias sueltas.** Una ocurrencia se corrige o se borra con `PATCH` o `DELETE` sobre
-`/api/transactions/{id}`, y sigue siendo de su serie. Una borrada a mano no vuelve a aparecer.
+`/api/transactions/{id}`, y sigue siendo de su serie. Una borrada a mano no vuelve a aparecer. Esas
+dos rutas sí validan el [saldo](#saldo-no-negativo).
+
+> **Advertencia: las series no validan el saldo.** El alta con un `startDate` pasado y un `PATCH`
+> con `scope: ALL` que sube el monto o cambia la cuenta mueven el saldo de una vez, y pueden dejar
+> por debajo de cero una cuenta que no es de crédito. Es una excepción provisional a
+> [Saldo no negativo](#saldo-no-negativo), pendiente de análisis en FA-143. Tampoco se validan las
+> ocurrencias que se crean solas al consultar.
 
 #### `POST /api/recurrences`
 
