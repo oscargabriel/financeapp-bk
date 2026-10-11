@@ -1,0 +1,45 @@
+info:
+  name: Gasto programado en Sobre
+  type: http
+  seq: 97
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idSobre}}",
+          "categoryId": "{{idMercadoCuentas}}",
+          "amount": 1000,
+          "description": "Mercado de manana",
+          "occurredAt": "{{mananaCuentas}}T12:00:00-05:00"
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: after-response
+      code: |-
+        bru.setVar("idProgramadoSobre", res.getBody()[0].id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un programado sobre una cuenta en cero
+
+  Con fecha de manana no cuenta en el saldo vigente: `Sobre` sigue en cero.

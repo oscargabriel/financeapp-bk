@@ -76,6 +76,15 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
                                OR destination_account_id = :accountId) AS tiene
             """;
 
+    /** Lo programado es lo confirmado que todavia no ocurre, como en finance.scheduled_balance_delta. */
+    private static final String PROGRAMADOS = """
+            SELECT count(*) AS programados
+              FROM finance.transactions
+             WHERE status = 'CONFIRMED'
+               AND occurred_at > now()
+               AND (account_id = :accountId OR destination_account_id = :accountId)
+            """;
+
     /**
      * current_balance tampoco se escribe aqui: si cambia initial_balance, trg_accounts_shift_balance lo
      * corre en la misma diferencia. Mismo filtro que POR_ID: borrada entre la lectura y la escritura,
@@ -165,6 +174,14 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
         return databaseClient.sql(TIENE_MOVIMIENTOS)
                 .bind("accountId", accountId)
                 .map((row, metadata) -> Boolean.TRUE.equals(row.get("tiene", Boolean.class)))
+                .one();
+    }
+
+    @Override
+    public Mono<Long> countScheduled(UUID accountId) {
+        return databaseClient.sql(PROGRAMADOS)
+                .bind("accountId", accountId)
+                .map((row, metadata) -> row.get("programados", Long.class))
                 .one();
     }
 

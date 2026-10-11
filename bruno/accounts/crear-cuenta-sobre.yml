@@ -1,0 +1,41 @@
+info:
+  name: Crear cuenta Sobre
+  type: http
+  seq: 96
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Sobre",
+        "type": "CASH",
+        "currencyCode": "COP"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: after-response
+      code: |-
+        bru.setVar("idSobre", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Cuenta para los programados (FA-115)
+
+  Arranca en cero: lo unico que impide borrarla son los movimientos programados de los requests
+  siguientes.

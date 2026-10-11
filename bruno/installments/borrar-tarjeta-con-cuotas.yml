@@ -1,0 +1,36 @@
+info:
+  name: Borrar tarjeta con cuotas por venir
+  type: http
+  seq: 62
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/accounts/{{idVisaUnaCuota}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: RESOURCE_IN_USE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: id
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Las cuotas por venir impiden borrar la tarjeta (FA-115)
+
+  `Visa una cuota` tiene saldo vigente 0, pero su cuota de 306.000 todavia no llega. Para borrarla
+  primero se cancela la compra.

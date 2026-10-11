@@ -621,6 +621,18 @@ todos sus movimientos. Una cuenta desactivada se borra igual que una activa.
 y no borra nada. Para dejarla en cero: una transferencia a otra cuenta, o corregir su
 `initialBalance` con `PATCH /api/accounts/{id}`.
 
+**Sin movimientos programados (FA-115).** Si la cuenta es origen o destino de algún movimiento
+[programado](#movimientos-programados) —confirmado con fecha futura—, responde 409 en `id`, con la
+cantidad en la `description`, y no borra nada. Los programados no cuentan en `currentBalance`, así
+que una cuenta en cero puede tenerlos. Para resolverlos:
+
+- una serie: `DELETE /api/recurrences/{id}`, que se lleva sus ocurrencias futuras;
+- una compra en cuotas: `DELETE /api/installment-purchases/{id}`, que se lleva sus cuotas por venir;
+- un movimiento suelto, también una transferencia que llega a la cuenta: `DELETE /api/transactions/{id}`.
+
+Si la cuenta tiene saldo y programados a la vez, la respuesta trae los dos errores. Los pendientes
+no impiden el borrado: se borran con la cuenta.
+
 Lo que pasa después:
 
 - Deja de aparecer en `GET /api/accounts`, también con `includeInactive=true`.
@@ -640,6 +652,7 @@ Lo que pasa después:
 | 400 | `VALIDATION_ERROR` | `id` | El id de la ruta no es un UUID |
 | 404 | `NOT_FOUND` | `id` | La cuenta no existe, ya está borrada o es de otro usuario: la respuesta es la misma |
 | 409 | `RESOURCE_IN_USE` | `currentBalance` | La cuenta tiene saldo distinto de cero |
+| 409 | `RESOURCE_IN_USE` | `id` | La cuenta es origen o destino de movimientos programados |
 
 ### `GET /api/categories`
 

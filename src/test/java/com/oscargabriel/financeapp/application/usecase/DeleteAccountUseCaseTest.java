@@ -3,6 +3,7 @@ package com.oscargabriel.financeapp.application.usecase;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -88,6 +89,42 @@ class DeleteAccountUseCaseTest {
         verify(cuentas, never()).softDelete(any(), any());
     }
 
+    @Test
+    void rechazaUnaCuentaEnCeroConProgramadosSobreElId() {
+        guardada(AccountMother.cajaChicaEnCero());
+        conProgramados(AccountMother.CAJA_CHICA_ID, 1L);
+
+        StepVerifier.create(useCase().delete(AccountMother.USER_ID, AccountMother.CAJA_CHICA_ID))
+                .expectErrorSatisfies(error -> {
+                    esError(error, HttpStatus.CONFLICT, ErrorCodes.RESOURCE_IN_USE, "id");
+                    assertThat(((BadRequestException) error).getErrorResponse().getErrors().getFirst().getDescription())
+                            .contains("1 movimiento programado");
+                })
+                .verify();
+
+        verify(cuentas, never()).softDelete(any(), any());
+    }
+
+    @Test
+    void conSaldoYProgramadosReportaLosDosErrores() {
+        guardada(AccountMother.efectivo());
+        conProgramados(AccountMother.EFECTIVO_ID, 3L);
+
+        StepVerifier.create(useCase().delete(AccountMother.USER_ID, AccountMother.EFECTIVO_ID))
+                .expectErrorSatisfies(error -> {
+                    BadRequestException bre = (BadRequestException) error;
+                    assertThat(bre.getHttpStatus()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(bre.getErrorResponse().getErrors())
+                            .extracting(ErrorDetail::getCode, ErrorDetail::getField)
+                            .containsExactlyInAnyOrder(
+                                    tuple(ErrorCodes.RESOURCE_IN_USE.getCode(), "currentBalance"),
+                                    tuple(ErrorCodes.RESOURCE_IN_USE.getCode(), "id"));
+                })
+                .verify();
+
+        verify(cuentas, never()).softDelete(any(), any());
+    }
+
     /** Borrada entre la lectura y el UPDATE. */
     @Test
     void daNotFoundCuandoElUpdateNoEncuentraLaFila() {
@@ -102,6 +139,11 @@ class DeleteAccountUseCaseTest {
     private void guardada(Account cuenta) {
         UUID id = cuenta.id();
         when(cuentas.findActiveByIdAndUser(id, AccountMother.USER_ID)).thenReturn(Mono.just(cuenta));
+        lenient().when(cuentas.countScheduled(id)).thenReturn(Mono.just(0L));
+    }
+
+    private void conProgramados(UUID id, long cuantos) {
+        when(cuentas.countScheduled(id)).thenReturn(Mono.just(cuantos));
     }
 
     private static void esError(Throwable error, HttpStatus status, ErrorCodes codigo, String campo) {

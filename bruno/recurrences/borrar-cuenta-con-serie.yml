@@ -1,0 +1,35 @@
+info:
+  name: Borrar cuenta con una serie activa
+  type: http
+  seq: 66
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/accounts/{{idCuentaSeries}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+  scripts:
+    - type: tests
+      code: |-
+        test("la ocurrencia futura de la serie impide el borrado", function() {
+          const enId = res.getBody().errors.filter(function (e) { return e.field === "id"; });
+          expect(enId).to.have.length(1);
+          expect(enId[0].code).to.equal("RESOURCE_IN_USE");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Una serie activa impide borrar su cuenta (FA-115)
+
+  Toda serie sin fin activa tiene una ocurrencia programada. La cuenta puede tener ademas saldo, y
+  entonces la respuesta trae tambien el error de `currentBalance`.
