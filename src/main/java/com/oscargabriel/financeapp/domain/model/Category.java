@@ -2,7 +2,7 @@ package com.oscargabriel.financeapp.domain.model;
 
 import java.util.UUID;
 
-/** Una fila viva de finance.categories. icon y color son opcionales en la tabla. */
+/** Una fila viva de finance.categories. */
 public record Category(
         UUID id,
         String name,

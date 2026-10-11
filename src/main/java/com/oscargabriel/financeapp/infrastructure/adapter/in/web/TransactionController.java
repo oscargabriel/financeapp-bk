@@ -1,5 +1,6 @@
 package com.oscargabriel.financeapp.infrastructure.adapter.in.web;
 
+import java.time.Clock;
 import java.util.List;
 import java.util.UUID;
 
@@ -11,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,8 +23,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
+import com.oscargabriel.financeapp.domain.model.TransactionOrigin;
+import com.oscargabriel.financeapp.domain.port.in.ApprovePendingTransactionPort;
 import com.oscargabriel.financeapp.domain.port.in.CreateTransactionsPort;
 import com.oscargabriel.financeapp.domain.port.in.DeleteTransactionPort;
+import com.oscargabriel.financeapp.domain.port.in.ListPendingTransactionsPort;
+import com.oscargabriel.financeapp.domain.port.in.RejectPendingTransactionPort;
 import com.oscargabriel.financeapp.domain.port.in.UpdateTransactionPort;
 import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.CreateTransactionRequest;
 import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.TransactionResponse;
@@ -45,6 +51,10 @@ public class TransactionController {
     private final CreateTransactionsPort createTransactions;
     private final UpdateTransactionPort updateTransaction;
     private final DeleteTransactionPort deleteTransaction;
+    private final ListPendingTransactionsPort listPending;
+    private final ApprovePendingTransactionPort approvePending;
+    private final RejectPendingTransactionPort rejectPending;
+    private final Clock clock;
 
     /**
      * Mono de la lista y no Flux: transmitir el Flux mandaria el 201 y los primeros elementos antes de
@@ -60,9 +70,9 @@ public class TransactionController {
             @RequestBody
             @Size(min = 1, max = TOPE_LOTE, message = "El lote debe tener entre 1 y " + TOPE_LOTE + " movimientos")
             List<@NotNull(message = "El elemento no puede ser nulo") @Valid CreateTransactionRequest> lote) {
-        return Flux.defer(() -> createTransactions.create(UsuarioDelToken.de(jwt),
+        return Flux.defer(() -> createTransactions.create(UsuarioDelToken.de(jwt), TransactionOrigin.WEB,
                         lote.stream().map(CreateTransactionRequest::toCommand).toList()))
-                .map(TransactionResponse::from)
+                .map(t -> TransactionResponse.from(t, clock.instant()))
                 .collectList();
     }
 
@@ -79,13 +89,33 @@ public class TransactionController {
                     }
                     return updateTransaction.update(UsuarioDelToken.de(jwt), movimiento, parche.toCommand());
                 })
-                .map(TransactionResponse::from);
+                .map(t -> TransactionResponse.from(t, clock.instant()));
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public Mono<Void> delete(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
         return Mono.defer(() -> deleteTransaction.delete(UsuarioDelToken.de(jwt), parseId(id)));
+    }
+
+    /** No choca con /{id}: no hay GET sobre un movimiento. */
+    @GetMapping("/pending")
+    public Flux<TransactionResponse> pending(@AuthenticationPrincipal Jwt jwt) {
+        return Flux.defer(() -> listPending.listPending(UsuarioDelToken.de(jwt)))
+                .map(t -> TransactionResponse.from(t, clock.instant()));
+    }
+
+    @PostMapping("/{id}/approve")
+    public Mono<TransactionResponse> approve(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
+        return Mono.defer(() -> approvePending.approve(UsuarioDelToken.de(jwt), parseId(id)))
+                .map(t -> TransactionResponse.from(t, clock.instant()));
+    }
+
+    /** Solo un pendiente: sobre un confirmado es 409, para no borrarlo creyendo rechazar. */
+    @PostMapping("/{id}/reject")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public Mono<Void> reject(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
+        return Mono.defer(() -> rejectPending.reject(UsuarioDelToken.de(jwt), parseId(id)));
     }
 
     /** A mano y no como UUID de Spring: su conversion fallida saldria como JSON_PARSING_ERROR del cuerpo. */

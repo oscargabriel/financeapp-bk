@@ -1,0 +1,30 @@
+info:
+  name: Programado a pasado
+  type: http
+  seq: 15
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/transactions/{{idGastoProgramado}}"
+  body:
+    type: json
+    data: |-
+      {
+        "occurredAt": "{{ayerProgramados}}T12:00:00-05:00"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.scheduled
+      operator: eq
+      value: "false"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

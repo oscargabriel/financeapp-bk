@@ -1,0 +1,157 @@
+package com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
+
+import com.oscargabriel.financeapp.domain.model.UpdateAccountCommand;
+import com.oscargabriel.financeapp.support.Violaciones;
+
+class UpdateAccountRequestTest {
+
+    private static final String TASA_FUERA =
+            "La tasa de interes mensual va de 0 a 10, en porcentaje y con hasta 4 decimales";
+
+    @Test
+    void unParcheCompletoNoTieneViolaciones() {
+        assertThat(Violaciones.de(new UpdateAccountRequest("Bolsillo", "usd", new BigDecimal("-200000.5"),
+                new BigDecimal("4000000"), 1, 31, new BigDecimal("1.9"), null, null, null))).isEmpty();
+    }
+
+    @Test
+    void todosLosCamposSonOpcionales() {
+        assertThat(Violaciones.de(vacio())).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0", "10", "1.50000"})
+    void laTasaAdmiteLosLimitesYLosCerosALaDerecha(String tasa) {
+        assertThat(Violaciones.de(conTasa(new BigDecimal(tasa)))).isEmpty();
+    }
+
+    static Stream<Arguments> unCampoInvalido() {
+        return Stream.of(
+                Arguments.of("nombre en blanco", conNombre("   "), "name",
+                        "El nombre no puede ir en blanco: para no cambiarlo, omitelo"),
+                Arguments.of("nombre de 81", conNombre("x".repeat(81)), "name",
+                        "El nombre no puede superar los 80 caracteres"),
+                Arguments.of("moneda en blanco", conMoneda(" "), "currencyCode",
+                        "La moneda no puede ir en blanco: para no cambiarla, omitela"),
+                Arguments.of("moneda de dos letras", conMoneda("us"), "currencyCode",
+                        "La moneda debe ser un codigo de tres letras"),
+                Arguments.of("saldo con cinco decimales", conSaldoInicial(new BigDecimal("1.23456")), "initialBalance",
+                        "El saldo inicial admite hasta 4 decimales y menos de 14 digitos enteros"),
+                Arguments.of("cupo cero", conCupo(BigDecimal.ZERO), "creditLimit",
+                        "El cupo debe ser mayor que cero"),
+                Arguments.of("cupo que no cabe", conCupo(new BigDecimal("100000000000000")), "creditLimit",
+                        "El cupo admite hasta 4 decimales y menos de 14 digitos enteros"),
+                Arguments.of("dia de corte 0", conDias(0, null), "statementDay",
+                        "El dia de corte debe estar entre 1 y 31"),
+                Arguments.of("dia de corte 32", conDias(32, null), "statementDay",
+                        "El dia de corte debe estar entre 1 y 31"),
+                Arguments.of("dia de pago 0", conDias(null, 0), "paymentDueDay",
+                        "El dia de pago debe estar entre 1 y 31"),
+                Arguments.of("dia de pago 32", conDias(null, 32), "paymentDueDay",
+                        "El dia de pago debe estar entre 1 y 31"),
+                Arguments.of("tasa negativa", conTasa(new BigDecimal("-1")), "monthlyInterestRate", TASA_FUERA),
+                Arguments.of("tasa que parece anual", conTasa(new BigDecimal("28.5")), "monthlyInterestRate",
+                        TASA_FUERA),
+                Arguments.of("tasa con cinco decimales", conTasa(new BigDecimal("1.23456")), "monthlyInterestRate",
+                        TASA_FUERA),
+                Arguments.of("saldo vigente", new UpdateAccountRequest(null, null, null, null, null, null, null,
+                        BigDecimal.ONE, null, null), "currentBalance",
+                        "El saldo vigente lo calcula el sistema; para corregirlo, cambia initialBalance"),
+                Arguments.of("tipo", new UpdateAccountRequest(null, null, null, null, null, null, null, null, "CASH",
+                        null), "type", "El tipo de una cuenta no se puede cambiar"));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("unCampoInvalido")
+    void rechazaElCampoInvalidoConSuTexto(String caso, UpdateAccountRequest request, String campo, String texto) {
+        assertThat(Violaciones.de(request)).containsExactly(Map.entry(campo, List.of(texto)));
+    }
+
+    @Test
+    void reportaTodosLosCamposInvalidosEnUnaSolaRespuesta() {
+        assertThat(Violaciones.de(new UpdateAccountRequest(" ", "us", new BigDecimal("1.23456"), BigDecimal.ZERO,
+                32, 0, new BigDecimal("28.5"), BigDecimal.ONE, "CASH", false)).keySet())
+                .containsExactlyInAnyOrder("name", "currencyCode", "initialBalance", "creditLimit", "statementDay",
+                        "paymentDueDay", "monthlyInterestRate", "currentBalance", "type");
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void elEstadoSeAdmite(boolean activa) {
+        assertThat(Violaciones.de(conEstado(activa))).isEmpty();
+    }
+
+    @Test
+    void unParcheConTodoEnNullNoTraeCambios() {
+        assertThat(vacio().sinCambios()).isTrue();
+    }
+
+    @Test
+    void unSoloCampoYaEsUnCambio() {
+        assertThat(conDias(null, 12).sinCambios()).isFalse();
+    }
+
+    @Test
+    void soloElEstadoYaEsUnCambio() {
+        assertThat(conEstado(false).sinCambios()).isFalse();
+    }
+
+    @Test
+    void soloLaTasaYaEsUnCambio() {
+        assertThat(conTasa(new BigDecimal("1.9")).sinCambios()).isFalse();
+    }
+
+    @Test
+    void elComandoLlevaLosOchoCamposModificables() {
+        UpdateAccountRequest request = new UpdateAccountRequest("Bolsillo", "usd", BigDecimal.TEN, BigDecimal.ONE,
+                3, 4, new BigDecimal("1.9"), null, null, false);
+
+        assertThat(request.toCommand()).isEqualTo(new UpdateAccountCommand(
+                "Bolsillo", "usd", BigDecimal.TEN, BigDecimal.ONE, 3, 4, new BigDecimal("1.9"), false));
+    }
+
+    private static UpdateAccountRequest vacio() {
+        return new UpdateAccountRequest(null, null, null, null, null, null, null, null, null, null);
+    }
+
+    private static UpdateAccountRequest conNombre(String nombre) {
+        return new UpdateAccountRequest(nombre, null, null, null, null, null, null, null, null, null);
+    }
+
+    private static UpdateAccountRequest conMoneda(String moneda) {
+        return new UpdateAccountRequest(null, moneda, null, null, null, null, null, null, null, null);
+    }
+
+    private static UpdateAccountRequest conSaldoInicial(BigDecimal saldo) {
+        return new UpdateAccountRequest(null, null, saldo, null, null, null, null, null, null, null);
+    }
+
+    private static UpdateAccountRequest conCupo(BigDecimal cupo) {
+        return new UpdateAccountRequest(null, null, null, cupo, null, null, null, null, null, null);
+    }
+
+    private static UpdateAccountRequest conDias(Integer corte, Integer pago) {
+        return new UpdateAccountRequest(null, null, null, null, corte, pago, null, null, null, null);
+    }
+
+    private static UpdateAccountRequest conTasa(BigDecimal tasa) {
+        return new UpdateAccountRequest(null, null, null, null, null, null, tasa, null, null, null);
+    }
+
+    private static UpdateAccountRequest conEstado(Boolean activa) {
+        return new UpdateAccountRequest(null, null, null, null, null, null, null, null, null, activa);
+    }
+}

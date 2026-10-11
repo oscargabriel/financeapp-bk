@@ -29,6 +29,7 @@ runtime:
             { type: "TRANSFER", total: 0, count: 0 }
           ]);
           expect(r.totalsByCategory).to.eql([]);
+          expect(r.net).to.equal(0);
         });
 
 settings:

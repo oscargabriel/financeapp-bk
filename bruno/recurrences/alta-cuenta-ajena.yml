@@ -1,0 +1,47 @@
+info:
+  name: Alta sobre la cuenta de otro usuario
+  type: http
+  seq: 33
+
+http:
+  method: POST
+  url: "{{baseUrl}}/recurrences"
+  body:
+    type: json
+    data: |-
+      {
+        "type": "EXPENSE",
+        "accountId": "{{idCuentaAjena}}",
+        "categoryId": "{{idSuscripcionesSeries}}",
+        "amount": 10000,
+        "description": "Serie inválida",
+        "frequency": "MONTHLY",
+        "interval": 1,
+        "dayOfMonth": 5,
+        "startDate": "{{mananaSeries}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: accountId
+  scripts:
+    - type: tests
+      code: |-
+        test("dice que la cuenta no existe, como con una inexistente", function() {
+          expect(res.getBody().errors[0].description).to.equal("La cuenta no existe");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

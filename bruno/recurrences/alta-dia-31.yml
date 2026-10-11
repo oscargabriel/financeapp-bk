@@ -1,0 +1,39 @@
+info:
+  name: Alta mensual el dia 31
+  type: http
+  seq: 14
+
+http:
+  method: POST
+  url: "{{baseUrl}}/recurrences"
+  body:
+    type: json
+    data: |-
+      {
+        "type": "EXPENSE",
+        "accountId": "{{idCuentaSeries}}",
+        "categoryId": "{{idSuscripcionesSeries}}",
+        "amount": 1000,
+        "description": "Fin de mes",
+        "frequency": "MONTHLY",
+        "dayOfMonth": 31,
+        "startDate": "{{anioSiguiente}}-01-31",
+        "occurrences": 4
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idSerieDia31", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

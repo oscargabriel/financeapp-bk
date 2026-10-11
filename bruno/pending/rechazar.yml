@@ -1,0 +1,35 @@
+info:
+  name: Rechazar pendiente
+  type: http
+  seq: 15
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/{{idPendienteRechazo}}/reject"
+  auth:
+    type: bearer
+    token: "{{tokenPendientes}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+  scripts:
+    - type: tests
+      code: |-
+        test("no devuelve cuerpo", function() {
+          expect(res.getBody() || "").to.be.empty;
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Con la cuenta desactivada (FA-102)
+
+  Corre con `Cuenta pendientes` desactivada: rechazar no mira el estado de la cuenta, y es, junto con
+  reactivarla, la salida que tiene el usuario cuando aprobar responde 409.

@@ -1,0 +1,60 @@
+info:
+  name: Comprar en la tarjeta de corte y pago 31
+  type: http
+  seq: 14
+
+http:
+  method: POST
+  url: "{{baseUrl}}/installment-purchases"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idVisa31}}",
+        "categoryId": "{{idTecnologia}}",
+        "amount": 800000,
+        "description": "Bicicleta",
+        "purchaseDate": "{{compraVisa31}}",
+        "installmentCount": 4
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        const aBogota = function (dia) { return dia + "T05:00:00Z"; };
+        const p = res.getBody();
+        bru.setVar("idCompraVisa31", p.id);
+
+        test("vencen el ultimo dia de cada mes", function() {
+          expect(p.installments.map(function (c) { return c.dueAt; })).to.eql([1, 2, 3, 4].map(function (k) {
+            return aBogota(bru.getVar("visa31Vence" + k));
+          }));
+        });
+
+        test("una tarjeta sin tasa no cobra interes", function() {
+          expect(p.monthlyInterestRate).to.equal(0);
+          expect(p.installments.map(function (c) { return c.amount; })).to.eql([200000, 200000, 200000, 200000]);
+        });
+
+        test("ya ocurrieron todas", function() {
+          expect(p.paidCount).to.equal(4);
+          expect(p.remainingPrincipal).to.equal(0);
+          expect(p.remainingAmount).to.equal(0);
+          expect(p.nextInstallment).to.equal(null);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  Compra del 15 de diciembre de hace dos años: el corte del 31 de diciembre, y las cuotas el 31 de
+  enero, el último día de febrero, el 31 de marzo y el 30 de abril del año pasado.

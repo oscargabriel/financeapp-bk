@@ -1,0 +1,34 @@
+info:
+  name: Cambiar el monto de la cuota 2
+  type: http
+  seq: 28
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/transactions/{{idCuota2Hoy}}"
+  body:
+    type: json
+    data: |-
+      {
+        "amount": 400000
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("sigue siendo la cuota 2 de su compra", function() {
+          expect(res.getBody().installment).to.eql({ purchaseId: bru.getVar("idCompraHoy"), number: 2, count: 3 });
+          expect(res.getBody().amount).to.equal(400000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

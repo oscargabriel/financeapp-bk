@@ -1,0 +1,50 @@
+info:
+  name: Listado con la serie atrasada
+  type: http
+  seq: 11
+
+http:
+  method: GET
+  url: "{{baseUrl}}/recurrences"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const comoDia = function (f) {
+          return f.getFullYear() + "-" + dos(f.getMonth() + 1) + "-" + dos(f.getDate());
+        };
+        const aBogota = function (dia) { return dia + "T05:00:00Z"; };
+        const serie = res.getBody().find(function (s) { return s.id === bru.getVar("idSerieAtrasada"); });
+
+        test("devuelve el contrato de la serie", function() {
+          expect(serie).to.have.all.keys("id", "type", "accountId", "categoryId", "amount", "currencyCode",
+              "description", "frequency", "interval", "dayOfWeek", "dayOfMonth", "startDate", "endDate",
+              "occurrences", "nextOccurrenceAt");
+        });
+
+        test("trae la regla y la proxima ocurrencia", function() {
+          expect(serie.type).to.equal("EXPENSE");
+          expect(serie.amount).to.equal(10000);
+          expect(serie.currencyCode).to.equal("COP");
+          expect(serie.frequency).to.equal("WEEKLY");
+          expect(serie.interval).to.equal(1);
+          expect(serie.dayOfWeek).to.equal(bru.getVar("diaSemanaHoy"));
+          expect(serie.dayOfMonth).to.equal(null);
+          expect(serie.startDate).to.equal(bru.getVar("atrasada0"));
+          expect(serie.endDate).to.equal(null);
+          expect(serie.occurrences).to.equal(null);
+          expect(serie.nextOccurrenceAt).to.equal(aBogota(bru.getVar("atrasada35")));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

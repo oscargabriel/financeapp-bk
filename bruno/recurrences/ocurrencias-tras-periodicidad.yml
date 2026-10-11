@@ -1,0 +1,39 @@
+info:
+  name: Ocurrencias tras cambiar la periodicidad
+  type: http
+  seq: 49
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{desdeSeries}}&to={{hastaSeries}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const comoDia = function (f) {
+          return f.getFullYear() + "-" + dos(f.getMonth() + 1) + "-" + dos(f.getDate());
+        };
+        const aBogota = function (dia) { return dia + "T05:00:00Z"; };
+        const ocurrencias = res.getBody().transactions
+            .filter(function (t) { return t.recurrenceId === bru.getVar("idSeriePeriodicidad"); })
+            .sort(function (a, b) { return a.occurredAt < b.occurredAt ? -1 : 1; });
+        const fechas = ocurrencias.map(function (t) { return t.occurredAt; });
+
+        test("las dos pasadas conservan su fecha y las cuatro futuras caen en viernes", function() {
+          expect(fechas).to.eql([bru.getVar("primeroMes2"), bru.getVar("primeroMes3"),
+              bru.getVar("viernes0"), bru.getVar("viernes1"), bru.getVar("viernes2"), bru.getVar("viernes3")]
+              .map(aBogota));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

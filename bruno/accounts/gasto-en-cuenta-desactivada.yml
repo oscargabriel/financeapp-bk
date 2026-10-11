@@ -1,0 +1,46 @@
+info:
+  name: Gasto en cuenta desactivada
+  type: http
+  seq: 45
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCuentaEfectivo}}",
+          "categoryId": "{{idMercadoCuentas}}",
+          "amount": 20000,
+          "description": "Mercado"
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: "[0].accountId"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Una cuenta desactivada no recibe movimientos nuevos
+
+  El mismo gasto que "Gasto tras reactivar" acepta despues.

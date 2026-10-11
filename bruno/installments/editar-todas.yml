@@ -1,0 +1,34 @@
+info:
+  name: Cambiar la categoria de todas
+  type: http
+  seq: 35
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/installment-purchases/{{idCompraPasada}}"
+  body:
+    type: json
+    data: |-
+      {
+        "scope": "ALL",
+        "categoryId": "{{idMercadoCuotas}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("devuelve la categoria nueva", function() {
+          expect(res.getBody().categoryId).to.equal(bru.getVar("idMercadoCuotas"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

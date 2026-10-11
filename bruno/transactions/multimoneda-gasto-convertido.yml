@@ -1,0 +1,58 @@
+info:
+  name: Multimoneda — gasto convertido a pendiente
+  type: http
+  seq: 42
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idUsd}}",
+          "categoryId": "{{idMercado}}",
+          "amount": 41000,
+          "currencyCode": "COP",
+          "description": "Almuerzo pagado en pesos"
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        const t = res.getBody()[0];
+        bru.setVar("idGastoConvertido", t.id);
+
+        test("se convierte a la moneda de la cuenta con la tasa de hoy (USD->COP 4100)", function() {
+          expect(t.currencyCode).to.equal("USD");
+          expect(t.amount).to.equal(10);
+        });
+
+        test("queda pendiente y guarda lo recibido", function() {
+          expect(t.status).to.equal("PENDING");
+          expect(t.originalAmount).to.equal(41000);
+          expect(t.originalCurrencyCode).to.equal("COP");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Gasto en pesos sobre una cuenta en dolares
+
+  41000 COP con la tasa USD->COP de hoy en 4100 (test-data.sql) son 10 USD, redondeados a los 2
+  decimales del dolar. Queda pendiente: la tasa interna aproxima el cargo real y la persona lo confirma.

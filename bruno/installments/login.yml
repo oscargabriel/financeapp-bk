@@ -1,0 +1,95 @@
+info:
+  name: Usuario de cuotas — login
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/login"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "cuotas@financeapp.local",
+        "password": "{{testUserPassword}}"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: after-response
+      code: |-
+        bru.setVar("tokenCuotas", res.getBody().accessToken);
+        bru.setVar("idVisa", "20000000-0000-7000-8000-000000000012");
+        bru.setVar("idVisa31", "20000000-0000-7000-8000-000000000013");
+        bru.setVar("idVisaSinCorte", "20000000-0000-7000-8000-000000000014");
+        bru.setVar("idAhorrosCuotas", "20000000-0000-7000-8000-000000000015");
+        bru.setVar("idTarjetaAjena", "20000000-0000-7000-8000-000000000003");
+        bru.setVar("idCompraAjena", "90000000-0000-7000-8000-000000000001");
+
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const comoDia = function (f) {
+          return f.getFullYear() + "-" + dos(f.getMonth() + 1) + "-" + dos(f.getDate());
+        };
+        const ahora = new Date();
+        const hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+        const y = hoy.getFullYear();
+        const m = hoy.getMonth();
+
+        // Visa: corte 20 y pago 5. El primer corte es el del mes de la compra si cae el 20 o antes, y la
+        // cuota k vence el 5 del mes k despues del corte.
+        const venceVisa = function (compra, k) {
+          const corte = compra.getDate() <= 20 ? 0 : 1;
+          return new Date(compra.getFullYear(), compra.getMonth() + corte + k, 5);
+        };
+
+        bru.setVar("hoyCuotas", comoDia(hoy));
+        bru.setVar("mananaCuotas", comoDia(new Date(y, m, hoy.getDate() + 1)));
+        bru.setVar("desdeCuotas", comoDia(new Date(y - 2, 0, 1)));
+        bru.setVar("hastaCuotas", comoDia(new Date(y + 2, 11, 31)));
+        [1, 2, 3].forEach(function (k) { bru.setVar("hoyVence" + k, comoDia(venceVisa(hoy, k))); });
+
+        bru.setVar("dia9MesPasado", comoDia(new Date(y, m - 1, 9)));
+        bru.setVar("dia20MesPasado", comoDia(new Date(y, m - 1, 20)));
+        bru.setVar("dia21MesPasado", comoDia(new Date(y, m - 1, 21)));
+        bru.setVar("vence5MesActual", comoDia(new Date(y, m, 5)));
+        bru.setVar("vence5MesSiguiente", comoDia(new Date(y, m + 1, 5)));
+
+        // Compra de hace cuatro meses, el 10: 600.000 a 6 cuotas con tasa 2.
+        const pasada = new Date(y, m - 4, 10);
+        bru.setVar("compraPasada", comoDia(pasada));
+        let pagadas = 0;
+        for (let k = 1; k <= 6; k++) {
+          const vence = venceVisa(pasada, k);
+          bru.setVar("pasadaVence" + k, comoDia(vence));
+          if (vence <= hoy) { pagadas += 1; }
+        }
+        bru.setVar("pagadasPasada", String(pagadas));
+
+        // Visa 31: corte 31 y pago 31. Una compra del 15 de diciembre de hace dos anios vence el ultimo dia
+        // de enero, febrero, marzo y abril del anio pasado: ya ocurrieron todas.
+        const navidad = new Date(y - 2, 11, 15);
+        bru.setVar("compraVisa31", comoDia(navidad));
+        [1, 2, 3, 4].forEach(function (k) {
+          bru.setVar("visa31Vence" + k, comoDia(new Date(y - 2, 11 + k + 1, 0)));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Login del usuario sembrado
+
+  Misma clave que el usuario del escenario. Si da 401, `test-data.sql` no está cargado o es
+  anterior a FA-108. El script calcula todas las fechas de la carpeta con la hora local de la máquina,
+  como el resto de la colección.

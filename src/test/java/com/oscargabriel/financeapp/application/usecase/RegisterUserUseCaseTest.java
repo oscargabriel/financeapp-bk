@@ -14,6 +14,9 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -28,6 +31,7 @@ import com.oscargabriel.financeapp.domain.model.RegistrationCommand;
 import com.oscargabriel.financeapp.domain.model.User;
 import com.oscargabriel.financeapp.domain.port.out.CurrencyQueryPort;
 import com.oscargabriel.financeapp.domain.port.out.PasswordHasherPort;
+import com.oscargabriel.financeapp.domain.port.out.RegistrationAllowlistPort;
 import com.oscargabriel.financeapp.domain.port.out.UserRepositoryPort;
 import com.oscargabriel.financeapp.support.UserMother;
 
@@ -49,6 +53,9 @@ class RegisterUserUseCaseTest {
 
     @Mock
     private PasswordHasherPort hasher;
+
+    @Mock
+    private RegistrationAllowlistPort admitidos;
 
     @Captor
     private ArgumentCaptor<User> usuarioGuardado;
@@ -89,6 +96,26 @@ class RegisterUserUseCaseTest {
         verify(usuarios).createWithDefaultCategories(usuarioGuardado.capture());
         assertThat(usuarioGuardado.getValue().baseCurrencyCode()).isEqualTo("COP");
         assertThat(usuarioGuardado.getValue().timezone()).isEqualTo("America/Bogota");
+    }
+
+    @Test
+    void guardaElCelularRecortado() {
+        altaPosible();
+
+        StepVerifier.create(useCase().register(UserMother.unAltaConCelular(" +573001234567 ")))
+                .assertNext(registrado -> assertThat(registrado.user().phone()).isEqualTo("+573001234567"))
+                .verifyComplete();
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = "   ")
+    void unCelularAusenteOEnBlancoSeGuardaComoNull(String celular) {
+        altaPosible();
+
+        StepVerifier.create(useCase().register(UserMother.unAltaConCelular(celular)))
+                .assertNext(registrado -> assertThat(registrado.user().phone()).isNull())
+                .verifyComplete();
     }
 
     @Test
@@ -137,7 +164,79 @@ class RegisterUserUseCaseTest {
         verify(usuarios, never()).createWithDefaultCategories(any());
     }
 
+    @Test
+    void rechazaConProhibidoUnCorreoQueNoEstaAdmitido() {
+        altaPosible();
+        when(admitidos.isAllowed(anyString())).thenReturn(Mono.just(false));
+
+        StepVerifier.create(useCase().register(UserMother.unAlta()))
+                .verifyErrorSatisfies(error -> {
+                    assertThat(error).isInstanceOf(BadRequestException.class);
+                    BadRequestException bre = (BadRequestException) error;
+                    assertThat(bre.getHttpStatus().value()).isEqualTo(403);
+                    assertThat(bre.getErrorResponse().getErrors())
+                            .singleElement()
+                            .satisfies(detalle -> {
+                                assertThat(detalle.getCode())
+                                        .isEqualTo(ErrorCodes.REGISTRATION_NOT_ALLOWED.getCode());
+                                assertThat(detalle.getField()).isEqualTo("email");
+                            });
+                });
+
+        verify(usuarios, never()).createWithDefaultCategories(any());
+    }
+
+    @Test
+    void consultaLaListaConElCorreoNormalizado() {
+        altaPosible();
+
+        StepVerifier.create(useCase().register(conEmail(" Invitado@FinanceApp.LOCAL ")))
+                .expectNextCount(1)
+                .verifyComplete();
+
+        verify(admitidos).isAllowed("invitado@financeapp.local");
+    }
+
+    @Test
+    void noRevelaSiUnCorreoNoAdmitidoYaTieneCuenta() {
+        altaPosible();
+        when(admitidos.isAllowed(anyString())).thenReturn(Mono.just(false));
+        when(usuarios.existsByEmail(anyString())).thenReturn(Mono.just(true));
+
+        StepVerifier.create(useCase().register(UserMother.unAlta()))
+                .verifyErrorSatisfies(error -> assertThat(((BadRequestException) error).getHttpStatus().value())
+                        .isEqualTo(403));
+
+        verify(usuarios, never()).existsByEmail(anyString());
+    }
+
+    @Test
+    void laMonedaInexistenteSaleAntesQueElRechazo() {
+        altaPosible();
+        when(monedas.exists("USD")).thenReturn(Mono.just(false));
+        when(admitidos.isAllowed(anyString())).thenReturn(Mono.just(false));
+
+        StepVerifier.create(useCase().register(UserMother.unAlta()))
+                .verifyErrorSatisfies(error -> assertThat(campos(error))
+                        .containsExactly("baseCurrencyCode"));
+
+        verify(admitidos, never()).isAllowed(anyString());
+    }
+
+    @Test
+    void conLaRestriccionApagadaNoConsultaLaLista() {
+        altaPosible();
+        when(admitidos.isAllowed(anyString())).thenReturn(Mono.just(false));
+
+        StepVerifier.create(useCaseSinRestriccion().register(UserMother.unAlta()))
+                .expectNextCount(1)
+                .verifyComplete();
+
+        verify(admitidos, never()).isAllowed(anyString());
+    }
+
     private void altaPosible() {
+        when(admitidos.isAllowed(anyString())).thenReturn(Mono.just(true));
         when(usuarios.existsByEmail(anyString())).thenReturn(Mono.just(false));
         when(monedas.exists(anyString())).thenReturn(Mono.just(true));
         when(hasher.hash(anyString())).thenReturn(UserMother.HASH);
@@ -145,7 +244,7 @@ class RegisterUserUseCaseTest {
     }
 
     private static RegistrationCommand conEmail(String email) {
-        return new RegistrationCommand(email, UserMother.PASSWORD, "Ana", null, null, null);
+        return new RegistrationCommand(email, UserMother.PASSWORD, "Ana", null, null, null, null);
     }
 
     private static List<String> campos(Throwable error) {
@@ -155,6 +254,10 @@ class RegisterUserUseCaseTest {
     }
 
     private RegisterUserUseCase useCase() {
-        return new RegisterUserUseCase(usuarios, monedas, hasher, RELOJ);
+        return new RegisterUserUseCase(usuarios, monedas, hasher, admitidos, RELOJ, true);
+    }
+
+    private RegisterUserUseCase useCaseSinRestriccion() {
+        return new RegisterUserUseCase(usuarios, monedas, hasher, admitidos, RELOJ, false);
     }
 }

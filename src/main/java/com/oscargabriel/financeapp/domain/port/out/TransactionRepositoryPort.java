@@ -21,4 +21,13 @@ public interface TransactionRepositoryPort {
 
     /** false si no existe o es de otro usuario. */
     Mono<Boolean> deleteByIdAndUser(UUID id, UUID userId);
+
+    /** Los pendientes del usuario, del mas reciente al mas antiguo. */
+    Flux<Transaction> findPendingByUser(UUID userId);
+
+    /** Pasa a CONFIRMED un pendiente del usuario; false si no habia un pendiente que confirmar. */
+    Mono<Boolean> confirm(UUID id, UUID userId);
+
+    /** Borra un pendiente del usuario; false si no habia un pendiente que borrar. */
+    Mono<Boolean> deletePending(UUID id, UUID userId);
 }

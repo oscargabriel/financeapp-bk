@@ -1,0 +1,52 @@
+info:
+  name: Usuario de pendientes — login
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/login"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "pendientes@financeapp.local",
+        "password": "{{testUserPassword}}"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: after-response
+      code: |-
+        bru.setVar("tokenPendientes", res.getBody().accessToken);
+        bru.setVar("idPendienteGasto", "70000000-0000-7000-8000-000000000001");
+        bru.setVar("idPendienteTraslado", "70000000-0000-7000-8000-000000000002");
+        bru.setVar("idPendienteRechazo", "70000000-0000-7000-8000-000000000003");
+
+        const comoDia = function (d) {
+          return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-"
+              + String(d.getDate()).padStart(2, "0");
+        };
+        const hoy = new Date();
+        bru.setVar("primerDia", comoDia(new Date(hoy.getFullYear(), hoy.getMonth(), 1)));
+        bru.setVar("ultimoDia", comoDia(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0)));
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Login del usuario sembrado
+
+  Misma clave que el usuario del escenario. Si da 401, `test-data.sql` no está cargado o es
+  anterior a FA-76.

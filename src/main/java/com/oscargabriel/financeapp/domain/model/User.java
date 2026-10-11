@@ -13,5 +13,6 @@ public record User(
         String firstName,
         String lastName,
         String baseCurrencyCode,
-        String timezone) {
+        String timezone,
+        String phone) {
 }

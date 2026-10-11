@@ -1,0 +1,41 @@
+info:
+  name: Registro admitido por correo exacto
+  type: http
+  seq: 8
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/register"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "Invitado@FinanceApp.LOCAL",
+        "password": "unaClaveLarga",
+        "firstName": "Invitado"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.email
+      operator: eq
+      value: invitado@financeapp.local
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Correo admitido de forma exacta (FA-103)
+
+  `test-data.sql` pone `invitado@financeapp.local` en la lista de admitidos como correo exacto, no
+  por dominio. Se manda con mayusculas para probar que la lista compara el correo normalizado.
+
+  **No es repetible:** crea el usuario, y la segunda corrida daria 409. Recargar `test-data.sql`
+  lo borra; `verificar-bruno.ps1 -RecargarDatos` lo hace antes de cada corrida.

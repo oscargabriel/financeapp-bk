@@ -1,0 +1,42 @@
+info:
+  name: Compra del 9 del mes pasado
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: "{{baseUrl}}/installment-purchases/preview"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idVisa}}",
+        "categoryId": "{{idTecnologia}}",
+        "amount": 1200000,
+        "description": "Televisor",
+        "purchaseDate": "{{dia9MesPasado}}",
+        "installmentCount": 3
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const aBogota = function (dia) { return dia + "T05:00:00Z"; };
+        test("la primera cuota vence el vence5MesActual", function() {
+          expect(res.getBody().installments[0].dueAt).to.equal(aBogota(bru.getVar("vence5MesActual")));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  Corte 20: la compra del 9 entra en el corte del 20 y vence el 5 del mes siguiente.

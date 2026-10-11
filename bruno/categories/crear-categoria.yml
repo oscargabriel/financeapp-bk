@@ -1,0 +1,62 @@
+info:
+  name: Crear categoria
+  type: http
+  seq: 10
+
+http:
+  method: POST
+  url: "{{baseUrl}}/categories"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "  Plantas  ",
+        "appliesTo": "expense",
+        "icon": "sprout",
+        "color": "#7cb342"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        const categoria = res.getBody();
+
+        test("devuelve el mismo contrato que el listado, con id v7", function() {
+          expect(categoria.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+          expect(categoria).to.have.all.keys("id", "name", "appliesTo", "icon", "color", "isSystem");
+        });
+
+        test("normaliza nombre, alcance y color", function() {
+          expect(categoria.name).to.equal("Plantas");
+          expect(categoria.appliesTo).to.equal("EXPENSE");
+          expect(categoria.icon).to.equal("sprout");
+          expect(categoria.color).to.equal("#7CB342");
+        });
+
+        test("es propia, no de la semilla", function() {
+          expect(categoria.isSystem).to.equal(false);
+        });
+
+        bru.setVar("idPlantas", categoria.id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # POST /api/categories
+
+  Crea una categoria del usuario del token. Corre con `tokenCategorias`, el usuario nuevo de
+  "Usuario nuevo — alta": la coleccion no escribe sobre el usuario del escenario, y un usuario por
+  corrida evita choques de nombre al repetirla. Va despues de "Categorias de un usuario nuevo",
+  que exige que ese usuario tenga solo las 22 de la semilla.

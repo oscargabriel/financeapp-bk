@@ -22,11 +22,17 @@ Página raíz: https://app.notion.com/p/3d9890a64a8d819a9830e3d3b6a58812
 Cada tarea tiene un `ID` autoincremental con prefijo `FA` (FA-1, FA-2…). Úsalo al referirte a una
 tarea en el chat y en los mensajes de commit.
 
+El tablero es compartido con el front, que vive en su propio repo, `financeapp-fr` (decidido el
+06-10-2026). La propiedad `Área`, en `Tareas` y en `Etapas`, dice dónde se resuelve cada cosa:
+`Backend` es este repo, `Frontend` el otro. Cada área numera sus etapas por separado.
+**Este skill solo toma y modifica tareas con `Área = Backend`**, y toda tarea que cree lleva el
+`Área` puesto: una fila sin él no aparece en la vista `Siguiente` de ningún repo.
+
 ## El ciclo
 
 ### 1. Consumir
 
-`notion-query-data-sources` en modo `rows` sobre `Tareas`, filtro `Estado = Lista`, orden por
+`notion-query-data-sources` en modo `rows` sobre `Tareas`, filtro `Estado = Lista` y `Área = Backend`, orden por
 `Prioridad` y luego por `ID`, límite 5. Mostrar las candidatas con `ID`, título, tipo y prioridad.
 Si el usuario pidió "la siguiente", tomar la primera; si no, esperar a que elija.
 
@@ -74,10 +80,20 @@ declarar en su cuerpo un encabezado `## Depende de` con los `ID` que tienen que 
 **Antes de tomar una tarea, leer ese bloque.** Si alguna de las tareas listadas no está en
 `Por revisar`, `Hecha` o `Descartada`, no la tomes: dilo en chat y ofrece la que la desbloquea.
 
+#### Una tarea que no es de este repo
+
+El filtro de la consulta no protege cuando el usuario nombra la tarea por su `ID` ("toma la
+FA-n"), y el usuario puede equivocarse de tarea. **Antes de tomar cualquier tarea, comprobar en su
+página que `Área = Backend`.** Si dice `Frontend`, o no tiene `Área`, no se toma ni se toca: ni
+estado, ni comentario, ni rama. Decirlo en chat —la tarea es del front y se resuelve desde
+`financeapp-fr`— y ofrecer las candidatas de backend. Aunque el usuario insista, desde aquí no se
+resuelve: si la tarea en realidad necesita algo del API, lo que corresponde es una tarea nueva con
+`Área = Backend`, no tomar la del front.
+
 #### Un encargo que llega suelto
 
 Si el usuario pide algo para este repo sin un `ID` —un mensaje, lo que salió de una conversación—,
-primero se registra: `notion-create-pages` en `Tareas` con `Estado = Lista`, el texto **tal como
+primero se registra: `notion-create-pages` en `Tareas` con `Estado = Lista` y `Área = Backend`, el texto **tal como
 llegó** bajo `## Contexto` y los criterios que se puedan deducir bajo `## Criterios de aceptación`.
 Lo que no se pueda deducir se pregunta antes de seguir. Después se toma como cualquier otra.
 
@@ -223,7 +239,7 @@ El discriminador es una sola pregunta:
 
 > **¿Puedo dejar esta tarea en verde y cerrada sin eso?**
 
-- **Sí** → tarea nueva con `notion-create-pages` en `Tareas`: `Estado = Backlog`, `Tipo`
+- **Sí** → tarea nueva con `notion-create-pages` en `Tareas`: `Estado = Backlog`, `Área` del repo donde se resuelve, `Tipo`
   correspondiente, `Prioridad = Media` salvo que sea un bug o una urgencia, y en el cuerpo bajo
   `## Contexto` **por qué surgió y en qué tarea apareció**.
 - **No** —el código no compila, la suite no pasa, el endpoint queda roto sin eso— es parte de la

@@ -1,0 +1,46 @@
+info:
+  name: Modificar perfil con campos invalidos
+  type: http
+  seq: 10
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/users/me"
+  body:
+    type: json
+    data: |-
+      {
+        "firstName": "   ",
+        "phone": "12-34",
+        "email": "sin-arroba",
+        "timezone": "Marte/Base"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenPerfil}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+  scripts:
+    - type: tests
+      code: |-
+        test("un VALIDATION_ERROR por campo", function() {
+          const errores = res.getBody().errors;
+          expect(errores.every(e => e.code === "VALIDATION_ERROR")).to.equal(true);
+          expect(errores.map(e => e.field).sort()).to.deep.equal(
+            ["email", "firstName", "phone", "timezone"]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Formato del parche
+
+  El orden de los errores no esta garantizado: se comparan los campos ordenados.

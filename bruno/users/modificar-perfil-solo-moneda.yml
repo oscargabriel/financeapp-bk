@@ -1,0 +1,40 @@
+info:
+  name: Modificar perfil solo con la moneda
+  type: http
+  seq: 9
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/users/me"
+  body:
+    type: json
+    data: |-
+      {
+        "baseCurrencyCode": "USD"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenPerfil}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: body
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Solo la moneda base
+
+  Omitida la moneda, el parche queda vacio.

@@ -24,7 +24,7 @@ public class CurrencyR2dbcAdapter implements CurrencyQueryPort {
             """;
 
     private static final String ACTIVAS = """
-            SELECT code, name, symbol
+            SELECT code, name, symbol, decimal_places
               FROM finance.currencies
              WHERE is_active
              ORDER BY code
@@ -46,7 +46,8 @@ public class CurrencyR2dbcAdapter implements CurrencyQueryPort {
                 .map((row, metadata) -> new Currency(
                         row.get("code", String.class),
                         row.get("name", String.class),
-                        row.get("symbol", String.class)))
+                        row.get("symbol", String.class),
+                        row.get("decimal_places", Short.class)))
                 .all();
     }
 }

@@ -24,6 +24,9 @@ runtime:
         bru.setVar("primerDia", comoDia(new Date(hoy.getFullYear(), hoy.getMonth(), 1)));
         bru.setVar("ultimoDia", comoDia(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0)));
         bru.setVar("primerDiaSiguiente", comoDia(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1)));
+        // La frontera del dia esta hace dos meses: a fin del mes en curso seria un programado (FA-106).
+        bru.setVar("ultimoDiaFrontera", comoDia(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 0)));
+        bru.setVar("diaSiguienteFrontera", comoDia(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1)));
     - type: tests
       code: |-
         const id = function (nombre) {

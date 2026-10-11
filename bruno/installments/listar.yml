@@ -1,0 +1,58 @@
+info:
+  name: Compras activas
+  type: http
+  seq: 27
+
+http:
+  method: GET
+  url: "{{baseUrl}}/installment-purchases"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const aBogota = function (dia) { return dia + "T05:00:00Z"; };
+        const lista = res.getBody();
+        const ids = lista.map(function (p) { return p.id; });
+        const porId = function (v) { return lista.find(function (p) { return p.id === bru.getVar(v); }); };
+
+        test("trae las tres compras con cuotas por venir", function() {
+          expect(ids).to.have.members([bru.getVar("idCompraHoy"), bru.getVar("idCompraUna"), bru.getVar("idCompraPasada")]);
+        });
+
+        test("no trae la compra pagada ni la de otro usuario", function() {
+          expect(ids).to.not.include(bru.getVar("idCompraVisa31"));
+          expect(ids).to.not.include(bru.getVar("idCompraAjena"));
+        });
+
+        test("van ordenadas por la proxima cuota", function() {
+          const fechas = lista.map(function (p) { return p.nextInstallment.dueAt; });
+          expect(fechas).to.eql(fechas.slice().sort());
+        });
+
+        test("devuelve el resumen sin el plan", function() {
+          expect(porId("idCompraHoy")).to.have.all.keys("id", "accountId", "categoryId", "amount", "currencyCode", "description", "purchaseDate",
+              "installmentCount", "monthlyInterestRate", "paidCount", "remainingPrincipal", "remainingAmount",
+              "nextInstallment");
+        });
+
+        test("la compra pasada dice cuantas faltan", function() {
+          const pagadas = Number(bru.getVar("pagadasPasada"));
+          const p = porId("idCompraPasada");
+          expect(p.paidCount).to.equal(pagadas);
+          expect(p.remainingPrincipal).to.equal(100000 * (6 - pagadas));
+          expect(p.remainingAmount).to.equal(642000 - Number(bru.getVar("pagadoPasada")));
+          expect(p.nextInstallment.number).to.equal(pagadas + 1);
+          expect(p.nextInstallment.dueAt).to.equal(aBogota(bru.getVar("pasadaVence" + (pagadas + 1))));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

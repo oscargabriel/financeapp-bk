@@ -1,0 +1,46 @@
+info:
+  name: Persona en USD — reporte en dolares
+  type: http
+  seq: 53
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{usdHace50}}&to={{usdHoy}}"
+  auth:
+    type: bearer
+    token: "{{tokenUsd}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.currencyCode
+      operator: eq
+      value: USD
+    - expression: res.body.transactions
+      operator: length
+      value: "2"
+  scripts:
+    - type: tests
+      code: |-
+        const r = res.getBody();
+
+        test("cada gasto en pesos sale en dolares con la tasa de su fecha", function() {
+          r.transactions.forEach(function (t) {
+            expect(t.currencyCode).to.equal("COP");
+            expect(t.amountBase).to.equal(10);
+          });
+        });
+
+        test("el total de gastos suma los equivalentes en dolares", function() {
+          const gastos = r.totalsByType.find(function (t) { return t.type === "EXPENSE"; });
+          expect(gastos.total).to.equal(20);
+          expect(gastos.count).to.equal(2);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

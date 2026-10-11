@@ -11,6 +11,7 @@ public record RegisterUserResponse(
         String email,
         String firstName,
         String lastName,
+        String phone,
         String baseCurrencyCode,
         String timezone,
         long defaultCategories) {
@@ -21,6 +22,7 @@ public record RegisterUserResponse(
                 registrado.user().email(),
                 registrado.user().firstName(),
                 registrado.user().lastName(),
+                registrado.user().phone(),
                 registrado.user().baseCurrencyCode(),
                 registrado.user().timezone(),
                 registrado.defaultCategories());

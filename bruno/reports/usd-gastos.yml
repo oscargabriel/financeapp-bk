@@ -1,0 +1,58 @@
+info:
+  name: Persona en USD — gastos en pesos
+  type: http
+  seq: 52
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCuentaUsd}}",
+          "categoryId": "{{idMercadoUsd}}",
+          "amount": 41000,
+          "description": "Mercado de hoy"
+        },
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCuentaUsd}}",
+          "categoryId": "{{idMercadoUsd}}",
+          "amount": 39000,
+          "description": "Mercado viejo",
+          "occurredAt": "{{usdHace50}}T12:00:00-05:00"
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenUsd}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: before-request
+      code: |-
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const comoDia = function (f) {
+          return f.getFullYear() + "-" + dos(f.getMonth() + 1) + "-" + dos(f.getDate());
+        };
+        const hoy = new Date();
+        bru.setVar("usdHoy", comoDia(hoy));
+        bru.setVar("usdHace50", comoDia(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - 50)));
+        bru.setVar("usdMes", hoy.getFullYear() + "-" + dos(hoy.getMonth() + 1));
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  El de hoy va sin fecha (el instante de la peticion, nunca programado) y vale 41000 / 4100 = 10 USD.
+  El de hace 50 dias es anterior a la tasa mas antigua, la de hace 45 en 3900: 39000 / 3900 = 10 USD.

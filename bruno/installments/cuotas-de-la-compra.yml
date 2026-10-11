@@ -1,0 +1,49 @@
+info:
+  name: Las cuotas en el reporte
+  type: http
+  seq: 12
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{desdeCuotas}}&to={{hastaCuotas}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const aBogota = function (dia) { return dia + "T05:00:00Z"; };
+        const cuotas = res.getBody().transactions
+            .filter(function (t) { return t.installment && t.installment.purchaseId === bru.getVar("idCompraHoy"); })
+            .sort(function (a, b) { return a.installment.number - b.installment.number; });
+
+        test("son tres gastos programados de la tarjeta", function() {
+          expect(cuotas).to.have.length(3);
+          cuotas.forEach(function (t) {
+            expect(t.type).to.equal("EXPENSE");
+            expect(t.accountId).to.equal(bru.getVar("idVisa"));
+            expect(t.categoryId).to.equal(bru.getVar("idTecnologia"));
+            expect(t.description).to.equal("Televisor");
+            expect(t.scheduled).to.equal(true);
+            expect(t.recurrenceId).to.equal(null);
+          });
+        });
+
+        test("cada una dice su numero y de cuantas", function() {
+          expect(cuotas.map(function (t) { return t.installment; })).to.eql([1, 2, 3].map(function (n) {
+            return { purchaseId: bru.getVar("idCompraHoy"), number: n, count: 3 };
+          }));
+          expect(cuotas.map(function (t) { return t.amount; })).to.eql([424000, 416000, 408000]);
+          expect(cuotas.map(function (t) { return t.occurredAt; })).to.eql(
+              [bru.getVar("hoyVence1"), bru.getVar("hoyVence2"), bru.getVar("hoyVence3")].map(aBogota));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

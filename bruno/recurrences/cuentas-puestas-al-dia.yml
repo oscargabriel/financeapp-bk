@@ -1,0 +1,36 @@
+info:
+  name: Cuentas con la serie atrasada al dia
+  type: http
+  seq: 8
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const cuenta = res.getBody().find(function (c) { return c.id === bru.getVar("idCuentaAtrasada"); });
+
+        test("descuenta la primera ocurrencia y las tres creadas hasta hoy, no la borrada", function() {
+          expect(cuenta.currentBalance).to.equal(1000000 - 4 * 10000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # La primera lectura de saldos pone al día la serie
+
+  La serie atrasada de `test-data.sql` empezó hace 28 días y su contador dice que ya creó dos
+  ocurrencias, pero solo existe la primera: la segunda se borró a mano. Al leer las cuentas el API
+  crea las de hace 14 y 7 días, la de hoy y la de dentro de 7 días, que queda programada.

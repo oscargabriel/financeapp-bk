@@ -52,6 +52,6 @@ settings:
 docs: |
   # Una cuenta: origen o destino
 
-  Efectivo en el mes: Taxi 15.000, Fruta 42.500, Mensualidad 120.000 y Cena de fin de mes 50.000, mas
+  Efectivo en el mes: Taxi 15.000, Fruta 42.500, Mensualidad 120.000 y Cena 50.000, mas
   el retiro de cajero de 300.000 que llega desde Bancolombia. Si el filtro mirara solo la cuenta de
   origen, el retiro no apareceria.

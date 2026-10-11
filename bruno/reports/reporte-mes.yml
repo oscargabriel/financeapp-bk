@@ -26,19 +26,24 @@ runtime:
 
         test("devuelve el contrato del reporte", function() {
           expect(r).to.have.all.keys("from", "to", "currencyCode", "transactions", "totalsByType",
-              "totalsByCategory");
+              "totalsByCategory", "net");
           expect(r.from).to.equal(bru.getVar("primerDia"));
           expect(r.to).to.equal(bru.getVar("ultimoDia"));
           expect(r.currencyCode).to.equal("COP");
           expect(r.transactions[0]).to.have.all.keys("id", "type", "accountId", "destinationAccountId",
               "categoryId", "categoryName", "amount", "currencyCode", "amountBase", "description",
-              "notes", "occurredAt");
+              "notes", "occurredAt", "scheduled", "recurrenceId", "installment");
+          r.transactions.forEach(function (t) {
+            expect(t.scheduled).to.equal(false);
+            expect(t.recurrenceId).to.equal(null);
+            expect(t.installment).to.equal(null);
+          });
         });
 
         test("ordena del mas reciente al mas antiguo", function() {
           const fechas = r.transactions.map(function (t) { return t.occurredAt; });
           expect(fechas).to.eql(fechas.slice().sort().reverse());
-          expect(r.transactions[0].description).to.equal("Cena de fin de mes");
+          expect(r.transactions[0].description).to.equal("Cena");
         });
 
         test("un gasto trae su categoria y ninguna cuenta destino", function() {
@@ -65,6 +70,10 @@ runtime:
             { type: "INCOME", total: 5300000, count: 2 },
             { type: "TRANSFER", total: 710000, count: 2 }
           ]);
+        });
+
+        test("el neto es ingresos menos gastos, sin las transferencias", function() {
+          expect(r.net).to.equal(5300000 - 1905500);
         });
 
         test("los totales por categoria dejan fuera las transferencias y van de mayor a menor", function() {

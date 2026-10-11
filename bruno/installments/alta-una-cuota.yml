@@ -1,0 +1,45 @@
+info:
+  name: Comprar a una cuota
+  type: http
+  seq: 13
+
+http:
+  method: POST
+  url: "{{baseUrl}}/installment-purchases"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idVisa}}",
+        "categoryId": "{{idTecnologia}}",
+        "amount": 300000,
+        "description": "Audífonos",
+        "purchaseDate": "{{hoyCuotas}}",
+        "installmentCount": 1
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        const p = res.getBody();
+        bru.setVar("idCompraUna", p.id);
+
+        test("una cuota no lleva interes", function() {
+          expect(p.installments).to.have.length(1);
+          expect(p.installments[0].principal).to.equal(300000);
+          expect(p.installments[0].interest).to.equal(0);
+          expect(p.installments[0].amount).to.equal(300000);
+          expect(p.remainingAmount).to.equal(300000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

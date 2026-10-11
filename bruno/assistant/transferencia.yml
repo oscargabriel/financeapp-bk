@@ -1,0 +1,49 @@
+info:
+  name: Transferencia pendiente
+  type: http
+  seq: 16
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: json
+    data: |-
+      {
+        "data": "crear_movimiento {\"tipo\": \"TRANSFER\", \"monto\": 100000, \"cuenta\": \"Efectivo\", \"cuenta_destino\": \"ahorros\", \"categoria\": \"Mercado\", \"descripcion\": \"Al ahorro\"}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.intent
+      operator: eq
+      value: CREATE_TRANSACTION
+  scripts:
+    - type: tests
+      code: |-
+        const t = res.getBody().transaction;
+
+        test("es una transferencia pendiente entre las dos cuentas, sin categoria", function() {
+          expect(t.type).to.equal("TRANSFER");
+          expect(t.status).to.equal("PENDING");
+          expect(t.accountId).to.equal(bru.getVar("idEfectivo"));
+          expect(t.destinationAccountId).to.equal(bru.getVar("idAhorros"));
+          expect(t.categoryId).to.equal(null);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Transferencia
+
+  La categoria que mande el modelo se ignora: una transferencia no la lleva.

@@ -1,0 +1,36 @@
+info:
+  name: Usuario ajeno — cuenta
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Ajena",
+        "type": "CASH",
+        "currencyCode": "COP",
+        "initialBalance": 100000
+      }
+  auth:
+    type: bearer
+    token: "{{tokenAjenoSeries}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idCuentaAjena", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

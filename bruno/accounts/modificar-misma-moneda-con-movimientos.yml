@@ -1,0 +1,41 @@
+info:
+  name: Modificar con la misma moneda
+  type: http
+  seq: 25
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/{{idCuentaEfectivo}}"
+  body:
+    type: json
+    data: |-
+      {
+        "currencyCode": "cop"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.currencyCode
+      operator: eq
+      value: COP
+    - expression: res.body.name
+      operator: eq
+      value: Bolsillo
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Mandar la moneda que ya tiene no es un cambio
+
+  En otra caja, pero la misma moneda: no consulta movimientos y responde 200. El nombre sigue
+  `Bolsillo`, porque el 409 anterior no escribio nada.

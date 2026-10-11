@@ -1,0 +1,37 @@
+info:
+  name: Login no admitido
+  type: http
+  seq: 10
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/login"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailNoAdmitido}}",
+        "password": "unaClaveLarga"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: INVALID_CREDENTIALS
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El alta rechazada no creo el usuario (FA-103)
+
+  Mismo correo y misma contrasena que `Registro no admitido`. Si el alta hubiera creado el usuario
+  antes de rechazarlo, este login daria 200.

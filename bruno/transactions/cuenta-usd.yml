@@ -1,0 +1,41 @@
+info:
+  name: Cuenta en USD
+  type: http
+  seq: 39
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Dolares",
+        "type": "SAVINGS",
+        "currencyCode": "USD",
+        "initialBalance": 1000
+      }
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idUsd", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Cuenta en USD para los movimientos en otras monedas (FA-51)
+
+  Va al final de la carpeta: los requests de saldos anteriores buscan sus cuentas por nombre y no la ven.

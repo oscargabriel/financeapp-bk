@@ -35,7 +35,8 @@ class UpdateTransactionRequestTest {
         assertThat(Violaciones.de(unParche().type("transfer").accountId(TransactionMother.ORIGEN_ID.toString())
                 .destinationAccountId(TransactionMother.DESTINO_ID.toString())
                 .categoryId(TransactionMother.MERCADO_ID.toString()).amount(new BigDecimal("45000.1234"))
-                .description("x".repeat(255)).occurredAt(TransactionMother.FECHA).request())).isEmpty();
+                .description("x".repeat(255)).occurredAt(TransactionMother.FECHA)
+                .destinationAmount(new BigDecimal("95.5")).request())).isEmpty();
     }
 
     static Stream<Arguments> unCampoInvalido() {
@@ -50,6 +51,11 @@ class UpdateTransactionRequestTest {
                         "El monto debe ser mayor que cero: el signo lo da el tipo"),
                 Arguments.of("monto con cinco decimales", unParche().amount(new BigDecimal("10.12345")), "amount",
                         "El monto admite hasta 4 decimales y menos de 14 digitos enteros"),
+                Arguments.of("monto de destino en cero", unParche().destinationAmount(BigDecimal.ZERO),
+                        "destinationAmount", "El monto de destino debe ser mayor que cero"),
+                Arguments.of("monto de destino con cinco decimales",
+                        unParche().destinationAmount(new BigDecimal("10.12345")), "destinationAmount",
+                        "El monto de destino admite hasta 4 decimales y menos de 14 digitos enteros"),
                 Arguments.of("descripcion en blanco", unParche().description("   "), "description",
                         "La descripcion no puede ir en blanco: para no cambiarla, omitela"),
                 Arguments.of("descripcion de 256", unParche().description("x".repeat(256)), "description",
@@ -84,5 +90,6 @@ class UpdateTransactionRequestTest {
         assertThat(unParche().description("Fruta").request().sinCambios()).isFalse();
         assertThat(unParche().amount(BigDecimal.ONE).request().sinCambios()).isFalse();
         assertThat(unParche().categoryId("x").request().sinCambios()).isFalse();
+        assertThat(unParche().destinationAmount(BigDecimal.TEN).request().sinCambios()).isFalse();
     }
 }

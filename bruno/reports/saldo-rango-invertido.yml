@@ -1,0 +1,30 @@
+info:
+  name: Saldo con rango invertido
+  type: http
+  seq: 45
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/balance?from={{ultimoDia}}&to={{primerDia}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: from
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  `from` posterior a `to`: el error va sobre `from`.

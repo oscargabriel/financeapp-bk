@@ -1,0 +1,39 @@
+info:
+  name: Usuario ajeno — alta
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/register"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailAjenoSeries}}",
+        "password": "unaClaveLarga",
+        "firstName": "Ajeno",
+        "lastName": "Series",
+        "baseCurrencyCode": "COP",
+        "timezone": "America/Bogota"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: before-request
+      code: |-
+        bru.setVar("emailAjenoSeries", "series-ajeno-" + Date.now() + "@bruno.local");
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

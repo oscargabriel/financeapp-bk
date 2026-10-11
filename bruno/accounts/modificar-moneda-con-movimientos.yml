@@ -1,0 +1,42 @@
+info:
+  name: Modificar moneda con movimientos
+  type: http
+  seq: 24
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/{{idCuentaEfectivo}}"
+  body:
+    type: json
+    data: |-
+      {
+        "currencyCode": "USD",
+        "name": "Otro"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: RESOURCE_IN_USE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: currencyCode
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # La moneda no cambia con historial
+
+  `Bolsillo` tiene un gasto en COP. El 409 no aplica ningun campo del parche: el nombre tampoco
+  cambia, como comprueba "Cuentas tras modificar".

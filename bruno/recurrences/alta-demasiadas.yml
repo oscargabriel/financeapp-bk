@@ -1,0 +1,44 @@
+info:
+  name: Alta semanal de diez anios
+  type: http
+  seq: 34
+
+http:
+  method: POST
+  url: "{{baseUrl}}/recurrences"
+  body:
+    type: json
+    data: |-
+      {
+        "type": "EXPENSE",
+        "accountId": "{{idCuentaSeries}}",
+        "categoryId": "{{idSuscripcionesSeries}}",
+        "amount": 10000,
+        "description": "Serie inválida",
+        "frequency": "WEEKLY",
+        "interval": 1,
+        "startDate": "{{mananaSeries}}",
+        "dayOfWeek": "MONDAY",
+        "endDate": "{{enDiezAnios}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+  scripts:
+    - type: tests
+      code: |-
+        test("mas de 500 ocurrencias es error sobre endDate", function() {
+          const campos = res.getBody().errors.map(function (e) { return e.field; });
+          expect(campos).to.include("endDate");
+          res.getBody().errors.forEach(function (e) { expect(e.code).to.equal("VALIDATION_ERROR"); });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

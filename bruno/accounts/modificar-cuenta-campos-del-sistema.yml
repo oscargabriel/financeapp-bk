@@ -1,0 +1,49 @@
+info:
+  name: Modificar campos que el parche no admite
+  type: http
+  seq: 28
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/{{idCuentaEfectivo}}"
+  body:
+    type: json
+    data: |-
+      {
+        "currentBalance": 1,
+        "type": "CASH",
+        "isActive": false
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors
+      operator: length
+      value: "2"
+  scripts:
+    - type: tests
+      code: |-
+        test("un error por campo rechazado, ninguno en isActive", function() {
+          const campos = res.getBody().errors.map(function (e) { return e.field; }).sort();
+          expect(campos).to.deep.equal(["currentBalance", "type"]);
+          res.getBody().errors.forEach(function (e) { expect(e.code).to.equal("VALIDATION_ERROR"); });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Saldo vigente y tipo no se tocan por aqui
+
+  El saldo vigente lo calcula la base y el tipo no se cambia: mandarlos es un error, no algo que se
+  ignora en silencio. `isActive` si se admite (FA-68), pero el 400 no escribe nada: la cuenta sigue
+  activa, y "Cuentas tras modificar" lo comprueba.

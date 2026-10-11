@@ -1,0 +1,32 @@
+info:
+  name: Persona en USD — saldo en dolares
+  type: http
+  seq: 54
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/balance?from={{usdHace50}}&to={{usdHoy}}"
+  auth:
+    type: bearer
+    token: "{{tokenUsd}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.currencyCode
+      operator: eq
+      value: USD
+    - expression: res.body.period.expense
+      operator: eq
+      value: "20"
+    - expression: res.body.allTime.expense
+      operator: eq
+      value: "20"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

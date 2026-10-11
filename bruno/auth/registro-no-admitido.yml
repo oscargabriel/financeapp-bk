@@ -1,0 +1,48 @@
+info:
+  name: Registro no admitido
+  type: http
+  seq: 9
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/register"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailNoAdmitido}}",
+        "password": "unaClaveLarga",
+        "firstName": "Fuera"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "403"
+  scripts:
+    - type: before-request
+      code: |-
+        // Un correo por corrida: si el alta lo dejara pasar por error, con uno fijo la siguiente
+        // corrida daria 409 y escondería el fallo real.
+        bru.setVar("emailNoAdmitido", "fuera-" + Date.now() + "@no-admitido.local");
+    - type: tests
+      code: |-
+        test("un unico error REGISTRATION_NOT_ALLOWED en email", function() {
+          expect(res.getBody().errors).to.have.lengthOf(1);
+          expect(res.getBody().errors[0].code).to.equal("REGISTRATION_NOT_ALLOWED");
+          expect(res.getBody().errors[0].field).to.equal("email");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Correo fuera de la lista (FA-103)
+
+  Ni el correo ni `@no-admitido.local` estan en la lista de admitidos. `Login no admitido`, que va
+  despues, comprueba que el usuario no se creo.

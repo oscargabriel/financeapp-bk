@@ -1,0 +1,37 @@
+info:
+  name: Multimoneda — saldos
+  type: http
+  seq: 48
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts"
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const saldo = function (nombre) {
+          return res.getBody().find(function (c) { return c.name === nombre; }).currentBalance;
+        };
+
+        test("la cuenta en USD: menos el gasto de 25, mas los 95 de la compra; los pendientes no cuentan", function() {
+          expect(saldo("Dolares")).to.equal(1070);
+        });
+
+        test("Efectivo baja los 410000 de la compra, en pesos", function() {
+          expect(saldo("Efectivo")).to.equal(Number(bru.getVar("saldoEfectivoAntesMultimoneda")) - 410000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

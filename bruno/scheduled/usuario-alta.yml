@@ -1,0 +1,56 @@
+info:
+  name: Usuario de programados — alta
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/register"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailProgramados}}",
+        "password": "{{claveProgramados}}",
+        "firstName": "Movimientos",
+        "lastName": "Programados",
+        "baseCurrencyCode": "COP",
+        "timezone": "America/Bogota"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: before-request
+      code: |-
+        bru.setVar("emailProgramados", "programados-" + Date.now() + "@bruno.local");
+        bru.setVar("claveProgramados", "unaClaveLarga");
+
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const comoDia = function (f) {
+          return f.getFullYear() + "-" + dos(f.getMonth() + 1) + "-" + dos(f.getDate());
+        };
+        const enDias = function (n) {
+          const hoy = new Date();
+          return new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + n);
+        };
+        bru.setVar("hoyProgramados", comoDia(enDias(0)));
+        bru.setVar("finRangoProgramados", comoDia(enDias(55)));
+        bru.setVar("ayerProgramados", comoDia(enDias(-1)));
+        bru.setVar("diaProgramado", comoDia(enDias(40)));
+        bru.setVar("mesProgramado", comoDia(enDias(40)).substring(0, 7));
+        bru.setVar("diaTransferencia", comoDia(enDias(45)));
+        bru.setVar("diaTarjeta", comoDia(enDias(50)));
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

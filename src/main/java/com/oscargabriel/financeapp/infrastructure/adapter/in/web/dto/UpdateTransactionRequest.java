@@ -19,7 +19,8 @@ import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.validation.
  * cumple el formato del alta. Las reglas de la transferencia no van aqui, a diferencia de
  * CreateTransactionRequest: sin el movimiento guardado no se sabe el tipo resultante.
  *
- * notes, currencyCode y destinationAmount no son modificables: si llegan, el codec los ignora.
+ * notes y currencyCode no son modificables: si llegan, el codec los ignora. Si destinationAmount aplica lo decide
+ * el caso de uso, con las monedas de las cuentas resultantes.
  */
 public record UpdateTransactionRequest(
 
@@ -45,16 +46,22 @@ public record UpdateTransactionRequest(
         /** En blanco no es "ahora", como en el alta: en un parche no hay instante que poner por defecto. */
         @FechaConOffset
         @Pattern(regexp = Formatos.NO_EN_BLANCO, message = "La fecha no puede ir en blanco: para no cambiarla, omitela")
-        String occurredAt) {
+        String occurredAt,
+
+        /** Solo en una transferencia entre monedas distintas: el ajuste del destino convertido (FA-51). */
+        @Positive(message = "El monto de destino debe ser mayor que cero")
+        @MontoNumeric(message = "El monto de destino admite hasta 4 decimales y menos de 14 digitos enteros")
+        BigDecimal destinationAmount) {
 
     /** Un parche que no cambia nada se rechaza en el controlador, antes de leer el movimiento. */
     public boolean sinCambios() {
-        return Stream.of(type, accountId, destinationAccountId, categoryId, amount, description, occurredAt)
+        return Stream.of(type, accountId, destinationAccountId, categoryId, amount, description, occurredAt,
+                        destinationAmount)
                 .allMatch(campo -> campo == null);
     }
 
     public UpdateTransactionCommand toCommand() {
         return new UpdateTransactionCommand(type, accountId, destinationAccountId, categoryId, amount, description,
-                occurredAt);
+                occurredAt, destinationAmount);
     }
 }

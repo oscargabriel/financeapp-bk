@@ -1,0 +1,34 @@
+info:
+  name: Cambiar la cuenta de todas
+  type: http
+  seq: 45
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/recurrences/{{idSerieEditar}}"
+  body:
+    type: json
+    data: |-
+      {
+        "scope": "ALL",
+        "accountId": "{{idCuentaSeriesOtra}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("devuelve la cuenta nueva", function() {
+          expect(res.getBody().accountId).to.equal(bru.getVar("idCuentaSeriesOtra"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

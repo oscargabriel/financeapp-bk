@@ -1,0 +1,35 @@
+info:
+  name: Editar solo con el alcance
+  type: http
+  seq: 39
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/installment-purchases/{{idCompraPasada}}"
+  body:
+    type: json
+    data: |-
+      {
+        "scope": "ALL"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+  scripts:
+    - type: tests
+      code: |-
+        test("un parche sin campos que modificar es error sobre body", function() {
+          const campos = res.getBody().errors.map(function (e) { return e.field; });
+          expect(campos).to.include("body");
+          res.getBody().errors.forEach(function (e) { expect(e.code).to.equal("VALIDATION_ERROR"); });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

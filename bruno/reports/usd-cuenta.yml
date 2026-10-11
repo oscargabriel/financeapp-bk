@@ -1,0 +1,36 @@
+info:
+  name: Persona en USD — cuenta en pesos
+  type: http
+  seq: 50
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Pesos",
+        "type": "CASH",
+        "currencyCode": "COP",
+        "initialBalance": 500000
+      }
+  auth:
+    type: bearer
+    token: "{{tokenUsd}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idCuentaUsd", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -1,0 +1,43 @@
+info:
+  name: Desactivar cuenta ya desactivada
+  type: http
+  seq: 42
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/{{idCuentaEfectivo}}"
+  body:
+    type: json
+    data: |-
+      {
+        "isActive": false
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.isActive
+      operator: eq
+      value: false
+    - expression: res.body.name
+      operator: eq
+      value: BOLSILLO
+    - expression: res.body.currentBalance
+      operator: eq
+      value: 250000
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Pedir el estado que ya tiene
+
+  Idempotente: 200 con la cuenta sin cambios, no un conflicto.

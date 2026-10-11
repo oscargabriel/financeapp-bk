@@ -1,0 +1,19 @@
+info:
+  name: Users
+  type: folder
+  seq: 9
+
+request:
+  auth: inherit
+
+docs: |
+  # Perfil del usuario (FA-89)
+
+  La carpeta registra su propio usuario (`perfil-<timestamp>@bruno.local`) en vez de usar el del
+  escenario, porque le cambia el correo y la contrasena: con el usuario de `test-data.sql`, el resto
+  de la corrida y la siguiente se quedarian sin login. `test-data.sql` limpia el dominio
+  `@bruno.local` completo.
+
+  El token va a `tokenPerfil` y no a `accessToken`, para no dejar al resto de la corrida autenticado
+  como este usuario. Los requests van en orden: el correo cambia en `cambiar-correo` y la
+  contrasena en `cambiar-clave`, y los logins de despues dependen de eso.

@@ -1,10 +1,17 @@
 package com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 import com.oscargabriel.financeapp.domain.model.Transaction;
 
-/** occurredAt sale en UTC (Instant): el cliente lo muestra en la zona que quiera. */
+/**
+ * occurredAt sale en UTC (Instant): el cliente lo muestra en la zona que quiera. scheduled se calcula
+ * contra el instante de la respuesta: con fecha posterior, el movimiento esta programado (FA-106).
+ * recurrenceId es la serie de la que es ocurrencia (FA-107), o null; installment, la cuota de una compra que
+ * es (FA-108), o null. destinationAmount es lo que entra al destino de una transferencia entre monedas, y
+ * originalAmount con originalCurrencyCode lo que llego antes de convertirse a la moneda de la cuenta (FA-51).
+ */
 public record TransactionResponse(
         String id,
         String type,
@@ -15,9 +22,17 @@ public record TransactionResponse(
         String currencyCode,
         String description,
         String notes,
-        String occurredAt) {
+        String occurredAt,
+        String status,
+        String origin,
+        boolean scheduled,
+        String recurrenceId,
+        InstallmentResponse installment,
+        BigDecimal destinationAmount,
+        BigDecimal originalAmount,
+        String originalCurrencyCode) {
 
-    public static TransactionResponse from(Transaction t) {
+    public static TransactionResponse from(Transaction t, Instant ahora) {
         return new TransactionResponse(
                 t.id().toString(),
                 t.type().name(),
@@ -28,6 +43,14 @@ public record TransactionResponse(
                 t.currencyCode(),
                 t.description(),
                 t.notes(),
-                t.occurredAt().toString());
+                t.occurredAt().toString(),
+                t.status().name(),
+                t.origin().name(),
+                t.scheduledAt(ahora),
+                t.recurrenceId() == null ? null : t.recurrenceId().toString(),
+                InstallmentResponse.from(t.installment()),
+                t.destinationAmount(),
+                t.original() == null ? null : t.original().amount(),
+                t.original() == null ? null : t.original().currencyCode());
     }
 }

@@ -1,0 +1,38 @@
+info:
+  name: Ocurrencias de la serie sin fin futura
+  type: http
+  seq: 25
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{desdeSeries}}&to={{hastaSeries}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const comoDia = function (f) {
+          return f.getFullYear() + "-" + dos(f.getMonth() + 1) + "-" + dos(f.getDate());
+        };
+        const aBogota = function (dia) { return dia + "T05:00:00Z"; };
+        const ocurrencias = res.getBody().transactions
+            .filter(function (t) { return t.recurrenceId === bru.getVar("idSerieSinFinFutura"); })
+            .sort(function (a, b) { return a.occurredAt < b.occurredAt ? -1 : 1; });
+        const fechas = ocurrencias.map(function (t) { return t.occurredAt; });
+
+        test("existe una sola, programada", function() {
+          expect(fechas).to.eql([aBogota(bru.getVar("enDiezDias"))]);
+          expect(ocurrencias[0].scheduled).to.equal(true);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

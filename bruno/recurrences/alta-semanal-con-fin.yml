@@ -1,0 +1,44 @@
+info:
+  name: Alta semanal con fecha de fin
+  type: http
+  seq: 18
+
+http:
+  method: POST
+  url: "{{baseUrl}}/recurrences"
+  body:
+    type: json
+    data: |-
+      {
+        "type": "EXPENSE",
+        "accountId": "{{idCuentaSeries}}",
+        "categoryId": "{{idSuscripcionesSeries}}",
+        "amount": 3000,
+        "description": "Lunes con fin",
+        "frequency": "WEEKLY",
+        "dayOfWeek": "MONDAY",
+        "startDate": "{{lunesConFin0}}",
+        "endDate": "{{lunesConFin3}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idSerieConFin", res.getBody().id);
+
+        test("trae el fin y ninguna cantidad", function() {
+          expect(res.getBody().endDate).to.equal(bru.getVar("lunesConFin3"));
+          expect(res.getBody().occurrences).to.equal(null);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

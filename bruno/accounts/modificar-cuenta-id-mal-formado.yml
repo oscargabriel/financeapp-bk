@@ -1,0 +1,40 @@
+info:
+  name: Modificar cuenta con id mal formado
+  type: http
+  seq: 33
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/abc"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Nadie"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: id
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El id no es un UUID
+
+  El controlador lo parsea a mano: la conversion de Spring lo reportaria sobre el cuerpo.

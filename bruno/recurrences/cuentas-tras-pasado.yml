@@ -1,0 +1,29 @@
+info:
+  name: Cuentas tras la serie del pasado
+  type: http
+  seq: 21
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const cuenta = res.getBody().find(function (c) { return c.id === bru.getVar("idCuentaSeries"); });
+
+        test("las tres ocurrencias ya pasaron y cuentan; las demas series son futuras", function() {
+          expect(cuenta.currentBalance).to.equal(2000000 - 3 * 30000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

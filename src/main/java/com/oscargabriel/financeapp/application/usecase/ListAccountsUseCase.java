@@ -16,9 +16,10 @@ import reactor.core.publisher.Flux;
 public class ListAccountsUseCase implements ListAccountsPort {
 
     private final AccountQueryPort query;
+    private final SeriesAlDia alDia;
 
     @Override
     public Flux<Account> list(UUID userId, boolean includeInactive) {
-        return Flux.defer(() -> query.findByUser(userId, includeInactive));
+        return alDia.ponerAlDia(userId).thenMany(Flux.defer(() -> query.findByUser(userId, includeInactive)));
     }
 }

@@ -1,0 +1,52 @@
+info:
+  name: Reporte con programados
+  type: http
+  seq: 11
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{hoyProgramados}}&to={{finRangoProgramados}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.transactions
+      operator: length
+      value: "4"
+    - expression: res.body.net
+      operator: eq
+      value: "-10000"
+  scripts:
+    - type: tests
+      code: |-
+        const r = res.getBody();
+        const total = function (tipo) {
+          return r.totalsByType.find(function (t) { return t.type === tipo; });
+        };
+
+        test("lista los programados marcados", function() {
+          const programados = r.transactions.filter(function (t) { return t.scheduled; });
+          expect(programados.map(function (t) { return t.description; }).sort())
+              .to.eql(["Al bolsillo", "Compra programada", "Mercado programado"]);
+          const deHoy = r.transactions.find(function (t) { return t.description === "Mercado de hoy"; });
+          expect(deHoy.scheduled).to.equal(false);
+        });
+
+        test("los totales solo cuentan el gasto de hoy", function() {
+          expect(total("EXPENSE").total).to.equal(10000);
+          expect(total("EXPENSE").count).to.equal(1);
+          expect(total("TRANSFER").total).to.equal(0);
+          expect(total("TRANSFER").count).to.equal(0);
+          expect(r.totalsByCategory).to.have.length(1);
+          expect(r.totalsByCategory[0].total).to.equal(10000);
+          expect(r.totalsByCategory[0].count).to.equal(1);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

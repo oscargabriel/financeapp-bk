@@ -13,5 +13,6 @@ public record NewAccount(
         BigDecimal initialBalance,
         BigDecimal creditLimit,
         Integer statementDay,
-        Integer paymentDueDay) {
+        Integer paymentDueDay,
+        BigDecimal monthlyInterestRate) {
 }

@@ -15,6 +15,9 @@ runtime:
     - expression: res.body.errors[0].code
       operator: eq
       value: UNAUTHENTICATED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: authorization
   scripts:
     - type: tests
       code: |-

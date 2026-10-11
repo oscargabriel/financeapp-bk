@@ -1,0 +1,47 @@
+info:
+  name: De mensual a semanal
+  type: http
+  seq: 48
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/recurrences/{{idSeriePeriodicidad}}"
+  body:
+    type: json
+    data: |-
+      {
+        "scope": "FUTURE",
+        "frequency": "WEEKLY",
+        "dayOfWeek": "FRIDAY"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const comoDia = function (f) {
+          return f.getFullYear() + "-" + dos(f.getMonth() + 1) + "-" + dos(f.getDate());
+        };
+        const aBogota = function (dia) { return dia + "T05:00:00Z"; };
+        const s = res.getBody();
+
+        test("la regla nueva empieza manana y conserva el total", function() {
+          expect(s.frequency).to.equal("WEEKLY");
+          expect(s.dayOfWeek).to.equal("FRIDAY");
+          expect(s.dayOfMonth).to.equal(null);
+          expect(s.startDate).to.equal(bru.getVar("mananaSeries"));
+          expect(s.occurrences).to.equal(6);
+          expect(s.nextOccurrenceAt).to.equal(aBogota(bru.getVar("viernes0")));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

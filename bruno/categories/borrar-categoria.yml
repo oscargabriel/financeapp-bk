@@ -1,0 +1,36 @@
+info:
+  name: Borrar categoria
+  type: http
+  seq: 42
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/categories/{{idPlantas}}"
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+  scripts:
+    - type: tests
+      code: |-
+        test("no trae cuerpo", function() {
+          expect(res.getBody() === undefined || res.getBody() === null || res.getBody() === "").to.equal(true);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # DELETE /api/categories/{id}
+
+  Borrado logico: marca `deleted_at` y la fila se queda. `idPlantas` es hoy `HUERTA` y tiene el
+  gasto de "Gasto en Huerta": borrar una categoria con movimientos se permite, y los movimientos
+  no cambian.

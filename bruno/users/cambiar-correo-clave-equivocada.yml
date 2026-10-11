@@ -1,0 +1,41 @@
+info:
+  name: Cambiar correo con la clave equivocada
+  type: http
+  seq: 12
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/users/me"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailPerfilNuevo}}",
+        "currentPassword": "noEsLaClave"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenPerfil}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: INVALID_CREDENTIALS
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: currentPassword
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Contrasena equivocada
+
+  400 y no 401: el token es valido, y un 401 haria que el front cerrara la sesion.

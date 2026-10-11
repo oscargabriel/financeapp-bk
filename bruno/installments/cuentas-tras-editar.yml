@@ -1,0 +1,29 @@
+info:
+  name: Cuentas tras editar en grupo
+  type: http
+  seq: 37
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const visa = res.getBody().find(function (c) { return c.id === bru.getVar("idVisa"); });
+
+        test("editar en grupo no mueve el saldo", function() {
+          expect(visa.currentBalance).to.equal(Number(bru.getVar("saldoVisaAntesDeEditar")));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

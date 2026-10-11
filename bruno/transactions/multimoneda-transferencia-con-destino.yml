@@ -1,0 +1,49 @@
+info:
+  name: Multimoneda — transferencia con monto de destino
+  type: http
+  seq: 43
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "TRANSFER",
+          "accountId": "{{idOrigen}}",
+          "destinationAccountId": "{{idUsd}}",
+          "amount": 410000,
+          "destinationAmount": 95,
+          "description": "Compra de dolares"
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        const t = res.getBody()[0];
+        bru.setVar("idTransferenciaConDestino", t.id);
+
+        test("queda confirmada con lo que entra al destino", function() {
+          expect(t.status).to.equal("CONFIRMED");
+          expect(t.currencyCode).to.equal("COP");
+          expect(t.amount).to.equal(410000);
+          expect(t.destinationAmount).to.equal(95);
+          expect(t.originalAmount).to.equal(null);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

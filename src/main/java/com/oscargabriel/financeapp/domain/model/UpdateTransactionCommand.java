@@ -13,5 +13,6 @@ public record UpdateTransactionCommand(
         String categoryId,
         BigDecimal amount,
         String description,
-        String occurredAt) {
+        String occurredAt,
+        BigDecimal destinationAmount) {
 }

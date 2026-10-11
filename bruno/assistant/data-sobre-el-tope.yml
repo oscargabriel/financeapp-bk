@@ -1,0 +1,39 @@
+info:
+  name: data de 1001 caracteres
+  type: http
+  seq: 12
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: json
+    data: |-
+      {
+        "data": "se reemplaza en el script"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: data
+  scripts:
+    - type: before-request
+      code: |-
+        req.setBody({ data: "x".repeat(1001) });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

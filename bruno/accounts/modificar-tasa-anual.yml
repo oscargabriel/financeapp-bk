@@ -1,0 +1,44 @@
+info:
+  name: Modificar tasa con una anual
+  type: http
+  seq: 82
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/{{idCuentaCredito}}"
+  body:
+    type: json
+    data: |-
+      {
+        "monthlyInterestRate": 28.5
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: monthlyInterestRate
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Una tasa anual en el campo mensual
+
+  28,5 es una tasa efectiva anual tipica del extracto. El tope de 10 la atrapa: como mensual daria
+  cuotas con diez veces el interes real.

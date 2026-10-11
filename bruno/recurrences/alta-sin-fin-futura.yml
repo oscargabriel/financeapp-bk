@@ -1,0 +1,53 @@
+info:
+  name: Alta mensual sin fin y sin interval
+  type: http
+  seq: 24
+
+http:
+  method: POST
+  url: "{{baseUrl}}/recurrences"
+  body:
+    type: json
+    data: |-
+      {
+        "type": "INCOME",
+        "accountId": "{{idCuentaSeriesOtra}}",
+        "categoryId": "{{idSalarioSeries}}",
+        "amount": 7000,
+        "description": "Ingreso futuro",
+        "frequency": "MONTHLY",
+        "dayOfMonth": {{diaEnDiezDias}},
+        "startDate": "{{enDiezDias}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const comoDia = function (f) {
+          return f.getFullYear() + "-" + dos(f.getMonth() + 1) + "-" + dos(f.getDate());
+        };
+        const aBogota = function (dia) { return dia + "T05:00:00Z"; };
+        const s = res.getBody();
+        bru.setVar("idSerieSinFinFutura", s.id);
+
+        test("sin interval vale 1", function() {
+          expect(s.interval).to.equal(1);
+          expect(s.type).to.equal("INCOME");
+        });
+
+        test("la proxima es la fecha de inicio", function() {
+          expect(s.nextOccurrenceAt).to.equal(aBogota(bru.getVar("enDiezDias")));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

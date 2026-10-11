@@ -14,7 +14,8 @@ http:
         "type": "DEBIT",
         "currencyCode": "COP",
         "creditLimit": 1000000,
-        "statementDay": 15
+        "statementDay": 15,
+        "monthlyInterestRate": 50
       }
   auth:
     type: bearer
@@ -30,7 +31,7 @@ runtime:
       code: |-
         test("reporta cada campo de credito mal puesto", function() {
           const campos = res.getBody().errors.map(function (e) { return e.field; });
-          expect(campos.sort()).to.eql(["creditLimit", "statementDay"]);
+          expect(campos.sort()).to.eql(["creditLimit", "monthlyInterestRate", "statementDay"]);
         });
 
         test("todos son errores de validacion", function() {

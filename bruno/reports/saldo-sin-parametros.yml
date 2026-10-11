@@ -1,0 +1,31 @@
+info:
+  name: Saldo sin parametros
+  type: http
+  seq: 37
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/balance"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const r = res.getBody();
+
+        test("sin parametros toma el mes en curso", function() {
+          expect(r.period).to.eql({ from: bru.getVar("primerDia"), to: bru.getVar("ultimoDia"),
+              income: 5300000, expense: 1905500, net: 3394500 });
+          expect(r.allTime).to.eql({ income: 14300000, expense: 5170500, net: 9129500 });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

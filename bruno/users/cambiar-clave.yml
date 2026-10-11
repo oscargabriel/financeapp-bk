@@ -1,0 +1,33 @@
+info:
+  name: Cambiar clave
+  type: http
+  seq: 18
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/users/me/password"
+  body:
+    type: json
+    data: |-
+      {
+        "currentPassword": "{{clavePerfil}}",
+        "newPassword": "{{clavePerfilNueva}}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenPerfil}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Cambio de contrasena

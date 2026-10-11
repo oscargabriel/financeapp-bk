@@ -1,0 +1,43 @@
+info:
+  name: Multimoneda — pendientes
+  type: http
+  seq: 47
+
+http:
+  method: GET
+  url: "{{baseUrl}}/transactions/pending"
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const lista = res.getBody();
+        const porId = function (id) { return lista.find(function (t) { return t.id === id; }); };
+
+        test("lista los dos convertidos", function() {
+          expect(lista.map(function (t) { return t.id; }).sort())
+              .to.eql([bru.getVar("idGastoConvertido"), bru.getVar("idTransferenciaConvertida")].sort());
+        });
+
+        test("el gasto trae lo recibido", function() {
+          const gasto = porId(bru.getVar("idGastoConvertido"));
+          expect(gasto.originalAmount).to.equal(41000);
+          expect(gasto.originalCurrencyCode).to.equal("COP");
+        });
+
+        test("la transferencia trae el destino calculado", function() {
+          expect(porId(bru.getVar("idTransferenciaConvertida")).destinationAmount).to.equal(41000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -1,0 +1,22 @@
+info:
+  name: Assistant
+  type: folder
+  seq: 11
+
+request:
+  auth: inherit
+
+docs: |
+  # Asistente (FA-77)
+
+  `POST /api/assistant/messages` con el modelo **stub**: la app tiene que correr con
+  `ASISTENTE_PROVEEDOR=stub`, que es lo que hace `verificar-bruno.ps1`. Contra una app con Gemini real
+  los mensajes `<funcion> <json>` no se interpretan igual y la carpeta falla.
+
+  El stub traduce `<funcion> <json de argumentos>` a la misma decision que sacaria de Gemini, asi que
+  aqui se ejerce todo lo que va despues del modelo: la resolucion de nombres, el alta pendiente con
+  `origin` `TELEGRAM` contra la base, las consultas y los rechazos.
+
+  Corre con un usuario nuevo por corrida (`asistente-<timestamp>@bruno.local`), sus dos cuentas y dos
+  categorias de mas, `Café` y `Cafe`, que normalizan igual y dan el caso ambiguo. No depende de
+  `test-data.sql` y se puede correr dos veces.

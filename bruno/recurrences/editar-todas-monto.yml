@@ -1,0 +1,28 @@
+info:
+  name: Editar el monto de todas
+  type: http
+  seq: 43
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/recurrences/{{idSerieEditar}}"
+  body:
+    type: json
+    data: |-
+      {
+        "scope": "ALL",
+        "amount": 35000
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

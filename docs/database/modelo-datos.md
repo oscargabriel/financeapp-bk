@@ -20,6 +20,14 @@ erDiagram
     accounts        ||--o{ transactions   : origen
     accounts        ||--o{ transactions   : destino
     categories      ||--o{ transactions   : clasifica
+    users           ||--o{ recurrences    : programa
+    accounts        ||--o{ recurrences    : "carga a"
+    categories      ||--o{ recurrences    : clasifica
+    recurrences     |o--o{ transactions   : "ocurrencia de"
+    users           ||--o{ installment_purchases : compra
+    accounts        ||--o{ installment_purchases : "se difiere en"
+    categories      ||--o{ installment_purchases : clasifica
+    installment_purchases |o--o{ transactions : "cuota de"
     categories      ||--o{ budgets        : "tope por categoría"
     default_categories ..|| categories    : "se copia al registrarse"
 
@@ -49,6 +57,7 @@ erDiagram
         numeric credit_limit
         smallint statement_day
         smallint payment_due_day
+        numeric monthly_interest_rate
         boolean is_active
         timestamptz deleted_at
     }
@@ -79,6 +88,44 @@ erDiagram
         varchar description
         timestamptz occurred_at
         varchar origin
+        varchar status
+        uuid recurrence_id FK
+        uuid installment_purchase_id FK
+        smallint installment_number
+        numeric installment_principal
+    }
+
+    recurrences {
+        uuid id PK
+        uuid user_id FK
+        uuid account_id FK
+        uuid category_id FK
+        varchar type
+        numeric amount
+        varchar description
+        varchar frequency
+        smallint interval_count
+        smallint day_of_week
+        smallint day_of_month
+        date start_date
+        date end_date
+        smallint occurrence_limit
+        integer generated_count
+        integer prior_count
+        varchar status
+    }
+
+    installment_purchases {
+        uuid id PK
+        uuid user_id FK
+        uuid account_id FK
+        uuid category_id FK
+        numeric amount
+        varchar description
+        date purchase_date
+        smallint installment_count
+        numeric monthly_interest_rate
+        varchar status
     }
 
     budgets {
@@ -115,6 +162,11 @@ erDiagram
         char color
         smallint sort_order
     }
+
+    registration_allowlist {
+        varchar entry PK
+        timestamptz created_at
+    }
 ```
 
 ## Convenciones
@@ -143,6 +195,69 @@ nueva, así que cambiar la cuenta, el tipo o el monto de un movimiento es seguro
 `initial_balance` es el punto de partida y lo copia a `current_balance` el
 trigger `trg_accounts_seed_balance` al crear la cuenta.
 
+### Movimientos pendientes
+
+`transactions.status` vale `CONFIRMED` (el default) o `PENDING`, y lo pone el
+asistente de IA (FA-76). Un pendiente no tiene efecto hasta que el usuario lo
+aprueba:
+
+- el trigger de saldos lo ignora;
+- aprobarlo es un `UPDATE` a `CONFIRMED`, y ahí el trigger aplica la fila;
+- rechazarlo es un `DELETE`, sin nada que revertir.
+
+Las vistas de gasto mensual, el reporte de movimientos y la consulta de saldo
+filtran `status = 'CONFIRMED'`. Un pendiente sí cuenta como referencia: la FK
+impide borrar la cuenta o la categoría que usa. El porqué está en el `design.md`
+de `openspec/changes/archive/2026-10-08-fa-76-movimientos-pendientes/`.
+
+### Movimientos programados
+
+Un movimiento `CONFIRMED` con `occurred_at > now()` está programado (FA-106):
+no cuenta en el saldo vigente ni en el gasto mensual hasta su fecha. No hay un
+proceso que lo "active", porque el servicio puede estar apagado: todo se decide
+al leer.
+
+- El trigger de saldos no mira la fecha, así que `current_balance` incluye lo
+  programado. El **saldo vigente** es
+  `current_balance - finance.scheduled_balance_delta(id)`, y es el que lee la
+  aplicación. Quien consulte la columna a mano con psql ve el saldo con lo
+  programado incluido.
+- Las vistas de gasto mensual y la consulta de saldo filtran
+  `occurred_at <= now()`. El reporte de movimientos sí lista los programados, y
+  la aplicación los deja fuera de sus totales.
+- Cambiar la fecha con un `UPDATE` no necesita nada especial: el trigger revierte
+  y reaplica lo mismo, y la resta se recalcula con la fecha nueva.
+
+`test-data.sql` recorta a `now()` los movimientos del mes en curso para que
+ninguno quede programado y los totales del escenario no dependan del día en que
+se cargue. El porqué está en el `design.md` del change de FA-106.
+
+### Series recurrentes
+
+Una serie (`recurrences`, FA-107) es la plantilla y la regla de un gasto o
+ingreso que se repite. Sus ocurrencias son movimientos normales con
+`recurrence_id`, a las 00:00 de su día en la zona del usuario, y quedan
+programadas hasta su fecha como cualquier otro movimiento futuro.
+
+- `generated_count` cuenta las ocurrencias de la regla actual ya creadas. La
+  siguiente se crea desde ese número, no desde las filas que existen: una
+  ocurrencia borrada a mano no vuelve. `prior_count` guarda las de reglas
+  anteriores para que el tope de `occurrence_limit` sobreviva a un cambio de
+  periodicidad, que reinicia `start_date` en el día siguiente.
+- Una serie con fin tiene todas sus ocurrencias creadas desde el alta. Una **sin
+  fin** (`end_date` y `occurrence_limit` en NULL) tiene creadas las de hasta hoy
+  y una más. No hay proceso que cree la siguiente cuando llega la fecha: **toda
+  lectura de saldos o de movimientos pone al día las series sin fin del usuario
+  antes de consultar**. Hoy lo hacen las cuentas, `reports/balance`,
+  `reports/transactions`, `monthly-spending` y el listado de series. Una lectura
+  nueva de saldos o movimientos tiene que hacerlo también, o mostrará el saldo
+  sin las ocurrencias atrasadas.
+- La puesta al día escribe las ocurrencias y el contador nuevo en una
+  transacción, con el `UPDATE` condicionado al contador que leyó: dos lecturas a
+  la vez no duplican nada.
+- Cancelar borra las ocurrencias futuras y marca `status = 'CANCELLED'`. La fila
+  se conserva por las ocurrencias pasadas que la referencian.
+
 ### El signo lo da el tipo, nunca el monto
 
 `amount` siempre es positivo (`CHECK amount > 0`). `EXPENSE` y `TRANSFER` restan
@@ -151,10 +266,34 @@ como el trigger.
 
 ### Tarjetas de crédito
 
-Una cuenta `CREDIT` con `current_balance` negativo está en deuda; el cupo
-disponible es `credit_limit + current_balance`. Los campos `credit_limit`,
-`statement_day` y `payment_due_day` solo pueden tener valor si `type = 'CREDIT'`
-(lo garantiza `ck_accounts_credit_fields`).
+Una cuenta `CREDIT` con saldo vigente negativo está en deuda; el cupo
+disponible es `credit_limit` más el saldo vigente, menos lo comprometido por
+compras en cuotas (ver abajo). Los campos `credit_limit`,
+`statement_day`, `payment_due_day` y `monthly_interest_rate` solo pueden tener
+valor si `type = 'CREDIT'` (lo garantiza `ck_accounts_credit_fields`).
+
+`monthly_interest_rate` es la tasa de interés mensual en **porcentaje**, no en
+fracción: `2.15` es el 2,15 % mensual. Va de 0 a 10; el tope atrapa una tasa
+anual escrita por error en el campo mensual (FA-105).
+
+### Compras en cuotas
+
+Una compra en cuotas (`installment_purchases`, FA-108) es una compra con
+tarjeta diferida a N cuotas. Cada cuota es un gasto normal de la tarjeta con
+`installment_purchase_id`, `installment_number` e `installment_principal`, a las
+00:00 de su día de pago en la zona del usuario, y queda programada hasta su
+fecha. La compra copia la tasa de la tarjeta al registrarse: cambiarla después
+no mueve las cuotas.
+
+- `installment_principal` es el capital de la cuota; `amount` es capital más
+  interés. Se guarda en la fila porque el reparto del capital y su redondeo los
+  decide la aplicación, y lo que cuenta es lo que se creó.
+- **El cupo disponible de una tarjeta es `credit_limit` más el saldo vigente
+  menos `finance.committed_credit(id)`**: el capital de las cuotas que todavía
+  no llegan. Al registrar la compra el cupo baja por el total; al llegar una
+  cuota, su capital sale de la función y la cuota entera entra al saldo.
+- Cancelar borra las cuotas futuras y marca `status = 'CANCELLED'`. La fila se
+  conserva por las cuotas pasadas que la referencian.
 
 ### Transferencias
 
@@ -165,19 +304,53 @@ destino; con `NULL` el trigger asume el mismo monto. Sin esa columna, una
 transferencia de USD a COP sumaría dólares a una cuenta en pesos.
 
 Las transferencias **no** cuentan como gasto en las vistas: mueven dinero entre
-cuentas propias, no lo consumen.
+cuentas propias, no lo consumen. Los pendientes tampoco cuentan, hasta aprobarse.
 
 ### Multi-moneda
 
-Cada movimiento guarda tres cosas: `amount` en la moneda de la cuenta,
-`exchange_rate` usada, y `amount_base` ya convertido a la moneda base del
-usuario. Los reportes suman `amount_base`, que es lo único comparable entre
-monedas. Mientras todo se lleve en pesos, `currency_code = 'COP'`,
-`exchange_rate = 1` y `amount_base = amount`.
+Tres niveles de moneda (FA-122, decidido el 10-10-2026):
 
-La tasa se busca en `exchange_rates` tomando la fila con `rate_date` más reciente
-menor o igual a la fecha del movimiento. El valor se congela en la transacción:
-recalcularlo después cambiaría el histórico.
+- **Servicio (USD).** `amount_base` es el equivalente en dólares de cada
+  movimiento: la base común entre monedas, que no depende de quién lo mire.
+- **Cuenta.** `amount` y `currency_code` están en la moneda de la cuenta: es el
+  cargo real. Las series y las cuotas todavía solo admiten cuentas en COP.
+- **Persona.** `users.base_currency_code` es solo la moneda en que la persona ve
+  sus totales. Cambiarla no reescribe nada.
+
+`exchange_rate` es la tasa `USD→currency_code` de la fecha local del movimiento
+(4100 para COP) y `amount_base = amount / exchange_rate`. Los dos los fija
+`trg_transactions_usd_equivalent`, nunca la aplicación, en todo camino que
+escriba movimientos. Se congelan: en un `UPDATE` solo se recalculan si cambian el
+monto, la moneda o la fecha. Si la moneda no tiene ninguna tasa, el trigger falla
+con `FX001`, que la aplicación devuelve como 502.
+
+La tasa de una fecha la decide `finance.usd_rate(moneda, fecha)`: la fila
+`USD→moneda` con `rate_date` más reciente menor o igual a la fecha o, si no hay
+ninguna, la más antigua guardada. El proveedor no tiene histórico, así que el
+pasado anterior a la primera tasa usa esa. La misma función la usan los reportes
+y `GET /api/exchange-rates`. Toda conversión pasa por el dólar: las filas entre
+dos monedas que no son USD no se leen.
+
+Los totales se calculan en la moneda de la persona con
+`finance.in_currency(moneda_persona, moneda, amount, amount_base, fecha)`. Si el
+movimiento ya está en esa moneda, aporta su `amount` tal cual, así quien solo usa
+COP no arrastra el redondeo de ida y vuelta por el dólar. Si no, aporta su
+`amount_base` por la tasa `USD→moneda_persona` de su fecha: lo que valía ese día,
+no lo que vale hoy.
+
+Un movimiento que llega en una moneda distinta a la de su cuenta lo convierte la
+aplicación, no la base (FA-51):
+
+- `amount` es el convertido con la tasa de su fecha, redondeado a los
+  `decimal_places` de la moneda de la cuenta;
+- `original_amount` y `original_currency_code` guardan lo recibido;
+- el movimiento entra `PENDING`, porque la tasa interna solo aproxima el cargo
+  del banco.
+
+Ajustar `amount` antes de aprobarlo no cambia el original. En una transferencia
+entre cuentas de monedas distintas, `destination_amount` está en la moneda del
+destino: lo da el cliente o, si no, se calcula igual y la transferencia queda
+pendiente. El porqué está en el `design.md` del change de FA-51.
 
 ### Categorías
 
@@ -188,6 +361,21 @@ los usuarios existentes.
 
 `applies_to` (`EXPENSE` / `INCOME` / `BOTH`) evita ofrecer «Salario» al registrar
 un gasto.
+
+### Correos admitidos en el registro
+
+`registration_allowlist` dice quién puede registrarse cuando la restricción del
+alta está encendida (FA-103). Cada `entry`, en minúsculas, es:
+
+- un correo exacto (`ana@correo.com`);
+- o, sin nada antes de la `@`, un dominio completo (`@bruno.local`).
+
+El dominio se compara exacto, así que no admite subdominios. La tabla no se
+relaciona con `users` a propósito: guarda personas que todavía no tienen cuenta,
+y el login no la consulta. Las filas se insertan y se borran, nunca se
+modifican, por eso no lleva `updated_at`. Se mantiene a mano: las sentencias
+están en `docs/despliegue.md`. El porqué del diseño está en el `design.md` de
+`openspec/changes/archive/2026-10-09-fa-103-registro-admitidos/`.
 
 ### El mes se corta en la zona del usuario
 
@@ -218,6 +406,9 @@ SELECT * FROM finance.v_monthly_spending
    AND period_month = date_trunc('month', CURRENT_DATE)::date;
 ```
 
+`total_spent` y `currency_code` están en la moneda de la persona: la vista suma
+`finance.in_currency` (ver *Multi-moneda*), igual que la meta.
+
 `budget_amount`, `remaining` y `percent_used` son `NULL` cuando el mes no tiene
 meta definida — no cero, para poder distinguir «no configuró meta» de «su meta es
 cero». Un mes con meta y sin gastos aparece igual, con `total_spent = 0`.
@@ -233,6 +424,11 @@ currency_code | total_spent | category_budget | remaining | percent_used | share
 
 `share_of_month` es el peso porcentual de la categoría sobre el total gastado ese
 mes. `category_budget` solo tiene valor si se definió un tope para esa categoría.
+
+Una categoría borrada sigue apareciendo, con su nombre, icono y color, en los
+meses en que tuvo gasto: la vista no filtra `deleted_at`, y es a propósito
+(FA-21). Ocultarla haría que el desglose dejara de sumar el `total_spent` de
+`v_monthly_spending` y que `share_of_month` no llegara a 100.
 
 ### Metas
 
@@ -257,8 +453,11 @@ docs/database/
   seed.sql                        monedas y categorías por defecto
   reset-data.sql                  vacía los datos, conserva estructura y semilla
   drop.sql                        elimina todos los objetos del modelo
-  test-data.sql                   escenario de pruebas, re-ejecutable
+  test-data.sql                   escenario de pruebas de bruno/, re-ejecutable
+  demo-data.sql                   datos de demo para demo@ y dev@, re-ejecutable
+  cargar-datos-local.sql          carga los dos anteriores de una vez
   test-checks.sql                 consultas de verificación
+  check-saldos.sql                todos los saldos cuadran con sus movimientos (FA-29)
   update/
     20260905_01_baseline.sql      línea base
 ```
@@ -283,9 +482,8 @@ JDBC solo para migrar. Gana la convención manual, y el porqué importa más que
 conclusión:
 
 - El beneficio de Flyway —aplicar migraciones sin que nadie mire, en orden, con
-  checksums, sobre entornos que no tocas a mano— **no tiene consumidor todavía**.
-  No hay despliegue: `PROD_HOST` está vacío y `SPRING_PROFILES_ACTIVE=prod` no se
-  ha ejecutado nunca.
+  checksums, sobre entornos que no tocas a mano— **no tenía consumidor**: en esa
+  fecha no había despliegue ni base de producción.
 - Adoptarlo obliga a reescribir `20260905_01_baseline.sql` para que cargue las 509
   líneas de DDL, cuando hoy dice explícitamente que no las duplica, y a degradar
   `schema.sql` de fuente de verdad a archivo derivado. Es churn contra un
@@ -300,6 +498,12 @@ Para eso está la comprobación de abajo.
 **Cuándo volver a mirar esto:** cuando exista el primer despliegue real. Ahí la
 migración desatendida empieza a valer, y el precio de cambiar será reconciliar los
 updates acumulados contra lo que tenga esa base.
+
+**La condición se cumplió el 05-10-2026**: Neon es producción desde el primer
+despliegue, y FA-49 aplicó ahí dos updates a mano. La reevaluación es FA-71.
+Mientras tanto, la base de producción se mantiene con el procedimiento de
+[`docs/despliegue.md`](../despliegue.md#base-de-datos-neon), que incluye el registro
+de los updates aplicados.
 
 ### Comprobar que `schema.sql` y `update/` no han divergido
 
@@ -363,6 +567,7 @@ Con eso, `psql` entra directo y el ciclo de trabajo es:
 ```powershell
 psql -f docs/database/test-data.sql     # borra y recrea el usuario de pruebas
 psql -f docs/database/test-checks.sql   # saldos, vistas y metas
+psql -v ON_ERROR_STOP=1 -f docs/database/check-saldos.sql   # todos los saldos cuadran; error si no
 psql                                    # sesión interactiva para probar a mano
 ```
 
@@ -380,7 +585,15 @@ Restaurantes se pasa del tope.
 
 [`test-checks.sql`](test-checks.sql) solo lee: saldos y cupo, la comprobación de
 que el saldo del trigger coincide con el derivado de los movimientos, las dos
-vistas, las categorías pasadas de tope y los últimos movimientos.
+vistas, las categorías pasadas de tope y los últimos movimientos. Todo eso es
+del usuario del escenario.
+
+[`check-saldos.sql`](check-saldos.sql) (FA-29) hace la misma comparación del saldo
+sobre todas las cuentas de la base. Cuenta solo los movimientos confirmados,
+programados incluidos, y el `destination_amount` de las transferencias entre
+monedas. Si alguna cuenta no cuadra, termina con error. `verificar-bruno.ps1` lo
+corre después de cada corrida de la colección, así que cubre también los lotes
+que dan de alta los usuarios de `bruno/transactions/`.
 
 ### Reiniciar el estado
 
@@ -389,14 +602,18 @@ Hay dos niveles, según qué tanto se quiera echar atrás:
 ```powershell
 # 1. Vaciar los datos y conservar estructura, vistas y catálogo semilla.
 psql -f docs/database/reset-data.sql
-psql -f docs/database/test-data.sql
+psql -f docs/database/cargar-datos-local.sql
 
 # 2. Borrar todo el modelo y reconstruirlo (tras cambiar schema.sql).
 psql -f docs/database/drop.sql
 psql -f docs/database/schema.sql
 psql -f docs/database/seed.sql
-psql -f docs/database/test-data.sql
+psql -f docs/database/cargar-datos-local.sql
 ```
+
+[`cargar-datos-local.sql`](cargar-datos-local.sql) carga `test-data.sql` y la demo
+de `demo@` y `dev@` (FA-94). Después de los dos niveles hay que correrlo, porque
+los dos se llevan también los datos del front.
 
 Para volver al escenario de pruebas sin tocar nada más, basta con volver a correr
 `test-data.sql`: ya empieza borrando su propio usuario.

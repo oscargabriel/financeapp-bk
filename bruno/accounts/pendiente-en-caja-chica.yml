@@ -1,0 +1,47 @@
+info:
+  name: Pendiente en Caja chica
+  type: http
+  seq: 58
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: json
+    data: |-
+      {
+        "data": "crear_movimiento {\"tipo\": \"EXPENSE\", \"monto\": 5000, \"cuenta\": \"caja chica\", \"categoria\": \"Mercado\", \"descripcion\": \"Pan\"}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.intent
+      operator: eq
+      value: CREATE_TRANSACTION
+  scripts:
+    - type: tests
+      code: |-
+        const t = res.getBody().transaction;
+        bru.setVar("idPendienteCajaChica", t.id);
+
+        test("queda pendiente", function() {
+          expect(t.status).to.equal("PENDING");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un gasto pendiente sobre la cuenta que se va a borrar (FA-97)
+
+  Lo registra el asistente con el modelo stub de `verificar-bruno.ps1`. No mueve el saldo de
+  `Caja chica`, que sigue en -30000 por el gasto confirmado.

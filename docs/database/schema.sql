@@ -80,11 +80,62 @@ CREATE TABLE finance.exchange_rates (
     CONSTRAINT ux_exchange_rates_pair_date UNIQUE (from_currency_code, to_currency_code, rate_date)
 );
 
-COMMENT ON TABLE  finance.exchange_rates IS 'Tasa de cambio por par de monedas y fecha. Se consulta la fila con rate_date más reciente <= fecha del movimiento.';
+COMMENT ON TABLE  finance.exchange_rates IS 'Tasa de cambio por par de monedas y fecha. La app solo lee filas USD→X: toda conversión pasa por el dólar (finance.usd_rate).';
 COMMENT ON COLUMN finance.exchange_rates.rate IS 'Unidades de to_currency que equivalen a 1 unidad de from_currency.';
 
 CREATE INDEX ix_exchange_rates_lookup
     ON finance.exchange_rates (from_currency_code, to_currency_code, rate_date DESC);
+
+-- La tasa USD→p_currency de una fecha: la fila más reciente <= p_on o, si no
+-- hay ninguna, la más antigua guardada (FA-122: el proveedor no tiene histórico,
+-- y el pasado anterior a la primera tasa usa esa). El dólar vale 1. Sin ninguna
+-- fila del par no devuelve nada. La usan el trigger que congela la tasa de cada
+-- movimiento, la conversión de los reportes y GET /api/exchange-rates, para que
+-- los tres apliquen la misma regla.
+CREATE OR REPLACE FUNCTION finance.usd_rate(p_currency TEXT, p_on DATE)
+RETURNS TABLE (rate NUMERIC, rate_date DATE)
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT c.rate, c.rate_date
+      FROM (SELECT 1::NUMERIC AS rate, p_on AS rate_date, 0 AS prioridad
+             WHERE p_currency = 'USD'
+            UNION ALL
+            (SELECT r.rate, r.rate_date, 1
+               FROM finance.exchange_rates r
+              WHERE r.from_currency_code = 'USD'
+                AND r.to_currency_code = p_currency
+                AND r.rate_date <= p_on
+              ORDER BY r.rate_date DESC
+              LIMIT 1)
+            UNION ALL
+            (SELECT r.rate, r.rate_date, 2
+               FROM finance.exchange_rates r
+              WHERE r.from_currency_code = 'USD'
+                AND r.to_currency_code = p_currency
+              ORDER BY r.rate_date
+              LIMIT 1)) c
+     ORDER BY c.prioridad
+     LIMIT 1;
+$$;
+
+-- Un movimiento expresado en la moneda p_target, la de la persona que lo ve
+-- (FA-122): su monto tal cual si ya está en esa moneda, su equivalente en USD si
+-- la persona ve dólares, y si no, ese equivalente por la tasa USD→p_target de su
+-- fecha. Lo que ya está en la moneda de la persona no pasa por el dólar, así no
+-- arrastra el redondeo de ida y vuelta. NULL si p_target no tiene ninguna tasa.
+CREATE OR REPLACE FUNCTION finance.in_currency(p_target TEXT, p_currency TEXT, p_amount NUMERIC,
+                                               p_amount_base NUMERIC, p_on DATE)
+RETURNS NUMERIC
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT CASE
+               WHEN p_currency = p_target THEN p_amount
+               WHEN p_target = 'USD' THEN p_amount_base
+               ELSE round(p_amount_base * (SELECT u.rate FROM finance.usd_rate(p_target, p_on) u), 4)
+           END;
+$$;
 
 
 -- =============================================================================
@@ -114,7 +165,7 @@ CREATE TABLE finance.users (
 
 COMMENT ON TABLE  finance.users IS 'Persona que registra finanzas. La autenticación es propia (email + hash); Telegram es un canal adicional que se vincula después.';
 COMMENT ON COLUMN finance.users.password_hash IS 'Hash BCrypt/Argon2 calculado en la aplicación. Jamás la contraseña en claro.';
-COMMENT ON COLUMN finance.users.base_currency_code IS 'Moneda en la que se consolidan los reportes del usuario (columna amount_base de transactions).';
+COMMENT ON COLUMN finance.users.base_currency_code IS 'Moneda en la que la persona ve sus totales y reportes. Solo es de presentación: lo guardado está en la moneda de cada cuenta y en USD (amount_base), y cambiarla no reescribe nada (FA-122).';
 COMMENT ON COLUMN finance.users.timezone IS 'Zona IANA. Determina dónde corta el mes en las vistas de gasto: un gasto del 30 a las 21:00 en Bogotá no puede caer en el mes siguiente.';
 
 -- Únicos parciales: una fila borrada lógicamente libera el email y el chat de Telegram.
@@ -127,6 +178,21 @@ CREATE UNIQUE INDEX ux_users_telegram_chat_id
 CREATE TRIGGER trg_users_updated_at
     BEFORE UPDATE ON finance.users
     FOR EACH ROW EXECUTE FUNCTION finance.set_updated_at();
+
+-- =============================================================================
+-- REGISTRATION_ALLOWLIST
+-- =============================================================================
+
+CREATE TABLE finance.registration_allowlist (
+    entry       VARCHAR(255) PRIMARY KEY,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    CONSTRAINT ck_registration_allowlist_entry CHECK (
+        entry = lower(entry)
+        AND entry ~ '^[^@[:space:]]*@[^@[:space:]]+\.[a-z]{2,}$')
+);
+
+COMMENT ON TABLE  finance.registration_allowlist IS 'Correos que pueden registrarse cuando la restricción del alta está encendida. Se mantiene a mano con SQL. El login no la consulta: quitar un correo no afecta al usuario ya registrado.';
+COMMENT ON COLUMN finance.registration_allowlist.entry IS 'Un correo exacto (ana@correo.com) o un dominio completo (@correo.com), en minúsculas. Una fila de dominio admite a CUALQUIER cuenta de ese dominio: no usarla con dominios públicos como @gmail.com.';
 
 
 -- =============================================================================
@@ -148,20 +214,24 @@ CREATE TABLE finance.accounts (
     deleted_at       TIMESTAMPTZ,
     created_at       TIMESTAMPTZ    NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ    NOT NULL DEFAULT now(),
+    monthly_interest_rate NUMERIC(6,4),
     CONSTRAINT ck_accounts_type CHECK (type IN ('CASH', 'DEBIT', 'CREDIT', 'SAVINGS', 'INVESTMENT', 'OTHER')),
     CONSTRAINT ck_accounts_credit_limit    CHECK (credit_limit IS NULL OR credit_limit > 0),
     CONSTRAINT ck_accounts_statement_day   CHECK (statement_day IS NULL OR statement_day BETWEEN 1 AND 31),
     CONSTRAINT ck_accounts_payment_due_day CHECK (payment_due_day IS NULL OR payment_due_day BETWEEN 1 AND 31),
+    CONSTRAINT ck_accounts_monthly_interest_rate CHECK (monthly_interest_rate IS NULL OR monthly_interest_rate BETWEEN 0 AND 10),
     -- Los atributos de crédito solo tienen sentido en una tarjeta de crédito.
     CONSTRAINT ck_accounts_credit_fields CHECK (
         type = 'CREDIT'
-        OR (credit_limit IS NULL AND statement_day IS NULL AND payment_due_day IS NULL)
+        OR (credit_limit IS NULL AND statement_day IS NULL AND payment_due_day IS NULL
+            AND monthly_interest_rate IS NULL)
     )
 );
 
 COMMENT ON TABLE  finance.accounts IS 'Origen o destino del dinero: efectivo, cuenta bancaria, tarjeta de crédito, etc.';
-COMMENT ON COLUMN finance.accounts.current_balance IS 'Saldo vigente. Lo mantiene el trigger trg_transactions_sync_balance; la aplicación NUNCA lo escribe directamente. En una tarjeta de crédito un valor negativo es la deuda, y el cupo disponible es credit_limit + current_balance.';
-COMMENT ON COLUMN finance.accounts.initial_balance IS 'Saldo con el que la cuenta entra al sistema. Se copia a current_balance al crearla.';
+COMMENT ON COLUMN finance.accounts.current_balance IS 'initial_balance más el efecto de todos los movimientos confirmados, también los programados (fecha futura). El saldo vigente que ve el usuario es current_balance - finance.scheduled_balance_delta(id). Lo mantienen los triggers trg_transactions_sync_balance y trg_accounts_shift_balance; la aplicación NUNCA lo escribe directamente. En una tarjeta de crédito un valor negativo es la deuda, y el cupo disponible es credit_limit más el saldo vigente.';
+COMMENT ON COLUMN finance.accounts.monthly_interest_rate IS 'Tasa de interés mensual de una tarjeta de crédito, en porcentaje: 2.15 es el 2,15 % mensual. NULL si no se ha cargado.';
+COMMENT ON COLUMN finance.accounts.initial_balance IS'Saldo con el que la cuenta entra al sistema. Se copia a current_balance al crearla, y si después cambia, current_balance se corre en la misma diferencia.';
 
 CREATE UNIQUE INDEX ux_accounts_user_name
     ON finance.accounts (user_id, lower(name)) WHERE deleted_at IS NULL;
@@ -188,6 +258,25 @@ CREATE TRIGGER trg_accounts_seed_balance
     BEFORE INSERT ON finance.accounts
     FOR EACH ROW EXECUTE FUNCTION finance.seed_account_balance();
 
+-- Corregir el saldo inicial corre el vigente en la misma diferencia, haya o no
+-- movimientos: así current_balance sigue siendo el inicial más los movimientos.
+-- Suma sobre NEW, no sobre OLD, para no pisar otro cambio de la misma sentencia.
+CREATE OR REPLACE FUNCTION finance.shift_account_balance()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    NEW.current_balance := NEW.current_balance + (NEW.initial_balance - OLD.initial_balance);
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_accounts_shift_balance
+    BEFORE UPDATE OF initial_balance ON finance.accounts
+    FOR EACH ROW
+    WHEN (NEW.initial_balance IS DISTINCT FROM OLD.initial_balance)
+    EXECUTE FUNCTION finance.shift_account_balance();
+
 
 -- =============================================================================
 -- DEFAULT_CATEGORIES  (semilla del catálogo)
@@ -197,8 +286,8 @@ CREATE TABLE finance.default_categories (
     id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     name        VARCHAR(60)  NOT NULL,
     applies_to  VARCHAR(10)  NOT NULL,
-    icon        VARCHAR(40),
-    color       CHAR(7),
+    icon        VARCHAR(40)  NOT NULL,
+    color       CHAR(7)      NOT NULL,
     sort_order  SMALLINT     NOT NULL DEFAULT 0,
     is_active   BOOLEAN      NOT NULL DEFAULT TRUE,
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
@@ -224,8 +313,8 @@ CREATE TABLE finance.categories (
     user_id     UUID         NOT NULL REFERENCES finance.users (id) ON DELETE CASCADE,
     name        VARCHAR(60)  NOT NULL,
     applies_to  VARCHAR(10)  NOT NULL DEFAULT 'EXPENSE',
-    icon        VARCHAR(40),
-    color       CHAR(7),
+    icon        VARCHAR(40)  NOT NULL,
+    color       CHAR(7)      NOT NULL,
     sort_order  SMALLINT     NOT NULL DEFAULT 0,
     is_system   BOOLEAN      NOT NULL DEFAULT FALSE,
     deleted_at  TIMESTAMPTZ,
@@ -247,6 +336,103 @@ CREATE INDEX ix_categories_user_scope
 
 CREATE TRIGGER trg_categories_updated_at
     BEFORE UPDATE ON finance.categories
+    FOR EACH ROW EXECUTE FUNCTION finance.set_updated_at();
+
+
+-- =============================================================================
+-- RECURRENCES  (series de gastos o ingresos que se repiten, FA-107)
+-- =============================================================================
+
+CREATE TABLE finance.recurrences (
+    id                UUID           PRIMARY KEY,
+    user_id           UUID           NOT NULL REFERENCES finance.users (id) ON DELETE CASCADE,
+    account_id        UUID           NOT NULL REFERENCES finance.accounts (id)   ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
+    category_id       UUID           NOT NULL REFERENCES finance.categories (id) ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
+    type              VARCHAR(10)    NOT NULL,
+    amount            NUMERIC(18,4)  NOT NULL,
+    currency_code     CHAR(3)        NOT NULL REFERENCES finance.currencies (code) ON DELETE RESTRICT,
+    description       VARCHAR(255)   NOT NULL,
+    frequency         VARCHAR(10)    NOT NULL,
+    interval_count    SMALLINT       NOT NULL DEFAULT 1,
+    day_of_week       SMALLINT,
+    day_of_month      SMALLINT,
+    start_date        DATE           NOT NULL,
+    end_date          DATE,
+    occurrence_limit  SMALLINT,
+    generated_count   INTEGER        NOT NULL DEFAULT 0,
+    prior_count       INTEGER        NOT NULL DEFAULT 0,
+    status            VARCHAR(10)    NOT NULL DEFAULT 'ACTIVE',
+    created_at        TIMESTAMPTZ    NOT NULL DEFAULT now(),
+    updated_at        TIMESTAMPTZ    NOT NULL DEFAULT now(),
+    CONSTRAINT ck_recurrences_type      CHECK (type IN ('EXPENSE', 'INCOME')),
+    CONSTRAINT ck_recurrences_amount    CHECK (amount > 0),
+    CONSTRAINT ck_recurrences_frequency CHECK (frequency IN ('WEEKLY', 'MONTHLY')),
+    CONSTRAINT ck_recurrences_status    CHECK (status IN ('ACTIVE', 'CANCELLED')),
+    -- Anual es mensual cada 12 meses: no hay frecuencia propia.
+    CONSTRAINT ck_recurrences_interval CHECK (
+        (frequency = 'WEEKLY'  AND interval_count BETWEEN 1 AND 52)
+        OR
+        (frequency = 'MONTHLY' AND interval_count BETWEEN 1 AND 12)
+    ),
+    -- Día ISO de la semana (1 = lunes) en las semanales; día del mes en las mensuales.
+    CONSTRAINT ck_recurrences_day CHECK (
+        (frequency = 'WEEKLY'  AND day_of_week BETWEEN 1 AND 7 AND day_of_month IS NULL)
+        OR
+        (frequency = 'MONTHLY' AND day_of_month BETWEEN 1 AND 31 AND day_of_week IS NULL)
+    ),
+    CONSTRAINT ck_recurrences_end CHECK (end_date IS NULL OR occurrence_limit IS NULL),
+    CONSTRAINT ck_recurrences_limit CHECK (occurrence_limit IS NULL OR occurrence_limit BETWEEN 1 AND 500),
+    CONSTRAINT ck_recurrences_counts CHECK (generated_count >= 0 AND prior_count >= 0)
+);
+
+COMMENT ON TABLE  finance.recurrences IS 'Plantilla y regla de una serie. Sus ocurrencias son movimientos normales con recurrence_id; la fila se conserva al cancelar para que las pasadas sigan diciendo de qué serie son.';
+COMMENT ON COLUMN finance.recurrences.start_date IS 'Inicio de la regla actual. Cambiar la periodicidad la reinicia en el día siguiente, en la zona del usuario.';
+COMMENT ON COLUMN finance.recurrences.generated_count IS 'Ocurrencias de la regla actual ya creadas. La siguiente se crea desde aquí, no desde las que existen: una borrada a mano no vuelve.';
+COMMENT ON COLUMN finance.recurrences.prior_count IS 'Ocurrencias de reglas anteriores que cuentan contra occurrence_limit.';
+COMMENT ON COLUMN finance.recurrences.end_date IS 'Último día posible de una ocurrencia, incluido. NULL junto con occurrence_limit NULL es una serie sin fin: toda lectura de saldos o movimientos la pone al día.';
+
+-- La puesta al día lee las activas del usuario en cada lectura de saldos.
+CREATE INDEX ix_recurrences_user_active
+    ON finance.recurrences (user_id) WHERE status = 'ACTIVE';
+
+CREATE TRIGGER trg_recurrences_updated_at
+    BEFORE UPDATE ON finance.recurrences
+    FOR EACH ROW EXECUTE FUNCTION finance.set_updated_at();
+
+
+-- =============================================================================
+-- INSTALLMENT_PURCHASES  (compras con tarjeta diferidas a cuotas, FA-108)
+-- =============================================================================
+
+CREATE TABLE finance.installment_purchases (
+    id                     UUID           PRIMARY KEY,
+    user_id                UUID           NOT NULL REFERENCES finance.users (id) ON DELETE CASCADE,
+    account_id             UUID           NOT NULL REFERENCES finance.accounts (id)   ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
+    category_id            UUID           NOT NULL REFERENCES finance.categories (id) ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
+    amount                 NUMERIC(18,4)  NOT NULL,
+    currency_code          CHAR(3)        NOT NULL REFERENCES finance.currencies (code) ON DELETE RESTRICT,
+    description            VARCHAR(255)   NOT NULL,
+    purchase_date          DATE           NOT NULL,
+    installment_count      SMALLINT       NOT NULL,
+    monthly_interest_rate  NUMERIC(6,4)   NOT NULL,
+    status                 VARCHAR(10)    NOT NULL DEFAULT 'ACTIVE',
+    created_at             TIMESTAMPTZ    NOT NULL DEFAULT now(),
+    updated_at             TIMESTAMPTZ    NOT NULL DEFAULT now(),
+    CONSTRAINT ck_installment_purchases_amount CHECK (amount > 0),
+    CONSTRAINT ck_installment_purchases_count  CHECK (installment_count BETWEEN 1 AND 48),
+    CONSTRAINT ck_installment_purchases_rate   CHECK (monthly_interest_rate BETWEEN 0 AND 10),
+    CONSTRAINT ck_installment_purchases_status CHECK (status IN ('ACTIVE', 'CANCELLED'))
+);
+
+COMMENT ON TABLE  finance.installment_purchases IS 'Compra con tarjeta de crédito diferida a cuotas. Sus cuotas son gastos normales con installment_purchase_id; la fila se conserva al cancelar para que las pasadas sigan diciendo de qué compra son.';
+COMMENT ON COLUMN finance.installment_purchases.amount IS 'Total de la compra, sin interés. Es la suma exacta del capital de sus cuotas.';
+COMMENT ON COLUMN finance.installment_purchases.monthly_interest_rate IS 'Tasa mensual de la tarjeta al registrar la compra, en porcentaje (0 si no tenía). Cambiar la de la tarjeta después no mueve las cuotas.';
+
+CREATE INDEX ix_installment_purchases_user_active
+    ON finance.installment_purchases (user_id) WHERE status = 'ACTIVE';
+
+CREATE TRIGGER trg_installment_purchases_updated_at
+    BEFORE UPDATE ON finance.installment_purchases
     FOR EACH ROW EXECUTE FUNCTION finance.set_updated_at();
 
 
@@ -275,8 +461,16 @@ CREATE TABLE finance.transactions (
     origin                  VARCHAR(10)    NOT NULL DEFAULT 'WEB',
     created_at              TIMESTAMPTZ    NOT NULL DEFAULT now(),
     updated_at              TIMESTAMPTZ    NOT NULL DEFAULT now(),
-    CONSTRAINT ck_transactions_type        CHECK (type IN ('EXPENSE', 'INCOME', 'TRANSFER')),
+    status                  VARCHAR(10)    NOT NULL DEFAULT 'CONFIRMED',
+    recurrence_id           UUID                    REFERENCES finance.recurrences (id) ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
+    installment_purchase_id UUID                    REFERENCES finance.installment_purchases (id) ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
+    installment_number      SMALLINT,
+    installment_principal   NUMERIC(18,4),
+    original_amount         NUMERIC(18,4),
+    original_currency_code  CHAR(3)                 REFERENCES finance.currencies (code) ON DELETE RESTRICT,
+    CONSTRAINT ck_transactions_type      CHECK (type IN ('EXPENSE', 'INCOME', 'TRANSFER')),
     CONSTRAINT ck_transactions_origin      CHECK (origin IN ('WEB', 'TELEGRAM', 'IMPORT')),
+    CONSTRAINT ck_transactions_status      CHECK (status IN ('PENDING', 'CONFIRMED')),
     CONSTRAINT ck_transactions_amount      CHECK (amount > 0),
     CONSTRAINT ck_transactions_amount_base CHECK (amount_base > 0),
     CONSTRAINT ck_transactions_rate        CHECK (exchange_rate > 0),
@@ -295,14 +489,33 @@ CREATE TABLE finance.transactions (
     CONSTRAINT ck_transactions_destination_amount CHECK (
         destination_amount IS NULL
         OR (type = 'TRANSFER' AND destination_amount > 0)
+    ),
+    -- Una cuota lleva su compra, su número y su capital, o no lleva nada.
+    CONSTRAINT ck_transactions_installment CHECK (
+        (installment_purchase_id IS NULL AND installment_number IS NULL AND installment_principal IS NULL)
+        OR
+        (installment_purchase_id IS NOT NULL AND installment_number >= 1 AND installment_principal > 0)
+    ),
+    -- Lo recibido antes de convertir va completo o no va.
+    CONSTRAINT ck_transactions_original CHECK (
+        (original_amount IS NULL AND original_currency_code IS NULL)
+        OR
+        (original_amount > 0 AND original_currency_code IS NOT NULL)
     )
 );
 
 COMMENT ON TABLE  finance.transactions IS 'Todo movimiento de dinero. Se borran físicamente: no llevan borrado lógico.';
-COMMENT ON COLUMN finance.transactions.amount IS 'Monto siempre positivo, en la moneda de la cuenta origen. El signo lo determina el tipo.';
-COMMENT ON COLUMN finance.transactions.destination_amount IS 'Solo en TRANSFER entre cuentas de distinta moneda: lo que efectivamente entra al destino. NULL significa el mismo monto.';
-COMMENT ON COLUMN finance.transactions.amount_base IS 'amount convertido a la moneda base del usuario. Es la columna que suman los reportes, para que monedas distintas sean comparables.';
+COMMENT ON COLUMN finance.transactions.amount IS 'Monto siempre positivo, en la moneda de la cuenta origen (currency_code). El signo lo determina el tipo. Si llegó en otra moneda, es el convertido con la tasa interna (FA-51).';
+COMMENT ON COLUMN finance.transactions.destination_amount IS 'Solo en TRANSFER entre cuentas de distinta moneda: lo que efectivamente entra al destino, en la moneda del destino. NULL significa el mismo monto.';
+COMMENT ON COLUMN finance.transactions.original_amount IS 'Monto recibido cuando llegó en una moneda distinta a la de la cuenta y se convirtió a amount (FA-51). No cambia aunque se ajuste amount antes de aprobar.';
+COMMENT ON COLUMN finance.transactions.original_currency_code IS 'Moneda en que llegó original_amount. NULL si el movimiento llegó en la moneda de su cuenta.';
+COMMENT ON COLUMN finance.transactions.exchange_rate IS 'Tasa USD→currency_code de la fecha del movimiento con la que se calculó amount_base (1 si es USD). La fija trg_transactions_usd_equivalent: la aplicación nunca la escribe.';
+COMMENT ON COLUMN finance.transactions.amount_base IS 'amount en USD, la moneda del servicio: amount / exchange_rate. Es la base común entre monedas; los reportes la convierten a la moneda de la persona con finance.in_currency. La fija trg_transactions_usd_equivalent.';
 COMMENT ON COLUMN finance.transactions.occurred_at IS 'Cuándo ocurrió el movimiento, no cuándo se registró (created_at). El bot de Telegram registra gastos de días anteriores.';
+COMMENT ON COLUMN finance.transactions.status IS 'PENDING: registrado por el asistente y sin efecto hasta aprobarse; no mueve current_balance ni cuenta en reportes. CONFIRMED: todo lo demás. Rechazar un pendiente lo borra.';
+COMMENT ON COLUMN finance.transactions.recurrence_id IS 'Serie de la que el movimiento es ocurrencia (FA-107). Editarlo o borrarlo a mano no lo saca de ella.';
+COMMENT ON COLUMN finance.transactions.installment_purchase_id IS 'Compra en cuotas de la que el movimiento es cuota (FA-108). Editarlo o borrarlo a mano no lo saca de ella.';
+COMMENT ON COLUMN finance.transactions.installment_principal IS 'Capital de la cuota, sin interés. Mientras la cuota no llega, finance.committed_credit lo descuenta del cupo de la tarjeta.';
 
 CREATE INDEX ix_transactions_user_date
     ON finance.transactions (user_id, occurred_at DESC);
@@ -320,19 +533,78 @@ CREATE INDEX ix_transactions_category_date
 CREATE INDEX ix_transactions_expense_report
     ON finance.transactions (user_id, occurred_at) WHERE type = 'EXPENSE';
 
+-- La lista de pendientes del usuario. Son pocos frente al total de movimientos.
+CREATE INDEX ix_transactions_pending
+    ON finance.transactions (user_id, occurred_at DESC) WHERE status = 'PENDING';
+
+-- Las ocurrencias de una serie: edición en grupo, cancelación y la próxima del listado.
+CREATE INDEX ix_transactions_recurrence
+    ON finance.transactions (recurrence_id, occurred_at) WHERE recurrence_id IS NOT NULL;
+
+-- Las cuotas de una compra: resumen del listado, edición en grupo, cancelación y cupo comprometido.
+CREATE INDEX ix_transactions_installment
+    ON finance.transactions (installment_purchase_id, occurred_at) WHERE installment_purchase_id IS NOT NULL;
+
 CREATE TRIGGER trg_transactions_updated_at
     BEFORE UPDATE ON finance.transactions
     FOR EACH ROW EXECUTE FUNCTION finance.set_updated_at();
 
 
+-- Congela el equivalente en USD de cada movimiento (FA-122): exchange_rate es la
+-- tasa USD→currency_code de su fecha local y amount_base, amount en dólares. Lo
+-- que mande la aplicación en esas dos columnas se ignora. En UPDATE solo se
+-- recalcula si cambian el monto, la moneda o la fecha: aprobar un pendiente o
+-- cambiarle la descripción no le cambia la tasa. Sin ninguna tasa de la moneda
+-- falla con FX001, que la aplicación traduce a un 502.
+CREATE OR REPLACE FUNCTION finance.set_usd_equivalent()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_rate NUMERIC;
+BEGIN
+    IF TG_OP = 'UPDATE'
+       AND NEW.amount = OLD.amount
+       AND NEW.currency_code = OLD.currency_code
+       AND NEW.occurred_at = OLD.occurred_at THEN
+        NEW.exchange_rate := OLD.exchange_rate;
+        NEW.amount_base := OLD.amount_base;
+        RETURN NEW;
+    END IF;
+
+    SELECT r.rate
+      INTO v_rate
+      FROM finance.users u
+     CROSS JOIN LATERAL finance.usd_rate(NEW.currency_code, (NEW.occurred_at AT TIME ZONE u.timezone)::date) r
+     WHERE u.id = NEW.user_id;
+
+    IF v_rate IS NULL THEN
+        RAISE EXCEPTION 'No hay tasa de cambio USD→% para el movimiento', NEW.currency_code
+              USING ERRCODE = 'FX001';
+    END IF;
+
+    -- Un monto de menos de medio peso redondearía a cero, y ck_transactions_amount_base exige > 0.
+    NEW.exchange_rate := v_rate;
+    NEW.amount_base := GREATEST(round(NEW.amount / v_rate, 4), 0.0001);
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_transactions_usd_equivalent
+    BEFORE INSERT OR UPDATE ON finance.transactions
+    FOR EACH ROW EXECUTE FUNCTION finance.set_usd_equivalent();
+
+
 -- Mantiene accounts.current_balance. En UPDATE revierte el efecto de la fila
 -- vieja antes de aplicar la nueva, para tolerar cambios de cuenta, tipo o monto.
+-- Un pendiente no tiene efecto: aprobarlo (PENDING -> CONFIRMED) solo aplica la
+-- fila nueva, y rechazarlo (DELETE de un PENDING) no revierte nada.
 CREATE OR REPLACE FUNCTION finance.sync_account_balances()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    IF TG_OP IN ('UPDATE', 'DELETE') THEN
+    IF TG_OP IN ('UPDATE', 'DELETE') AND OLD.status = 'CONFIRMED' THEN
         UPDATE finance.accounts
            SET current_balance = current_balance - finance.balance_delta(OLD.type, OLD.amount)
          WHERE id = OLD.account_id;
@@ -344,7 +616,7 @@ BEGIN
         END IF;
     END IF;
 
-    IF TG_OP IN ('INSERT', 'UPDATE') THEN
+    IF TG_OP IN ('INSERT', 'UPDATE') AND NEW.status = 'CONFIRMED' THEN
         UPDATE finance.accounts
            SET current_balance = current_balance + finance.balance_delta(NEW.type, NEW.amount)
          WHERE id = NEW.account_id;
@@ -363,6 +635,48 @@ $$;
 CREATE TRIGGER trg_transactions_sync_balance
     AFTER INSERT OR UPDATE OR DELETE ON finance.transactions
     FOR EACH ROW EXECUTE FUNCTION finance.sync_account_balances();
+
+
+-- Efecto sobre la cuenta de sus movimientos programados: confirmados con fecha
+-- posterior a now() (FA-106). El trigger de arriba ya los aplicó a
+-- current_balance; el saldo vigente es current_balance menos esto. Al llegar la
+-- fecha la fila sale de aquí sola, sin que ningún proceso la toque.
+CREATE OR REPLACE FUNCTION finance.scheduled_balance_delta(p_account_id UUID)
+RETURNS NUMERIC
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT COALESCE(SUM(efecto), 0)
+      FROM (SELECT finance.balance_delta(t.type, t.amount) AS efecto
+              FROM finance.transactions t
+             WHERE t.account_id = p_account_id
+               AND t.status = 'CONFIRMED'
+               AND t.occurred_at > now()
+            UNION ALL
+            SELECT COALESCE(t.destination_amount, t.amount)
+              FROM finance.transactions t
+             WHERE t.destination_account_id = p_account_id
+               AND t.status = 'CONFIRMED'
+               AND t.occurred_at > now()) AS programados;
+$$;
+
+
+-- Cupo de una tarjeta comprometido por sus compras en cuotas (FA-108): el capital
+-- de las cuotas que todavía no llegan. El cupo disponible es credit_limit más el
+-- saldo vigente menos esto; al llegar una cuota, su capital sale de aquí y la
+-- cuota entera entra al saldo.
+CREATE OR REPLACE FUNCTION finance.committed_credit(p_account_id UUID)
+RETURNS NUMERIC
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT COALESCE(SUM(t.installment_principal), 0)
+      FROM finance.transactions t
+     WHERE t.account_id = p_account_id
+       AND t.installment_purchase_id IS NOT NULL
+       AND t.status = 'CONFIRMED'
+       AND t.occurred_at > now();
+$$;
 
 
 -- =============================================================================
@@ -385,7 +699,7 @@ CREATE TABLE finance.budgets (
 
 COMMENT ON TABLE  finance.budgets IS 'Meta de gasto de un mes. La fila con category_id NULL es el tope global del mes; las demás son topes por categoría.';
 COMMENT ON COLUMN finance.budgets.period_month IS 'Siempre el día 1 del mes (el CHECK lo garantiza), para que la comparación sea exacta.';
-COMMENT ON COLUMN finance.budgets.amount IS 'Expresado en la moneda base del usuario, que es la unidad de amount_base en transactions.';
+COMMENT ON COLUMN finance.budgets.amount IS 'Expresado en la moneda en que la persona ve sus totales (users.base_currency_code), la misma de total_spent en las vistas.';
 
 -- Dos únicos parciales porque en Postgres NULL no colisiona con NULL:
 -- sin el segundo índice se podrían crear varias metas globales para el mismo mes.
@@ -406,7 +720,12 @@ CREATE TRIGGER trg_budgets_updated_at
 -- Reglas comunes:
 --   * Solo cuentan los movimientos de tipo EXPENSE. Una transferencia mueve
 --     dinero entre cuentas propias, no lo gasta.
---   * Suman amount_base para que monedas distintas sean comparables.
+--   * Solo cuentan los CONFIRMED: un pendiente no es gasto hasta aprobarse.
+--   * Solo cuentan los que ya ocurrieron: un programado (occurred_at > now())
+--     no es gasto hasta su fecha (FA-106).
+--   * Suman en la moneda de la persona con finance.in_currency (FA-122): el monto
+--     tal cual si ya está en esa moneda, si no su equivalente en USD convertido
+--     con la tasa de su fecha.
 --   * El mes se corta en la zona horaria del usuario.
 --   * FULL OUTER JOIN contra budgets: un mes con meta y sin gastos aparece con
 --     total 0, y un mes con gastos y sin meta aparece con budget_amount NULL.
@@ -416,11 +735,14 @@ CREATE OR REPLACE VIEW finance.v_monthly_spending AS
 WITH spent AS (
     SELECT t.user_id,
            date_trunc('month', t.occurred_at AT TIME ZONE u.timezone)::date AS period_month,
-           SUM(t.amount_base)                                               AS total_spent,
+           SUM(finance.in_currency(u.base_currency_code, t.currency_code, t.amount, t.amount_base,
+                                 (t.occurred_at AT TIME ZONE u.timezone)::date))     AS total_spent,
            COUNT(*)                                                         AS transaction_count
       FROM finance.transactions t
       JOIN finance.users u ON u.id = t.user_id
      WHERE t.type = 'EXPENSE'
+       AND t.status = 'CONFIRMED'
+       AND t.occurred_at <= now()
      GROUP BY t.user_id, 2
 ),
 budget AS (
@@ -455,11 +777,14 @@ WITH spent AS (
     SELECT t.user_id,
            date_trunc('month', t.occurred_at AT TIME ZONE u.timezone)::date AS period_month,
            t.category_id,
-           SUM(t.amount_base)                                               AS total_spent,
+           SUM(finance.in_currency(u.base_currency_code, t.currency_code, t.amount, t.amount_base,
+                                 (t.occurred_at AT TIME ZONE u.timezone)::date))     AS total_spent,
            COUNT(*)                                                         AS transaction_count
       FROM finance.transactions t
       JOIN finance.users u ON u.id = t.user_id
      WHERE t.type = 'EXPENSE'
+       AND t.status = 'CONFIRMED'
+       AND t.occurred_at <= now()
      GROUP BY t.user_id, 2, t.category_id
 ),
 budget AS (

@@ -1,0 +1,25 @@
+info:
+  name: Scheduled
+  type: folder
+  seq: 12
+
+request:
+  auth:
+    type: bearer
+    token: "{{tokenProgramados}}"
+
+docs: |
+  # Movimientos programados (FA-106)
+
+  Un movimiento confirmado con fecha posterior a ahora esta programado: no cuenta en el saldo ni en
+  los totales de los reportes hasta su fecha, y empieza a contar solo, sin que nadie lo toque.
+
+  La carpeta corre con un usuario nuevo por corrida (`programados-<timestamp>@bruno.local`) para no
+  mover las constantes del escenario. Las fechas las calcula `Usuario de programados — alta`, con la
+  hora local de la maquina, como el resto de la coleccion:
+
+  - `diaProgramado`: dentro de 40 dias, siempre en otro mes que el actual.
+  - `diaTransferencia` y `diaTarjeta`: dentro de 45 y 50 dias, para que no caigan en el dia del gasto.
+  - `ayer`.
+
+  `Cuentas al vencer` espera 6 segundos con `bru.sleep` a que venza el gasto de `Vence en segundos`.

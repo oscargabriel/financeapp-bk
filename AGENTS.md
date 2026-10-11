@@ -5,8 +5,7 @@ va en su carpeta (`.claude/rules/` para Claude Code); aquí solo lo que vale par
 
 Backend de finanzas personales. Java 25 + Spring Boot 4.1.1 (WebFlux), R2DBC contra PostgreSQL 18,
 Gradle 9.7.1 con wrapper. Arquitectura hexagonal. Se construye por etapas. La base de producción es
-Neon (PostgreSQL 18 administrado), y el destino es Cloud Run: **todavía no despliega**, ver
-*Despliegue*.
+Neon (PostgreSQL 18 administrado), y la app corre en Cloud Run: ver *Despliegue*.
 
 ## Comandos
 
@@ -29,11 +28,34 @@ colección Bruno; no prometas un paso de lint que no existe.
 Verificación contra la app real. El script se detiene si el puerto está ocupado o si la base
 resuelta, con las variables `DB_*` y `SPRING_R2DBC_URL` de la terminal, no es `localhost/financeapp`.
 Si pasa, levanta la app de la rama con el perfil `local`, recarga `test-data.sql`, corre la
-colección y apaga la app (FA-61):
+colección, comprueba los saldos y apaga la app (FA-61):
 
 ```powershell
 pwsh -NoProfile -File .claude/scripts/verificar-bruno.ps1 -RecargarDatos
+pwsh -NoProfile -File .claude/scripts/verificar-bruno.ps1 -RecargarDatos -Puerto 8081
 ```
+
+El puerto es el de `host` en `bruno/environments/local.yml` (8080). Con otra app en ese puerto —la
+que usa el front, por ejemplo— no hace falta apagarla: `-Puerto` levanta la de la rama en otro y le
+pasa a `bru` `host` y `baseUrl` con ese puerto (FA-99). Las dos comparten la base, y
+`-RecargarDatos` solo recrea los usuarios del back. El script le fija a la app `SERVER_PORT`, que es
+la variable que lee el perfil `local`, y falla si no termina escuchando en el puerto validado.
+
+El script también arranca la app con `ASISTENTE_PROVEEDOR=stub` (FA-77): `bruno/assistant/` habla
+con un modelo de mentira que entiende `<funcion> <json>`, nunca con Gemini. Contra una app levantada
+a mano sin esa variable, esa carpeta falla. Lo mismo con `TASAS_PROVEEDOR=stub` (FA-120):
+`bruno/exchange-rates/` recibe tasas fijas en vez de las de ExchangeRate-API. Ninguno de los dos
+stubs existe con el perfil `prod`.
+
+Después de la colección, el script corre `docs/database/check-saldos.sql` (FA-29). Ese script
+compara el `current_balance` de **todas** las cuentas con el que sale de sus movimientos
+confirmados: el trigger que lo mantiene no tiene cobertura en Gradle, y el alta en lote lo dispara N
+veces en una misma transacción.
+
+- Lista solo las cuentas descuadradas.
+- Si hay alguna, el script sale con código 4, aunque Bruno haya pasado.
+- Para correrlo a mano, tras un lote o un cambio de datos:
+  `psql -U postgres -d financeapp -v ON_ERROR_STOP=1 -f docs/database/check-saldos.sql`.
 
 Para depurar un request suelto, desde `bruno/` y con una app que hayas levantado tú contra la base
 local:
@@ -155,10 +177,12 @@ pasen por `boundedElastic`.
   frente a sus 901 conexiones (el servicio escala de 0 a 1, FA-48), e idle por debajo de los 5 min
   en los que Neon suspende. Si sube el máximo de instancias, rehacer esa cuenta.
 - Lee sin **default** los secretos y `CORS_ALLOWED_ORIGINS`: un despliegue sin `DB_USERNAME` /
-  `DB_PASSWORD` / `JWT_SECRET` / `BASIC_USERNAME` / `BASIC_PASSWORD` / `CORS_ALLOWED_ORIGINS` falla
-  al arrancar en vez de levantar con valores implícitos. Ojo con `DB_USERNAME` y `DB_PASSWORD`: el
-  binder de Boot deja pasar el placeholder sin resolver como texto literal, así que no fallan al
-  enlazar sino en `DatabaseStartupCheck`, cuando la base rechaza la autenticación. `JWT_SECRET`
+  `DB_PASSWORD` / `JWT_SECRET` / `BASIC_USERNAME` / `BASIC_PASSWORD` / `CORS_ALLOWED_ORIGINS` /
+  `GEMINI_API_KEY` / `GEMINI_MODEL` falla
+  al arrancar en vez de levantar con valores implícitos. `DB_USERNAME` y `DB_PASSWORD` los enlaza el
+  binder de Boot, que deja pasar el placeholder sin resolver como texto literal. Lo que los hace
+  fallar en el acto, como a los demás, es `R2dbcCredentialsCheck`, que los vuelve a pedir con
+  `@Value` (FA-53): no lo borres por parecer vacío. `JWT_SECRET`
   además tiene que medir 32 bytes o más: `JwtConfig` lo comprueba al construir la clave, porque
   HS256 no firma con menos y el fallo aparecería en el primer login en vez de en el arranque.
 - **El esquema `finance` lo fija `R2dbcSearchPathConfig`, no la URL.** Neon ignora `?schema=` y el
@@ -215,6 +239,10 @@ spring:
       password: ...      # la misma que BASIC_USERNAME/BASIC_PASSWORD de bruno/.env
 cors:
   allowed-origins: "*"   # el base no trae default: sin esta clave local no arranca
+asistente:
+  gemini:
+    api-key: ...         # sin default; con el stub de verificar-bruno.ps1 vale cualquier texto
+    model: ...           # sin default; local usa gemini-3.1-flash-lite y el servicio gemini-3.5-flash-lite (FA-100)
 ```
 
 ## Tests
@@ -270,20 +298,70 @@ Ningún test monta ya esos archivos, así que **un cambio en `schema.sql` o `see
 suite: rompe `bru run`**, y solo si te acuerdas de correrlo. El escenario de la colección es
 `docs/database/test-data.sql`, que se carga con psql y usa fechas relativas al mes en curso.
 
+Los datos de demo son otro script, `docs/database/demo-data.sql` (FA-93): un usuario con cuentas de
+cada tipo y seis meses de movimientos. Se carga para dos usuarios: `demo@financeapp.local`, que usa
+el front, y `dev@financeapp.local`, para las pruebas a mano del desarrollador. Los dos tienen el
+mismo escenario con ids propios, y la misma contraseña que el usuario de `test-data.sql`
+(`claveDePrueba123`). Los montos de la demo no los fija ninguna spec ni ningún assert: se cambian
+cuando el front lo necesite.
+
+Toda la base local se carga con un solo comando (FA-94), que incluye `test-data.sql` y la demo de
+los dos usuarios:
+
+```powershell
+psql -U postgres -d financeapp -f docs/database/cargar-datos-local.sql
+```
+
+Front, back y desarrollador comparten la base local y se separan por usuario. Cada script borra y
+recrea solo lo suyo:
+
+| Lado | Usuarios | Los recrea o limpia |
+|---|---|---|
+| Back (`bruno/`) | `prueba@`, `inactivo@`, `pendientes@` e `invitado@financeapp.local`, `*@bruno.local` | `test-data.sql` |
+| Front | `demo@financeapp.local`, `*@front.local` | `demo-data.sql` |
+| Desarrollador | `dev@financeapp.local` | `demo-data.sql` con `email` y `u = 1` |
+
+Nadie entra como `prueba@` para probar a mano: le cambiaría a la colección los totales que verifica.
+Para eso está `dev@`.
+
+`pendientes@financeapp.local` tiene los movimientos pendientes de aprobación que usa
+`bruno/pending/` (FA-76). Esa carpeta los aprueba y los rechaza, así que **solo pasa con
+`test-data.sql` recién cargado**: una segunda corrida sin recargar falla. `verificar-bruno.ps1
+-RecargarDatos` ya recarga los datos antes de cada corrida. Los usuarios que el front registre desde la interfaz van con correo
+`@front.local`, que la recarga de la demo borra.
+
+El alta solo acepta los correos de `finance.registration_allowlist` (FA-103). `test-data.sql`
+admite `@bruno.local` y el correo exacto `invitado@financeapp.local`, y `demo-data.sql` admite
+`@front.local`. Un request de alta nuevo en `bruno/` usa un correo `@bruno.local`, o recibe 403.
+`bruno/auth/` registra a `invitado@`, así que también **solo pasa con `test-data.sql` recién
+cargado**, igual que `bruno/pending/`.
+
+El front solo tiene su aplicación contra el API local: no corre psql ni recarga nada. **Por ahora
+solo lee**, así que recargar la demo no le borra trabajo y está permitido. Cuando el front empiece a
+crear o modificar datos, eso deja de valer y la recarga se acuerda antes. Las fechas de la demo se
+calculan al cargarla y no avanzan: al cambiar de mes, el mes en curso queda sin movimientos hasta
+la siguiente recarga.
+
+**Un `update/` que modifique tablas reinicia los datos de la base local.** Después de aplicarlo en
+local se corre `cargar-datos-local.sql`. El encabezado del update lo dice, y el PR lo destaca para
+que el front sepa que sus datos se reiniciaron. En Neon no aplica: ahí no hay datos de prueba.
+
 `src/test/resources/db/monthly-spending-fixture.sql` quedó sin uso al salir Testcontainers. Se
 conserva porque sus fechas absolutas y su segundo usuario son la base del escenario que falta
 montar en Bruno.
 
-**Producción es Neon, y ahí `test-data.sql` no se carga nunca.** Solo van `schema.sql`, `seed.sql`
-y los `update/`, aplicados a mano con psql, igual que en local.
+**Producción es Neon, y ahí no se carga ningún dato de prueba** (`test-data.sql`, `demo-data.sql`,
+`cargar-datos-local.sql`). Solo van `schema.sql`, `seed.sql` y los `update/`, aplicados a mano con
+psql, igual que en local. Cómo se aplica un update ahí, el registro de los ya aplicados y el
+respaldo del plan están en [`docs/despliegue.md`](docs/despliegue.md#base-de-datos-neon). El
+encabezado de cada update dice si va antes o después del despliegue de su app; ese orden es el que
+sigue el procedimiento.
 
 ## Despliegue
 
 Rama de trabajo `dev`; **`main` es producción**. El servicio `financeapp-bk-git` (Cloud Run,
-`europe-west1`) existe con sus secretos y su escalado (FA-48), pero al 04-10-2026 **corre
-`gcr.io/cloudrun/placeholder`, no la app**. El pipeline ya está en `deployment/cloudbuild.yaml` (FA-46) y su
-primera corrida es la del merge de `dev` a `main`; hasta verificarla, el uso real es la app en local
-con el perfil `prod` contra Neon.
+`europe-west1`) corre la app desde el 05-10-2026, desplegada por el pipeline (FA-46) con los
+secretos y el escalado del servicio (FA-48).
 
 `deployment/cloudbuild.yaml` lo ejecuta un disparador de Cloud Build en cada push a `main`: construye con
 `deployment/Dockerfile`, publica en Artifact Registry (`europe-west1`) con el SHA corto y `latest`,
@@ -319,7 +397,8 @@ Las reglas de cada artefacto (proposal, specs, design, tasks) están en `openspe
 El ciclo de una tarea:
 
 1. La tarea sale del tablero. Un encargo que llegue suelto —un mensaje, una conversación— se
-   registra primero como tarea, para que tenga `ID`.
+   registra primero como tarea, para que tenga `ID`. El tablero es compartido con el front: aquí
+   solo se toman tareas con `Área = Backend`, aunque se pida una de `Frontend` por su `ID`.
 2. Rama `feature/fa-<n>-<slug>` desde `dev`.
 3. Change `fa-<n>-<slug>`: explorar el código si hace falta y proponer (proposal, delta de spec con
    escenarios, design si aplica, tasks). **Lo que se aclare conversando se escribe en esos archivos**:

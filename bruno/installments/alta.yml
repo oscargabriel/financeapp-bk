@@ -1,0 +1,73 @@
+info:
+  name: Comprar 1.200.000 a 3 cuotas
+  type: http
+  seq: 9
+
+http:
+  method: POST
+  url: "{{baseUrl}}/installment-purchases"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idVisa}}",
+        "categoryId": "{{idTecnologia}}",
+        "amount": 1200000,
+        "description": "Televisor",
+        "purchaseDate": "{{hoyCuotas}}",
+        "installmentCount": 3
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        const aBogota = function (dia) { return dia + "T05:00:00Z"; };
+        const p = res.getBody();
+        bru.setVar("idCompraHoy", p.id);
+        bru.setVar("idCuota1Hoy", p.installments[0].transactionId);
+        bru.setVar("idCuota2Hoy", p.installments[1].transactionId);
+
+        test("devuelve la compra con su plan", function() {
+          expect(p).to.have.all.keys("id", "accountId", "categoryId", "amount", "currencyCode", "description", "purchaseDate",
+              "installmentCount", "monthlyInterestRate", "paidCount", "remainingPrincipal", "remainingAmount",
+              "nextInstallment", "installments");
+          p.installments.forEach(function (c) {
+            expect(c).to.have.all.keys("number", "transactionId", "dueAt", "principal", "interest", "amount");
+          });
+        });
+
+        test("guarda lo que se mando, con la tasa de la tarjeta", function() {
+          expect(p.accountId).to.equal(bru.getVar("idVisa"));
+          expect(p.categoryId).to.equal(bru.getVar("idTecnologia"));
+          expect(p.amount).to.equal(1200000);
+          expect(p.currencyCode).to.equal("COP");
+          expect(p.description).to.equal("Televisor");
+          expect(p.purchaseDate).to.equal(bru.getVar("hoyCuotas"));
+          expect(p.installmentCount).to.equal(3);
+          expect(p.monthlyInterestRate).to.equal(2);
+        });
+
+        test("ninguna cuota ha llegado", function() {
+          expect(p.paidCount).to.equal(0);
+          expect(p.remainingPrincipal).to.equal(1200000);
+          expect(p.remainingAmount).to.equal(1248000);
+          expect(p.nextInstallment).to.eql({ number: 1, transactionId: p.installments[0].transactionId,
+              dueAt: aBogota(bru.getVar("hoyVence1")), amount: 424000 });
+        });
+
+        test("el plan es el de la simulacion", function() {
+          expect(p.installments.map(function (c) { return c.amount; })).to.eql([424000, 416000, 408000]);
+          expect(p.installments.map(function (c) { return c.interest; })).to.eql([24000, 16000, 8000]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

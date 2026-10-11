@@ -1,0 +1,44 @@
+info:
+  name: Registro con un subdominio de un dominio admitido
+  type: http
+  seq: 11
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/register"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailSubdominio}}",
+        "password": "unaClaveLarga",
+        "firstName": "Ana"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "403"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: REGISTRATION_NOT_ALLOWED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: email
+  scripts:
+    - type: before-request
+      code: |-
+        bru.setVar("emailSubdominio", "ana-" + Date.now() + "@otro.bruno.local");
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un dominio admitido no admite sus subdominios (FA-103)
+
+  La lista admite `@bruno.local`, y el dominio se compara exacto: `otro.bruno.local` queda fuera.

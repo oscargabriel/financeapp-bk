@@ -1,0 +1,44 @@
+info:
+  name: Cambiar correo a uno ajeno
+  type: http
+  seq: 13
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/users/me"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{correoAjeno}}",
+        "currentPassword": "{{clavePerfil}}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenPerfil}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: DUPLICATE_RESOURCE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: email
+  scripts:
+    - type: before-request
+      code: |-
+        // El del usuario del escenario, en mayusculas: la unicidad no distingue caja.
+        bru.setVar("correoAjeno", bru.getEnvVar("testUserEmail").toUpperCase());
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El correo de otro usuario

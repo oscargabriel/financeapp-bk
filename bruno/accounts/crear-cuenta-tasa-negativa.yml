@@ -1,0 +1,46 @@
+info:
+  name: Crear tarjeta con tasa negativa
+  type: http
+  seq: 81
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Tasa negativa",
+        "type": "CREDIT",
+        "currencyCode": "COP",
+        "monthlyInterestRate": -1
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: monthlyInterestRate
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Rango de la tasa en el alta
+
+  La tasa va de 0 a 10, con hasta 4 decimales.

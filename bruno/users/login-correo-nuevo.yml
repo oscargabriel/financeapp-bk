@@ -1,0 +1,38 @@
+info:
+  name: Login con el correo nuevo
+  type: http
+  seq: 15
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/login"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailPerfilNuevo}}",
+        "password": "{{clavePerfil}}"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("tokenPerfil", res.getBody().accessToken);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El correo nuevo sirve para entrar, con la misma contrasena

@@ -1,0 +1,52 @@
+info:
+  name: Comprar hace cuatro meses
+  type: http
+  seq: 15
+
+http:
+  method: POST
+  url: "{{baseUrl}}/installment-purchases"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idVisa}}",
+        "categoryId": "{{idTecnologia}}",
+        "amount": 600000,
+        "description": "Nevera",
+        "purchaseDate": "{{compraPasada}}",
+        "installmentCount": 6
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        const p = res.getBody();
+        const pagadas = Number(bru.getVar("pagadasPasada"));
+        const montos = [112000, 110000, 108000, 106000, 104000, 102000];
+        const pagado = montos.slice(0, pagadas).reduce(function (a, b) { return a + b; }, 0);
+        bru.setVar("idCompraPasada", p.id);
+        bru.setVar("idUltimaPasada", p.installments[5].transactionId);
+        bru.setVar("pagadoPasada", String(pagado));
+
+        test("cuotas de 100.000 de capital con el 2 % del pendiente", function() {
+          expect(p.installments.map(function (c) { return c.amount; })).to.eql(montos);
+        });
+
+        test("las vencidas hasta hoy ya cuentan", function() {
+          expect(p.paidCount).to.equal(pagadas);
+          expect(p.remainingPrincipal).to.equal(100000 * (6 - pagadas));
+          expect(p.remainingAmount).to.equal(642000 - pagado);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

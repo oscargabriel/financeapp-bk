@@ -1,0 +1,36 @@
+info:
+  name: Cuentas con la desactivada
+  type: http
+  seq: 44
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts?includeInactive=true"
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("Bolsillo aparece desactivada y con su saldo", function() {
+          const bolsillo = res.getBody().find(function (c) { return c.id === bru.getVar("idCuentaEfectivo"); });
+          expect(bolsillo.isActive).to.equal(false);
+          expect(bolsillo.currentBalance).to.equal(250000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Con las inactivas
+
+  `Bolsillo` vuelve a aparecer, marcada como desactivada y con su saldo.

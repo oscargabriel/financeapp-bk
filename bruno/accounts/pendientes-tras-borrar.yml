@@ -1,0 +1,42 @@
+info:
+  name: Pendientes tras borrar
+  type: http
+  seq: 65
+
+http:
+  method: GET
+  url: "{{baseUrl}}/transactions/pending"
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("se fueron los pendientes de Caja chica, como origen y como destino", function() {
+          const ids = res.getBody().map(function (t) { return t.id; });
+          expect(ids).to.not.include(bru.getVar("idPendienteCajaChica"));
+          expect(ids).to.not.include(bru.getVar("idPendienteHaciaCajaChica"));
+        });
+
+        test("el pendiente de Bolsillo se quedo", function() {
+          const ids = res.getBody().map(function (t) { return t.id; });
+          expect(ids).to.include(bru.getVar("idPendienteBolsillo"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El borrado se llevo los pendientes de la cuenta (FA-97)
+
+  El gasto y la transferencia de `Caja chica` ya no estan; el gasto de `Bolsillo` si. Que ningun
+  saldo cambio lo comprueba "Cuentas tras borrar".

@@ -1,0 +1,29 @@
+info:
+  name: Listado tras cancelar
+  type: http
+  seq: 46
+
+http:
+  method: GET
+  url: "{{baseUrl}}/installment-purchases"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("la cancelada ya no aparece", function() {
+          const ids = res.getBody().map(function (p) { return p.id; });
+          expect(ids).to.not.include(bru.getVar("idCompraPasada"));
+          expect(ids).to.include(bru.getVar("idCompraHoy"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

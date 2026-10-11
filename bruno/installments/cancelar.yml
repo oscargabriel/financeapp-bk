@@ -1,0 +1,21 @@
+info:
+  name: Cancelar la compra pasada
+  type: http
+  seq: 43
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/installment-purchases/{{idCompraPasada}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

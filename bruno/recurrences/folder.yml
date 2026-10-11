@@ -1,0 +1,29 @@
+info:
+  name: Recurrences
+  type: folder
+  seq: 13
+
+request:
+  auth:
+    type: bearer
+    token: "{{tokenSeries}}"
+
+docs: |
+  # Series recurrentes (FA-107)
+
+  Corre con el usuario `series@financeapp.local` que siembra `docs/database/test-data.sql`, con su
+  token en `tokenSeries`. Es un usuario aparte porque crear y editar series mueve saldos que otras
+  carpetas verifican en `prueba@`.
+
+  **Necesita `test-data.sql` recién cargado**: la serie atrasada se pone al día en la primera
+  lectura de saldos, y una segunda corrida ya la encuentra al día. `verificar-bruno.ps1
+  -RecargarDatos` recarga antes de cada corrida.
+
+  Lo sembrado: las cuentas `Serie atrasada` (1.000.000), `Series` (2.000.000) y `Series otra`
+  (0), y una serie semanal sin fin de 10.000, del mismo día de la semana que hoy, que empezó hace 28
+  días. Su contador dice que creó dos ocurrencias pero solo existe la primera: la segunda se borró a
+  mano y no tiene que volver.
+
+  Los casos ajenos usan un usuario `series-ajeno-<timestamp>@bruno.local` creado en la corrida.
+  Las ocurrencias se leen de `reports/transactions` filtradas por `recurrenceId`, y cada una cae a
+  medianoche de Bogotá: `T05:00:00Z`.

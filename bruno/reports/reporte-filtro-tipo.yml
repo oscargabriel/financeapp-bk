@@ -29,6 +29,10 @@ runtime:
           expect(r.totalsByType).to.eql([{ type: "INCOME", total: 5300000, count: 2 }]);
         });
 
+        test("el neto cuenta los gastos filtrados como cero", function() {
+          expect(r.net).to.equal(5300000);
+        });
+
 settings:
   encodeUrl: true
   timeout: 0

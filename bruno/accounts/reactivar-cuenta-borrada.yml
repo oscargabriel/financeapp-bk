@@ -1,0 +1,38 @@
+info:
+  name: Reactivar cuenta borrada
+  type: http
+  seq: 55
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/20000000-0000-7000-8000-000000000006"
+  body:
+    type: json
+    data: |-
+      {
+        "isActive": true
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "404"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: NOT_FOUND
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: id
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Davivienda, la borrada del escenario
+
+  Reactivar no revive una cuenta borrada: 404, como cualquier PATCH sobre ella.

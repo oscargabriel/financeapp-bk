@@ -1,0 +1,30 @@
+info:
+  name: Consulta de saldo tras la compra
+  type: http
+  seq: 11
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/balance?from={{hoyCuotas}}&to={{hoyCuotas}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const visa = res.getBody().accounts.find(function (c) { return c.id === bru.getVar("idVisa"); });
+
+        test("la consulta de saldo trae el mismo cupo", function() {
+          expect(visa.currentBalance).to.equal(0);
+          expect(visa.availableCredit).to.equal(3800000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

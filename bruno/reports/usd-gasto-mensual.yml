@@ -1,0 +1,35 @@
+info:
+  name: Persona en USD — gasto mensual en dolares
+  type: http
+  seq: 55
+
+http:
+  method: GET
+  url: "{{baseUrl}}/monthly-spending?from={{usdMes}}&to={{usdMes}}"
+  auth:
+    type: bearer
+    token: "{{tokenUsd}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: length
+      value: "1"
+    - expression: res.body[0].currencyCode
+      operator: eq
+      value: USD
+    - expression: res.body[0].totalSpent
+      operator: eq
+      value: "10"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  Solo el gasto de hoy cae en el mes en curso: hace 50 dias es siempre otro mes.

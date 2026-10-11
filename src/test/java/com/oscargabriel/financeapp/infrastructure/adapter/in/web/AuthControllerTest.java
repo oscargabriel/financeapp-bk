@@ -94,7 +94,53 @@ class AuthControllerTest {
                 .jsonPath("$.lastName").isEqualTo("Gomez")
                 .jsonPath("$.baseCurrencyCode").isEqualTo("USD")
                 .jsonPath("$.timezone").isEqualTo("America/Lima")
+                .jsonPath("$.phone").isEqualTo(null)
                 .jsonPath("$.defaultCategories").isEqualTo(22);
+    }
+
+    @Test
+    void devuelveElCelularDelAltaYLoTrasladaAlCasoDeUso() {
+        when(registerUser.register(any())).thenReturn(Mono.just(new RegisteredUser(
+                new User(ID, UserMother.EMAIL, UserMother.HASH, "Ana", "Gomez", "USD", "America/Lima",
+                        "+573001234567"),
+                22L)));
+
+        webTestClient.post().uri(URI_REGISTRO)
+                .headers(BasicMother.cabecera())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of(
+                        "email", UserMother.EMAIL,
+                        "password", UserMother.PASSWORD,
+                        "firstName", "Ana",
+                        "lastName", "Gomez",
+                        "baseCurrencyCode", "USD",
+                        "timezone", "America/Lima",
+                        "phone", " +573001234567 "))
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody()
+                .jsonPath("$.phone").isEqualTo("+573001234567");
+
+        verify(registerUser).register(UserMother.unAltaConCelular(" +573001234567 "));
+    }
+
+    @Test
+    void rechazaUnCelularMalFormadoSinLlamarAlCasoDeUso() {
+        webTestClient.post().uri(URI_REGISTRO)
+                .headers(BasicMother.cabecera())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of(
+                        "email", UserMother.EMAIL,
+                        "password", UserMother.PASSWORD,
+                        "firstName", "Ana",
+                        "phone", "300 123"))
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.errors[0].field").isEqualTo("phone");
+
+        verifyNoInteractions(registerUser);
     }
 
     /** OWASP A02: ni el hash ni la clave pueden asomar en la respuesta del alta. */
@@ -128,7 +174,7 @@ class AuthControllerTest {
                 .expectStatus().isCreated();
 
         verify(registerUser).register(new RegistrationCommand(
-                UserMother.EMAIL, UserMother.PASSWORD, "Ana", "Gomez", "USD", "America/Lima"));
+                UserMother.EMAIL, UserMother.PASSWORD, "Ana", "Gomez", "USD", "America/Lima", null));
     }
 
     @Test
@@ -148,7 +194,29 @@ class AuthControllerTest {
                 .jsonPath("$.errors[0].field").isEqualTo("email");
     }
 
-    /** Las reglas viven en el record: un payload invalido no llega al caso de uso. */
+    /** FA-103: el handler responde con el status que trae la excepcion, sin un case propio. */
+    @Test
+    void devuelve403ConElFormatoDeErrorDelProyectoCuandoElCorreoNoEstaAdmitido() {
+        when(registerUser.register(any())).thenReturn(Mono.error(new BadRequestException(
+                HttpStatus.FORBIDDEN, ErrorCodes.REGISTRATION_NOT_ALLOWED,
+                "El correo no esta admitido para registrarse", "email")));
+
+        webTestClient.post().uri(URI_REGISTRO)
+                .headers(BasicMother.cabecera())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(unPayload())
+                .exchange()
+                .expectStatus().isForbidden()
+                .expectBody()
+                .jsonPath("$.errors.length()").isEqualTo(1)
+                .jsonPath("$.errors[0].code").isEqualTo("REGISTRATION_NOT_ALLOWED")
+                .jsonPath("$.errors[0].field").isEqualTo("email");
+    }
+
+    /**
+     * Las reglas viven en el record: un payload invalido no llega al caso de uso, y por eso tampoco
+     * a la lista de admitidos (FA-103): el 400 sale antes que el 403.
+     */
     @Test
     void devuelve400ConTodosLosCamposInvalidosSinLlamarAlCasoDeUso() {
         webTestClient.post().uri(URI_REGISTRO)
@@ -293,6 +361,20 @@ class AuthControllerTest {
         verifyNoInteractions(login);
     }
 
+    @Test
+    void unTokenValidoNoSirveEnElRegistro() {
+        webTestClient.post().uri(URI_REGISTRO)
+                .headers(headers -> headers.setBearerAuth(TokenMother.valido()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(unPayload())
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED");
+
+        verifyNoInteractions(registerUser);
+    }
+
     /**
      * Con Basic son esas dos rutas y nada mas: cualquier otra bajo /auth cae en la cadena del JWT,
      * donde la credencial compartida no vale.
@@ -336,7 +418,7 @@ class AuthControllerTest {
 
     private static RegisteredUser unRegistro() {
         return new RegisteredUser(
-                new User(ID, UserMother.EMAIL, UserMother.HASH, "Ana", "Gomez", "USD", "America/Lima"),
+                new User(ID, UserMother.EMAIL, UserMother.HASH, "Ana", "Gomez", "USD", "America/Lima", null),
                 22L);
     }
 }

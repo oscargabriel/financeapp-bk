@@ -1,0 +1,56 @@
+info:
+  name: Alta con celular
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/register"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailPerfil}}",
+        "password": "{{clavePerfil}}",
+        "firstName": "Perfil",
+        "lastName": "Bruno",
+        "phone": " +573001234567 ",
+        "timezone": "America/Bogota"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: before-request
+      code: |-
+        // Un correo por corrida: el alta no es idempotente. La limpieza vive en
+        // docs/database/test-data.sql.
+        const sello = Date.now();
+        bru.setVar("emailPerfil", "perfil-" + sello + "@bruno.local");
+        bru.setVar("emailPerfilNuevo", "perfil2-" + sello + "@bruno.local");
+        bru.setVar("clavePerfil", "unaClaveLarga");
+        bru.setVar("clavePerfilNueva", "otraClaveLarga");
+    - type: tests
+      code: |-
+        // El celular va en un test y no en una assertion: Bruno convierte "+573001234567" en numero.
+        test("guarda el celular recortado", function() {
+          expect(res.getBody().phone).to.equal("+573001234567");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Alta con celular
+
+  El celular se recorta antes de guardarlo. Este usuario es el que usa toda la carpeta.

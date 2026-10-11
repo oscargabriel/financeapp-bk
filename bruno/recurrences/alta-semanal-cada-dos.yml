@@ -1,0 +1,40 @@
+info:
+  name: Alta semanal cada dos semanas
+  type: http
+  seq: 16
+
+http:
+  method: POST
+  url: "{{baseUrl}}/recurrences"
+  body:
+    type: json
+    data: |-
+      {
+        "type": "EXPENSE",
+        "accountId": "{{idCuentaSeries}}",
+        "categoryId": "{{idSuscripcionesSeries}}",
+        "amount": 2000,
+        "description": "Cada dos lunes",
+        "frequency": "WEEKLY",
+        "interval": 2,
+        "dayOfWeek": "MONDAY",
+        "startDate": "{{miercolesSeries}}",
+        "occurrences": 3
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idSerieCadaDos", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

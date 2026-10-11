@@ -1,0 +1,30 @@
+info:
+  name: Saldo con fecha mal formada
+  type: http
+  seq: 44
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/balance?from=2026/10/01&to={{ultimoDia}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: from
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  La fecha va en formato YYYY-MM-DD.

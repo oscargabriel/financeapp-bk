@@ -1,0 +1,67 @@
+info:
+  name: Alta mensual con tres repeticiones
+  type: http
+  seq: 12
+
+http:
+  method: POST
+  url: "{{baseUrl}}/recurrences"
+  body:
+    type: json
+    data: |-
+      {
+        "type": "EXPENSE",
+        "accountId": "{{idCuentaSeries}}",
+        "categoryId": "{{idSuscripcionesSeries}}",
+        "amount": 44900,
+        "description": "  Netflix  ",
+        "frequency": "MONTHLY",
+        "interval": 1,
+        "dayOfMonth": 15,
+        "startDate": "{{primeroMes4}}",
+        "occurrences": 3
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const comoDia = function (f) {
+          return f.getFullYear() + "-" + dos(f.getMonth() + 1) + "-" + dos(f.getDate());
+        };
+        const aBogota = function (dia) { return dia + "T05:00:00Z"; };
+        const s = res.getBody();
+        bru.setVar("idSerieMensual", s.id);
+
+        test("devuelve la serie con la descripcion recortada", function() {
+          expect(s.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+          expect(s.type).to.equal("EXPENSE");
+          expect(s.accountId).to.equal(bru.getVar("idCuentaSeries"));
+          expect(s.categoryId).to.equal(bru.getVar("idSuscripcionesSeries"));
+          expect(s.amount).to.equal(44900);
+          expect(s.currencyCode).to.equal("COP");
+          expect(s.description).to.equal("Netflix");
+          expect(s.frequency).to.equal("MONTHLY");
+          expect(s.interval).to.equal(1);
+          expect(s.dayOfWeek).to.equal(null);
+          expect(s.dayOfMonth).to.equal(15);
+          expect(s.startDate).to.equal(bru.getVar("primeroMes4"));
+          expect(s.endDate).to.equal(null);
+          expect(s.occurrences).to.equal(3);
+        });
+
+        test("la proxima es el 15 del mes de inicio, a medianoche de Bogota", function() {
+          expect(s.nextOccurrenceAt).to.equal(aBogota(bru.getVar("quinceMes4")));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

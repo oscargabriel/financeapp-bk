@@ -57,7 +57,7 @@ class CreateAccountUseCaseTest {
         altaPosible();
 
         StepVerifier.create(useCase().create(AccountMother.USER_ID, new CreateAccountCommand(
-                        "  Billetera  ", "cash", " cop ", new BigDecimal("150000"), null, null, null, null)))
+                        "  Billetera  ", "cash", " cop ", new BigDecimal("150000"), null, null, null, null, null)))
                 .expectNextCount(1)
                 .verifyComplete();
 
@@ -71,6 +71,7 @@ class CreateAccountUseCaseTest {
         assertThat(guardada.creditLimit()).isNull();
         assertThat(guardada.statementDay()).isNull();
         assertThat(guardada.paymentDueDay()).isNull();
+        assertThat(guardada.monthlyInterestRate()).isNull();
     }
 
     @Test
@@ -90,7 +91,7 @@ class CreateAccountUseCaseTest {
         altaPosible();
 
         StepVerifier.create(useCase().create(AccountMother.USER_ID,
-                        new CreateAccountCommand("Billetera", "CASH", "COP", null, null, null, null, null)))
+                        new CreateAccountCommand("Billetera", "CASH", "COP", null, null, null, null, null, null)))
                 .expectNextCount(1)
                 .verifyComplete();
 
@@ -113,6 +114,7 @@ class CreateAccountUseCaseTest {
         assertThat(guardada.creditLimit()).isEqualByComparingTo("3000000");
         assertThat(guardada.statementDay()).isEqualTo(20);
         assertThat(guardada.paymentDueDay()).isEqualTo(5);
+        assertThat(guardada.monthlyInterestRate()).isEqualByComparingTo("2.15");
     }
 
     @Test
@@ -166,7 +168,7 @@ class CreateAccountUseCaseTest {
     }
 
     private static CreateAccountCommand alta(String nombre, String tipo, String moneda) {
-        return new CreateAccountCommand(nombre, tipo, moneda, null, null, null, null, null);
+        return new CreateAccountCommand(nombre, tipo, moneda, null, null, null, null, null, null);
     }
 
     private CreateAccountUseCase useCase() {

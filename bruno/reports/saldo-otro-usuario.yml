@@ -1,0 +1,42 @@
+info:
+  name: Saldo del otro usuario
+  type: http
+  seq: 41
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/balance?from={{primerDia}}&to={{ultimoDia}}"
+  auth:
+    type: bearer
+    token: "{{tokenReportes}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const r = res.getBody();
+
+        test("solo su gasto, en el periodo y en el historico", function() {
+          expect(r.period.income).to.equal(0);
+          expect(r.period.expense).to.equal(12345);
+          expect(r.allTime).to.eql({ income: 0, expense: 12345, net: -12345 });
+        });
+
+        test("solo su cuenta", function() {
+          expect(r.accounts.length).to.equal(1);
+          expect(r.accounts[0].id).to.equal(bru.getVar("idCuentaReportes"));
+          expect(r.accounts[0].currentBalance).to.equal(100000 - 12345);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  El segundo usuario de la carpeta (`Otro usuario — *`), con su unico gasto de 12.345 en el mes.

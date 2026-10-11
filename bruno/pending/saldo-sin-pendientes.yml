@@ -1,0 +1,36 @@
+info:
+  name: Consulta de saldo sin los pendientes
+  type: http
+  seq: 3
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/balance?from={{primerDia}}&to={{ultimoDia}}"
+  auth:
+    type: bearer
+    token: "{{tokenPendientes}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const r = res.getBody();
+
+        test("el mes solo cuenta el gasto confirmado", function() {
+          expect(r.period.income).to.equal(0);
+          expect(r.period.expense).to.equal(30000);
+        });
+
+        test("el historico tampoco cuenta los pendientes", function() {
+          expect(r.allTime).to.eql({ income: 0, expense: 30000, net: -30000 });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

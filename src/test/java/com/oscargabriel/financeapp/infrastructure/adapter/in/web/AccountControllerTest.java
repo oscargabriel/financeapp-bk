@@ -10,8 +10,12 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockJwt;
 
 import java.math.BigDecimal;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webflux.test.autoconfigure.WebFluxTest;
@@ -25,8 +29,11 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import com.oscargabriel.financeapp.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.domain.model.CreateAccountCommand;
+import com.oscargabriel.financeapp.domain.model.UpdateAccountCommand;
 import com.oscargabriel.financeapp.domain.port.in.CreateAccountPort;
+import com.oscargabriel.financeapp.domain.port.in.DeleteAccountPort;
 import com.oscargabriel.financeapp.domain.port.in.ListAccountsPort;
+import com.oscargabriel.financeapp.domain.port.in.UpdateAccountPort;
 import com.oscargabriel.financeapp.infrastructure.config.JwtConfig;
 import com.oscargabriel.financeapp.infrastructure.config.SecurityConfig;
 import com.oscargabriel.financeapp.support.AccountMother;
@@ -44,6 +51,10 @@ class AccountControllerTest {
     @Autowired
     private WebTestClient webTestClient;
 
+    private static final String PARCHE_NOMBRE = """
+            {"name": "Visa"}
+            """;
+
     private static final String CUERPO_TARJETA = """
             {"name": "Mastercard", "type": "CREDIT", "currencyCode": "COP", "initialBalance": -200000,
              "creditLimit": 3000000, "statementDay": 20, "paymentDueDay": 5}
@@ -54,6 +65,12 @@ class AccountControllerTest {
 
     @MockitoBean
     private CreateAccountPort createAccount;
+
+    @MockitoBean
+    private UpdateAccountPort updateAccount;
+
+    @MockitoBean
+    private DeleteAccountPort deleteAccount;
 
     private static JwtMutator tokenDelUsuario() {
         return mockJwt().jwt(jwt -> jwt.subject(AccountMother.USER_ID.toString()));
@@ -83,14 +100,18 @@ class AccountControllerTest {
                 .jsonPath("$[0].type").isEqualTo("CREDIT")
                 .jsonPath("$[0].currencyCode").isEqualTo("COP")
                 .jsonPath("$[0].currentBalance").isEqualTo(-658000.0)
+                .jsonPath("$[0].initialBalance").isEqualTo(0)
+                .jsonPath("$[0].creditLimit").isEqualTo(5000000.0)
                 .jsonPath("$[0].availableCredit").isEqualTo(4342000.0)
+                .jsonPath("$[0].statementDay").isEqualTo(15)
+                .jsonPath("$[0].paymentDueDay").isEqualTo(5)
+                .jsonPath("$[0].monthlyInterestRate").isEqualTo(2.1)
                 .jsonPath("$[0].isActive").isEqualTo(true)
-                .jsonPath("$[0].creditLimit").doesNotExist()
                 .jsonPath("$[0].userId").doesNotExist();
     }
 
     @Test
-    void dejaEnNullElCupoDeUnaCuentaQueNoEsDeCredito() {
+    void dejaEnNullElCupoLasFechasYLaTasaDeUnaCuentaQueNoEsDeCredito() {
         when(listAccounts.list(eq(AccountMother.USER_ID), anyBoolean()))
                 .thenReturn(Flux.just(AccountMother.efectivo()));
 
@@ -99,8 +120,13 @@ class AccountControllerTest {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$[0].type").isEqualTo("CASH")
+                .jsonPath("$[0].initialBalance").isEqualTo(500000.0)
                 .jsonPath("$[0].currentBalance").isEqualTo(322500.0)
-                .jsonPath("$[0].availableCredit").isEqualTo(null);
+                .jsonPath("$[0].creditLimit").isEqualTo(null)
+                .jsonPath("$[0].availableCredit").isEqualTo(null)
+                .jsonPath("$[0].statementDay").isEqualTo(null)
+                .jsonPath("$[0].paymentDueDay").isEqualTo(null)
+                .jsonPath("$[0].monthlyInterestRate").isEqualTo(null);
     }
 
     @Test
@@ -197,9 +223,13 @@ class AccountControllerTest {
                 .jsonPath("$.type").isEqualTo("CREDIT")
                 .jsonPath("$.currencyCode").isEqualTo("COP")
                 .jsonPath("$.currentBalance").isEqualTo(-200000.0)
+                .jsonPath("$.initialBalance").isEqualTo(-200000.0)
+                .jsonPath("$.creditLimit").isEqualTo(3000000.0)
                 .jsonPath("$.availableCredit").isEqualTo(2800000.0)
+                .jsonPath("$.statementDay").isEqualTo(20)
+                .jsonPath("$.paymentDueDay").isEqualTo(5)
+                .jsonPath("$.monthlyInterestRate").isEqualTo(2.15)
                 .jsonPath("$.isActive").isEqualTo(true)
-                .jsonPath("$.initialBalance").doesNotExist()
                 .jsonPath("$.userId").doesNotExist();
     }
 
@@ -213,7 +243,7 @@ class AccountControllerTest {
                 .bodyValue("""
                         {"name": "Mastercard", "type": "CREDIT", "currencyCode": "COP",
                          "initialBalance": -200000, "creditLimit": 3000000, "statementDay": 20,
-                         "paymentDueDay": 5}
+                         "paymentDueDay": 5, "monthlyInterestRate": 2.15}
                         """)
                 .exchange()
                 .expectStatus().isCreated();
@@ -221,7 +251,7 @@ class AccountControllerTest {
         ArgumentCaptor<CreateAccountCommand> comando = ArgumentCaptor.forClass(CreateAccountCommand.class);
         verify(createAccount).create(eq(AccountMother.USER_ID), comando.capture());
         assertThat(comando.getValue()).isEqualTo(new CreateAccountCommand("Mastercard", "CREDIT", "COP",
-                new BigDecimal("-200000"), new BigDecimal("3000000"), 20, 5, null));
+                new BigDecimal("-200000"), new BigDecimal("3000000"), 20, 5, new BigDecimal("2.15"), null));
     }
 
     /** Las reglas viven en el record: un cuerpo invalido no llega al caso de uso. */
@@ -261,6 +291,201 @@ class AccountControllerTest {
                 .expectBody()
                 .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
                 .jsonPath("$.errors[0].field").isEqualTo("currencyCode");
+    }
+
+    @Test
+    void modificaLaCuentaConElUsuarioDelTokenElIdYElParcheTalCualLlega() {
+        when(updateAccount.update(eq(AccountMother.USER_ID), eq(AccountMother.VISA_ID), any()))
+                .thenReturn(Mono.just(AccountMother.visa()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/" + AccountMother.VISA_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name": " Visa ", "currencyCode": "cop", "initialBalance": 10, "creditLimit": 6000000,
+                         "statementDay": 16, "paymentDueDay": 6, "monthlyInterestRate": 1.9}
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.id").isEqualTo(AccountMother.VISA_ID.toString())
+                .jsonPath("$.availableCredit").isEqualTo(4342000.0);
+
+        ArgumentCaptor<UpdateAccountCommand> comando = ArgumentCaptor.forClass(UpdateAccountCommand.class);
+        verify(updateAccount).update(eq(AccountMother.USER_ID), eq(AccountMother.VISA_ID), comando.capture());
+        assertThat(comando.getValue()).isEqualTo(new UpdateAccountCommand(" Visa ", "cop", new BigDecimal("10"),
+                new BigDecimal("6000000"), 16, 6, new BigDecimal("1.9"), null));
+    }
+
+    @Test
+    void rechazaElParcheVacioSobreElCuerpoSinLlamarAlCasoDeUso() {
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/" + AccountMother.VISA_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"creditLimit": null}
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("body");
+
+        verifyNoInteractions(updateAccount);
+    }
+
+    @Test
+    void rechazaUnIdQueNoEsUuidSobreElId() {
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/abc")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(PARCHE_NOMBRE)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("id");
+
+        verifyNoInteractions(updateAccount);
+    }
+
+    @Test
+    void rechazaElSaldoVigenteYElTipoPeroNoElEstadoSinLlamarAlCasoDeUso() {
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/" + AccountMother.VISA_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"currentBalance": 1, "type": "CASH", "isActive": false}
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors.length()").isEqualTo(2)
+                .jsonPath("$.errors[?(@.field == 'currentBalance')]").exists()
+                .jsonPath("$.errors[?(@.field == 'type')]").exists();
+
+        verifyNoInteractions(updateAccount);
+    }
+
+    @Test
+    void pasaElEstadoDelParcheAlCasoDeUso() {
+        when(updateAccount.update(eq(AccountMother.USER_ID), eq(AccountMother.EFECTIVO_ID), any()))
+                .thenReturn(Mono.just(AccountMother.inactiva()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/" + AccountMother.EFECTIVO_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"isActive": false}
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.isActive").isEqualTo(false);
+
+        ArgumentCaptor<UpdateAccountCommand> comando = ArgumentCaptor.forClass(UpdateAccountCommand.class);
+        verify(updateAccount).update(eq(AccountMother.USER_ID), eq(AccountMother.EFECTIVO_ID), comando.capture());
+        assertThat(comando.getValue())
+                .isEqualTo(new UpdateAccountCommand(null, null, null, null, null, null, null, false));
+    }
+
+    @Test
+    void elEstadoEnNullEsUnParcheVacio() {
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/" + AccountMother.VISA_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"isActive": null}
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("body");
+
+        verifyNoInteractions(updateAccount);
+    }
+
+    static Stream<Arguments> erroresDelCasoDeUso() {
+        return Stream.of(
+                Arguments.of(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, "id"),
+                Arguments.of(HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR, "creditLimit"),
+                Arguments.of(HttpStatus.CONFLICT, ErrorCodes.RESOURCE_IN_USE, "currencyCode"),
+                Arguments.of(HttpStatus.CONFLICT, ErrorCodes.DUPLICATE_RESOURCE, "name"));
+    }
+
+    @ParameterizedTest(name = "{1} en {2}")
+    @MethodSource("erroresDelCasoDeUso")
+    void propagaElErrorDelCasoDeUsoConSuCodigoYCampo(HttpStatus status, ErrorCodes codigo, String campo) {
+        when(updateAccount.update(eq(AccountMother.USER_ID), eq(AccountMother.VISA_ID), any()))
+                .thenReturn(Mono.error(new BadRequestException(status, codigo, "error del caso de uso", campo)));
+
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/" + AccountMother.VISA_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(PARCHE_NOMBRE)
+                .exchange()
+                .expectStatus().isEqualTo(status)
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(codigo.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo(campo);
+    }
+
+    @Test
+    void devuelve401AlModificarCuandoNoHayCredenciales() {
+        webTestClient.patch().uri(URI_BASE + "/" + AccountMother.VISA_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(PARCHE_NOMBRE)
+                .exchange()
+                .expectStatus().isUnauthorized();
+
+        verifyNoInteractions(updateAccount);
+    }
+
+    @Test
+    void borraLaCuentaConElUsuarioDelTokenYElIdYRespondeSinCuerpo() {
+        when(deleteAccount.delete(AccountMother.USER_ID, AccountMother.CAJA_CHICA_ID)).thenReturn(Mono.empty());
+
+        webTestClient.mutateWith(tokenDelUsuario()).delete().uri(URI_BASE + "/" + AccountMother.CAJA_CHICA_ID)
+                .exchange()
+                .expectStatus().isNoContent()
+                .expectBody().isEmpty();
+
+        verify(deleteAccount).delete(AccountMother.USER_ID, AccountMother.CAJA_CHICA_ID);
+    }
+
+    @Test
+    void alBorrarRechazaUnIdQueNoEsUuidSobreElId() {
+        webTestClient.mutateWith(tokenDelUsuario()).delete().uri(URI_BASE + "/abc")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("id");
+
+        verifyNoInteractions(deleteAccount);
+    }
+
+    static Stream<Arguments> erroresDelBorrado() {
+        return Stream.of(
+                Arguments.of(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, "id"),
+                Arguments.of(HttpStatus.CONFLICT, ErrorCodes.RESOURCE_IN_USE, "currentBalance"));
+    }
+
+    @ParameterizedTest(name = "{1} en {2}")
+    @MethodSource("erroresDelBorrado")
+    void propagaElErrorDelBorradoConSuCodigoYCampo(HttpStatus status, ErrorCodes codigo, String campo) {
+        when(deleteAccount.delete(AccountMother.USER_ID, AccountMother.CAJA_CHICA_ID))
+                .thenReturn(Mono.error(new BadRequestException(status, codigo, "error del caso de uso", campo)));
+
+        webTestClient.mutateWith(tokenDelUsuario()).delete().uri(URI_BASE + "/" + AccountMother.CAJA_CHICA_ID)
+                .exchange()
+                .expectStatus().isEqualTo(status)
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(codigo.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo(campo);
+    }
+
+    @Test
+    void devuelve401AlBorrarCuandoNoHayCredenciales() {
+        webTestClient.delete().uri(URI_BASE + "/" + AccountMother.CAJA_CHICA_ID)
+                .exchange()
+                .expectStatus().isUnauthorized();
+
+        verifyNoInteractions(deleteAccount);
     }
 
     @Test

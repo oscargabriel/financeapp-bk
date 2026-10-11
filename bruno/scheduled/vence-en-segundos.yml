@@ -1,0 +1,41 @@
+info:
+  name: Vence en segundos
+  type: http
+  seq: 19
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idPrincipalProgramados}}",
+          "categoryId": "{{idMercadoProgramados}}",
+          "amount": 40000,
+          "description": "Vence en segundos",
+          "occurredAt": "{{dentroDeSegundos}}"
+        }
+      ]
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body[0].scheduled
+      operator: eq
+      value: "true"
+  scripts:
+    - type: before-request
+      code: |-
+        bru.setVar("dentroDeSegundos", new Date(Date.now() + 5000).toISOString());
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

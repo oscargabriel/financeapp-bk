@@ -1,0 +1,47 @@
+info:
+  name: Crear categoria sin icono ni color
+  type: http
+  seq: 18
+
+http:
+  method: POST
+  url: "{{baseUrl}}/categories"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Sin adornos",
+        "appliesTo": "INCOME"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors
+      operator: length
+      value: "2"
+  scripts:
+    - type: tests
+      code: |-
+        test("un error en icon y otro en color", function() {
+          const campos = res.getBody().errors.map(function (e) { return e.field; }).sort();
+          expect(campos).to.deep.equal(["color", "icon"]);
+          res.getBody().errors.forEach(function (e) { expect(e.code).to.equal("VALIDATION_ERROR"); });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Icono y color son obligatorios
+
+  Desde FA-66 una categoria no nace sin icono ni color. No se crea nada: "Categorias tras
+  modificar" sigue contando 25.

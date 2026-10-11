@@ -16,7 +16,7 @@ import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.CreateTrans
 
 /**
  * Cuenta destino y categoria dependen del tipo: una transferencia lleva destino distinto del origen y
- * no lleva categoria; un gasto o un ingreso, al reves. Cada error sale sobre su propio campo. Que las
+ * no lleva categoria; un gasto o un ingreso, al reves, y tampoco monto de destino. Cada error sale sobre su propio campo. Que las
  * cuentas y la categoria existan y sean del usuario lo decide el caso de uso.
  */
 @Retention(RUNTIME)
@@ -65,6 +65,9 @@ public @interface ReglasDeTransferencia {
             boolean valido = true;
             if (movimiento.destinationAccountId() != null) {
                 valido = error(context, "destinationAccountId", "Solo una transferencia lleva cuenta destino");
+            }
+            if (movimiento.destinationAmount() != null) {
+                valido = error(context, "destinationAmount", "Solo una transferencia lleva monto de destino");
             }
             if (vacio(movimiento.categoryId())) {
                 valido = error(context, "categoryId", "La categoria es obligatoria en un gasto o un ingreso");

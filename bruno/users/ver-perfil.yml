@@ -1,0 +1,48 @@
+info:
+  name: Ver perfil
+  type: http
+  seq: 4
+
+http:
+  method: GET
+  url: "{{baseUrl}}/users/me"
+  auth:
+    type: bearer
+    token: "{{tokenPerfil}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("trae exactamente las claves del contrato", function() {
+          expect(Object.keys(res.getBody()).sort()).to.deep.equal(
+            ["baseCurrencyCode", "email", "firstName", "id", "lastName", "phone", "timezone"]);
+        });
+
+        test("es el usuario del token", function() {
+          expect(res.getBody().email).to.equal(bru.getVar("emailPerfil"));
+          expect(res.getBody().firstName).to.equal("Perfil");
+          expect(res.getBody().lastName).to.equal("Bruno");
+          expect(res.getBody().phone).to.equal("+573001234567");
+          expect(res.getBody().baseCurrencyCode).to.equal("COP");
+          expect(res.getBody().timezone).to.equal("America/Bogota");
+        });
+
+        test("no filtra la contrasena ni su hash", function() {
+          const cuerpo = JSON.stringify(res.getBody());
+          expect(cuerpo).to.not.contain("password");
+          expect(cuerpo).to.not.contain("$2a$");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El perfil del usuario del token

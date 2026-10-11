@@ -19,7 +19,8 @@ import com.oscargabriel.financeapp.support.Violaciones;
 
 /**
  * Las reglas que se deciden mirando solo el elemento. Las que necesitan las cuentas y categorias del
- * usuario (que existan, sean suyas, esten activas, en COP, con el alcance correcto) son del caso de uso.
+ * usuario (que existan, sean suyas, esten activas, con el alcance correcto) y la moneda contra el catalogo son
+ * del caso de uso.
  */
 class CreateTransactionRequestTest {
 
@@ -34,8 +35,15 @@ class CreateTransactionRequestTest {
     }
 
     @Test
-    void aceptaNotasDeMilCaracteresYLaMonedaCopEnCualquierCaja() {
-        assertThat(Violaciones.de(TransactionMother.unGasto().notes("x".repeat(1000)).currencyCode(" cop ")
+    void aceptaNotasDeMilCaracteresYUnaMonedaDeTresLetrasEnCualquierCaja() {
+        assertThat(Violaciones.de(TransactionMother.unGasto().notes("x".repeat(1000)).currencyCode(" usd ")
+                .request())).isEmpty();
+    }
+
+    /** Entre monedas distintas, lo que entra al destino (FA-51); que las cuentas difieran lo decide el caso de uso. */
+    @Test
+    void aceptaUnaTransferenciaConMontoDeDestino() {
+        assertThat(Violaciones.de(TransactionMother.unaTransferencia().destinationAmount(new BigDecimal("95.5"))
                 .request())).isEmpty();
     }
 
@@ -78,10 +86,16 @@ class CreateTransactionRequestTest {
                         "La cuenta destino tiene que ser distinta de la de origen"),
                 Arguments.of("transferencia con categoria", TransactionMother.unaTransferencia().categoryId(mercado),
                         "categoryId", "Una transferencia no lleva categoria"),
-                Arguments.of("monto de destino", TransactionMother.unaTransferencia().destinationAmount(BigDecimal.TEN),
-                        "destinationAmount", "destinationAmount no se admite mientras todas las cuentas sean COP"),
-                Arguments.of("moneda distinta de COP", TransactionMother.unGasto().currencyCode("USD"), "currencyCode",
-                        "Por ahora solo se admiten movimientos en COP"),
+                Arguments.of("gasto con monto de destino", TransactionMother.unGasto().destinationAmount(BigDecimal.TEN),
+                        "destinationAmount", "Solo una transferencia lleva monto de destino"),
+                Arguments.of("monto de destino en cero",
+                        TransactionMother.unaTransferencia().destinationAmount(BigDecimal.ZERO), "destinationAmount",
+                        "El monto de destino debe ser mayor que cero"),
+                Arguments.of("monto de destino con cinco decimales",
+                        TransactionMother.unaTransferencia().destinationAmount(new BigDecimal("1.00001")),
+                        "destinationAmount", "El monto de destino admite hasta 4 decimales y menos de 14 digitos enteros"),
+                Arguments.of("moneda que no es un codigo de 3 letras", TransactionMother.unGasto().currencyCode("DOLAR"),
+                        "currencyCode", "La moneda debe ser un codigo ISO 4217 de 3 letras"),
                 Arguments.of("sin descripcion", TransactionMother.unGasto().description(null), "description",
                         "La descripcion es obligatoria"),
                 Arguments.of("descripcion en blanco", TransactionMother.unGasto().description("  "), "description",
@@ -113,7 +127,7 @@ class CreateTransactionRequestTest {
 
     @Test
     void reportaTodosLosCamposInvalidosDelElementoJuntos() {
-        assertThat(Violaciones.de(TransactionMother.unGasto().amount(new BigDecimal("-5")).currencyCode("USD")
+        assertThat(Violaciones.de(TransactionMother.unGasto().amount(new BigDecimal("-5")).currencyCode("US")
                 .description(" ").occurredAt("2026-09-21T10:00:00").request()).keySet())
                 .containsExactlyInAnyOrder("amount", "currencyCode", "description", "occurredAt");
     }

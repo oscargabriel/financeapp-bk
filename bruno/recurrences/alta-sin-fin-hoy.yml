@@ -1,0 +1,47 @@
+info:
+  name: Alta semanal sin fin desde hoy
+  type: http
+  seq: 22
+
+http:
+  method: POST
+  url: "{{baseUrl}}/recurrences"
+  body:
+    type: json
+    data: |-
+      {
+        "type": "EXPENSE",
+        "accountId": "{{idCuentaSeriesOtra}}",
+        "categoryId": "{{idSuscripcionesSeries}}",
+        "amount": 5000,
+        "description": "Sin fin desde hoy",
+        "frequency": "WEEKLY",
+        "dayOfWeek": "{{diaSemanaHoy}}",
+        "startDate": "{{hoySeries}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const comoDia = function (f) {
+          return f.getFullYear() + "-" + dos(f.getMonth() + 1) + "-" + dos(f.getDate());
+        };
+        const aBogota = function (dia) { return dia + "T05:00:00Z"; };
+        bru.setVar("idSerieSinFinHoy", res.getBody().id);
+
+        test("la proxima es la de dentro de una semana", function() {
+          expect(res.getBody().nextOccurrenceAt).to.equal(aBogota(bru.getVar("enUnaSemana")));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

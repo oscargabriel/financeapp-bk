@@ -23,14 +23,19 @@ public class GetMonthlySpendingUseCase implements GetMonthlySpendingPort {
 
     private final MonthlySpendingQueryPort query;
     private final Clock clock;
+    private final SeriesAlDia alDia;
 
     /**
      * El defer mantiene el contrato reactivo: un rango invalido sale como senal de error del Flux,
-     * no como excepcion lanzada al ensamblar la cadena.
+     * no como excepcion lanzada al ensamblar la cadena. Las series se ponen al dia despues de validar:
+     * una peticion invalida no escribe nada (FA-107).
      */
     @Override
     public Flux<MonthlySpending> get(UUID userId, YearMonth from, YearMonth to) {
-        return Flux.defer(() -> query.findByUserAndRange(userId, resolveRange(from, to)));
+        return Flux.defer(() -> {
+            MonthRange rango = resolveRange(from, to);
+            return alDia.ponerAlDia(userId).thenMany(Flux.defer(() -> query.findByUserAndRange(userId, rango)));
+        });
     }
 
     private MonthRange resolveRange(YearMonth from, YearMonth to) {

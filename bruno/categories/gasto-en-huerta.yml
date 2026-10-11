@@ -1,0 +1,45 @@
+info:
+  name: Gasto en Huerta
+  type: http
+  seq: 36
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCuentaCategorias}}",
+          "categoryId": "{{idPlantas}}",
+          "amount": 20000,
+          "description": "Abono"
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenCategorias}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idGastoHuerta", res.getBody()[0].id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un gasto con la categoria
+
+  Desde aqui `Huerta` tiene un gasto, y dejar de servir para gastos se rechaza. Su id queda en
+  `idGastoHuerta` para modificarlo despues de borrar la categoria.

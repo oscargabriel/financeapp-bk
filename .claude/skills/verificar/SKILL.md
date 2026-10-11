@@ -40,7 +40,10 @@ apuntando a Neon, la colección y la recarga de `test-data.sql` escriben en prod
 script se detiene con código 2 antes de tocar nada si:
 
 - **El puerto de `bruno/environments/local.yml` está ocupado.** Reporta el PID y el proceso al
-  usuario y espera a que lo apague él: nunca matar un proceso que no levantaste.
+  usuario: nunca matar un proceso que no levantaste. Si es una app que el usuario quiere mantener
+  arriba (la del front o la del IDE), vuelve a correr con `-Puerto 8081`, o con otro puerto libre:
+  la app de la rama levanta ahí y `bru` recibe `host` y `baseUrl` con ese puerto. Con `-Puerto` no
+  pases `host=` ni `baseUrl=`: el script se detiene con código 2.
 - **La base resuelta no es `localhost/financeapp`.** Mira `application-local.yaml` junto con las
   variables `DB_*` y `SPRING_R2DBC_URL` de la terminal. Dile al usuario cuál variable o línea
   apunta a otra parte; no las limpies ni edites el archivo por tu cuenta.
@@ -49,7 +52,8 @@ script se detiene con código 2 antes de tocar nada si:
 escenario ya está recién cargado. `-Objetivo transactions` corre una sola carpeta, y cada argumento
 `nombre=valor` llega a `bru` como `--env-var`.
 
-Código 3: la app no arrancó o no se pudo apagar, y el script muestra el final del log. Cualquier
+Código 3: la app no arrancó, arrancó en otro puerto que el validado o no se pudo apagar, y el
+script muestra el final del log o el puerto en que quedó. Cualquier
 otro código distinto de 0 es el de `bru`. Si `bru` no está en el PATH (FA-39) o la app no levanta,
 es un bloqueo que se reporta, no un paso que se omite.
 
