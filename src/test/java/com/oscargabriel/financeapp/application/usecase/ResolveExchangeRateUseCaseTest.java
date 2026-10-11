@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -58,7 +59,8 @@ class ResolveExchangeRateUseCaseTest {
 
     @BeforeEach
     void setUp() {
-        casoDeUso = new ResolveExchangeRateUseCase(tasas, proveedor, monedas, RELOJ);
+        casoDeUso = new ResolveExchangeRateUseCase(tasas, proveedor, monedas,
+                new ConsultasAlProveedor(RELOJ, Duration.ofHours(1)), RELOJ);
         lenient().when(monedas.exists(anyString())).thenReturn(Mono.just(true));
     }
 
@@ -238,6 +240,66 @@ class ResolveExchangeRateUseCaseTest {
         StepVerifier.create(casoDeUso.refreshToday(Set.of("COP"))).verifyComplete();
 
         verify(tasas, never()).saveFromUsd(any(), any());
+    }
+
+    /** El reloj no avanza: la segunda resolucion cae dentro del intervalo de reintento (FA-121). */
+    @Test
+    void trasUnFalloDelProveedorLaSiguienteResolucionNoLoConsultaYUsaLaTasaAnterior() {
+        when(tasas.findLatestFromUsd("COP", HOY)).thenReturn(Mono.just(usdA("COP", "4050", HOY.minusDays(1))));
+        when(proveedor.latestFromUsd()).thenReturn(Mono.error(new TimeoutException()));
+
+        StepVerifier.create(casoDeUso.resolve("USD", "COP", HOY)).expectNextCount(1).verifyComplete();
+        StepVerifier.create(casoDeUso.resolve("USD", "COP", HOY))
+                .assertNext(tasa -> {
+                    assertThat(tasa.rate()).isEqualByComparingTo("4050");
+                    assertThat(tasa.rateDate()).isEqualTo(HOY.minusDays(1));
+                })
+                .verifyComplete();
+
+        verify(proveedor, times(1)).latestFromUsd();
+    }
+
+    @Test
+    void trasUnaRespuestaSinLaMonedaPedidaLaSiguienteResolucionNoConsultaAlProveedor() {
+        when(tasas.findLatestFromUsd("VES", HOY)).thenReturn(Mono.just(usdA("VES", "190", HOY.minusDays(1))));
+        when(proveedor.latestFromUsd()).thenReturn(Mono.just(Map.of("COP", new BigDecimal("4100"))));
+        when(monedas.findActive()).thenReturn(Flux.just(CurrencyMother.cop(), moneda("VES")));
+        when(tasas.saveFromUsd(any(), any())).thenReturn(Mono.empty());
+
+        StepVerifier.create(casoDeUso.resolve("USD", "VES", HOY)).expectNextCount(1).verifyComplete();
+        StepVerifier.create(casoDeUso.resolve("USD", "VES", HOY))
+                .assertNext(tasa -> {
+                    assertThat(tasa.rate()).isEqualByComparingTo("190");
+                    assertThat(tasa.rateDate()).isEqualTo(HOY.minusDays(1));
+                })
+                .verifyComplete();
+
+        verify(proveedor, times(1)).latestFromUsd();
+    }
+
+    @Test
+    void refrescarHoyTrasUnFalloDelProveedorNoLoConsulta() {
+        when(tasas.findLatestFromUsd("COP", HOY)).thenReturn(Mono.empty());
+        when(proveedor.latestFromUsd()).thenReturn(Mono.error(new TimeoutException()));
+
+        StepVerifier.create(casoDeUso.refreshToday(Set.of("COP"))).verifyComplete();
+        StepVerifier.create(casoDeUso.refreshToday(Set.of("COP"))).verifyComplete();
+
+        verify(proveedor, times(1)).latestFromUsd();
+    }
+
+    @Test
+    void unErrorAlGuardarLasTasasNoBloqueaLaSiguienteConsulta() {
+        when(tasas.findLatestFromUsd("COP", HOY)).thenReturn(Mono.just(usdA("COP", "4050", HOY.minusDays(1))));
+        when(proveedor.latestFromUsd()).thenReturn(Mono.just(Map.of("COP", new BigDecimal("4100"))));
+        when(monedas.findActive()).thenReturn(Flux.just(CurrencyMother.cop()));
+        when(tasas.saveFromUsd(any(), any()))
+                .thenReturn(Mono.error(new IllegalStateException("base caida")), Mono.empty());
+
+        StepVerifier.create(casoDeUso.resolve("USD", "COP", HOY)).expectError(IllegalStateException.class).verify();
+        StepVerifier.create(casoDeUso.resolve("USD", "COP", HOY)).expectNextCount(1).verifyComplete();
+
+        verify(proveedor, times(2)).latestFromUsd();
     }
 
     /** El repositorio da la mas antigua cuando no hay anterior (FA-122): la fecha de la tasa queda despues. */

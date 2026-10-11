@@ -98,8 +98,10 @@ asistente:
 
 # Tasas de cambio (FA-120): ExchangeRate-API sin clave, consultada bajo demanda como mucho una vez al
 # dia. La URL es fija de configuracion, nunca de la peticion. El stub solo existe fuera de prod.
+# Tras un fallo del proveedor no se le vuelve a consultar hasta pasado el reintento (FA-121).
 tasas:
   proveedor: ${TASAS_PROVEEDOR:exchangerate-api}
+  reintento-tras-fallo: ${TASAS_REINTENTO_TRAS_FALLO:1h}
   exchangerate-api:
     url: ${TASAS_URL:https://open.er-api.com/v6/latest/USD}
     timeout: ${TASAS_TIMEOUT:5s}
