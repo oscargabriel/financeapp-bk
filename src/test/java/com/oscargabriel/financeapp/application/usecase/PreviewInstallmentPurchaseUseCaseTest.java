@@ -31,7 +31,9 @@ import com.oscargabriel.financeapp.domain.model.ScheduledInstallment;
 import com.oscargabriel.financeapp.domain.model.UserProfile;
 import com.oscargabriel.financeapp.domain.port.out.AccountQueryPort;
 import com.oscargabriel.financeapp.domain.port.out.CategoryQueryPort;
+import com.oscargabriel.financeapp.domain.port.out.CurrencyQueryPort;
 import com.oscargabriel.financeapp.domain.port.out.UserRepositoryPort;
+import com.oscargabriel.financeapp.support.CurrencyMother;
 import com.oscargabriel.financeapp.support.InstallmentMother;
 import com.oscargabriel.financeapp.support.TransactionMother;
 
@@ -55,6 +57,9 @@ class PreviewInstallmentPurchaseUseCaseTest {
     private CategoryQueryPort categorias;
 
     @Mock
+    private CurrencyQueryPort monedas;
+
+    @Mock
     private UserRepositoryPort usuarios;
 
     @BeforeEach
@@ -62,12 +67,14 @@ class PreviewInstallmentPurchaseUseCaseTest {
         when(cuentas.findByUser(USER_ID, true)).thenReturn(Flux.fromIterable(InstallmentMother.cuentasConTarjetas()));
         when(categorias.findActiveByUser(eq(USER_ID), any()))
                 .thenReturn(Flux.fromIterable(TransactionMother.categoriasDelUsuario()));
+        when(monedas.findActive()).thenReturn(Flux.just(CurrencyMother.cop(), CurrencyMother.usd()));
         when(usuarios.findActiveProfile(USER_ID)).thenReturn(Mono.just(new UserProfile(USER_ID, "ana@ejemplo.com",
                 "Ana", null, null, "COP", "America/Bogota")));
     }
 
     private PreviewInstallmentPurchaseUseCase casoDeUso(Instant ahora) {
-        return new PreviewInstallmentPurchaseUseCase(cuentas, categorias, usuarios, Clock.fixed(ahora, ZoneOffset.UTC));
+        return new PreviewInstallmentPurchaseUseCase(cuentas, categorias, monedas, usuarios,
+                Clock.fixed(ahora, ZoneOffset.UTC));
     }
 
     @Test
@@ -149,11 +156,56 @@ class PreviewInstallmentPurchaseUseCaseTest {
                 assertThat(errores).containsExactly(error(mensaje, "accountId")));
     }
 
+    /** FA-123: el plan va en la moneda de la tarjeta, a sus decimales. */
     @Test
-    void unaCuentaEnUsdEsErrorSobreAccountId() {
-        rechaza(unaCompra().accountId(TransactionMother.USD_ID.toString()), AHORA, errores ->
+    void unaTarjetaEnUsdCalculaLasCuotasEnCentavos() {
+        CreateInstallmentPurchaseCommand compra = unaCompra().accountId(InstallmentMother.VISA_USD_ID.toString())
+                .amount("100").build();
+
+        StepVerifier.create(casoDeUso(AHORA).preview(USER_ID, compra))
+                .assertNext(plan -> {
+                    assertThat(plan.currencyCode()).isEqualTo("USD");
+                    assertThat(plan.installments()).extracting(ScheduledInstallment::principal).containsExactly(
+                            new BigDecimal("33.33"), new BigDecimal("33.33"), new BigDecimal("33.34"));
+                    assertThat(plan.installments()).extracting(ScheduledInstallment::interest).containsExactly(
+                            new BigDecimal("2.00"), new BigDecimal("1.33"), new BigDecimal("0.67"));
+                    assertThat(plan.totalAmount()).isEqualByComparingTo("104");
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    void unaTarjetaEnUnaMonedaQueYaNoEstaActivaEsErrorSobreAccountId() {
+        when(monedas.findActive()).thenReturn(Flux.just(CurrencyMother.cop()));
+
+        rechaza(unaCompra().accountId(InstallmentMother.VISA_USD_ID.toString()), AHORA, errores ->
+                assertThat(errores).containsExactly(error("La moneda de la cuenta no esta activa", "accountId")));
+    }
+
+    @Test
+    void unMontoQueNoAlcanzaParaUnPesoPorCuotaEsErrorSobreAmount() {
+        rechaza(unaCompra().amount("10").installmentCount(12), AHORA, errores ->
                 assertThat(errores).containsExactly(
-                        error("Por ahora las cuotas solo se registran en tarjetas en COP", "accountId")));
+                        error("El monto tiene que alcanzar para al menos 1 COP de capital por cuota", "amount")));
+    }
+
+    @Test
+    void unMontoQueNoAlcanzaParaUnCentavoPorCuotaEsErrorSobreAmount() {
+        rechaza(unaCompra().accountId(InstallmentMother.VISA_USD_ID.toString()).amount("0.10").installmentCount(12),
+                AHORA, errores -> assertThat(errores).containsExactly(
+                        error("El monto tiene que alcanzar para al menos 0.01 USD de capital por cuota", "amount")));
+    }
+
+    @Test
+    void unCentavoPorCuotaAlcanza() {
+        CreateInstallmentPurchaseCommand compra = unaCompra()
+                .accountId(InstallmentMother.VISA_USD_SIN_TASA_ID.toString()).amount("0.12").installmentCount(12)
+                .build();
+
+        StepVerifier.create(casoDeUso(AHORA).preview(USER_ID, compra))
+                .assertNext(plan -> assertThat(plan.installments()).hasSize(12)
+                        .allSatisfy(c -> assertThat(c.amount()).isEqualByComparingTo("0.01")))
+                .verifyComplete();
     }
 
     @Test

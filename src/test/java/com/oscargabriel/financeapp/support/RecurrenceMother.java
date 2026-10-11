@@ -55,6 +55,7 @@ public final class RecurrenceMother {
         private UUID accountId = TransactionMother.ORIGEN_ID;
         private UUID categoryId = TransactionMother.MERCADO_ID;
         private BigDecimal amount = new BigDecimal("44900");
+        private String currencyCode = "COP";
         private String description = "Netflix";
         private RecurrenceRule rule = RecurrenceRule.mensual(1, 15, HOY);
         private LocalDate endDate;
@@ -70,6 +71,11 @@ public final class RecurrenceMother {
 
         public Serie type(TransactionType valor) {
             this.type = valor;
+            return this;
+        }
+
+        public Serie moneda(String valor) {
+            this.currencyCode = valor;
             return this;
         }
 
@@ -109,7 +115,7 @@ public final class RecurrenceMother {
         }
 
         public Recurrence build() {
-            return new Recurrence(id, TransactionMother.USER_ID, type, accountId, categoryId, amount, "COP",
+            return new Recurrence(id, TransactionMother.USER_ID, type, accountId, categoryId, amount, currencyCode,
                     description, rule, endDate, occurrenceLimit, generatedCount, priorCount, status);
         }
     }

@@ -321,7 +321,7 @@ Tres niveles de moneda (FA-122, decidido el 10-10-2026):
 - **Servicio (USD).** `amount_base` es el equivalente en dólares de cada
   movimiento: la base común entre monedas, que no depende de quién lo mire.
 - **Cuenta.** `amount` y `currency_code` están en la moneda de la cuenta: es el
-  cargo real. Las series y las cuotas todavía solo admiten cuentas en COP.
+  cargo real. Las series y las cuotas también van en la moneda de su cuenta (FA-123).
 - **Persona.** `users.base_currency_code` es solo la moneda en que la persona ve
   sus totales. Cambiarla no reescribe nada.
 

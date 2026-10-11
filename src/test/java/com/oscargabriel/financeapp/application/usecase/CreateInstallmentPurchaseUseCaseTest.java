@@ -39,8 +39,10 @@ import com.oscargabriel.financeapp.domain.model.TransactionType;
 import com.oscargabriel.financeapp.domain.model.UserProfile;
 import com.oscargabriel.financeapp.domain.port.out.AccountQueryPort;
 import com.oscargabriel.financeapp.domain.port.out.CategoryQueryPort;
+import com.oscargabriel.financeapp.domain.port.out.CurrencyQueryPort;
 import com.oscargabriel.financeapp.domain.port.out.InstallmentPurchaseRepositoryPort;
 import com.oscargabriel.financeapp.domain.port.out.UserRepositoryPort;
+import com.oscargabriel.financeapp.support.CurrencyMother;
 import com.oscargabriel.financeapp.support.InstallmentMother;
 import com.oscargabriel.financeapp.support.TransactionMother;
 
@@ -64,6 +66,9 @@ class CreateInstallmentPurchaseUseCaseTest {
     private CategoryQueryPort categorias;
 
     @Mock
+    private CurrencyQueryPort monedas;
+
+    @Mock
     private UserRepositoryPort usuarios;
 
     @Mock
@@ -82,10 +87,11 @@ class CreateInstallmentPurchaseUseCaseTest {
         when(cuentas.findByUser(USER_ID, true)).thenReturn(Flux.fromIterable(InstallmentMother.cuentasConTarjetas()));
         when(categorias.findActiveByUser(eq(USER_ID), any()))
                 .thenReturn(Flux.fromIterable(TransactionMother.categoriasDelUsuario()));
+        when(monedas.findActive()).thenReturn(Flux.just(CurrencyMother.cop(), CurrencyMother.usd()));
         when(usuarios.findActiveProfile(USER_ID)).thenReturn(Mono.just(new UserProfile(USER_ID, "ana@ejemplo.com",
                 "Ana", null, null, "COP", "America/Bogota")));
         when(compras.save(any(), anyList())).thenReturn(Mono.empty());
-        casoDeUso = new CreateInstallmentPurchaseUseCase(cuentas, categorias, usuarios, compras,
+        casoDeUso = new CreateInstallmentPurchaseUseCase(cuentas, categorias, monedas, usuarios, compras,
                 Clock.fixed(AHORA, ZoneOffset.UTC));
     }
 
@@ -128,6 +134,21 @@ class CreateInstallmentPurchaseUseCaseTest {
             assertThat(t.origin()).isEqualTo(TransactionOrigin.WEB);
             assertThat(t.recurrenceId()).isNull();
         });
+    }
+
+    /** FA-123: la compra y sus cuotas van en la moneda de la tarjeta, redondeadas a sus decimales. */
+    @Test
+    void unaTarjetaEnUsdGuardaLaCompraYLasCuotasEnUsd() {
+        StepVerifier.create(casoDeUso.create(USER_ID, unaCompra().accountId(InstallmentMother.VISA_USD_ID.toString())
+                        .amount("100").build()))
+                .assertNext(creada -> assertThat(creada.view().remainingAmount()).isEqualByComparingTo("104"))
+                .verifyComplete();
+
+        verify(compras).save(compraGuardada.capture(), cuotas.capture());
+        assertThat(compraGuardada.getValue().currencyCode()).isEqualTo("USD");
+        assertThat(cuotas.getValue()).extracting(Transaction::amount).containsExactly(
+                new BigDecimal("35.33"), new BigDecimal("34.66"), new BigDecimal("34.01"));
+        assertThat(cuotas.getValue()).allSatisfy(t -> assertThat(t.currencyCode()).isEqualTo("USD"));
     }
 
     @Test

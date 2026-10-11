@@ -125,7 +125,7 @@ class InstallmentPlanTest {
     @Test
     void conLaOpcionUnaCuotaCobraLaTasaSobreElTotalConElMismoRedondeo() {
         InstallmentPlan plan = new InstallmentPlan(new BigDecimal("333333"), 1, new BigDecimal("2.15"),
-                LocalDate.of(2026, 10, 9), 20, 5, true);
+                LocalDate.of(2026, 10, 9), 20, 5, true, 0);
 
         assertThat(plan.cuotas()).singleElement().satisfies(c -> {
             assertThat(c.principal()).isEqualByComparingTo("333333");
@@ -138,7 +138,7 @@ class InstallmentPlanTest {
     @Test
     void conLaOpcionYTasaCeroUnaCuotaNoLlevaInteres() {
         InstallmentPlan plan = new InstallmentPlan(new BigDecimal("300000"), 1, BigDecimal.ZERO,
-                LocalDate.of(2026, 10, 9), 20, 5, true);
+                LocalDate.of(2026, 10, 9), 20, 5, true, 0);
 
         assertThat(plan.cuotas()).singleElement()
                 .satisfies(c -> assertThat(c.interest()).isEqualByComparingTo("0"));
@@ -147,7 +147,7 @@ class InstallmentPlanTest {
     @Test
     void laOpcionNoCambiaLasComprasDeVariasCuotas() {
         InstallmentPlan conOpcion = new InstallmentPlan(new BigDecimal("1200000"), 3, DOS,
-                LocalDate.of(2026, 10, 9), 20, 5, true);
+                LocalDate.of(2026, 10, 9), 20, 5, true, 0);
 
         assertThat(conOpcion.cuotas()).isEqualTo(visa("1200000", 3, DOS, LocalDate.of(2026, 10, 9)).cuotas());
     }
@@ -173,5 +173,18 @@ class InstallmentPlanTest {
         assertThat(plan.vencidas(LocalDate.of(2026, 10, 4))).isEqualTo(3);
         assertThat(plan.vencidas(LocalDate.of(2026, 10, 5))).isEqualTo(4);
         assertThat(plan.vencidas(LocalDate.of(2026, 6, 10))).isZero();
+    }
+
+    /** FA-123: una tarjeta en USD reparte el capital y redondea el interes a centavos. */
+    @Test
+    void conDosDecimalesRedondeaElCapitalYElInteresACentavos() {
+        InstallmentPlan plan = new InstallmentPlan(new BigDecimal("100"), 3, DOS, LocalDate.of(2026, 10, 9), 20, 5,
+                false, 2);
+
+        assertThat(plan.cuotas()).extracting(InstallmentPlan.Cuota::principal)
+                .containsExactly(new BigDecimal("33.33"), new BigDecimal("33.33"), new BigDecimal("33.34"));
+        assertThat(plan.cuotas()).extracting(InstallmentPlan.Cuota::interest)
+                .containsExactly(new BigDecimal("2.00"), new BigDecimal("1.33"), new BigDecimal("0.67"));
+        assertThat(plan.totalAmount()).isEqualByComparingTo("104.00");
     }
 }

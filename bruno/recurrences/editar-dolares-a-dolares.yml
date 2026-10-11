@@ -1,0 +1,35 @@
+info:
+  name: Mover la serie en dolares a otra cuenta en dolares
+  type: http
+  seq: 72
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/recurrences/{{idSerieUsd}}"
+  body:
+    type: json
+    data: |-
+      {
+        "scope": "ALL",
+        "accountId": "{{idCuentaSeriesUsdOtra}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("cambia de cuenta y conserva la moneda", function() {
+          expect(res.getBody().accountId).to.equal(bru.getVar("idCuentaSeriesUsdOtra"));
+          expect(res.getBody().currencyCode).to.equal("USD");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

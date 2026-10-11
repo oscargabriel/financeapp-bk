@@ -14,7 +14,8 @@ Cada ocurrencia de una serie es un movimiento normal, programado mientras su fec
 `startDate`, con `endDate` u `occurrences` opcionales. SHALL responder 201 con la serie: `id`, los
 campos recibidos, `currencyCode` y `nextOccurrenceAt`. Las ocurrencias SHALL crearse como movimientos
 `CONFIRMED` del usuario, con la cuenta, la categoría, el monto y la descripción de la serie, en la
-misma transacción de base que la serie: o entra todo o no entra nada.
+misma transacción de base que la serie: o entra todo o no entra nada. La serie SHALL tomar la moneda
+de su cuenta, en cualquier moneda activa, y sus ocurrencias SHALL quedar en esa misma moneda.
 
 #### Scenario: Serie mensual con número de repeticiones
 - **WHEN** el usuario crea una serie `MONTHLY` de 44900 con `dayOfMonth` 15, `startDate` dentro de un mes y `occurrences` 3
@@ -23,6 +24,10 @@ misma transacción de base que la serie: o entra todo o no entra nada.
 #### Scenario: Interval por defecto
 - **WHEN** el usuario crea una serie sin `interval`
 - **THEN** la respuesta trae `"interval": 1`
+
+#### Scenario: Serie en una cuenta en dólares
+- **WHEN** el usuario crea una serie `MONTHLY` de 12.5 sobre una cuenta propia en USD, con `occurrences` 2
+- **THEN** la respuesta es 201 con `currencyCode` `USD`, y existen 2 movimientos de 12.5 en `USD` con ese `recurrenceId`
 
 ### Requirement: Fechas de las ocurrencias
 La primera ocurrencia SHALL ser la primera fecha igual o posterior a `startDate` que cae en el día de
@@ -83,7 +88,7 @@ creadas.
 ### Requirement: Validación del alta
 El alta SHALL rechazar con 400 `VALIDATION_ERROR` y todos los errores juntos, cada uno en su campo:
 `type` ausente o distinto de `EXPENSE` e `INCOME`; `accountId` o `categoryId` ausentes, ajenos,
-inexistentes, desactivados, en otra moneda que COP o de una categoría que no aplica al tipo; `amount`
+inexistentes, desactivados, en una moneda que ya no está activa o de una categoría que no aplica al tipo; `amount`
 ausente, cero, negativo o con más decimales o dígitos de los admitidos; `description` vacía o de más
 de 255 caracteres; `frequency` ausente o desconocida; `interval` menor que 1 o mayor que 52 en `WEEKLY` y
 que 12 en `MONTHLY`; `dayOfWeek` ausente o desconocido en `WEEKLY`, o presente en `MONTHLY`;
@@ -193,7 +198,9 @@ SHALL aplicarse a la serie resultante.
 ### Requirement: Validación de la edición
 La edición SHALL rechazar con 400 `VALIDATION_ERROR`: `scope` ausente o distinto de `FUTURE` y `ALL`,
 en el campo `scope`; un parche sin ningún campo que modificar, en el campo `body`; y cada campo
-presente que no cumpla la regla del alta, en su campo. Nada SHALL modificarse.
+presente que no cumpla la regla del alta, en su campo. La moneda de la serie no cambia: un `accountId`
+en una moneda distinta de la de la serie SHALL rechazarse en el campo `accountId`. Nada SHALL
+modificarse.
 
 #### Scenario: Sin alcance
 - **WHEN** el usuario envía `{"amount": 35000}`
@@ -206,6 +213,14 @@ presente que no cumpla la regla del alta, en su campo. Nada SHALL modificarse.
 #### Scenario: Intervalo inválido en la edición
 - **WHEN** el usuario envía `{"scope": "FUTURE", "interval": 0}`
 - **THEN** la respuesta es 400 con `VALIDATION_ERROR` en el campo `interval`
+
+#### Scenario: Cuenta en otra moneda
+- **WHEN** el usuario envía `{"scope": "ALL", "accountId": <cuenta propia en COP>}` sobre una serie en USD
+- **THEN** la respuesta es 400 con `VALIDATION_ERROR` en el campo `accountId`, y la serie y sus ocurrencias no cambian
+
+#### Scenario: Cuenta en la misma moneda
+- **WHEN** el usuario envía `{"scope": "ALL", "accountId": <otra cuenta propia en USD>}` sobre una serie en USD
+- **THEN** la respuesta es 200 con el `accountId` nuevo y `currencyCode` `USD`, y las ocurrencias pasan a la cuenta nueva
 
 ### Requirement: Cancelación de una serie
 `DELETE /api/recurrences/{id}` SHALL borrar las ocurrencias de la serie con `occurredAt` posterior al

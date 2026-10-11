@@ -10,23 +10,20 @@ import java.util.stream.IntStream;
 /**
  * Las cuotas de una compra con tarjeta (FA-108). El primer corte es el del mes de la compra si cae ese
  * dia o antes; la primera cuota vence el dia de pago del mes del corte si es posterior al corte, y del
- * mes siguiente si no. Capital fijo: amount / count en pesos enteros hacia abajo, con el resto en la
- * ultima. Interes: la tasa mensual, en porcentaje, sobre el capital pendiente antes de cada cuota. Una
- * compra a 1 cuota no lleva interes salvo que la tarjeta lo cobre (FA-134).
+ * mes siguiente si no. Capital fijo: amount / count hacia abajo a los decimales de la moneda de la tarjeta
+ * (FA-123), con el resto en la ultima. Interes: la tasa mensual, en porcentaje, sobre el capital pendiente
+ * antes de cada cuota, a esos mismos decimales. Una compra a 1 cuota no lleva interes salvo que la tarjeta lo cobre (FA-134).
  */
 public record InstallmentPlan(BigDecimal amount, int count, BigDecimal monthlyInterestRate, LocalDate purchaseDate,
-        int statementDay, int paymentDueDay, boolean chargesSingleInstallmentInterest) {
+        int statementDay, int paymentDueDay, boolean chargesSingleInstallmentInterest, int decimals) {
 
-    /** Una tarjeta que no cobra interes en las compras a 1 cuota. */
+    /** Una tarjeta en COP que no cobra interes en las compras a 1 cuota. */
     public InstallmentPlan(BigDecimal amount, int count, BigDecimal monthlyInterestRate, LocalDate purchaseDate,
             int statementDay, int paymentDueDay) {
-        this(amount, count, monthlyInterestRate, purchaseDate, statementDay, paymentDueDay, false);
+        this(amount, count, monthlyInterestRate, purchaseDate, statementDay, paymentDueDay, false, 0);
     }
 
     public static final int MAXIMO = 48;
-
-    /** Pesos enteros: decimal_places de COP, la unica moneda de los movimientos. */
-    private static final int ESCALA = 0;
 
     private static final BigDecimal CIEN = new BigDecimal("100");
 
@@ -38,7 +35,7 @@ public record InstallmentPlan(BigDecimal amount, int count, BigDecimal monthlyIn
     }
 
     public List<Cuota> cuotas() {
-        BigDecimal base = amount.divide(BigDecimal.valueOf(count), ESCALA, RoundingMode.DOWN);
+        BigDecimal base = amount.divide(BigDecimal.valueOf(count), decimals, RoundingMode.DOWN);
         BigDecimal ultima = amount.subtract(base.multiply(BigDecimal.valueOf(count - 1L)));
         return IntStream.rangeClosed(1, count)
                 .mapToObj(k -> new Cuota(k, vencimiento(k), k == count ? ultima : base,
@@ -63,7 +60,7 @@ public record InstallmentPlan(BigDecimal amount, int count, BigDecimal monthlyIn
         if (count == 1 && !chargesSingleInstallmentInterest) {
             return BigDecimal.ZERO;
         }
-        return pendiente.multiply(monthlyInterestRate).divide(CIEN, ESCALA, RoundingMode.HALF_UP);
+        return pendiente.multiply(monthlyInterestRate).divide(CIEN, decimals, RoundingMode.HALF_UP);
     }
 
     private LocalDate vencimiento(int k) {

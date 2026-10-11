@@ -146,15 +146,45 @@ class UpdateRecurrenceUseCaseTest {
         assertThat(guardada.getValue().accountId()).isEqualTo(TransactionMother.DESTINO_ID);
     }
 
+    /** FA-123: la moneda de la serie no cambia, asi que la cuenta nueva tiene que estar en ella. */
     @Test
-    void unaCuentaEnUsdEsErrorSobreAccountIdYNoGuarda() {
+    void unaCuentaEnUsdParaUnaSerieEnCopEsErrorSobreAccountIdYNoGuarda() {
         guardadaEs(unaSerie().build());
 
         StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(GroupScope.ALL)
                         .accountId(TransactionMother.USD_ID.toString()).build()))
-                .verifyErrorSatisfies(e -> assertThat(campos(e)).containsExactly("accountId"));
+                .verifyErrorSatisfies(e -> assertThat(((BadRequestException) e).getErrorResponse().getErrors())
+                        .extracting(ErrorDetail::getField, ErrorDetail::getDescription)
+                        .containsExactly(tuple("accountId", "La cuenta tiene que estar en COP, la moneda de la serie")));
 
         verify(series, never()).update(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void unaCuentaEnCopParaUnaSerieEnUsdEsErrorSobreAccountIdYNoGuarda() {
+        guardadaEs(unaSerie().moneda("USD").build());
+
+        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(GroupScope.ALL)
+                        .accountId(TransactionMother.DESTINO_ID.toString()).build()))
+                .verifyErrorSatisfies(e -> assertThat(((BadRequestException) e).getErrorResponse().getErrors())
+                        .extracting(ErrorDetail::getField, ErrorDetail::getDescription)
+                        .containsExactly(tuple("accountId", "La cuenta tiene que estar en USD, la moneda de la serie")));
+
+        verify(series, never()).update(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void unaCuentaEnUsdParaUnaSerieEnUsdSeAplicaYConservaLaMoneda() {
+        guardadaEs(unaSerie().moneda("USD").build());
+
+        StepVerifier.create(casoDeUso.update(USER_ID, SERIE_ID, unParche(GroupScope.ALL)
+                        .accountId(TransactionMother.USD_ID.toString()).build()))
+                .assertNext(vista -> assertThat(vista.recurrence().currencyCode()).isEqualTo("USD"))
+                .verifyComplete();
+
+        verify(series).update(guardada.capture(), eq(GroupScope.ALL), eq(AHORA), cambios.capture(), isNull());
+        assertThat(guardada.getValue().accountId()).isEqualTo(TransactionMother.USD_ID);
+        assertThat(cambios.getValue().accountId()).isEqualTo(TransactionMother.USD_ID);
     }
 
     @Test

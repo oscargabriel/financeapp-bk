@@ -1,0 +1,43 @@
+info:
+  name: Crear tarjeta en dolares
+  type: http
+  seq: 64
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Visa USD",
+        "type": "CREDIT",
+        "currencyCode": "USD",
+        "creditLimit": 5000,
+        "statementDay": 20,
+        "paymentDueDay": 5,
+        "monthlyInterestRate": 2
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: after-response
+      code: |-
+        bru.setVar("idVisaUsd", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Cuotas en otras monedas (FA-123)
+
+  Misma configuracion que `Visa` (corte 20, pago 5, tasa 2) pero en dolares. La crea la coleccion y
+  no `test-data.sql` para no mover los listados del escenario.

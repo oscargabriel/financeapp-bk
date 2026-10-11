@@ -1,0 +1,34 @@
+info:
+  name: Ocurrencias tras cambiar de cuenta en dolares
+  type: http
+  seq: 73
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{desdeSeries}}&to={{hastaSeries}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const ocurrencias = res.getBody().transactions
+            .filter(function (t) { return t.recurrenceId === bru.getVar("idSerieUsd"); });
+
+        test("las dos pasan a la cuenta nueva, en dolares", function() {
+          expect(ocurrencias).to.have.length(2);
+          ocurrencias.forEach(function (t) {
+            expect(t.accountId).to.equal(bru.getVar("idCuentaSeriesUsdOtra"));
+            expect(t.currencyCode).to.equal("USD");
+          });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

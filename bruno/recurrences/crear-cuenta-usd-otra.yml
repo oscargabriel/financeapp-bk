@@ -1,0 +1,34 @@
+info:
+  name: Crear otra cuenta en dolares
+  type: http
+  seq: 68
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Series USD otra",
+        "type": "SAVINGS",
+        "currencyCode": "USD",
+        "initialBalance": 0
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: after-response
+      code: |-
+        bru.setVar("idCuentaSeriesUsdOtra", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

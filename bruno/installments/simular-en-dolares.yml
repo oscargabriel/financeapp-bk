@@ -1,0 +1,53 @@
+info:
+  name: Simular en dolares con redondeo a centavos
+  type: http
+  seq: 66
+
+http:
+  method: POST
+  url: "{{baseUrl}}/installment-purchases/preview"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idVisaUsd}}",
+        "categoryId": "{{idTecnologia}}",
+        "amount": 100,
+        "description": "Audifonos",
+        "purchaseDate": "{{hoyCuotas}}",
+        "installmentCount": 3
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const p = res.getBody();
+
+        test("el plan va en la moneda de la tarjeta", function() {
+          expect(p.currencyCode).to.equal("USD");
+        });
+
+        test("el capital se reparte en centavos, con el resto en la ultima", function() {
+          expect(p.installments.map(function (c) { return c.principal; })).to.eql([33.33, 33.33, 33.34]);
+        });
+
+        test("el interes se redondea a centavos", function() {
+          expect(p.installments.map(function (c) { return c.interest; })).to.eql([2, 1.33, 0.67]);
+          expect(p.totalInterest).to.equal(4);
+          expect(p.totalAmount).to.equal(104);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  Tasa 2: 2 % de 100, de 66.67 y de 33.34, a dos decimales con la mitad hacia arriba.

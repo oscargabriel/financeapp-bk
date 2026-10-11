@@ -1,0 +1,37 @@
+info:
+  name: Mover la serie en dolares a una cuenta en COP
+  type: http
+  seq: 70
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/recurrences/{{idSerieUsd}}"
+  body:
+    type: json
+    data: |-
+      {
+        "scope": "ALL",
+        "accountId": "{{idCuentaSeries}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+  scripts:
+    - type: tests
+      code: |-
+        test("la cuenta nueva tiene que estar en la moneda de la serie", function() {
+          const errores = res.getBody().errors;
+          expect(errores).to.have.length(1);
+          expect(errores[0].code).to.equal("VALIDATION_ERROR");
+          expect(errores[0].field).to.equal("accountId");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

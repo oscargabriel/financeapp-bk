@@ -24,6 +24,9 @@ docs: |
   días. Su contador dice que creó dos ocurrencias pero solo existe la primera: la segunda se borró a
   mano y no tiene que volver.
 
+  Al final de la carpeta (FA-123) se crean `Series USD` y `Series USD otra`, dos cuentas en
+  dolares: ahi se prueba una serie en USD y que su PATCH solo admite otra cuenta en USD.
+
   Los casos ajenos usan un usuario `series-ajeno-<timestamp>@bruno.local` creado en la corrida.
   Las ocurrencias se leen de `reports/transactions` filtradas por `recurrenceId`, y cada una cae a
   medianoche de Bogotá: `T05:00:00Z`.

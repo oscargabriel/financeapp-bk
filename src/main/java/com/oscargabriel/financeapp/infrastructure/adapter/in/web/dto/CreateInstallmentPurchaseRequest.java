@@ -13,14 +13,13 @@ import jakarta.validation.constraints.Size;
 import com.oscargabriel.financeapp.domain.model.CreateInstallmentPurchaseCommand;
 import com.oscargabriel.financeapp.domain.model.InstallmentPlan;
 import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.validation.Fecha;
-import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.validation.MontoParaLasCuotas;
 import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.validation.MontoNumeric;
 
 /**
  * El alta y la simulacion de una compra en cuotas (FA-108). Que la tarjeta sea del usuario y tenga corte
- * y pago, que la categoria admita gastos y que la fecha no sea futura en su zona, lo decide el caso de uso.
+ * y pago, que la categoria admita gastos, que la fecha no sea futura en su zona y que el monto alcance para la
+ * unidad minima de la moneda de la tarjeta en cada cuota (FA-123), lo decide el caso de uso.
  */
-@MontoParaLasCuotas
 public record CreateInstallmentPurchaseRequest(
 
         @NotBlank(message = "La cuenta es obligatoria")

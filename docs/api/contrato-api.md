@@ -82,7 +82,7 @@ Una ruta sin el prefijo `/api` no existe: responde 404.
   decimal (`decimal.js`, `big.js`) y no la aritmética nativa.
 - Cada movimiento está en la **moneda de su cuenta** (FA-51). Lo que llega en otra moneda se convierte
   y queda pendiente: ver [`POST /api/transactions`](#post-apitransactions). Las series y las compras
-  en cuotas todavía solo admiten cuentas en COP.
+  en cuotas también van en la moneda de su cuenta, sin conversión (FA-123).
 
 ### Fechas
 
@@ -817,8 +817,8 @@ El API recibe y devuelve siempre el `code`; `description` es solo para mostrar.
 acepta `currencyCode` en `POST /api/accounts`. El alta de movimientos admite cuentas en cualquiera
 de ellas: cada movimiento va en la moneda de su cuenta, y uno que llegue en otra moneda activa se
 convierte y queda pendiente (ver [`POST /api/transactions`](#post-apitransactions)). Las
-[series recurrentes](#series-recurrentes) y las [compras en cuotas](#compras-en-cuotas), por ahora,
-solo admiten cuentas en COP.
+[series recurrentes](#series-recurrentes) y las [compras en cuotas](#compras-en-cuotas) también admiten
+cuentas en cualquiera de ellas, y van en la moneda de su cuenta.
 
 ```json
 [{ "code": "COP", "name": "Peso colombiano", "symbol": "$" }]
@@ -1199,7 +1199,7 @@ dos rutas sí validan el [saldo](#saldo-no-negativo).
 | Campo | Obligatorio | Regla |
 |---|---|---|
 | `type` | Sí | `EXPENSE` o `INCOME`. No hay transferencias recurrentes |
-| `accountId` | Sí | Cuenta propia, activa y en COP: por ahora las series solo admiten cuentas en COP |
+| `accountId` | Sí | Cuenta propia y activa, en una moneda activa. La serie y sus ocurrencias van en la moneda de la cuenta, que se devuelve en `currencyCode` |
 | `categoryId` | Sí | Categoría propia que aplique al tipo |
 | `amount` | Sí | Mayor que cero, hasta 4 decimales |
 | `description` | Sí | Hasta 255 caracteres; se recorta |
@@ -1266,6 +1266,8 @@ deja de estarlo cuando pasa su última ocurrencia. Sin series activas, `[]`.
   hasta esa fecha; una sin fin queda con la siguiente.
 - La regla se valida sobre la serie resultante: pasar a `MONTHLY` exige `dayOfMonth` en el parche, y
   un `dayOfWeek` en una serie que queda mensual es error.
+- La moneda de la serie no cambia: un `accountId` nuevo tiene que estar en ella, o es 400 en
+  `accountId` (FA-123).
 
 **200 OK** — la serie como quedó.
 
@@ -1300,10 +1302,10 @@ no; las demás, el día de pago de cada mes. Un día que el mes no tiene cae en 
 Con corte 20 y pago 5, una compra del 9 o del 20 de octubre vence el 5 de noviembre; una del 21, el 5
 de diciembre.
 
-**Capital e interés.** El capital de cada cuota es el total entre las cuotas, en pesos enteros y
-redondeado hacia abajo; la última se lleva el resto, de modo que los capitales suman el total exacto.
-El interés de cada cuota es la tasa mensual de la tarjeta sobre el capital que falta antes de esa cuota,
-en pesos enteros, la mitad hacia arriba. Con tasa 0 o sin tasa no hay interés. Una compra a 1 cuota
+**Capital e interés.** El capital de cada cuota es el total entre las cuotas, redondeado hacia abajo a
+los decimales de la moneda de la tarjeta (pesos enteros en COP, centavos en USD); la última se lleva el
+resto, de modo que los capitales suman el total exacto. El interés de cada cuota es la tasa mensual de la
+tarjeta sobre el capital que falta antes de esa cuota, a esos mismos decimales, la mitad hacia arriba. Con tasa 0 o sin tasa no hay interés. Una compra a 1 cuota
 no lleva interés, salvo en una tarjeta con `chargesSingleInstallmentInterest` en `true`: ahí la cuota
 única cobra la tasa sobre el total, con el mismo redondeo (300.000 a 1 cuota con tasa 2 es una cuota
 de 306.000). La tasa se copia en la compra: cambiar la de la tarjeta después no mueve las cuotas. La
@@ -1343,9 +1345,9 @@ Los dos reciben el mismo cuerpo y aplican las mismas reglas:
 
 | Campo | Obligatorio | Regla |
 |---|---|---|
-| `accountId` | Sí | Tarjeta `CREDIT` propia, activa y en COP (por ahora las cuotas solo se registran en tarjetas en COP), con día de corte y día de pago |
+| `accountId` | Sí | Tarjeta `CREDIT` propia y activa, en una moneda activa, con día de corte y día de pago. La compra y sus cuotas van en la moneda de la tarjeta |
 | `categoryId` | Sí | Categoría propia que aplique a gastos |
-| `amount` | Sí | Total de la compra, sin interés. Mayor que cero, hasta 4 decimales, y no menor que `installmentCount`: cada cuota lleva al menos 1 peso de capital |
+| `amount` | Sí | Total de la compra, sin interés. Mayor que cero, hasta 4 decimales, y no menor que `installmentCount` por la unidad mínima de la moneda de la tarjeta: cada cuota lleva al menos 1 peso, o 0.01 USD, de capital |
 | `description` | Sí | Hasta 255 caracteres; se recorta. Es la de cada cuota |
 | `purchaseDate` | Sí | `YYYY-MM-DD`, hoy o antes en la zona del usuario. Si es pasada, las cuotas vencidas cuentan de una vez |
 | `installmentCount` | Sí | De 1 a 48 |
