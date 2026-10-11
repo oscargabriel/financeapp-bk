@@ -12,7 +12,8 @@ http:
       {
         "name": "Caja",
         "type": "CASH",
-        "currencyCode": "COP"
+        "currencyCode": "COP",
+        "initialBalance": 100000
       }
   auth:
     type: bearer
@@ -39,3 +40,5 @@ docs: |
 
   El registro no crea cuentas. Hace falta una para que `Huerta` tenga un movimiento y el cambio de
   alcance choque con el.
+
+  Arranca con 100000: un gasto no puede dejar en negativo una cuenta que no es de credito (FA-133).

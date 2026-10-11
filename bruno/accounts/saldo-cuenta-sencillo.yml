@@ -1,0 +1,31 @@
+info:
+  name: Saldo — cuenta Sencillo con 200.000
+  type: http
+  seq: 89
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      { "name": "Sencillo", "type": "CASH", "currencyCode": "COP", "initialBalance": 200000 }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idSencillo", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

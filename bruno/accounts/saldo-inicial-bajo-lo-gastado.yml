@@ -1,0 +1,37 @@
+info:
+  name: Saldo — bajar el inicial por debajo de lo gastado
+  type: http
+  seq: 92
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/{{idSencillo}}"
+  body:
+    type: json
+    data: |-
+      { "initialBalance": 100000, "name": "Sencillo 2" }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+  scripts:
+    - type: tests
+      code: |-
+        test("un solo INSUFFICIENT_FUNDS en initialBalance", function() {
+          expect(res.getBody().errors).to.eql([{
+            code: "INSUFFICIENT_FUNDS",
+            description: "Saldo insuficiente en Sencillo: quedaría en -50000 COP",
+            field: "initialBalance"
+          }]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

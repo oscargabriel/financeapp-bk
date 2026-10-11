@@ -1,0 +1,30 @@
+info:
+  name: Saldo — el pendiente rechazado sigue pendiente
+  type: http
+  seq: 69
+
+http:
+  method: GET
+  url: "{{baseUrl}}/transactions/pending"
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("la aprobación rechazada no lo confirmó", function() {
+          const ids = res.getBody().map(function (t) { return t.id; });
+          expect(ids).to.include(bru.getVar("idPendienteNomina"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

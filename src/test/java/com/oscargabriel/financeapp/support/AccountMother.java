@@ -65,6 +65,21 @@ public final class AccountMother {
                 new BigDecimal("0.0000"), null, null, null, null, true);
     }
 
+    public static final UUID NOMINA_ID = UUID.fromString("20000000-0000-7000-8000-000000000010");
+
+    public static final UUID BOLSILLO_ID = UUID.fromString("20000000-0000-7000-8000-000000000011");
+
+    /** Una cuenta de debito con el saldo vigente dado, la del ejemplo de FA-133. */
+    public static Account nomina(String saldo) {
+        return new Account(NOMINA_ID, "Nómina", AccountType.DEBIT, "COP", new BigDecimal(saldo),
+                new BigDecimal(saldo), null, null, null, null, true);
+    }
+
+    public static Account bolsillo(String saldo) {
+        return new Account(BOLSILLO_ID, "Bolsillo", AccountType.CASH, "COP", new BigDecimal(saldo),
+                new BigDecimal(saldo), null, null, null, null, true);
+    }
+
     public static Account inactivaEnCero() {
         return new Account(UUID.fromString("20000000-0000-7000-8000-000000000009"), "Daviplata",
                 AccountType.DEBIT, "COP", BigDecimal.ZERO, BigDecimal.ZERO, null, null, null, null, false);

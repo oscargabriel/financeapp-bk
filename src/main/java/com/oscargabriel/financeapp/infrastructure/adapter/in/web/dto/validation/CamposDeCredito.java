@@ -91,7 +91,8 @@ public @interface CamposDeCredito {
             return dia == null || (dia >= 1 && dia <= 31);
         }
 
-        private static AccountType tipo(String valor) {
+        /** El tipo del cuerpo, o null si falta o no es uno de AccountType. */
+        static AccountType tipo(String valor) {
             if (valor == null || valor.isBlank()) {
                 return null;
             }

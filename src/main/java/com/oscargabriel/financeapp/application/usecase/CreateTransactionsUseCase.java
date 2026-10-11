@@ -53,6 +53,9 @@ public class CreateTransactionsUseCase implements CreateTransactionsPort {
      * Lo que llego en una moneda distinta a la de su cuenta se convierte con la tasa de su fecha y queda pendiente
      * (FA-51, design.md). Antes de guardar se pide la tasa de hoy de las monedas con elementos de hoy o
      * posteriores (FA-122): el equivalente en USD lo congela la base al insertar, con la ultima tasa guardada.
+     *
+     * El saldo se valida despues de convertir, cuando cada monto ya esta en la moneda de su cuenta y lo convertido ya
+     * quedo pendiente (FA-133).
      */
     @Override
     public Flux<Transaction> create(UUID userId, TransactionOrigin origen, List<CreateTransactionCommand> lote) {
@@ -68,7 +71,9 @@ public class CreateTransactionsUseCase implements CreateTransactionsPort {
             return Mono.zip(suyas, vivas, activas)
                     .flatMap(referencias -> convertir(new TransactionBatchValidator(userId, referencias.getT1(),
                             referencias.getT2(), referencias.getT3(), () -> UuidV7.from(clock.instant()), ahora,
-                            origen).aBorradores(lote), referencias.getT3()))
+                            origen).aBorradores(lote), referencias.getT3())
+                            .doOnNext(movimientos -> new SaldoNoNegativo(referencias.getT1())
+                                    .exigirLote(movimientos, ahora)))
                     .flatMapMany(movimientos -> tasasDeHoy(movimientos).thenMany(repositorio.saveAll(movimientos)));
         });
     }

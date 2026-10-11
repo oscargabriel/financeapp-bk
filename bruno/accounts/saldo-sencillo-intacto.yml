@@ -1,0 +1,30 @@
+info:
+  name: Saldo — Sencillo no cambió
+  type: http
+  seq: 93
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts"
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("el parche rechazado no cambió el nombre ni los saldos", function() {
+          const sencillo = res.getBody().find(function (c) { return c.id === bru.getVar("idSencillo"); });
+          expect([sencillo.name, sencillo.initialBalance, sencillo.currentBalance]).to.eql(["Sencillo", 200000, 50000]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

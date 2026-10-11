@@ -41,12 +41,13 @@ public final class TransactionMother {
     private TransactionMother() {
     }
 
+    /** Ahorros ya tiene los 100.000 de unaTransferenciaGuardada: sacarla de ahi no la deja en negativo (FA-133). */
     public static List<Account> cuentasDelUsuario() {
         return List.of(
                 new Account(ORIGEN_ID, "Efectivo", AccountType.CASH, "COP", new BigDecimal("1000000.0000"),
                         new BigDecimal("1000000.0000"), null, null, null, null, true),
                 new Account(DESTINO_ID, "Ahorros", AccountType.SAVINGS, "COP", BigDecimal.ZERO,
-                        BigDecimal.ZERO, null, null, null, null, true),
+                        new BigDecimal("100000.0000"), null, null, null, null, true),
                 new Account(USD_ID, "Ahorros USD", AccountType.SAVINGS, "USD", new BigDecimal("1200.0000"),
                         new BigDecimal("1200.0000"), null, null, null, null, true),
                 new Account(INACTIVA_ID, "Nequi", AccountType.DEBIT, "COP", new BigDecimal("80000.0000"),
@@ -138,6 +139,21 @@ public final class TransactionMother {
                 t.categoryId(), t.amount(), t.currencyCode(), t.description(), t.notes(), t.occurredAt(),
                 TransactionStatus.PENDING, t.origin(), t.recurrenceId(), t.installment(), t.destinationAmount(),
                 original);
+    }
+
+    public static final UUID INGRESO_GUARDADO_ID = UUID.fromString("50000000-0000-7000-8000-000000000003");
+
+    public static Transaction unIngresoGuardado() {
+        return new Transaction(INGRESO_GUARDADO_ID, USER_ID, TransactionType.INCOME, ORIGEN_ID, null, SALARIO_ID,
+                new BigDecimal("200000.0000"), "COP", "Pago quincena", null, INSTANTE, TransactionStatus.CONFIRMED,
+                TransactionOrigin.WEB, null, null, null, null);
+    }
+
+    /** El mismo movimiento con otro monto, sobre otra cuenta origen y otro destino si es transferencia. */
+    public static Transaction en(Transaction t, UUID cuenta, UUID destino, String monto) {
+        return new Transaction(t.id(), t.userId(), t.type(), cuenta, destino, t.categoryId(), new BigDecimal(monto),
+                t.currencyCode(), t.description(), t.notes(), t.occurredAt(), t.status(), t.origin(),
+                t.recurrenceId(), t.installment(), t.destinationAmount(), t.original());
     }
 
     public static Transaction conEstado(Transaction t, TransactionStatus estado) {

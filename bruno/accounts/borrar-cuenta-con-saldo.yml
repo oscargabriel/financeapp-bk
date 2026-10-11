@@ -31,5 +31,5 @@ settings:
 docs: |
   # Una cuenta con saldo no se borra
 
-  El saldo vigente es -30000. Borrarla sacaria esa deuda del listado sin que el usuario lo haya
+  El saldo vigente es 20000. Borrarla sacaria ese saldo del listado sin que el usuario lo haya
   decidido: primero hay que dejarla en cero.

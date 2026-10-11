@@ -291,6 +291,46 @@ class UpdateAccountUseCaseTest {
                 .verify();
     }
 
+    @Test
+    void unSaldoInicialNegativoEnUnaCuentaQueNoEsDeCreditoEsUn400() {
+        guardada(AccountMother.efectivo());
+
+        StepVerifier.create(useCase().update(AccountMother.USER_ID, AccountMother.EFECTIVO_ID,
+                        new UpdateAccountCommand(null, null, new BigDecimal("-1"), null, null, null, null, null)))
+                .expectErrorSatisfies(error -> esError(error, HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR,
+                        "initialBalance"))
+                .verify();
+
+        verify(cuentas, never()).update(any(), any());
+    }
+
+    @Test
+    void bajarElSaldoInicialPorDebajoDeLoGastadoEsUn409SinCambiarNada() {
+        guardada(AccountMother.efectivo());
+
+        StepVerifier.create(useCase().update(AccountMother.USER_ID, AccountMother.EFECTIVO_ID,
+                        new UpdateAccountCommand("Bolsillo", null, new BigDecimal("100000"), null, null, null, null, null)))
+                .expectErrorSatisfies(error -> {
+                    esError(error, HttpStatus.CONFLICT, ErrorCodes.INSUFFICIENT_FUNDS, "initialBalance");
+                    assertThat(((BadRequestException) error).getErrorResponse().getErrors().get(0).getDescription())
+                            .isEqualTo("Saldo insuficiente en Efectivo: quedaría en -77500 COP");
+                })
+                .verify();
+
+        verify(cuentas, never()).update(any(), any());
+    }
+
+    @Test
+    void unaTarjetaPuedeBajarSuSaldoInicialANegativo() {
+        guardada(AccountMother.tarjetaCreada());
+        actualizacionPosible();
+
+        StepVerifier.create(useCase().update(AccountMother.USER_ID, AccountMother.tarjetaCreada().id(),
+                        new UpdateAccountCommand(null, null, new BigDecimal("-900000"), null, null, null, null, null)))
+                .expectNextCount(1)
+                .verifyComplete();
+    }
+
     private void guardada(Account cuenta) {
         when(cuentas.findActiveByIdAndUser(cuenta.id(), AccountMother.USER_ID)).thenReturn(Mono.just(cuenta));
     }

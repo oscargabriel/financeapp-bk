@@ -75,6 +75,11 @@ final class ReferenciasDelUsuario {
         return id;
     }
 
+    /** La regla del saldo no negativo sobre estas mismas cuentas, con su saldo vigente (FA-133). */
+    SaldoNoNegativo saldos() {
+        return new SaldoNoNegativo(cuentas);
+    }
+
     /** La moneda de una cuenta del usuario, activa o no. */
     String moneda(UUID cuenta) {
         return cuentas.get(cuenta).currencyCode();

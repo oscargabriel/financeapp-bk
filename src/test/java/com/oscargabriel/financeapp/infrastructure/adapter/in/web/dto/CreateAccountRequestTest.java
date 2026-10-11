@@ -19,6 +19,8 @@ class CreateAccountRequestTest {
 
     private static final String FUERA_DE_RANGO = " admite hasta 4 decimales y menos de 14 digitos enteros";
 
+    private static final String SALDO_NEGATIVO = "Solo una cuenta CREDIT puede tener saldo inicial negativo";
+
     private static final String TASA_FUERA =
             "La tasa de interes mensual va de 0 a 10, en porcentaje y con hasta 4 decimales";
 
@@ -106,6 +108,10 @@ class CreateAccountRequestTest {
                 Arguments.of("tasa fuera de rango en un debito", new CreateAccountRequest("Debito", "DEBIT", "COP",
                         null, null, null, null, new BigDecimal("50"), null), "monthlyInterestRate",
                         "Solo una cuenta CREDIT tiene tasa de interes"),
+                Arguments.of("saldo inicial negativo en un efectivo", conSaldo(new BigDecimal("-1")), "initialBalance",
+                        SALDO_NEGATIVO),
+                Arguments.of("saldo inicial negativo en un ahorro", new CreateAccountRequest("Ahorros", "SAVINGS", "COP",
+                        new BigDecimal("-1000"), null, null, null, null, null), "initialBalance", SALDO_NEGATIVO),
                 Arguments.of("saldo vigente en el cuerpo",new CreateAccountRequest("Billetera", "CASH", "COP",
                         BigDecimal.TEN, null, null, null, null, new BigDecimal("999999")), "currentBalance",
                         "El saldo vigente lo calcula el sistema; envia initialBalance"));
@@ -130,6 +136,14 @@ class CreateAccountRequestTest {
     void conElTipoInvalidoNoOpinaSobreLosCamposDeCredito() {
         assertThat(Violaciones.de(new CreateAccountRequest("Billetera", "WALLET", "COP", null,
                 new BigDecimal("1000"), 15, 5, null, null)).keySet())
+                .containsExactly("type");
+    }
+
+    /** Con el tipo invalido no se sabe si el saldo negativo sobra: ya hay un error en type. */
+    @Test
+    void conElTipoInvalidoNoOpinaSobreElSaldoInicial() {
+        assertThat(Violaciones.de(new CreateAccountRequest("Billetera", "WALLET", "COP", new BigDecimal("-1"),
+                null, null, null, null, null)).keySet())
                 .containsExactly("type");
     }
 

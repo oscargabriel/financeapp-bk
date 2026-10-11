@@ -2,6 +2,7 @@ package com.oscargabriel.financeapp.application.usecase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import lombok.AllArgsConstructor;
@@ -40,6 +41,7 @@ public class UpdateAccountUseCase implements UpdateAccountPort {
                 .flatMap(guardada -> {
                     camposDeCreditoSegunElTipo(guardada.type(), parche);
                     Account resultante = aplicar(guardada, parche);
+                    saldoSuficiente(guardada, resultante);
                     return monedaCambiable(guardada, resultante.currencyCode())
                             .then(Mono.defer(() -> cuentas.update(userId, resultante)));
                 })
@@ -69,14 +71,27 @@ public class UpdateAccountUseCase implements UpdateAccountPort {
     }
 
     /**
-     * El alta lo decide con el tipo del cuerpo (CamposDeCredito); el parche no trae tipo, asi que
-     * se decide con el guardado. Lanza dentro del flatMap, que lo convierte en senal de error.
+     * Bajar el saldo inicial corre el vigente en la misma diferencia: no puede dejarlo por debajo de cero en una cuenta
+     * que no es de credito (FA-133). Va antes del update, asi que no se escribe ningun campo del parche.
+     */
+    private static void saldoSuficiente(Account guardada, Account resultante) {
+        new SaldoNoNegativo(Map.of(guardada.id(), guardada)).exigir(
+                Map.of(guardada.id(), resultante.initialBalance().subtract(guardada.initialBalance())),
+                "initialBalance");
+    }
+
+    /**
+     * El alta lo decide con el tipo del cuerpo (CamposDeCredito y SaldoInicialSegunElTipo); el parche no trae tipo,
+     * asi que se decide con el guardado. Lanza dentro del flatMap, que lo convierte en senal de error.
      */
     private static void camposDeCreditoSegunElTipo(AccountType tipo, UpdateAccountCommand parche) {
         if (tipo == AccountType.CREDIT) {
             return;
         }
         List<ErrorDetail> errores = new ArrayList<>();
+        if (parche.initialBalance() != null && parche.initialBalance().signum() < 0) {
+            errores.add(invalido("Solo una cuenta CREDIT puede tener saldo inicial negativo", "initialBalance"));
+        }
         if (parche.creditLimit() != null) {
             errores.add(invalido("Solo una cuenta CREDIT tiene cupo", "creditLimit"));
         }
