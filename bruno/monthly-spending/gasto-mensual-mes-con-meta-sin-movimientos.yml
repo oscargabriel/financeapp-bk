@@ -30,6 +30,7 @@ runtime:
           const mes = res.getBody()[0];
           expect(mes.periodMonth).to.equal(bru.getVar("mesSiguiente"));
           expect(mes.totalSpent).to.equal(0);
+          expect(mes.totalIncome).to.equal(0);
           expect(mes.transactionCount).to.equal(0);
           expect(mes.budgetAmount).to.equal(2000000);
           expect(mes.remaining).to.equal(2000000);
@@ -51,7 +52,7 @@ docs: |
 
   La otra mitad de la distincion entre `null` y cero. El mes siguiente del escenario tiene meta
   global de 2.000.000 y ningun movimiento, asi que llega por el lado del `FULL OUTER JOIN` que
-  aporta la meta: `totalSpent` y `transactionCount` en cero, `remaining` igual a la meta completa
+  aporta la meta: `totalSpent`, `totalIncome` y `transactionCount` en cero, `remaining` igual a la meta completa
   y `percentUsed` en 0. Comparar con el mes sin meta de "Gasto mensual (rango por defecto)", donde
   esos tres campos viajan en `null`.
 

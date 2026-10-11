@@ -47,6 +47,7 @@ runtime:
             expect(m.periodMonth).to.match(/^[0-9]{4}-[0-9]{2}$/);
             expect(m.currencyCode).to.equal("COP");
             expect(m.totalSpent).to.be.a("number");
+            expect(m.totalIncome).to.be.a("number");
             expect(m.transactionCount).to.be.a("number");
           });
         });
@@ -93,6 +94,19 @@ runtime:
           expect(mes.transactionCount).to.equal(3);
         });
 
+        test("cada mes trae sus ingresos: el salario, y en el mes en curso tambien el freelance", function() {
+          const meses = porMes();
+          expect(meses[bru.getVar("mesActual")].totalIncome).to.equal(4500000 + 800000);
+          expect(meses[bru.getVar("mesAnterior")].totalIncome).to.equal(4500000);
+          expect(meses[bru.getVar("mesDosAtras")].totalIncome).to.equal(4500000);
+        });
+
+        test("las transferencias del mes en curso no suman a los ingresos", function() {
+          // Entran a la cuenta de debito el retiro de 300.000 y el cambio de 100 USD por 410.000:
+          // si la vista los tomara como ingresos, el mes subiria de 5.300.000.
+          expect(porMes()[bru.getVar("mesActual")].totalIncome).to.equal(5300000);
+        });
+
 settings:
   encodeUrl: true
   timeout: 0
@@ -107,11 +121,13 @@ docs: |
 
       [{ "periodMonth": "2026-09", "currencyCode": "COP", "totalSpent": 1905500,
          "budgetAmount": 2000000, "remaining": 94500, "percentUsed": 95.28,
-         "transactionCount": 11 }]
+         "transactionCount": 11, "totalIncome": 5300000 }]
 
   Sin `from` ni `to` devuelve los doce meses que terminan en el mes en curso, del mas reciente al
   mas antiguo. `budgetAmount`, `remaining` y `percentUsed` viajan en `null` cuando ese mes no
-  tiene meta global: null es "no configuro meta", que no es lo mismo que cero.
+  tiene meta global: null es "no configuro meta", que no es lo mismo que cero. `totalIncome` suma
+  los INCOME del mes con las mismas reglas que `totalSpent` (FA-132); `transactionCount` sigue
+  contando solo los gastos.
 
   Requiere haber cargado el escenario de `docs/database/test-data.sql`. Los numeros de los tests
   salen de ahi y son la unica verificacion automatica que tiene el SQL de la vista: el calculo de

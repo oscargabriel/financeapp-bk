@@ -14,7 +14,7 @@ public final class MonthlySpendingMother {
     private MonthlySpendingMother() {
     }
 
-    /** Mes con meta definida: 1.905.500 gastados sobre una meta de 2.000.000. */
+    /** Mes con meta definida: 1.905.500 gastados sobre una meta de 2.000.000, y 5.300.000 de ingresos. */
     public static MonthlySpending unMesConMeta(YearMonth mes) {
         return new MonthlySpending(
                 mes,
@@ -23,11 +23,13 @@ public final class MonthlySpendingMother {
                 new BigDecimal("2000000.00"),
                 new BigDecimal("94500.00"),
                 new BigDecimal("95.28"),
-                13L);
+                13L,
+                new BigDecimal("5300000.00"));
     }
 
     /** Mes sin meta: los tres campos que dependen del presupuesto viajan en null. */
     public static MonthlySpending unMesSinMeta(YearMonth mes) {
-        return new MonthlySpending(mes, "COP", new BigDecimal("320000.00"), null, null, null, 4L);
+        return new MonthlySpending(mes, "COP", new BigDecimal("320000.00"), null, null, null, 4L,
+                new BigDecimal("4500000.00"));
     }
 }

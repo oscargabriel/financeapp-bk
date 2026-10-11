@@ -1,0 +1,29 @@
+info:
+  name: Persona en USD — ingreso programado fuera del gasto mensual
+  type: http
+  seq: 58
+
+http:
+  method: GET
+  url: "{{baseUrl}}/monthly-spending?from={{usdMesSiguiente}}&to={{usdMesSiguiente}}"
+  auth:
+    type: bearer
+    token: "{{tokenUsd}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: isEmpty
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  El mes siguiente solo tiene el salario programado de "ingresos en pesos". Como no ha ocurrido no
+  cuenta, y sin gastos ni meta el mes no viene.

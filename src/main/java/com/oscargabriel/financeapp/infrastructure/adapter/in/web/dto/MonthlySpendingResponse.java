@@ -11,7 +11,8 @@ public record MonthlySpendingResponse(
         BigDecimal budgetAmount,
         BigDecimal remaining,
         BigDecimal percentUsed,
-        long transactionCount) {
+        long transactionCount,
+        BigDecimal totalIncome) {
 
     public static MonthlySpendingResponse from(MonthlySpending monthlySpending) {
         return new MonthlySpendingResponse(
@@ -21,6 +22,7 @@ public record MonthlySpendingResponse(
                 monthlySpending.budgetAmount(),
                 monthlySpending.remaining(),
                 monthlySpending.percentUsed(),
-                monthlySpending.transactionCount());
+                monthlySpending.transactionCount(),
+                monthlySpending.totalIncome());
     }
 }

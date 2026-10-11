@@ -402,10 +402,10 @@ usar el primero.
 
 ### `v_monthly_spending`
 
-Una fila por usuario y mes.
+Una fila por usuario y mes con gastos, ingresos o meta.
 
 ```
-user_id | period_month | currency_code | total_spent | budget_amount | remaining | percent_used | transaction_count
+user_id | period_month | currency_code | total_spent | budget_amount | remaining | percent_used | transaction_count | total_income
 ```
 
 ```sql
@@ -414,12 +414,17 @@ SELECT * FROM finance.v_monthly_spending
    AND period_month = date_trunc('month', CURRENT_DATE)::date;
 ```
 
-`total_spent` y `currency_code` están en la moneda de la persona: la vista suma
-`finance.in_currency` (ver *Multi-moneda*), igual que la meta.
+`total_spent`, `total_income` y `currency_code` están en la moneda de la persona:
+la vista suma `finance.in_currency` (ver *Multi-moneda*), igual que la meta.
+
+`total_income` suma los `INCOME` con el mismo `WHERE` que los gastos —confirmados,
+ya ocurridos, mes en la zona del usuario— (FA-132). `transaction_count` cuenta
+solo los `EXPENSE`.
 
 `budget_amount`, `remaining` y `percent_used` son `NULL` cuando el mes no tiene
 meta definida — no cero, para poder distinguir «no configuró meta» de «su meta es
-cero». Un mes con meta y sin gastos aparece igual, con `total_spent = 0`.
+cero». Un mes con meta o con ingresos y sin gastos aparece igual, con
+`total_spent = 0`.
 
 ### `v_monthly_spending_by_category`
 

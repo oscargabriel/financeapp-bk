@@ -27,7 +27,8 @@ public class MonthlySpendingR2dbcAdapter implements MonthlySpendingQueryPort {
                    budget_amount,
                    remaining,
                    percent_used,
-                   transaction_count
+                   transaction_count,
+                   total_income
               FROM finance.v_monthly_spending
              WHERE user_id = :userId
                AND period_month BETWEEN :from AND :to
@@ -54,6 +55,7 @@ public class MonthlySpendingR2dbcAdapter implements MonthlySpendingQueryPort {
                 row.get("budget_amount", BigDecimal.class),
                 row.get("remaining", BigDecimal.class),
                 row.get("percent_used", BigDecimal.class),
-                row.get("transaction_count", Long.class));
+                row.get("transaction_count", Long.class),
+                row.get("total_income", BigDecimal.class));
     }
 }
