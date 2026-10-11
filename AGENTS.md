@@ -4,7 +4,7 @@ Guía del proyecto para cualquier agente de código y para quien lo lea. Lo prop
 va en su carpeta (`.claude/rules/` para Claude Code); aquí solo lo que vale para todas.
 
 Backend de finanzas personales. Java 25 + Spring Boot 4.1.1 (WebFlux), R2DBC contra PostgreSQL 18,
-Gradle 9.7.1 con wrapper. Arquitectura hexagonal. Se construye por etapas. La base de producción es
+Gradle 9.7.1 con wrapper, multi-proyecto. Arquitectura hexagonal dentro de cada módulo. Se construye por etapas. La base de producción es
 Neon (PostgreSQL 18 administrado), y la app corre en Cloud Run: ver *Despliegue*.
 
 ## Comandos
@@ -14,13 +14,17 @@ Shell habitual: PowerShell 7. En Git Bash, `./gradlew` equivalente.
 ```powershell
 .\gradlew.bat build                 # compila, corre la suite y exige el umbral de cobertura
 .\gradlew.bat test                  # solo tests — no necesita Docker ni base
-$env:SPRING_PROFILES_ACTIVE = 'local'; .\gradlew.bat bootRun   # levanta la app; sin perfil no arranca
+$env:SPRING_PROFILES_ACTIVE = 'local'; .\gradlew.bat :app:bootRun   # levanta la app; sin perfil no arranca
 
-.\gradlew.bat test --tests "*MonthlySpendingIT"                        # una clase
-.\gradlew.bat test --tests "*MonthlySpendingIT.devuelve401*"           # un método
+.\gradlew.bat :core:test                                               # la suite de un módulo
+.\gradlew.bat :app:test --tests "*MonthlySpendingIT"                   # una clase
+.\gradlew.bat :app:test --tests "*MonthlySpendingIT.devuelve401*"      # un método
 
 docker build -f deployment/Dockerfile -t financeapp-bk .   # la imagen de Cloud Run, desde la raíz
 ```
+
+`--tests` va con el módulo delante: sin él, Gradle aplica el filtro a los cuatro y falla en los que
+no tienen esa clase.
 
 **No hay checkstyle ni linter configurado** en `build.gradle`. La verificación es la suite más la
 colección Bruno; no prometas un paso de lint que no existe.
@@ -84,7 +88,33 @@ cierre solo con Gradle en verde no está verificada.
 
 ## Arquitectura
 
-Hexagonal estricta en tres paquetes bajo `com.oscargabriel.financeapp`:
+### Módulos
+
+Cuatro subproyectos de Gradle que se ensamblan en una sola aplicación: una imagen y un servicio de
+Cloud Run (FA-148). El porqué de cada corte está en el `design.md` del change archivado de FA-148.
+
+| Módulo | Qué tiene | Depende de |
+|---|---|---|
+| `core` | Finanzas: todo lo que atiende al front | `compartido` |
+| `ia` | El asistente: modelo de lenguaje, sus lecturas y su endpoint | `compartido` |
+| `compartido` | Errores (`ErrorCodes`, `BadRequestException`, `WebExceptionHandler`), las dos cadenas de seguridad, la trazabilidad y el `Clock` | — |
+| `app` | El `main`, la conexión R2DBC, `application.yaml`, los `*IT` y los **puentes** entre módulos | los tres |
+
+Un módulo de negocio **no depende de otro**. Lo que `ia` necesita del core lo declara como puerto de
+salida propio, y el adaptador que lo cumple llamando a un puerto de entrada del core vive en
+`app/…/app/puente/`. Así el límite lo hace cumplir el compilador: un import del core desde `ia` no
+compila. Los puentes solo traducen; si uno empieza a decidir algo, esa regla es de un módulo.
+
+Para agregar un módulo (Telegram será el primero): carpeta en la raíz con su `build.gradle`
+(`java-library`, `implementation project(':compartido')`), `include` en `settings.gradle`, una
+`implementation project(...)` en `app`, sus paquetes bajo `com.oscargabriel.financeapp.<modulo>`, y
+en `src/test` una `@SpringBootApplication(scanBasePackages = "com.oscargabriel.financeapp")` si va
+a tener `@WebFluxTest` (ver `core/…/ConfiguracionDeSlices`). El Dockerfile y `.dockerignore`
+nombran cada módulo: hay que agregarlo en los dos.
+
+### Capas dentro de cada módulo
+
+Hexagonal estricta en tres paquetes bajo `com.oscargabriel.financeapp.<modulo>`:
 
 ```
 domain/          model, port/in, port/out, exceptions   ← sin Spring (salvo Reactor)
@@ -219,7 +249,9 @@ pasen por `boundedElastic`.
   emitir tokens que el propio API no acepta. El decoder valida además expiración y emisor.
 - Preferir `@Value` sobre inyectar `Environment`.
 
-`src/main/resources/application-local.yaml` no se versiona y tiene las credenciales reales. No hay
+`app/src/main/resources/application-local.yaml` no se versiona y tiene las credenciales reales
+(hasta FA-148 vivía en `src/main/resources/`: una copia vieja del repo hay que moverla a mano, junto
+con `application-prod.yaml`). No hay
 archivo de ejemplo: se borró el 15-09-2026 porque se quedaba viejo cada vez que aparecía una clave
 nueva. Estas son las que el perfil local necesita, y este párrafo es el que hay que actualizar
 cuando cambien:
@@ -254,10 +286,16 @@ corre todos, y ninguno necesita base ni Docker.
   PostgreSQL real; no vuelvas a introducir `@Testcontainers` sin cambiar esta decisión.
 - Web con servidor real: `@SpringBootTest(webEnvironment = RANDOM_PORT)` + `WebTestClient`.
 - Reactivo: `StepVerifier`, no `block()`.
-- Datos de prueba: Object Mother en `src/test/java/.../support/`.
+- Datos de prueba: Object Mother en el `src/test/java/.../support/` de cada módulo. Lo que usan
+  varios módulos (`TokenMother`, `BasicMother`, `RelojFijo`, `Violaciones`) está en los test
+  fixtures de `compartido` (`compartido/src/testFixtures/`), que cada módulo recibe con
+  `testImplementation testFixtures(project(':compartido'))`.
+- Los tests van con el módulo de la clase que prueban. Los `*IT` y lo que lee `application.yaml`
+  van en `app`, el único que ensambla la aplicación entera.
 
-`src/test/resources/application.yaml` **reemplaza por completo** al de `main` en el classpath de
-test. Toda propiedad nueva que un bean exija con `@Value` hay que replicarla ahí o el contexto
+El `application.yaml` de test es uno solo, `compartido/src/testFixtures/resources/application.yaml`,
+y **reemplaza por completo** al de `main` en el classpath de test. En `app` lo copia
+`processTestResources` a los recursos de test, porque si no el de `main` iría antes en el classpath. Toda propiedad nueva que un bean exija con `@Value` hay que replicarla ahí o el contexto
 revienta con `PlaceholderResolutionException`. Su R2DBC apunta a `localhost:65535` a propósito, y
 **nada sobrescribe esa URL**: cualquier test que intente hablar con
 la base falla por diseño. Si necesitas ejercitar una consulta, el lugar es `bruno/`.
@@ -268,16 +306,18 @@ cualquier cambio en la configuración que va a Cloud Run.
 
 ### Cobertura
 
-JaCoCo mide sobre la suite de Gradle. El reporte queda en
-`build/reports/jacoco/test/html/index.html` (ábrelo en el navegador; el XML del mismo directorio
-es para herramientas). Se regenera solo: `test` lo produce como paso final.
+JaCoCo mide sobre la suite de Gradle, **agregada sobre los cuatro módulos**: `compartido` lo
+ejercitan sobre todo los tests de los otros, y un umbral por módulo no diría nada. El reporte queda
+en `app/build/reports/jacoco/testCodeCoverageReport/html/index.html` (ábrelo en el navegador; el
+XML del mismo directorio es para herramientas). Se regenera solo: `:app:test` lo produce como paso
+final.
 
-El umbral es **85 % de línea** y lo exige `jacocoTestCoverageVerification`, colgado de `check`.
-Es decir: `gradlew test` mide y deja el reporte, **`gradlew build` es el que falla** si se baja del
-umbral. El mensaje del fallo dice el ratio real y el mínimo esperado.
+El umbral es **85 % de línea** y lo exige `testCodeCoverageVerification` de `app`, colgado de
+`check`. Es decir: `gradlew test` mide y deja el reporte, **`gradlew build` es el que falla** si se
+baja del umbral. El mensaje del fallo dice el ratio real y el mínimo esperado.
 
-Quedan fuera del cálculo dos patrones, listados en `build.gradle` con el porqué:
-`FinanceappBkApplication` (el `main`) y `*R2dbcAdapter` (todos los adapters R2DBC: los verifica
+Quedan fuera del cálculo dos patrones, listados en `app/build.gradle` con el porqué:
+`FinanceappBkApplication` (el `main`) y `*R2dbcAdapter` (los adapters R2DBC de cualquier módulo: los verifica
 `bruno/`, y la suite no tiene base). **Los DTOs y la configuración sí cuentan** — están entre el
 90 y el 100 %, y excluirlos, como suele hacerse por inercia, solo bajaría el número y escondería
 el dato.
@@ -346,7 +386,7 @@ la siguiente recarga.
 local se corre `cargar-datos-local.sql`. El encabezado del update lo dice, y el PR lo destaca para
 que el front sepa que sus datos se reiniciaron. En Neon no aplica: ahí no hay datos de prueba.
 
-`src/test/resources/db/monthly-spending-fixture.sql` quedó sin uso al salir Testcontainers. Se
+`core/src/test/resources/db/monthly-spending-fixture.sql` quedó sin uso al salir Testcontainers. Se
 conserva porque sus fechas absolutas y su segundo usuario son la base del escenario que falta
 montar en Bruno.
 
@@ -372,8 +412,9 @@ revertir es revertir el commit en `main`, no mover el tráfico. El detalle, el d
 están en `docs/despliegue.md`.
 
 - El contexto del build es la **raíz del repo**, no `deployment/`. El `.dockerignore` de la raíz es
-  una **lista de lo permitido** (`gradlew`, `gradle/`, `build.gradle`, `settings.gradle`, `src/`),
-  que además excluye los dos yaml sin versionar. Un archivo nuevo que el build necesite fuera de
+  una **lista de lo permitido** (`gradlew`, `gradle/`, `build.gradle`, `settings.gradle` y la
+  carpeta de cada módulo), que además excluye los `build/` de los módulos y los dos yaml sin
+  versionar. Un archivo nuevo que el build necesite fuera de
   esas rutas hay que agregarlo ahí, o el `COPY` falla.
 - La etapa de compilación corre `./gradlew build`, no solo `bootJar`: un test rojo o la cobertura
   por debajo del umbral no producen imagen, y nada se despliega.

@@ -1,0 +1,22 @@
+plugins {
+	id 'java-library'
+	id 'java-test-fixtures'
+}
+
+// api y no implementation: los modulos de negocio escriben controladores y leen el token con
+// estas mismas piezas, asi que las reciben de aqui en vez de declararlas cada uno.
+dependencies {
+	api 'org.springframework.boot:spring-boot-starter-webflux'
+	api 'org.springframework.boot:spring-boot-starter-validation'
+	api 'org.springframework.boot:spring-boot-starter-security'
+	// Los dos modulos de Spring Security, no el starter de Boot: la autoconfiguracion de este
+	// ultimo se cuelga de spring.security.oauth2.resourceserver.*, que esta aplicacion no usa
+	// porque declara su propio decoder con la misma clave con la que firma.
+	//   jose            -> JwtEncoder, para emitir el token en el login
+	//   resource-server -> la validacion del Bearer en la cadena de seguridad
+	api 'org.springframework.security:spring-security-oauth2-jose'
+	api 'org.springframework.security:spring-security-oauth2-resource-server'
+
+	// RelojFijo es una @TestConfiguration.
+	testFixturesImplementation 'org.springframework.boot:spring-boot-test'
+}

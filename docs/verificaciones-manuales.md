@@ -28,7 +28,7 @@ justo la decisión que se revirtió el 14-09-2026.
 contra el PostgreSQL local:
 
 ```powershell
-.\gradlew.bat bootRun
+.\gradlew.bat :app:bootRun
 ```
 
 Salida esperada — **el chequeo no dice nada cuando pasa**, su silencio es la señal:
@@ -51,7 +51,7 @@ base real sin avisar.
 
 ```powershell
 $env:SPRING_R2DBC_URL = "r2dbc:postgresql://localhost:65535/financeapp"
-.\gradlew.bat bootRun
+.\gradlew.bat :app:bootRun
 Remove-Item Env:\SPRING_R2DBC_URL
 ```
 

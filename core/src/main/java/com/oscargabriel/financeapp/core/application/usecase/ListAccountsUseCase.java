@@ -1,0 +1,25 @@
+package com.oscargabriel.financeapp.core.application.usecase;
+
+import java.util.UUID;
+
+import lombok.AllArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import com.oscargabriel.financeapp.core.domain.model.Account;
+import com.oscargabriel.financeapp.core.domain.port.in.ListAccountsPort;
+import com.oscargabriel.financeapp.core.domain.port.out.AccountQueryPort;
+
+import reactor.core.publisher.Flux;
+
+@Service
+@AllArgsConstructor
+public class ListAccountsUseCase implements ListAccountsPort {
+
+    private final AccountQueryPort query;
+    private final SeriesAlDia alDia;
+
+    @Override
+    public Flux<Account> list(UUID userId, boolean includeInactive) {
+        return alDia.ponerAlDia(userId).thenMany(Flux.defer(() -> query.findByUser(userId, includeInactive)));
+    }
+}

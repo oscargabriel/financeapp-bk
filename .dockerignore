@@ -6,8 +6,14 @@
 !gradle/
 !build.gradle
 !settings.gradle
-!src/
+!compartido/
+!core/
+!ia/
+!app/
 
-# Estan dentro de src/ pero no se versionan y llevan credenciales reales.
+# Lo que Gradle deja dentro de cada modulo: la imagen compila desde cero.
+**/build/
+
+# Estan dentro de app/src/ pero no se versionan y llevan credenciales reales.
 **/application-local.yaml
 **/application-prod.yaml

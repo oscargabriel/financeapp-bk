@@ -1,0 +1,28 @@
+package com.oscargabriel.financeapp.core.infrastructure.adapter.out.persistence;
+
+import lombok.AllArgsConstructor;
+import org.springframework.r2dbc.core.DatabaseClient;
+import org.springframework.stereotype.Component;
+
+import com.oscargabriel.financeapp.core.domain.port.out.HealthCheckPort;
+
+import reactor.core.publisher.Mono;
+
+@Component
+@AllArgsConstructor
+public class PostgresHealthCheckAdapter implements HealthCheckPort {
+
+    private static final String SERVICE_NAME = "postgres";
+
+    private final DatabaseClient databaseClient;
+
+    @Override
+    public String serviceName() {
+        return SERVICE_NAME;
+    }
+
+    @Override
+    public Mono<Void> ping() {
+        return databaseClient.sql("SELECT 1").fetch().first().then();
+    }
+}

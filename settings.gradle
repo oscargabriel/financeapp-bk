@@ -1,1 +1,6 @@
 rootProject.name = 'financeapp-bk'
+
+// compartido: errores, seguridad, trazabilidad y reloj, comunes a los modulos de negocio.
+// core: finanzas, lo que atiende al front. ia: el asistente; no depende de core.
+// app: el main, la configuracion de arranque y los puentes entre ia y core (FA-148).
+include 'compartido', 'core', 'ia', 'app'
