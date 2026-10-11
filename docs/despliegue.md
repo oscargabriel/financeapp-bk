@@ -3,9 +3,10 @@
 Cloud Run (`financeapp-bk-git`, región `europe-west1`) contra Neon. Los dos en plan gratuito y con
 escala a 0: hay un solo usuario.
 
-**Estado al 05-10-2026:** el servicio corre la app. El primer despliegue fue el del merge de `dev`
-a `main` (PR #29, commit `b163a65`, revisión `financeapp-bk-git-00006-dqs`). Neon tiene el esquema
-de `schema.sql` con todos los `update/` hasta `20261005_02` (ver el registro).
+**Estado al 11-10-2026:** el servicio corre el merge de `dev` a `main` del PR #64 (commit
+`4894df2`, revisión `financeapp-bk-git-00010-dj8`, FA-128). El anterior era el del PR #29
+(`b163a65`, 05-10-2026). Neon se recreó vacío el 10-10-2026 con `schema.sql` de `de1f996`, que
+incluye todos los `update/` hasta `20261010_02` (ver el registro).
 
 ## Base de datos (Neon)
 
@@ -73,7 +74,7 @@ y compara su estructura con la de Neon. Con `$hasta` en el último update del re
 resultado es el `schema.sql` que Neon debería tener. Necesita Docker y la conexión de arriba.
 
 ```powershell
-$hasta = '20261005_02'   # AAAAMMDD_NN del último update aplicado en Neon, según el registro
+$hasta = '20261010_02'   # AAAAMMDD_NN del último update aplicado en Neon, según el registro
 $ruido = 'restrict |Dumped from database version'   # cambia en cada volcado o según el build del servidor
 function Volcar($db) {
     pg_dump --schema-only --no-owner --no-privileges -n finance $db |
@@ -119,7 +120,8 @@ diferencia, hay un update aplicado que no está en el registro, o uno del regist
    - *Después*: se aplica cuando el pipeline haya desplegado el commit.
      `gcloud run revisions list --service financeapp-bk-git --region europe-west1` muestra la
      etiqueta `commit-sha` de cada revisión.
-   - Si el encabezado pide un paso previo, ese paso va aquí. Por ejemplo,
+   - Si el encabezado pide un paso previo, ese paso va aquí. Por ejemplo (los dos casos que
+     siguen ya no están pendientes: la base recreada en FA-128 los incluye),
      `20261010_01_moneda_del_servicio.sql` (FA-122) va **inmediatamente después** del despliegue y
      necesita que antes exista una tasa `USD→COP`. Se obtiene pidiendo
      `GET /api/exchange-rates?from=USD&to=COP&date=<hoy>` al servicio con un token. Sin esa tasa,
@@ -155,9 +157,12 @@ verdad.
 
 | Update | Aplicado en Neon | Notas |
 |---|---|---|
-| Línea base (`schema.sql` y `seed.sql` de `00c3b63`) | Antes del primer despliegue (05-10-2026) | Comparada el 05-10-2026: sin diferencias. Sin datos de `test-data.sql` |
-| `20261005_02_cuentas_saldo_inicial_editable.sql` | 05-10-2026 (FA-49) | Antes de promover FA-24, como pide su encabezado |
-| `20261005_01_categorias_icono_color_obligatorios.sql` | 05-10-2026 (FA-49) | Antes de FA-66 en `main`, aunque su encabezado dice "después": el riesgo que nombra es un alta de categorías sin icono, y la app de `main` no da de alta categorías. No cambió filas |
+| Base recreada: `schema.sql` de `de1f996` y `seed.sql` de `00c3b63` | 10-10-2026 (FA-128), antes del merge del PR #64 | Decisión del usuario: borró las tablas y las recreó desde el editor SQL de Neon en vez de aplicar los ocho updates de `20261008_01` a `20261010_02`, para no arrastrar datos viejos. Ese `schema.sql` ya los incluye todos, así que no se aplicó ninguno encima. Comparada por nombre en el mismo editor (tablas, vistas, funciones y triggers de `schema.sql`): sin faltantes ni sobrantes. 9 monedas, 22 categorías semilla, 0 usuarios de prueba |
+
+El registro anterior (línea base de `00c3b63` más `20261005_01` y `20261005_02`, 05-10-2026) quedó
+sin efecto con la recreación; está en la historia de git de este archivo. El script de comparación
+sigue partiendo de `00c3b63` más los updates: con `$hasta = '20261010_02'` reproduce el
+`schema.sql` cargado.
 
 ### Correos admitidos
 
@@ -179,13 +184,6 @@ psql -X -c "SELECT entry, created_at FROM finance.registration_allowlist ORDER B
 
 Una entrada sin nada antes de la `@` (`@correo.com`) admite **cualquier** cuenta de ese dominio.
 En producción solo van correos exactos: una fila `@gmail.com` abriría el registro a todo Gmail.
-
-**Al promover FA-103 a `main`:**
-
-1. Aplicar `20261009_01_registro_lista_admitidos.sql` antes del merge, como pide su encabezado. La
-   app nueva sin la tabla responde 500 en el alta.
-2. Insertar los correos invitados. La tabla nace vacía, así que hasta ese momento nadie puede
-   registrarse; el dueño ya tiene cuenta y su login no cambia.
 
 ### Respaldo
 
@@ -310,6 +308,11 @@ la imagen de `deployment/Dockerfile`, ver abajo).
 | `basic-username` | `BASIC_USERNAME` | `spring.security.basic.username` | Usuario de la credencial compartida de `/auth/register`, `/auth/login` y `/status` |
 | `basic-password` | `BASIC_PASSWORD` | `spring.security.basic.password` | Su contraseña |
 | `gemini-api-key` | `GEMINI_API_KEY` | `asistente.gemini.api-key` | Key de Google AI Studio para el asistente (FA-77). Hoy es la misma que la de local (decisión del 10-10-2026, FA-100) |
+
+Comparadas el 10-10-2026 (FA-128) con `application.yaml` de `dev`: el servicio tiene las nueve
+propiedades sin default (las seis de esta tabla que lo son, más `SPRING_PROFILES_ACTIVE`,
+`CORS_ALLOWED_ORIGINS` y `GEMINI_MODEL` de la siguiente), y también `DB_HOST`, `DB_PORT` y `DB_NAME`,
+que tienen default pero apuntarían a `localhost`. Ningún `@Value` del código pide otra sin default.
 
 Si falta cualquiera de estas variables, la revisión no arranca y el log dice
 `Could not resolve placeholder '<VARIABLE>'`. Con `DB_USERNAME` y `DB_PASSWORD` pasa lo mismo, aunque
