@@ -42,7 +42,7 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | `GET` | `/api/installment-purchases` | Bearer | Compras con cuotas por venir |
 | `PATCH` | `/api/installment-purchases/{id}` | Bearer | Modificar una compra, en sus cuotas futuras o en todas |
 | `DELETE` | `/api/installment-purchases/{id}` | Bearer | Cancelar las cuotas que faltan |
-| `GET` | `/api/monthly-spending` | Bearer | Gasto mensual contra la meta |
+| `GET` | `/api/monthly-spending` | Bearer | Gasto e ingreso mensual, y el gasto contra la meta |
 | `GET` | `/api/reports/transactions` | Bearer | Movimientos y totales de un rango de días |
 | `GET` | `/api/reports/balance` | Bearer | Ingresos menos gastos de un rango y de siempre, con las cuentas |
 | `POST` | `/api/assistant/messages` | Bearer | Registrar o consultar con un mensaje en lenguaje natural |
@@ -1448,7 +1448,8 @@ de la lista. El capital de las cuotas borradas vuelve al cupo. No lleva `scope`.
 
 ### `GET /api/monthly-spending`
 
-Gasto por mes del usuario del token comparado con su meta mensual. **Bearer.**
+Gasto e ingreso por mes del usuario del token, con el gasto comparado con su meta mensual.
+**Bearer.**
 
 **Query params**
 
@@ -1475,7 +1476,8 @@ extremos. Errores 400 `VALIDATION_ERROR`:
     "budgetAmount": 2500000.0000,
     "remaining": 670000.0000,
     "percentUsed": 73.20,
-    "transactionCount": 42
+    "transactionCount": 42,
+    "totalIncome": 5300000.0000
   },
   {
     "periodMonth": "2026-08",
@@ -1484,7 +1486,18 @@ extremos. Errores 400 `VALIDATION_ERROR`:
     "budgetAmount": null,
     "remaining": null,
     "percentUsed": null,
-    "transactionCount": 37
+    "transactionCount": 37,
+    "totalIncome": 4500000.0000
+  },
+  {
+    "periodMonth": "2026-07",
+    "currencyCode": "COP",
+    "totalSpent": 0,
+    "budgetAmount": null,
+    "remaining": null,
+    "percentUsed": null,
+    "transactionCount": 0,
+    "totalIncome": 4500000.0000
   }
 ]
 ```
@@ -1492,18 +1505,19 @@ extremos. Errores 400 `VALIDATION_ERROR`:
 | Campo | Significado |
 |---|---|
 | `totalSpent` | Suma de los gastos (`EXPENSE`) confirmados del mes que ya ocurrieron, en la moneda base del usuario con la misma regla que `amountBase` del reporte de movimientos. Ingresos, transferencias, pendientes y programados no cuentan |
+| `totalIncome` | Suma de los ingresos (`INCOME`) del mes con las mismas reglas que `totalSpent`: confirmados, ya ocurridos, en la moneda base del usuario. Gastos, transferencias, pendientes y programados no cuentan |
 | `budgetAmount` | Meta de gasto total del mes, o `null` si no hay |
 | `remaining` | `budgetAmount - totalSpent`. Negativo si se pasó de la meta. `null` sin meta |
 | `percentUsed` | Porcentaje consumido de la meta, con 2 decimales. Puede pasar de 100. `null` sin meta |
 | `currencyCode` | La moneda base del usuario |
-| `transactionCount` | Cuántos gastos tuvo el mes |
+| `transactionCount` | Cuántos gastos tuvo el mes. Los ingresos no cuentan |
 
 **A tener en cuenta**
 
-- **Los meses vacíos no vienen.** Un mes sin gastos y sin meta no aparece en el arreglo. Si el
-  frontend dibuja una serie continua, tiene que rellenar los huecos con cero. Un mes con meta y
-  sin gastos sí viene, con `totalSpent: 0`.
-- El mes de cada gasto se decide con la **zona horaria del usuario** (la del registro), no con la
+- **Los meses vacíos no vienen.** Un mes sin gastos, sin ingresos y sin meta no aparece en el
+  arreglo. Si el frontend dibuja una serie continua, tiene que rellenar los huecos con cero. Un mes
+  con meta o con ingresos y sin gastos sí viene, con `totalSpent: 0` (FA-132).
+- El mes de cada movimiento se decide con la **zona horaria del usuario** (la del registro), no con la
   del servidor ni la del navegador. Un gasto del 31 a las 23:00 en Bogotá es de ese mes aunque en
   UTC ya sea el siguiente.
 - Hoy el API no tiene endpoint para crear metas, así que `budgetAmount` llega `null` hasta que se

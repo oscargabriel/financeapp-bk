@@ -731,6 +731,9 @@ CREATE TRIGGER trg_budgets_updated_at
 --   * El mes se corta en la zona horaria del usuario.
 --   * FULL OUTER JOIN contra budgets: un mes con meta y sin gastos aparece con
 --     total 0, y un mes con gastos y sin meta aparece con budget_amount NULL.
+--   * v_monthly_spending suma además los INCOME en total_income (FA-132), con
+--     el mismo WHERE que los gastos: un mes con solo ingresos aparece con
+--     total_spent 0. transaction_count sigue contando solo los EXPENSE.
 -- =============================================================================
 
 CREATE OR REPLACE VIEW finance.v_monthly_spending AS
@@ -738,11 +741,15 @@ WITH spent AS (
     SELECT t.user_id,
            date_trunc('month', t.occurred_at AT TIME ZONE u.timezone)::date AS period_month,
            SUM(finance.in_currency(u.base_currency_code, t.currency_code, t.amount, t.amount_base,
-                                 (t.occurred_at AT TIME ZONE u.timezone)::date))     AS total_spent,
-           COUNT(*)                                                         AS transaction_count
+                                 (t.occurred_at AT TIME ZONE u.timezone)::date))
+               FILTER (WHERE t.type = 'EXPENSE')                            AS total_spent,
+           SUM(finance.in_currency(u.base_currency_code, t.currency_code, t.amount, t.amount_base,
+                                 (t.occurred_at AT TIME ZONE u.timezone)::date))
+               FILTER (WHERE t.type = 'INCOME')                             AS total_income,
+           COUNT(*) FILTER (WHERE t.type = 'EXPENSE')                       AS transaction_count
       FROM finance.transactions t
       JOIN finance.users u ON u.id = t.user_id
-     WHERE t.type = 'EXPENSE'
+     WHERE t.type IN ('EXPENSE', 'INCOME')
        AND t.status = 'CONFIRMED'
        AND t.occurred_at <= now()
      GROUP BY t.user_id, 2
@@ -763,7 +770,8 @@ SELECT COALESCE(s.user_id, b.user_id)               AS user_id,
        CASE WHEN b.budget_amount IS NOT NULL
             THEN ROUND(COALESCE(s.total_spent, 0) * 100 / b.budget_amount, 2)
        END                                          AS percent_used,
-       COALESCE(s.transaction_count, 0)             AS transaction_count
+       COALESCE(s.transaction_count, 0)             AS transaction_count,
+       COALESCE(s.total_income, 0)                  AS total_income
   FROM spent s
   FULL OUTER JOIN budget b
     ON b.user_id = s.user_id
@@ -771,7 +779,7 @@ SELECT COALESCE(s.user_id, b.user_id)               AS user_id,
   JOIN finance.users u
     ON u.id = COALESCE(s.user_id, b.user_id);
 
-COMMENT ON VIEW finance.v_monthly_spending IS 'Una fila por usuario y mes: cuánto gastó, cuál era la meta, cuánto le queda y qué porcentaje consumió.';
+COMMENT ON VIEW finance.v_monthly_spending IS 'Una fila por usuario y mes con gastos, ingresos o meta: cuánto gastó, cuánto ingresó, cuál era la meta, cuánto le queda y qué porcentaje consumió.';
 
 
 CREATE OR REPLACE VIEW finance.v_monthly_spending_by_category AS

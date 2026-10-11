@@ -74,6 +74,7 @@ class MonthlySpendingControllerTest {
                 .jsonPath("$[0].remaining").isEqualTo(94500.00)
                 .jsonPath("$[0].percentUsed").isEqualTo(95.28)
                 .jsonPath("$[0].transactionCount").isEqualTo(13)
+                .jsonPath("$[0].totalIncome").isEqualTo(5300000.00)
                 .jsonPath("$[0].userId").doesNotExist();
     }
 
@@ -100,7 +101,8 @@ class MonthlySpendingControllerTest {
                 .jsonPath("$[0].budgetAmount").isEqualTo(null)
                 .jsonPath("$[0].remaining").isEqualTo(null)
                 .jsonPath("$[0].percentUsed").isEqualTo(null)
-                .jsonPath("$[0].totalSpent").isEqualTo(320000.00);
+                .jsonPath("$[0].totalSpent").isEqualTo(320000.00)
+                .jsonPath("$[0].totalIncome").isEqualTo(4500000.00);
     }
 
     @Test
