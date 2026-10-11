@@ -18,7 +18,8 @@ public interface ResolveExchangeRatePort {
 
     /**
      * Pide al proveedor las tasas de hoy, una vez y solo si a alguna de estas monedas le falta la fila de hoy
-     * (FA-122). Un fallo del proveedor no sale: se sigue con lo guardado.
+     * (FA-122), y si el limite de consultas lo permite (FA-121). Un fallo del proveedor no sale: se sigue con
+     * lo guardado.
      */
     Mono<Void> refreshToday(Collection<String> currencies);
 }

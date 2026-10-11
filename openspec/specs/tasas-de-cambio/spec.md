@@ -41,7 +41,8 @@ antigüedad. Si no hay ninguna, SHALL ser la fila `USD→X` más antigua guardad
 
 ### Requirement: Consulta al proveedor bajo demanda
 Si `date` es hoy o posterior, según la zona `app.timezone`, y a alguna pata le falta su fila con
-`rate_date` de hoy, el sistema SHALL consultar una sola vez al proveedor de tasas. Tras la consulta
+`rate_date` de hoy, el sistema SHALL consultar una sola vez al proveedor de tasas, salvo que lo
+impida el requisito *Límite de consultas al proveedor*. Tras la consulta
 SHALL guardar una fila `USD→X` con `source = 'API'` y `rate_date` de hoy por cada moneda activa del
 catálogo, distinta de USD, que traiga la respuesta, y después resolver la tasa. Una fila que ya
 exista para ese par y esa fecha MUST NOT sobrescribirse. Una fecha anterior a hoy MUST NOT consultar
@@ -122,3 +123,30 @@ campo del parámetro.
 #### Scenario: Con la credencial Basic
 - **WHEN** se pide con la credencial Basic compartida
 - **THEN** la respuesta es 401 con un error `UNAUTHENTICATED`
+
+### Requirement: Límite de consultas al proveedor
+Tras una consulta exitosa, el sistema MUST NOT volver a consultar al proveedor ese día, según la
+zona `app.timezone`. Tras una consulta fallida, MUST NOT volver a consultarlo hasta que pase el
+intervalo `tasas.reintento-tras-fallo`, de 1 hora por defecto. Mientras no consulte, SHALL resolver
+con las filas guardadas, con las mismas reglas que tras un fallo del proveedor. El límite SHALL
+valer para toda resolución que consulte al proveedor, sea del endpoint o del alta de movimientos.
+
+#### Scenario: Reintento dentro del intervalo
+- **WHEN** a las 10:00 el proveedor falló, existe `USD→COP` de ayer en 4050 y no la de hoy, y a las 10:30 se pide `from=USD&to=COP&date=<hoy>` con el intervalo en 1 hora
+- **THEN** el proveedor no se consulta, y la respuesta es 200 con `rate` 4050 y `rateDate` de ayer
+
+#### Scenario: Reintento pasado el intervalo
+- **WHEN** a las 10:00 el proveedor falló, sigue sin haber `USD→COP` de hoy, y a las 11:00 se pide `from=USD&to=COP&date=<hoy>` con el intervalo en 1 hora
+- **THEN** el proveedor se consulta otra vez
+
+#### Scenario: Moneda que el proveedor no trae
+- **WHEN** a las 10:00 el proveedor respondió sin `VES`, existe `USD→VES` de ayer en 190 y no la de hoy, y a las 15:00 se pide `from=USD&to=VES&date=<hoy>`
+- **THEN** el proveedor no se consulta, y la respuesta es 200 con `rate` 190 y `rateDate` de ayer
+
+#### Scenario: Día siguiente tras una consulta exitosa
+- **WHEN** el proveedor respondió ayer, y hoy a una pata le falta la fila de hoy
+- **THEN** el proveedor se consulta otra vez
+
+#### Scenario: Alta de movimientos tras un fallo
+- **WHEN** el proveedor falló hace 10 minutos con el intervalo en 1 hora, y se crea un movimiento en una moneda sin fila de hoy
+- **THEN** el proveedor no se consulta, y el movimiento se convierte con la tasa anterior guardada

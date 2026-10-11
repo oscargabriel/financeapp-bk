@@ -25,7 +25,8 @@ import reactor.core.publisher.Mono;
 /**
  * La tasa de un par en una fecha, contra USD (design.md de FA-120). El proveedor solo se consulta
  * para hoy o despues, cuando a una pata le falta la fila de hoy; su fallo lo deja en el log el
- * adapter, y aqui se sigue con lo guardado.
+ * adapter, y aqui se sigue con lo guardado. ConsultasAlProveedor limita las consultas a una exitosa
+ * por dia y a una por intervalo tras un fallo (FA-121).
  */
 @Service
 @AllArgsConstructor
@@ -34,6 +35,7 @@ public class ResolveExchangeRateUseCase implements ResolveExchangeRatePort {
     private final ExchangeRateRepositoryPort tasas;
     private final ExchangeRateProviderPort proveedor;
     private final CurrencyQueryPort monedas;
+    private final ConsultasAlProveedor consultas;
     private final Clock clock;
 
     @Override
@@ -83,15 +85,23 @@ public class ResolveExchangeRateUseCase implements ResolveExchangeRatePort {
                 .flatMap(falta -> falta ? guardarDelProveedor(hoy) : Mono.empty());
     }
 
-    /** Solo las monedas activas distintas de USD: la FK no admite otras, y USD→USD no es una fila. */
+    /**
+     * Solo las monedas activas distintas de USD: la FK no admite otras, y USD→USD no es una fila. El exito
+     * se anota con las filas ya guardadas: un error al guardar no impide volver a consultar (FA-121).
+     */
     private Mono<Void> guardarDelProveedor(LocalDate hoy) {
+        if (!consultas.sePuedeConsultar()) {
+            return Mono.empty();
+        }
         return proveedor.latestFromUsd()
+                .doOnError(e -> consultas.anotarFallo())
                 .onErrorResume(e -> Mono.empty())
                 .flatMap(respuesta -> monedas.findActive()
                         .map(Currency::code)
                         .filter(codigo -> !UsdRate.USD.equals(codigo) && respuesta.containsKey(codigo))
-                        .collectMap(codigo -> codigo, respuesta::get))
-                .filter(activas -> !activas.isEmpty())
-                .flatMap(activas -> tasas.saveFromUsd(hoy, activas));
+                        .collectMap(codigo -> codigo, respuesta::get)
+                        .filter(activas -> !activas.isEmpty())
+                        .flatMap(activas -> tasas.saveFromUsd(hoy, activas))
+                        .doOnSuccess(sinValor -> consultas.anotarExito()));
     }
 }

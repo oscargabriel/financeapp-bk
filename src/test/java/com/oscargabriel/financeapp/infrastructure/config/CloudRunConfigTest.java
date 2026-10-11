@@ -103,6 +103,14 @@ class CloudRunConfigTest {
                 .isEqualTo("https://generativelanguage.googleapis.com");
     }
 
+    /** Tras un fallo de ExchangeRate-API no se le vuelve a consultar en una hora (FA-121). */
+    @Test
+    void elReintentoDeLasTasasTrasUnFalloEsDeUnaHoraSinVariable() throws IOException {
+        StandardEnvironment entorno = configuracion(variablesDelServicio());
+
+        assertThat(entorno.getRequiredProperty("tasas.reintento-tras-fallo")).isEqualTo("1h");
+    }
+
     /** Falla cerrado: un servicio que no declara la variable queda con el registro restringido (FA-103). */
     @Test
     void laRestriccionDelAltaQuedaEncendidaSinVariable() throws IOException {

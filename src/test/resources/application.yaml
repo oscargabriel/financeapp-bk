@@ -60,6 +60,7 @@ asistente:
 # servidor falso (ExchangeRateApiAdapterTest).
 tasas:
   proveedor: exchangerate-api
+  reintento-tras-fallo: 1h
   exchangerate-api:
     url: http://localhost:65535/v6/latest/USD
     timeout: 2s
