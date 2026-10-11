@@ -39,8 +39,10 @@ import com.oscargabriel.financeapp.domain.model.TransactionStatus;
 import com.oscargabriel.financeapp.domain.model.UserProfile;
 import com.oscargabriel.financeapp.domain.port.out.AccountQueryPort;
 import com.oscargabriel.financeapp.domain.port.out.CategoryQueryPort;
+import com.oscargabriel.financeapp.domain.port.out.CurrencyQueryPort;
 import com.oscargabriel.financeapp.domain.port.out.RecurrenceRepositoryPort;
 import com.oscargabriel.financeapp.domain.port.out.UserRepositoryPort;
+import com.oscargabriel.financeapp.support.CurrencyMother;
 import com.oscargabriel.financeapp.support.TransactionMother;
 
 import reactor.core.publisher.Flux;
@@ -63,6 +65,9 @@ class CreateRecurrenceUseCaseTest {
     private CategoryQueryPort categorias;
 
     @Mock
+    private CurrencyQueryPort monedas;
+
+    @Mock
     private UserRepositoryPort usuarios;
 
     @Mock
@@ -81,9 +86,10 @@ class CreateRecurrenceUseCaseTest {
         when(cuentas.findByUser(USER_ID, true)).thenReturn(Flux.fromIterable(TransactionMother.cuentasDelUsuario()));
         when(categorias.findActiveByUser(eq(USER_ID), any()))
                 .thenReturn(Flux.fromIterable(TransactionMother.categoriasDelUsuario()));
+        when(monedas.findActive()).thenReturn(Flux.just(CurrencyMother.cop(), CurrencyMother.usd()));
         enZona("America/Bogota");
         when(series.save(any(), anyList())).thenReturn(Mono.empty());
-        casoDeUso = new CreateRecurrenceUseCase(cuentas, categorias, usuarios, series, Clock.fixed(AHORA, ZoneOffset.UTC));
+        casoDeUso = new CreateRecurrenceUseCase(cuentas, categorias, monedas, usuarios, series, Clock.fixed(AHORA, ZoneOffset.UTC));
     }
 
     @Test
@@ -160,15 +166,32 @@ class CreateRecurrenceUseCaseTest {
         verify(series, never()).save(any(), anyList());
     }
 
-    /** Los movimientos sueltos admiten cualquier moneda desde FA-51; las series siguen en COP. */
+    /** FA-123: la serie toma la moneda de su cuenta, y sus ocurrencias tambien. */
     @Test
-    void unaCuentaEnUsdEsErrorSobreAccountId() {
+    void unaCuentaEnUsdCreaLaSerieYSusOcurrenciasEnUsd() {
+        CreateRecurrenceCommand alta = unAlta().accountId(TransactionMother.USD_ID.toString()).build();
+
+        StepVerifier.create(casoDeUso.create(USER_ID, alta))
+                .assertNext(vista -> assertThat(vista.recurrence().currencyCode()).isEqualTo("USD"))
+                .verifyComplete();
+
+        verify(series).save(serieGuardada.capture(), ocurrencias.capture());
+        assertThat(serieGuardada.getValue().currencyCode()).isEqualTo("USD");
+        assertThat(ocurrencias.getValue()).hasSize(3).allSatisfy(t -> {
+            assertThat(t.accountId()).isEqualTo(TransactionMother.USD_ID);
+            assertThat(t.currencyCode()).isEqualTo("USD");
+        });
+    }
+
+    @Test
+    void unaCuentaEnUnaMonedaQueYaNoEstaActivaEsErrorSobreAccountId() {
+        when(monedas.findActive()).thenReturn(Flux.just(CurrencyMother.cop()));
         CreateRecurrenceCommand alta = unAlta().accountId(TransactionMother.USD_ID.toString()).build();
 
         StepVerifier.create(casoDeUso.create(USER_ID, alta))
                 .verifyErrorSatisfies(e -> assertThat(errores(e))
                         .extracting(ErrorDetail::getField, ErrorDetail::getDescription)
-                        .containsExactly(tuple("accountId", "Por ahora las series solo admiten cuentas en COP")));
+                        .containsExactly(tuple("accountId", "La moneda de la cuenta no esta activa")));
 
         verify(series, never()).save(any(), anyList());
     }

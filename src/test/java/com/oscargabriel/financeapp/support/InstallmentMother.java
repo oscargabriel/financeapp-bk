@@ -26,6 +26,8 @@ public final class InstallmentMother {
     public static final UUID VISA_SIN_CORTE_ID = UUID.fromString("30000000-0000-7000-8000-000000000014");
     public static final UUID VISA_SIN_PAGO_ID = UUID.fromString("30000000-0000-7000-8000-000000000015");
     public static final UUID VISA_UNA_CUOTA_ID = UUID.fromString("30000000-0000-7000-8000-000000000016");
+    public static final UUID VISA_USD_ID = UUID.fromString("30000000-0000-7000-8000-000000000017");
+    public static final UUID VISA_USD_SIN_TASA_ID = UUID.fromString("30000000-0000-7000-8000-000000000018");
 
     public static final UUID COMPRA_ID = UUID.fromString("90000000-0000-7000-8000-000000000001");
 
@@ -33,8 +35,8 @@ public final class InstallmentMother {
     }
 
     /**
-     * Las del usuario de TransactionMother mas cinco tarjetas: corte 20 y pago 5, con y sin tasa, y una que cobra
-     * interes en las compras a 1 cuota (FA-134).
+     * Las del usuario de TransactionMother mas siete tarjetas: corte 20 y pago 5, con y sin tasa, una que cobra
+     * interes en las compras a 1 cuota (FA-134) y dos en USD, con y sin tasa (FA-123).
      */
     public static List<Account> cuentasConTarjetas() {
         List<Account> cuentas = new ArrayList<>(TransactionMother.cuentasDelUsuario());
@@ -45,12 +47,19 @@ public final class InstallmentMother {
         cuentas.add(new Account(VISA_UNA_CUOTA_ID, "Visa una cuota", AccountType.CREDIT, "COP", BigDecimal.ZERO,
                 BigDecimal.ZERO, new BigDecimal("5000000.0000"), 20, 5, new BigDecimal("2.0000"), true, true,
                 BigDecimal.ZERO));
+        cuentas.add(tarjeta(VISA_USD_ID, "Visa USD", "USD", new BigDecimal("2.0000")));
+        cuentas.add(tarjeta(VISA_USD_SIN_TASA_ID, "Visa USD sin tasa", "USD", null));
         return cuentas;
     }
 
     private static Account tarjeta(UUID id, String nombre, Integer corte, Integer pago, BigDecimal tasa) {
         return new Account(id, nombre, AccountType.CREDIT, "COP", BigDecimal.ZERO, BigDecimal.ZERO,
                 new BigDecimal("5000000.0000"), corte, pago, tasa, true);
+    }
+
+    private static Account tarjeta(UUID id, String nombre, String moneda, BigDecimal tasa) {
+        return new Account(id, nombre, AccountType.CREDIT, moneda, BigDecimal.ZERO, BigDecimal.ZERO,
+                new BigDecimal("5000.0000"), 20, 5, tasa, true);
     }
 
     public static Compra unaCompra() {

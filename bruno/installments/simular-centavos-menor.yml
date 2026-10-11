@@ -1,0 +1,41 @@
+info:
+  name: Simular 0.10 dolares a 12 cuotas
+  type: http
+  seq: 67
+
+http:
+  method: POST
+  url: "{{baseUrl}}/installment-purchases/preview"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idVisaUsd}}",
+        "categoryId": "{{idTecnologia}}",
+        "amount": 0.10,
+        "description": "Chicle",
+        "purchaseDate": "{{hoyCuotas}}",
+        "installmentCount": 12
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+  scripts:
+    - type: tests
+      code: |-
+        test("no alcanza para un centavo de capital por cuota", function() {
+          const errores = res.getBody().errors;
+          expect(errores).to.have.length(1);
+          expect(errores[0].code).to.equal("VALIDATION_ERROR");
+          expect(errores[0].field).to.equal("amount");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

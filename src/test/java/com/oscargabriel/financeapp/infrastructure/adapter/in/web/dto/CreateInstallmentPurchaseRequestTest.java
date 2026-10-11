@@ -46,8 +46,6 @@ class CreateInstallmentPurchaseRequestTest {
                         "El monto debe ser mayor que cero"),
                 Arguments.of("monto con cinco decimales", unCuerpo().amount(new BigDecimal("1.12345")), "amount",
                         "El monto admite hasta 4 decimales y menos de 14 digitos enteros"),
-                Arguments.of("monto menor que las cuotas", unCuerpo().amount(new BigDecimal("10")).installmentCount(12),
-                        "amount", "El monto tiene que alcanzar para al menos 1 peso de capital por cuota"),
                 Arguments.of("sin descripcion", unCuerpo().description("  "), "description",
                         "La descripcion es obligatoria"),
                 Arguments.of("descripcion de 256", unCuerpo().description("x".repeat(256)), "description",
@@ -76,10 +74,10 @@ class CreateInstallmentPurchaseRequestTest {
                 .containsExactlyInAnyOrder("amount", "installmentCount");
     }
 
+    /** El minimo de capital por cuota depende de la moneda de la tarjeta: lo valida el caso de uso (FA-123). */
     @Test
-    void conCuotasFueraDeRangoNoJuzgaElMontoContraEllas() {
-        assertThat(Violaciones.de(unCuerpo().amount(new BigDecimal("10")).installmentCount(49).request()).keySet())
-                .containsExactly("installmentCount");
+    void unMontoMenorQueLasCuotasNoLoJuzgaElRequest() {
+        assertThat(Violaciones.de(unCuerpo().amount(new BigDecimal("0.12")).installmentCount(12).request())).isEmpty();
     }
 
     @Test

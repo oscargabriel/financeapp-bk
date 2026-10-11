@@ -25,5 +25,8 @@ docs: |
   `chargesSingleInstallmentInterest` en `true`: ahi se prueba el interes de una compra a 1 cuota, y
   que quitar la opcion no recalcula la compra ya registrada.
 
+  Despues (FA-123) se crean `Visa USD`, igual que `Visa` pero en dolares, y `Visa USD sin tasa`:
+  ahi se prueba el redondeo a centavos y el minimo de un centavo de capital por cuota.
+
   Las cuotas se leen de `reports/transactions` filtradas por `installment.purchaseId`, y cada una
   vence a medianoche de Bogotá: `T05:00:00Z`.

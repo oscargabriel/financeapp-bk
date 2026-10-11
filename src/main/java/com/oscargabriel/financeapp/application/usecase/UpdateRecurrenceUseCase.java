@@ -107,7 +107,8 @@ public class UpdateRecurrenceUseCase implements UpdateRecurrencePort {
         Hecha aplicar(Recurrence guardada, UpdateRecurrenceCommand parche) {
             UUID cuenta = parche.accountId() == null
                     ? null
-                    : referencias.cuentaEnCop(parche.accountId(), "accountId", CreateRecurrenceUseCase.SOLO_EN_COP, errores);
+                    : referencias.cuentaEnMoneda(parche.accountId(), "accountId", guardada.currencyCode(), "la serie",
+                            errores);
             UUID categoria = parche.categoryId() == null
                     ? null
                     : referencias.categoria(parche.categoryId(), guardada.type(), "categoryId", errores);

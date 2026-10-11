@@ -1,0 +1,46 @@
+info:
+  name: Alta de una serie en dolares
+  type: http
+  seq: 69
+
+http:
+  method: POST
+  url: "{{baseUrl}}/recurrences"
+  body:
+    type: json
+    data: |-
+      {
+        "type": "EXPENSE",
+        "accountId": "{{idCuentaSeriesUsd}}",
+        "categoryId": "{{idSuscripcionesSeries}}",
+        "amount": 12.5,
+        "description": "Spotify",
+        "frequency": "MONTHLY",
+        "dayOfMonth": 15,
+        "startDate": "{{primeroMes4}}",
+        "occurrences": 2
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        const s = res.getBody();
+        bru.setVar("idSerieUsd", s.id);
+
+        test("la serie toma la moneda de su cuenta", function() {
+          expect(s.accountId).to.equal(bru.getVar("idCuentaSeriesUsd"));
+          expect(s.currencyCode).to.equal("USD");
+          expect(s.amount).to.equal(12.5);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

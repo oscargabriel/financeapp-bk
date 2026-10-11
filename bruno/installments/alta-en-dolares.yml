@@ -1,0 +1,44 @@
+info:
+  name: Comprar 100 dolares a 3 cuotas
+  type: http
+  seq: 69
+
+http:
+  method: POST
+  url: "{{baseUrl}}/installment-purchases"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idVisaUsd}}",
+        "categoryId": "{{idTecnologia}}",
+        "amount": 100,
+        "description": "Audifonos",
+        "purchaseDate": "{{hoyCuotas}}",
+        "installmentCount": 3
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        const p = res.getBody();
+        bru.setVar("idCompraUsd", p.id);
+
+        test("la compra queda en dolares con el plan de la simulacion", function() {
+          expect(p.currencyCode).to.equal("USD");
+          expect(p.remainingPrincipal).to.equal(100);
+          expect(p.remainingAmount).to.equal(104);
+          expect(p.installments.map(function (c) { return c.amount; })).to.eql([35.33, 34.66, 34.01]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

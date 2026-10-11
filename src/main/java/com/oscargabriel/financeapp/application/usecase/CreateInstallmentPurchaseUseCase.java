@@ -24,6 +24,7 @@ import com.oscargabriel.financeapp.domain.model.UuidV7;
 import com.oscargabriel.financeapp.domain.port.in.CreateInstallmentPurchasePort;
 import com.oscargabriel.financeapp.domain.port.out.AccountQueryPort;
 import com.oscargabriel.financeapp.domain.port.out.CategoryQueryPort;
+import com.oscargabriel.financeapp.domain.port.out.CurrencyQueryPort;
 import com.oscargabriel.financeapp.domain.port.out.InstallmentPurchaseRepositoryPort;
 import com.oscargabriel.financeapp.domain.port.out.UserRepositoryPort;
 
@@ -35,6 +36,7 @@ public class CreateInstallmentPurchaseUseCase implements CreateInstallmentPurcha
 
     private final AccountQueryPort cuentas;
     private final CategoryQueryPort categorias;
+    private final CurrencyQueryPort monedas;
     private final UserRepositoryPort usuarios;
     private final InstallmentPurchaseRepositoryPort compras;
     private final Clock clock;
@@ -45,7 +47,7 @@ public class CreateInstallmentPurchaseUseCase implements CreateInstallmentPurcha
      */
     @Override
     public Mono<CreatedInstallmentPurchase> create(UUID userId, CreateInstallmentPurchaseCommand alta) {
-        return PlanDeCompra.de(userId, alta, cuentas, categorias, usuarios, clock)
+        return PlanDeCompra.de(userId, alta, cuentas, categorias, monedas, usuarios, clock)
                 .flatMap(listo -> {
                     Instant ahora = listo.ahora();
                     InstallmentPurchase compra = new InstallmentPurchase(UuidV7.from(ahora), userId,

@@ -11,6 +11,7 @@ import com.oscargabriel.financeapp.domain.model.Account;
 import com.oscargabriel.financeapp.domain.model.AccountType;
 import com.oscargabriel.financeapp.domain.model.Category;
 import com.oscargabriel.financeapp.domain.model.CategoryScope;
+import com.oscargabriel.financeapp.domain.model.Currency;
 import com.oscargabriel.financeapp.domain.model.TransactionType;
 import com.oscargabriel.financeapp.domain.port.out.AccountQueryPort;
 import com.oscargabriel.financeapp.domain.port.out.CategoryQueryPort;
@@ -23,12 +24,6 @@ import reactor.core.publisher.Mono;
  * Cada metodo devuelve null si el valor no sirve y deja el error, sobre el campo recibido, en la lista.
  */
 final class ReferenciasDelUsuario {
-
-    /**
-     * La unica moneda de las series y las cuotas: los movimientos sueltos admiten cualquiera desde FA-51, pero
-     * InstallmentPlan redondea a pesos enteros y una serie en otra moneda necesita sus propias reglas.
-     */
-    static final String MONEDA_UNICA = "COP";
 
     private final Map<UUID, Account> cuentas;
     private final Map<UUID, Category> categorias;
@@ -65,11 +60,24 @@ final class ReferenciasDelUsuario {
         return id;
     }
 
-    /** Una cuenta propia en COP, la unica moneda que admiten las series y las cuotas. */
-    UUID cuentaEnCop(String valor, String campo, String limitacion, List<ErrorDetail> errores) {
+    /**
+     * Una cuenta propia cuya moneda sigue activa en el catalogo (FA-123): las series y las cuotas toman la
+     * moneda de su cuenta, y las cuotas redondean a sus decimales.
+     */
+    UUID cuentaEnMonedaActiva(String valor, String campo, Map<String, Currency> activas, List<ErrorDetail> errores) {
         UUID id = cuentaPropia(valor, campo, "La cuenta", errores);
-        if (id != null && !MONEDA_UNICA.equals(moneda(id))) {
-            errores.add(detalle(limitacion, campo));
+        if (id != null && !activas.containsKey(moneda(id))) {
+            errores.add(detalle("La moneda de la cuenta no esta activa", campo));
+            return null;
+        }
+        return id;
+    }
+
+    /** Una cuenta propia en la moneda de algo que ya la tiene fijada, como una serie (FA-123). */
+    UUID cuentaEnMoneda(String valor, String campo, String monedaFija, String deQue, List<ErrorDetail> errores) {
+        UUID id = cuentaPropia(valor, campo, "La cuenta", errores);
+        if (id != null && !monedaFija.equals(moneda(id))) {
+            errores.add(detalle("La cuenta tiene que estar en " + monedaFija + ", la moneda de " + deQue, campo));
             return null;
         }
         return id;
@@ -87,10 +95,11 @@ final class ReferenciasDelUsuario {
 
     /**
      * Una cuenta propia que ademas es una tarjeta con corte y pago, sin los cuales no hay fechas de cuotas
-     * (FA-108). Devuelve la cuenta entera: el plan necesita sus dias y su tasa.
+     * (FA-108), en una moneda activa (FA-123). Devuelve la cuenta entera: el plan necesita sus dias, su tasa y
+     * su moneda.
      */
-    Account tarjetaParaCuotas(String valor, String campo, List<ErrorDetail> errores) {
-        UUID id = cuentaEnCop(valor, campo, "Por ahora las cuotas solo se registran en tarjetas en COP", errores);
+    Account tarjetaParaCuotas(String valor, String campo, Map<String, Currency> activas, List<ErrorDetail> errores) {
+        UUID id = cuentaEnMonedaActiva(valor, campo, activas, errores);
         if (id == null) {
             return null;
         }
