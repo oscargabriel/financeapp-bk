@@ -17,8 +17,9 @@ import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.validation.
 
 /**
  * El parche de PATCH /accounts/{id}: todo opcional, y null es "no cambia". Cada campo que viene cumple
- * el formato del alta y no puede ir en blanco. Que el cupo, los dias y la tasa solo valgan en una CREDIT lo
- * decide el caso de uso, porque el tipo no viene en el cuerpo: es el de la cuenta guardada.
+ * el formato del alta y no puede ir en blanco. Que el cupo, los dias, la tasa y el interes a 1 cuota solo
+ * valgan en una CREDIT lo decide el caso de uso, porque el tipo no viene en el cuerpo: es el de la cuenta
+ * guardada.
  *
  * currentBalance y type se leen solo para rechazarlos: ignorarlos haria creer al cliente que los
  * cambio. isActive si se modifica (FA-68): desactivar y reactivar es un campo mas del parche.
@@ -51,6 +52,8 @@ public record UpdateAccountRequest(
         @TasaMensual
         BigDecimal monthlyInterestRate,
 
+        Boolean chargesSingleInstallmentInterest,
+
         @Null(message = "El saldo vigente lo calcula el sistema; para corregirlo, cambia initialBalance")
         BigDecimal currentBalance,
 
@@ -62,12 +65,12 @@ public record UpdateAccountRequest(
     /** Un parche que no cambia nada se rechaza en el controlador, antes de leer la cuenta. */
     public boolean sinCambios() {
         return Stream.of(name, currencyCode, initialBalance, creditLimit, statementDay, paymentDueDay,
-                        monthlyInterestRate, isActive)
+                        monthlyInterestRate, chargesSingleInstallmentInterest, isActive)
                 .allMatch(campo -> campo == null);
     }
 
     public UpdateAccountCommand toCommand() {
         return new UpdateAccountCommand(name, currencyCode, initialBalance, creditLimit, statementDay, paymentDueDay,
-                monthlyInterestRate, isActive);
+                monthlyInterestRate, chargesSingleInstallmentInterest, isActive);
     }
 }

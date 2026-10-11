@@ -16,6 +16,7 @@ public record AccountResponse(
         Integer statementDay,
         Integer paymentDueDay,
         BigDecimal monthlyInterestRate,
+        Boolean chargesSingleInstallmentInterest,
         boolean isActive) {
 
     public static AccountResponse from(Account account) {
@@ -31,6 +32,7 @@ public record AccountResponse(
                 account.statementDay(),
                 account.paymentDueDay(),
                 account.monthlyInterestRate(),
+                account.chargesSingleInstallmentInterest(),
                 account.active());
     }
 }

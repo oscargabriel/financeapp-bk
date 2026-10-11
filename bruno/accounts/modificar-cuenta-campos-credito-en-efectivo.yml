@@ -12,7 +12,8 @@ http:
       {
         "creditLimit": 1000000,
         "statementDay": 3,
-        "monthlyInterestRate": 2
+        "monthlyInterestRate": 2,
+        "chargesSingleInstallmentInterest": true
       }
   auth:
     type: bearer
@@ -25,13 +26,14 @@ runtime:
       value: "400"
     - expression: res.body.errors
       operator: length
-      value: "3"
+      value: "4"
   scripts:
     - type: tests
       code: |-
         test("un error por campo, todos juntos", function() {
           const campos = res.getBody().errors.map(function (e) { return e.field; }).sort();
-          expect(campos).to.deep.equal(["creditLimit", "monthlyInterestRate", "statementDay"]);
+          expect(campos).to.deep.equal(["chargesSingleInstallmentInterest", "creditLimit", "monthlyInterestRate",
+              "statementDay"]);
           res.getBody().errors.forEach(function (e) { expect(e.code).to.equal("VALIDATION_ERROR"); });
         });
 

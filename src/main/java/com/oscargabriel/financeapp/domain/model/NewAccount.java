@@ -14,5 +14,6 @@ public record NewAccount(
         BigDecimal creditLimit,
         Integer statementDay,
         Integer paymentDueDay,
-        BigDecimal monthlyInterestRate) {
+        BigDecimal monthlyInterestRate,
+        Boolean chargesSingleInstallmentInterest) {
 }

@@ -24,7 +24,7 @@ class UpdateAccountRequestTest {
     @Test
     void unParcheCompletoNoTieneViolaciones() {
         assertThat(Violaciones.de(new UpdateAccountRequest("Bolsillo", "usd", new BigDecimal("-200000.5"),
-                new BigDecimal("4000000"), 1, 31, new BigDecimal("1.9"), null, null, null))).isEmpty();
+                new BigDecimal("4000000"), 1, 31, new BigDecimal("1.9"), null, null, null, null))).isEmpty();
     }
 
     @Test
@@ -68,9 +68,9 @@ class UpdateAccountRequestTest {
                 Arguments.of("tasa con cinco decimales", conTasa(new BigDecimal("1.23456")), "monthlyInterestRate",
                         TASA_FUERA),
                 Arguments.of("saldo vigente", new UpdateAccountRequest(null, null, null, null, null, null, null,
-                        BigDecimal.ONE, null, null), "currentBalance",
+                        null, BigDecimal.ONE, null, null), "currentBalance",
                         "El saldo vigente lo calcula el sistema; para corregirlo, cambia initialBalance"),
-                Arguments.of("tipo", new UpdateAccountRequest(null, null, null, null, null, null, null, null, "CASH",
+                Arguments.of("tipo", new UpdateAccountRequest(null, null, null, null, null, null, null, null, null, "CASH",
                         null), "type", "El tipo de una cuenta no se puede cambiar"));
     }
 
@@ -83,7 +83,7 @@ class UpdateAccountRequestTest {
     @Test
     void reportaTodosLosCamposInvalidosEnUnaSolaRespuesta() {
         assertThat(Violaciones.de(new UpdateAccountRequest(" ", "us", new BigDecimal("1.23456"), BigDecimal.ZERO,
-                32, 0, new BigDecimal("28.5"), BigDecimal.ONE, "CASH", false)).keySet())
+                32, 0, new BigDecimal("28.5"), null, BigDecimal.ONE, "CASH", false)).keySet())
                 .containsExactlyInAnyOrder("name", "currencyCode", "initialBalance", "creditLimit", "statementDay",
                         "paymentDueDay", "monthlyInterestRate", "currentBalance", "type");
     }
@@ -115,43 +115,49 @@ class UpdateAccountRequestTest {
     }
 
     @Test
-    void elComandoLlevaLosOchoCamposModificables() {
+    void soloLaOpcionDeInteresAUnaCuotaYaEsUnCambio() {
+        assertThat(new UpdateAccountRequest(null, null, null, null, null, null, null, false, null, null, null)
+                .sinCambios()).isFalse();
+    }
+
+    @Test
+    void elComandoLlevaLosNueveCamposModificables() {
         UpdateAccountRequest request = new UpdateAccountRequest("Bolsillo", "usd", BigDecimal.TEN, BigDecimal.ONE,
-                3, 4, new BigDecimal("1.9"), null, null, false);
+                3, 4, new BigDecimal("1.9"), true, null, null, false);
 
         assertThat(request.toCommand()).isEqualTo(new UpdateAccountCommand(
-                "Bolsillo", "usd", BigDecimal.TEN, BigDecimal.ONE, 3, 4, new BigDecimal("1.9"), false));
+                "Bolsillo", "usd", BigDecimal.TEN, BigDecimal.ONE, 3, 4, new BigDecimal("1.9"), true, false));
     }
 
     private static UpdateAccountRequest vacio() {
-        return new UpdateAccountRequest(null, null, null, null, null, null, null, null, null, null);
+        return new UpdateAccountRequest(null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private static UpdateAccountRequest conNombre(String nombre) {
-        return new UpdateAccountRequest(nombre, null, null, null, null, null, null, null, null, null);
+        return new UpdateAccountRequest(nombre, null, null, null, null, null, null, null, null, null, null);
     }
 
     private static UpdateAccountRequest conMoneda(String moneda) {
-        return new UpdateAccountRequest(null, moneda, null, null, null, null, null, null, null, null);
+        return new UpdateAccountRequest(null, moneda, null, null, null, null, null, null, null, null, null);
     }
 
     private static UpdateAccountRequest conSaldoInicial(BigDecimal saldo) {
-        return new UpdateAccountRequest(null, null, saldo, null, null, null, null, null, null, null);
+        return new UpdateAccountRequest(null, null, saldo, null, null, null, null, null, null, null, null);
     }
 
     private static UpdateAccountRequest conCupo(BigDecimal cupo) {
-        return new UpdateAccountRequest(null, null, null, cupo, null, null, null, null, null, null);
+        return new UpdateAccountRequest(null, null, null, cupo, null, null, null, null, null, null, null);
     }
 
     private static UpdateAccountRequest conDias(Integer corte, Integer pago) {
-        return new UpdateAccountRequest(null, null, null, null, corte, pago, null, null, null, null);
+        return new UpdateAccountRequest(null, null, null, null, corte, pago, null, null, null, null, null);
     }
 
     private static UpdateAccountRequest conTasa(BigDecimal tasa) {
-        return new UpdateAccountRequest(null, null, null, null, null, null, tasa, null, null, null);
+        return new UpdateAccountRequest(null, null, null, null, null, null, tasa, null, null, null, null);
     }
 
     private static UpdateAccountRequest conEstado(Boolean activa) {
-        return new UpdateAccountRequest(null, null, null, null, null, null, null, null, null, activa);
+        return new UpdateAccountRequest(null, null, null, null, null, null, null, null, null, null, activa);
     }
 }

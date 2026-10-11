@@ -33,7 +33,8 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
     private static final String COLUMNAS = """
             id, name, type, currency_code, initial_balance,
                    current_balance - finance.scheduled_balance_delta(id) AS current_balance,
-                   credit_limit, statement_day, payment_due_day, monthly_interest_rate, is_active,
+                   credit_limit, statement_day, payment_due_day, monthly_interest_rate,
+                   charges_single_installment_interest, is_active,
                    finance.committed_credit(id) AS committed_credit""";
 
     private static final String SQL = """
@@ -52,9 +53,11 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
     private static final String INSERTAR = """
             INSERT INTO finance.accounts
                    (id, user_id, name, type, currency_code, initial_balance,
-                    credit_limit, statement_day, payment_due_day, monthly_interest_rate)
+                    credit_limit, statement_day, payment_due_day, monthly_interest_rate,
+                    charges_single_installment_interest)
             VALUES (:id, :userId, :name, :type, :currencyCode, :initialBalance,
-                    :creditLimit, :statementDay, :paymentDueDay, :monthlyInterestRate)
+                    :creditLimit, :statementDay, :paymentDueDay, :monthlyInterestRate,
+                    :chargesSingleInstallmentInterest)
             RETURNING %s
             """.formatted(COLUMNAS);
 
@@ -87,6 +90,7 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
                    statement_day = :statementDay,
                    payment_due_day = :paymentDueDay,
                    monthly_interest_rate = :monthlyInterestRate,
+                   charges_single_installment_interest = :chargesSingleInstallmentInterest,
                    is_active = :isActive
              WHERE id = :id
                AND user_id = :userId
@@ -137,7 +141,8 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
                 .bind("name", account.name())
                 .bind("type", account.type().name())
                 .bind("currencyCode", account.currencyCode())
-                .bind("initialBalance", account.initialBalance());
+                .bind("initialBalance", account.initialBalance())
+                .bind("chargesSingleInstallmentInterest", Boolean.TRUE.equals(account.chargesSingleInstallmentInterest()));
 
         return camposDeCredito(sentencia, account.creditLimit(), account.statementDay(), account.paymentDueDay(),
                         account.monthlyInterestRate())
@@ -171,6 +176,7 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
                 .bind("name", account.name())
                 .bind("currencyCode", account.currencyCode())
                 .bind("initialBalance", account.initialBalance())
+                .bind("chargesSingleInstallmentInterest", Boolean.TRUE.equals(account.chargesSingleInstallmentInterest()))
                 .bind("isActive", account.active());
 
         return camposDeCredito(sentencia, account.creditLimit(), account.statementDay(), account.paymentDueDay(),
@@ -206,11 +212,13 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
                 : sentencia.bind("monthlyInterestRate", monthlyInterestRate);
     }
 
+    /** La columna es FALSE fuera de una CREDIT; el dominio y el API la ven como null ahi (FA-134). */
     private static Account toDomain(Row row) {
+        AccountType tipo = AccountType.valueOf(row.get("type", String.class));
         return new Account(
                 row.get("id", UUID.class),
                 row.get("name", String.class),
-                AccountType.valueOf(row.get("type", String.class)),
+                tipo,
                 row.get("currency_code", String.class),
                 row.get("initial_balance", BigDecimal.class),
                 row.get("current_balance", BigDecimal.class),
@@ -218,6 +226,7 @@ public class AccountR2dbcAdapter implements AccountQueryPort, AccountRepositoryP
                 comoEntero(row.get("statement_day", Short.class)),
                 comoEntero(row.get("payment_due_day", Short.class)),
                 row.get("monthly_interest_rate", BigDecimal.class),
+                tipo == AccountType.CREDIT ? row.get("charges_single_installment_interest", Boolean.class) : null,
                 Boolean.TRUE.equals(row.get("is_active", Boolean.class)),
                 row.get("committed_credit", BigDecimal.class));
     }

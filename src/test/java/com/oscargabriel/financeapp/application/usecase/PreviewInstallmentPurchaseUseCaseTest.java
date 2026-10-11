@@ -92,6 +92,32 @@ class PreviewInstallmentPurchaseUseCaseTest {
     }
 
     @Test
+    void unaTarjetaQueCobraInteresAUnaCuotaLoCobraEnLaCuotaUnica() {
+        CreateInstallmentPurchaseCommand compra = unaCompra().accountId(InstallmentMother.VISA_UNA_CUOTA_ID.toString())
+                .amount("300000").installmentCount(1).build();
+
+        StepVerifier.create(casoDeUso(AHORA).preview(USER_ID, compra))
+                .assertNext(plan -> {
+                    assertThat(plan.installments()).singleElement().satisfies(c -> {
+                        assertThat(c.interest()).isEqualByComparingTo("6000");
+                        assertThat(c.amount()).isEqualByComparingTo("306000");
+                    });
+                    assertThat(plan.totalInterest()).isEqualByComparingTo("6000");
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    void unaTarjetaSinLaOpcionNoCobraInteresAUnaCuota() {
+        CreateInstallmentPurchaseCommand compra = unaCompra().amount("300000").installmentCount(1).build();
+
+        StepVerifier.create(casoDeUso(AHORA).preview(USER_ID, compra))
+                .assertNext(plan -> assertThat(plan.installments()).singleElement()
+                        .satisfies(c -> assertThat(c.interest()).isEqualByComparingTo("0")))
+                .verifyComplete();
+    }
+
+    @Test
     void unaTarjetaSinTasaNoCobraInteres() {
         CreateInstallmentPurchaseCommand compra = unaCompra().accountId(InstallmentMother.VISA_SIN_TASA_ID.toString())
                 .amount("900000").build();

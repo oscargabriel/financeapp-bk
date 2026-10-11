@@ -215,6 +215,7 @@ CREATE TABLE finance.accounts (
     created_at       TIMESTAMPTZ    NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ    NOT NULL DEFAULT now(),
     monthly_interest_rate NUMERIC(6,4),
+    charges_single_installment_interest BOOLEAN NOT NULL DEFAULT FALSE,
     CONSTRAINT ck_accounts_type CHECK (type IN ('CASH', 'DEBIT', 'CREDIT', 'SAVINGS', 'INVESTMENT', 'OTHER')),
     CONSTRAINT ck_accounts_credit_limit    CHECK (credit_limit IS NULL OR credit_limit > 0),
     CONSTRAINT ck_accounts_statement_day   CHECK (statement_day IS NULL OR statement_day BETWEEN 1 AND 31),
@@ -224,13 +225,14 @@ CREATE TABLE finance.accounts (
     CONSTRAINT ck_accounts_credit_fields CHECK (
         type = 'CREDIT'
         OR (credit_limit IS NULL AND statement_day IS NULL AND payment_due_day IS NULL
-            AND monthly_interest_rate IS NULL)
+            AND monthly_interest_rate IS NULL AND charges_single_installment_interest = FALSE)
     )
 );
 
 COMMENT ON TABLE  finance.accounts IS 'Origen o destino del dinero: efectivo, cuenta bancaria, tarjeta de crédito, etc.';
 COMMENT ON COLUMN finance.accounts.current_balance IS 'initial_balance más el efecto de todos los movimientos confirmados, también los programados (fecha futura). El saldo vigente que ve el usuario es current_balance - finance.scheduled_balance_delta(id). Lo mantienen los triggers trg_transactions_sync_balance y trg_accounts_shift_balance; la aplicación NUNCA lo escribe directamente. En una tarjeta de crédito un valor negativo es la deuda, y el cupo disponible es credit_limit más el saldo vigente.';
 COMMENT ON COLUMN finance.accounts.monthly_interest_rate IS 'Tasa de interés mensual de una tarjeta de crédito, en porcentaje: 2.15 es el 2,15 % mensual. NULL si no se ha cargado.';
+COMMENT ON COLUMN finance.accounts.charges_single_installment_interest IS 'Si la tarjeta de crédito cobra interés en las compras a 1 cuota (FA-134). FALSE fuera de una tarjeta. Las compras ya registradas no se recalculan al cambiarlo.';
 COMMENT ON COLUMN finance.accounts.initial_balance IS'Saldo con el que la cuenta entra al sistema. Se copia a current_balance al crearla, y si después cambia, current_balance se corre en la misma diferencia.';
 
 CREATE UNIQUE INDEX ux_accounts_user_name

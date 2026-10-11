@@ -1,0 +1,41 @@
+info:
+  name: Simular una cuota tras quitar la opcion
+  type: http
+  seq: 61
+
+http:
+  method: POST
+  url: "{{baseUrl}}/installment-purchases/preview"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idVisaUnaCuota}}",
+        "categoryId": "{{idTecnologia}}",
+        "amount": 300000,
+        "description": "Audifonos",
+        "purchaseDate": "{{hoyCuotas}}",
+        "installmentCount": 1
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("sin la opcion la cuota unica vuelve a no tener interes", function() {
+          const c = res.getBody().installments[0];
+          expect(c.interest).to.equal(0);
+          expect(c.amount).to.equal(300000);
+          expect(res.getBody().monthlyInterestRate).to.equal(2);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -44,18 +44,23 @@ public class CreateAccountUseCase implements CreateAccountPort {
         });
     }
 
+    /** Una tarjeta sin la opcion de interes a 1 cuota no lo cobra (FA-134); las demas cuentas no la tienen. */
     private NewAccount nuevaCuenta(UUID userId, CreateAccountCommand command, String moneda) {
+        AccountType tipo = AccountType.valueOf(command.type().trim().toUpperCase());
         return new NewAccount(
                 UuidV7.from(clock.instant()),
                 userId,
                 command.name().trim(),
-                AccountType.valueOf(command.type().trim().toUpperCase()),
+                tipo,
                 moneda,
                 command.initialBalance() == null ? BigDecimal.ZERO : command.initialBalance(),
                 command.creditLimit(),
                 command.statementDay(),
                 command.paymentDueDay(),
-                command.monthlyInterestRate());
+                command.monthlyInterestRate(),
+                tipo == AccountType.CREDIT
+                        ? Boolean.TRUE.equals(command.chargesSingleInstallmentInterest())
+                        : null);
     }
 
     private Mono<Void> monedaActiva(String moneda) {

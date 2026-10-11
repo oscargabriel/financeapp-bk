@@ -33,7 +33,7 @@ class CreateAccountRequestTest {
     @Test
     void unaTarjetaCompletaNoTieneViolaciones() {
         assertThat(Violaciones.de(new CreateAccountRequest("Mastercard", "CREDIT", "COP",
-                new BigDecimal("-200000"), new BigDecimal("3000000"), 20, 5, null, null))).isEmpty();
+                new BigDecimal("-200000"), new BigDecimal("3000000"), 20, 5, null, null, null))).isEmpty();
     }
 
     @ParameterizedTest
@@ -46,7 +46,7 @@ class CreateAccountRequestTest {
     @Test
     void losCerosALaDerechaNoCuentanComoDecimales() {
         assertThat(Violaciones.de(new CreateAccountRequest("Billetera", "CASH", "COP",
-                new BigDecimal("1.50000"), null, null, null, null, null))).isEmpty();
+                new BigDecimal("1.50000"), null, null, null, null, null, null))).isEmpty();
     }
 
     /** Cero es una tarjeta sin interes; diez es el tope; sin tasa, la tarjeta no la tiene cargada. */
@@ -59,6 +59,23 @@ class CreateAccountRequestTest {
     @Test
     void unaTarjetaSinTasaNoTieneViolaciones() {
         assertThat(Violaciones.de(tarjeta(new BigDecimal("1000"), 20, 5))).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void unaTarjetaAdmiteLaOpcionDeInteresAUnaCuota(boolean opcion) {
+        assertThat(Violaciones.de(new CreateAccountRequest("Tarjeta", "CREDIT", "COP", null, null, null, null, null,
+                opcion, null))).isEmpty();
+    }
+
+    /** Fuera de una CREDIT se rechaza cualquier valor, tambien false: igual que los demas campos de credito. */
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void unDebitoNoAdmiteLaOpcionDeInteresAUnaCuota(boolean opcion) {
+        assertThat(Violaciones.de(new CreateAccountRequest("Debito", "DEBIT", "COP", null, null, null, null, null,
+                opcion, null)))
+                .containsExactly(Map.entry("chargesSingleInstallmentInterest",
+                        List.of("Solo una cuenta CREDIT cobra interes en las compras a 1 cuota")));
     }
 
     static Stream<Arguments> unCampoInvalido() {
@@ -95,25 +112,25 @@ class CreateAccountRequestTest {
                 Arguments.of("dia de pago 32", tarjeta(new BigDecimal("1000"), 20, 32), "paymentDueDay",
                         "El dia de pago debe estar entre 1 y 31"),
                 Arguments.of("limite en un debito", new CreateAccountRequest("Debito", "DEBIT", "COP", null,
-                        new BigDecimal("1000"), null, null, null, null), "creditLimit", "Solo una cuenta CREDIT tiene cupo"),
+                        new BigDecimal("1000"), null, null, null, null, null), "creditLimit", "Solo una cuenta CREDIT tiene cupo"),
                 Arguments.of("dia de corte en un debito", new CreateAccountRequest("Debito", "DEBIT", "COP", null,
-                        null, 15, null, null, null), "statementDay", "Solo una cuenta CREDIT tiene dia de corte"),
+                        null, 15, null, null, null, null), "statementDay", "Solo una cuenta CREDIT tiene dia de corte"),
                 Arguments.of("dia de pago en un debito", new CreateAccountRequest("Debito", "DEBIT", "COP", null,
-                        null, null, 5, null, null), "paymentDueDay", "Solo una cuenta CREDIT tiene dia de pago"),
+                        null, null, 5, null, null, null), "paymentDueDay", "Solo una cuenta CREDIT tiene dia de pago"),
                 Arguments.of("tasa negativa", conTasa(new BigDecimal("-1")), "monthlyInterestRate", TASA_FUERA),
                 Arguments.of("tasa mayor que diez", conTasa(new BigDecimal("10.5")), "monthlyInterestRate",
                         TASA_FUERA),
                 Arguments.of("tasa con cinco decimales", conTasa(new BigDecimal("1.23456")), "monthlyInterestRate",
                         TASA_FUERA),
                 Arguments.of("tasa fuera de rango en un debito", new CreateAccountRequest("Debito", "DEBIT", "COP",
-                        null, null, null, null, new BigDecimal("50"), null), "monthlyInterestRate",
+                        null, null, null, null, new BigDecimal("50"), null, null), "monthlyInterestRate",
                         "Solo una cuenta CREDIT tiene tasa de interes"),
                 Arguments.of("saldo inicial negativo en un efectivo", conSaldo(new BigDecimal("-1")), "initialBalance",
                         SALDO_NEGATIVO),
                 Arguments.of("saldo inicial negativo en un ahorro", new CreateAccountRequest("Ahorros", "SAVINGS", "COP",
-                        new BigDecimal("-1000"), null, null, null, null, null), "initialBalance", SALDO_NEGATIVO),
+                        new BigDecimal("-1000"), null, null, null, null, null, null), "initialBalance", SALDO_NEGATIVO),
                 Arguments.of("saldo vigente en el cuerpo",new CreateAccountRequest("Billetera", "CASH", "COP",
-                        BigDecimal.TEN, null, null, null, null, new BigDecimal("999999")), "currentBalance",
+                        BigDecimal.TEN, null, null, null, null, null, new BigDecimal("999999")), "currentBalance",
                         "El saldo vigente lo calcula el sistema; envia initialBalance"));
     }
 
@@ -126,7 +143,7 @@ class CreateAccountRequestTest {
     @Test
     void reportaTodosLosCamposInvalidosEnUnaSolaRespuesta() {
         assertThat(Violaciones.de(new CreateAccountRequest(" ", "DEBIT", "pesos", null,
-                new BigDecimal("1000"), 15, 40, null, BigDecimal.ONE)).keySet())
+                new BigDecimal("1000"), 15, 40, null, null, BigDecimal.ONE)).keySet())
                 .containsExactlyInAnyOrder("name", "currencyCode", "creditLimit", "statementDay",
                         "paymentDueDay", "currentBalance");
     }
@@ -135,7 +152,7 @@ class CreateAccountRequestTest {
     @Test
     void conElTipoInvalidoNoOpinaSobreLosCamposDeCredito() {
         assertThat(Violaciones.de(new CreateAccountRequest("Billetera", "WALLET", "COP", null,
-                new BigDecimal("1000"), 15, 5, null, null)).keySet())
+                new BigDecimal("1000"), 15, 5, null, null, null)).keySet())
                 .containsExactly("type");
     }
 
@@ -143,28 +160,28 @@ class CreateAccountRequestTest {
     @Test
     void conElTipoInvalidoNoOpinaSobreElSaldoInicial() {
         assertThat(Violaciones.de(new CreateAccountRequest("Billetera", "WALLET", "COP", new BigDecimal("-1"),
-                null, null, null, null, null)).keySet())
+                null, null, null, null, null, null)).keySet())
                 .containsExactly("type");
     }
 
     private static CreateAccountRequest efectivo() {
         return new CreateAccountRequest("Billetera", "CASH", "COP", new BigDecimal("150000"), null, null, null,
-                null, null);
+                null, null, null);
     }
 
     private static CreateAccountRequest alta(String nombre, String tipo, String moneda) {
-        return new CreateAccountRequest(nombre, tipo, moneda, null, null, null, null, null, null);
+        return new CreateAccountRequest(nombre, tipo, moneda, null, null, null, null, null, null, null);
     }
 
     private static CreateAccountRequest conSaldo(BigDecimal saldo) {
-        return new CreateAccountRequest("Billetera", "CASH", "COP", saldo, null, null, null, null, null);
+        return new CreateAccountRequest("Billetera", "CASH", "COP", saldo, null, null, null, null, null, null);
     }
 
     private static CreateAccountRequest tarjeta(BigDecimal limite, Integer corte, Integer pago) {
-        return new CreateAccountRequest("Tarjeta", "CREDIT", "COP", null, limite, corte, pago, null, null);
+        return new CreateAccountRequest("Tarjeta", "CREDIT", "COP", null, limite, corte, pago, null, null, null);
     }
 
     private static CreateAccountRequest conTasa(BigDecimal tasa) {
-        return new CreateAccountRequest("Tarjeta", "CREDIT", "COP", null, null, null, null, tasa, null);
+        return new CreateAccountRequest("Tarjeta", "CREDIT", "COP", null, null, null, null, tasa, null, null);
     }
 }

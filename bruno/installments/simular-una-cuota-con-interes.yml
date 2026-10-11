@@ -1,0 +1,50 @@
+info:
+  name: Simular una cuota con interes
+  type: http
+  seq: 56
+
+http:
+  method: POST
+  url: "{{baseUrl}}/installment-purchases/preview"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idVisaUnaCuota}}",
+        "categoryId": "{{idTecnologia}}",
+        "amount": 333333,
+        "description": "Parlante",
+        "purchaseDate": "{{hoyCuotas}}",
+        "installmentCount": 1
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const p = res.getBody();
+
+        test("la cuota unica cobra la tasa sobre el total, la mitad hacia arriba", function() {
+          expect(p.installments).to.have.length(1);
+          expect(p.installments[0].principal).to.equal(333333);
+          expect(p.installments[0].interest).to.equal(6667);
+          expect(p.installments[0].amount).to.equal(340000);
+          expect(p.totalInterest).to.equal(6667);
+          expect(p.totalAmount).to.equal(340000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Interes a una cuota
+
+  2 % de 333.333 es 6.666,66: redondea a 6.667, igual que las demas cuotas.

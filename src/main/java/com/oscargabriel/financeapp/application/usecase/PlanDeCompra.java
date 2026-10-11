@@ -51,7 +51,8 @@ record PlanDeCompra(Account tarjeta, UUID categoria, InstallmentPlan plan, ZoneI
             throw new BadRequestException(HttpStatus.BAD_REQUEST, errores);
         }
         InstallmentPlan plan = new InstallmentPlan(compra.amount(), compra.installmentCount(), tasa(tarjeta),
-                compra.purchaseDate(), tarjeta.statementDay(), tarjeta.paymentDueDay());
+                compra.purchaseDate(), tarjeta.statementDay(), tarjeta.paymentDueDay(),
+                Boolean.TRUE.equals(tarjeta.chargesSingleInstallmentInterest()));
         return new PlanDeCompra(tarjeta, categoria, plan, zona, ahora);
     }
 

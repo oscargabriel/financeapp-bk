@@ -13,7 +13,8 @@ http:
         "creditLimit": 4000000,
         "statementDay": 25,
         "paymentDueDay": 10,
-        "monthlyInterestRate": 1.9
+        "monthlyInterestRate": 1.9,
+        "chargesSingleInstallmentInterest": true
       }
   auth:
     type: bearer
@@ -36,6 +37,9 @@ runtime:
     - expression: res.body.monthlyInterestRate
       operator: eq
       value: 1.9
+    - expression: res.body.chargesSingleInstallmentInterest
+      operator: eq
+      value: true
   scripts:
     - type: tests
       code: |-

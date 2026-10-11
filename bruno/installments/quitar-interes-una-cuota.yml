@@ -1,0 +1,33 @@
+info:
+  name: Quitar el interes a una cuota de la tarjeta
+  type: http
+  seq: 59
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/{{idVisaUnaCuota}}"
+  body:
+    type: json
+    data: |-
+      {
+        "chargesSingleInstallmentInterest": false
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.chargesSingleInstallmentInterest
+      operator: eq
+      value: false
+    - expression: res.body.monthlyInterestRate
+      operator: eq
+      value: 2
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
