@@ -22,6 +22,12 @@ public interface AccountRepositoryPort {
     Mono<Boolean> hasTransactions(UUID accountId);
 
     /**
+     * Cuantos movimientos programados (CONFIRMED con fecha posterior a ahora) salen de la cuenta o
+     * llegan a ella (FA-115).
+     */
+    Mono<Long> countScheduled(UUID accountId);
+
+    /**
      * Reemplaza nombre, moneda, saldo inicial, cupo, dias y estado de la cuenta no borrada del usuario
      * y la devuelve como quedo, con el saldo vigente que corrio la base, o vacio si ya no esta. El
      * nombre repetido sale como en create.

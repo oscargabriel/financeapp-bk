@@ -1,0 +1,44 @@
+info:
+  name: Borrar cuenta con un programado
+  type: http
+  seq: 98
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/accounts/{{idSobre}}"
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: RESOURCE_IN_USE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: id
+  scripts:
+    - type: tests
+      code: |-
+        test("dice cuantos programados tiene", function() {
+          expect(res.getBody().errors[0].description).to.contain("1 movimiento programado");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Programados impiden el borrado (FA-115)
+
+  El saldo vigente es 0, pero el gasto de manana se quedaria en la cuenta borrada. El error va en
+  `id` porque el programado no es un campo de la cuenta.
