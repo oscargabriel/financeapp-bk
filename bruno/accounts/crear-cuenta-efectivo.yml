@@ -33,7 +33,7 @@ runtime:
           expect(cuenta.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
           expect(cuenta).to.have.all.keys("id", "name", "type", "currencyCode", "initialBalance",
               "currentBalance", "creditLimit", "availableCredit", "statementDay", "paymentDueDay",
-              "monthlyInterestRate", "isActive");
+              "monthlyInterestRate", "chargesSingleInstallmentInterest", "isActive");
         });
 
         test("una cuenta que no es de credito no tiene cupo, fechas ni tasa", function() {
@@ -42,6 +42,7 @@ runtime:
           expect(cuenta.statementDay).to.equal(null);
           expect(cuenta.paymentDueDay).to.equal(null);
           expect(cuenta.monthlyInterestRate).to.equal(null);
+          expect(cuenta.chargesSingleInstallmentInterest).to.equal(null);
         });
 
         test("normaliza el nombre y la moneda", function() {

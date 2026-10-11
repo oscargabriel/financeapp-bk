@@ -106,6 +106,7 @@ class AccountControllerTest {
                 .jsonPath("$[0].statementDay").isEqualTo(15)
                 .jsonPath("$[0].paymentDueDay").isEqualTo(5)
                 .jsonPath("$[0].monthlyInterestRate").isEqualTo(2.1)
+                .jsonPath("$[0].chargesSingleInstallmentInterest").isEqualTo(false)
                 .jsonPath("$[0].isActive").isEqualTo(true)
                 .jsonPath("$[0].userId").doesNotExist();
     }
@@ -126,7 +127,8 @@ class AccountControllerTest {
                 .jsonPath("$[0].availableCredit").isEqualTo(null)
                 .jsonPath("$[0].statementDay").isEqualTo(null)
                 .jsonPath("$[0].paymentDueDay").isEqualTo(null)
-                .jsonPath("$[0].monthlyInterestRate").isEqualTo(null);
+                .jsonPath("$[0].monthlyInterestRate").isEqualTo(null)
+                .jsonPath("$[0].chargesSingleInstallmentInterest").isEqualTo(null);
     }
 
     @Test
@@ -243,7 +245,7 @@ class AccountControllerTest {
                 .bodyValue("""
                         {"name": "Mastercard", "type": "CREDIT", "currencyCode": "COP",
                          "initialBalance": -200000, "creditLimit": 3000000, "statementDay": 20,
-                         "paymentDueDay": 5, "monthlyInterestRate": 2.15}
+                         "paymentDueDay": 5, "monthlyInterestRate": 2.15, "chargesSingleInstallmentInterest": true}
                         """)
                 .exchange()
                 .expectStatus().isCreated();
@@ -251,7 +253,7 @@ class AccountControllerTest {
         ArgumentCaptor<CreateAccountCommand> comando = ArgumentCaptor.forClass(CreateAccountCommand.class);
         verify(createAccount).create(eq(AccountMother.USER_ID), comando.capture());
         assertThat(comando.getValue()).isEqualTo(new CreateAccountCommand("Mastercard", "CREDIT", "COP",
-                new BigDecimal("-200000"), new BigDecimal("3000000"), 20, 5, new BigDecimal("2.15"), null));
+                new BigDecimal("-200000"), new BigDecimal("3000000"), 20, 5, new BigDecimal("2.15"), true, null));
     }
 
     /** Las reglas viven en el record: un cuerpo invalido no llega al caso de uso. */
@@ -319,7 +321,8 @@ class AccountControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("""
                         {"name": " Visa ", "currencyCode": "cop", "initialBalance": 10, "creditLimit": 6000000,
-                         "statementDay": 16, "paymentDueDay": 6, "monthlyInterestRate": 1.9}
+                         "statementDay": 16, "paymentDueDay": 6, "monthlyInterestRate": 1.9,
+                         "chargesSingleInstallmentInterest": true}
                         """)
                 .exchange()
                 .expectStatus().isOk()
@@ -330,7 +333,7 @@ class AccountControllerTest {
         ArgumentCaptor<UpdateAccountCommand> comando = ArgumentCaptor.forClass(UpdateAccountCommand.class);
         verify(updateAccount).update(eq(AccountMother.USER_ID), eq(AccountMother.VISA_ID), comando.capture());
         assertThat(comando.getValue()).isEqualTo(new UpdateAccountCommand(" Visa ", "cop", new BigDecimal("10"),
-                new BigDecimal("6000000"), 16, 6, new BigDecimal("1.9"), null));
+                new BigDecimal("6000000"), 16, 6, new BigDecimal("1.9"), true, null));
     }
 
     @Test
@@ -398,7 +401,7 @@ class AccountControllerTest {
         ArgumentCaptor<UpdateAccountCommand> comando = ArgumentCaptor.forClass(UpdateAccountCommand.class);
         verify(updateAccount).update(eq(AccountMother.USER_ID), eq(AccountMother.EFECTIVO_ID), comando.capture());
         assertThat(comando.getValue())
-                .isEqualTo(new UpdateAccountCommand(null, null, null, null, null, null, null, false));
+                .isEqualTo(new UpdateAccountCommand(null, null, null, null, null, null, null, null, false));
     }
 
     @Test

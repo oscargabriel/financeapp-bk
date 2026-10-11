@@ -48,11 +48,13 @@ public record CreateAccountRequest(
 
         BigDecimal monthlyInterestRate,
 
+        Boolean chargesSingleInstallmentInterest,
+
         @Null(message = "El saldo vigente lo calcula el sistema; envia initialBalance")
         BigDecimal currentBalance) {
 
     public CreateAccountCommand toCommand() {
         return new CreateAccountCommand(name, type, currencyCode, initialBalance, creditLimit,
-                statementDay, paymentDueDay, monthlyInterestRate, currentBalance);
+                statementDay, paymentDueDay, monthlyInterestRate, chargesSingleInstallmentInterest, currentBalance);
     }
 }

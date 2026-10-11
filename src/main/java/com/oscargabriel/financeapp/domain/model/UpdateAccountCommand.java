@@ -11,5 +11,6 @@ public record UpdateAccountCommand(
         Integer statementDay,
         Integer paymentDueDay,
         BigDecimal monthlyInterestRate,
+        Boolean chargesSingleInstallmentInterest,
         Boolean isActive) {
 }

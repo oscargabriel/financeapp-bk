@@ -11,10 +11,17 @@ import java.util.stream.IntStream;
  * Las cuotas de una compra con tarjeta (FA-108). El primer corte es el del mes de la compra si cae ese
  * dia o antes; la primera cuota vence el dia de pago del mes del corte si es posterior al corte, y del
  * mes siguiente si no. Capital fijo: amount / count en pesos enteros hacia abajo, con el resto en la
- * ultima. Interes: la tasa mensual, en porcentaje, sobre el capital pendiente antes de cada cuota.
+ * ultima. Interes: la tasa mensual, en porcentaje, sobre el capital pendiente antes de cada cuota. Una
+ * compra a 1 cuota no lleva interes salvo que la tarjeta lo cobre (FA-134).
  */
 public record InstallmentPlan(BigDecimal amount, int count, BigDecimal monthlyInterestRate, LocalDate purchaseDate,
-        int statementDay, int paymentDueDay) {
+        int statementDay, int paymentDueDay, boolean chargesSingleInstallmentInterest) {
+
+    /** Una tarjeta que no cobra interes en las compras a 1 cuota. */
+    public InstallmentPlan(BigDecimal amount, int count, BigDecimal monthlyInterestRate, LocalDate purchaseDate,
+            int statementDay, int paymentDueDay) {
+        this(amount, count, monthlyInterestRate, purchaseDate, statementDay, paymentDueDay, false);
+    }
 
     public static final int MAXIMO = 48;
 
@@ -53,7 +60,7 @@ public record InstallmentPlan(BigDecimal amount, int count, BigDecimal monthlyIn
     }
 
     private BigDecimal interes(BigDecimal pendiente) {
-        if (count == 1) {
+        if (count == 1 && !chargesSingleInstallmentInterest) {
             return BigDecimal.ZERO;
         }
         return pendiente.multiply(monthlyInterestRate).divide(CIEN, ESCALA, RoundingMode.HALF_UP);

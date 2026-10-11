@@ -17,5 +17,6 @@ public record CreateAccountCommand(
         Integer statementDay,
         Integer paymentDueDay,
         BigDecimal monthlyInterestRate,
+        Boolean chargesSingleInstallmentInterest,
         BigDecimal currentBalance) {
 }

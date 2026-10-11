@@ -32,7 +32,8 @@ runtime:
 
         test("devuelve la cuenta completa", function() {
           expect(cuenta).to.have.all.keys("id", "name", "type", "currencyCode", "initialBalance", "currentBalance",
-              "creditLimit", "availableCredit", "statementDay", "paymentDueDay", "monthlyInterestRate", "isActive");
+              "creditLimit", "availableCredit", "statementDay", "paymentDueDay", "monthlyInterestRate",
+              "chargesSingleInstallmentInterest", "isActive");
           expect(cuenta.id).to.equal(bru.getVar("idCuentaEfectivo"));
         });
 
@@ -49,6 +50,7 @@ runtime:
           expect(cuenta.availableCredit).to.equal(null);
           expect(cuenta.statementDay).to.equal(null);
           expect(cuenta.paymentDueDay).to.equal(null);
+          expect(cuenta.chargesSingleInstallmentInterest).to.equal(null);
         });
 
 settings:

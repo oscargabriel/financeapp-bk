@@ -1,0 +1,47 @@
+info:
+  name: Crear tarjeta que cobra interes a una cuota
+  type: http
+  seq: 55
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Visa una cuota",
+        "type": "CREDIT",
+        "currencyCode": "COP",
+        "creditLimit": 1000000,
+        "statementDay": 20,
+        "paymentDueDay": 5,
+        "monthlyInterestRate": 2,
+        "chargesSingleInstallmentInterest": true
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.chargesSingleInstallmentInterest
+      operator: eq
+      value: true
+  scripts:
+    - type: after-response
+      code: |-
+        bru.setVar("idVisaUnaCuota", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Tarjeta con interes a una cuota (FA-134)
+
+  Misma configuracion que `Visa` (corte 20, pago 5, tasa 2) pero con `chargesSingleInstallmentInterest`
+  en `true`. La crea la coleccion y no `test-data.sql` para no mover los listados del escenario.

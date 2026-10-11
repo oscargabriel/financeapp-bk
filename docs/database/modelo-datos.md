@@ -58,6 +58,7 @@ erDiagram
         smallint statement_day
         smallint payment_due_day
         numeric monthly_interest_rate
+        boolean charges_single_installment_interest
         boolean is_active
         timestamptz deleted_at
     }
@@ -275,6 +276,13 @@ valor si `type = 'CREDIT'` (lo garantiza `ck_accounts_credit_fields`).
 `monthly_interest_rate` es la tasa de interés mensual en **porcentaje**, no en
 fracción: `2.15` es el 2,15 % mensual. Va de 0 a 10; el tope atrapa una tasa
 anual escrita por error en el campo mensual (FA-105).
+
+`charges_single_installment_interest` dice si la tarjeta cobra interés en las
+compras a 1 cuota (FA-134). Es `NOT NULL DEFAULT FALSE`, y fuera de una
+`CREDIT` tiene que quedar en `FALSE` (`ck_accounts_credit_fields`); el API lo
+devuelve como `null` en esas cuentas. Con `NOT NULL DEFAULT` los `INSERT` de los
+scripts de datos no tienen que nombrarla. La compra no la copia: el interés
+queda guardado en cada cuota al registrarla.
 
 ### Compras en cuotas
 

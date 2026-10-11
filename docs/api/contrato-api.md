@@ -457,6 +457,7 @@ sin distinguir mayúsculas.
     "statementDay": 15,
     "paymentDueDay": 30,
     "monthlyInterestRate": 2.1500,
+    "chargesSingleInstallmentInterest": false,
     "isActive": true
   },
   {
@@ -471,6 +472,7 @@ sin distinguir mayúsculas.
     "statementDay": null,
     "paymentDueDay": null,
     "monthlyInterestRate": null,
+    "chargesSingleInstallmentInterest": null,
     "isActive": true
   }
 ]
@@ -485,6 +487,7 @@ sin distinguir mayúsculas.
 | `availableCredit` | Solo en `CREDIT`: `creditLimit + currentBalance` menos el capital de las cuotas de [compras en cuotas](#compras-en-cuotas) que todavía no llegan. `null` en los demás tipos o si la tarjeta no tiene cupo |
 | `statementDay`, `paymentDueDay` | Solo en `CREDIT`: día de corte y día de pago, 1 a 31. `null` en los demás tipos |
 | `monthlyInterestRate` | Solo en `CREDIT`: tasa de interés **mensual en porcentaje** (`2.15` es el 2,15 % mensual, no 0.0215). `null` en los demás tipos o si la tarjeta no la tiene cargada |
+| `chargesSingleInstallmentInterest` | Solo en `CREDIT`: `true` si la tarjeta cobra interés en las [compras a 1 cuota](#compras-en-cuotas), `false` si no. Siempre `true` o `false` en una tarjeta; `null` en los demás tipos |
 | `isActive` | `false` si la cuenta está [desactivada](#patch-apiaccountsid). Solo sale en `false` con `includeInactive=true` o en la respuesta del parche que la desactivó |
 
 ### `POST /api/accounts`
@@ -503,11 +506,13 @@ Crea una cuenta del usuario del token. **Bearer.**
 | `statementDay` | integer | no | **Solo `CREDIT`.** Día de corte, 1 a 31 |
 | `paymentDueDay` | integer | no | **Solo `CREDIT`.** Día de pago, 1 a 31 |
 | `monthlyInterestRate` | number | no | **Solo `CREDIT`.** Tasa mensual en porcentaje, de 0 a 10 con hasta 4 decimales. 0 es una tarjeta sin interés |
+| `chargesSingleInstallmentInterest` | boolean | no | **Solo `CREDIT`.** Si la tarjeta cobra interés en las compras a 1 cuota. Por defecto `false` |
 | `currentBalance` | — | **no se envía** | Si llega, es 400: el saldo vigente lo calcula el sistema. Para fijar el saldo de arranque se usa `initialBalance` |
 
-En una cuenta que no es `CREDIT`, mandar `creditLimit`, `statementDay`, `paymentDueDay` o
-`monthlyInterestRate` es 400, uno por campo, y un `initialBalance` negativo es 400 en
-`initialBalance`.
+En una cuenta que no es `CREDIT`, mandar `creditLimit`, `statementDay`, `paymentDueDay`,
+`monthlyInterestRate` o `chargesSingleInstallmentInterest` es 400, uno por campo, y un
+`initialBalance` negativo es 400 en `initialBalance`. `chargesSingleInstallmentInterest` es 400
+también en `false`: fuera de una tarjeta no se envía.
 
 El tope de 10 en la tasa existe para atrapar la tasa **efectiva anual** del extracto (por ejemplo
 28,5) escrita en el campo mensual: como mensual daría cuotas con diez veces el interés real.
@@ -521,7 +526,8 @@ El tope de 10 en la tasa existe para atrapar la tasa **efectiva anual** del extr
   "creditLimit": 5000000,
   "statementDay": 15,
   "paymentDueDay": 30,
-  "monthlyInterestRate": 2.15
+  "monthlyInterestRate": 2.15,
+  "chargesSingleInstallmentInterest": true
 }
 ```
 
@@ -547,14 +553,16 @@ cuenta desactivada se modifica igual que una activa.
 | `statementDay` | integer | **Solo `CREDIT`.** 1 a 31 |
 | `paymentDueDay` | integer | **Solo `CREDIT`.** 1 a 31 |
 | `monthlyInterestRate` | number | **Solo `CREDIT`.** Tasa mensual en porcentaje, de 0 a 10 con hasta 4 decimales |
+| `chargesSingleInstallmentInterest` | boolean | **Solo `CREDIT`.** Si la tarjeta cobra interés en las compras a 1 cuota. No mueve las compras ya registradas |
 | `isActive` | boolean | `false` desactiva la cuenta y `true` la reactiva (ver abajo) |
 | `currentBalance`, `type` | — | **No se envían.** Si llegan con valor, 400 en su campo |
 
 - **Ausente o `null` es "no cambia".** El parche no vacía campos: no hay forma de quitarle el cupo,
   las fechas o la tasa a una tarjeta.
 - Un parche sin ningún campo modificable (`{}`, o todo en `null`) es 400 en `body`.
-- El tipo es el de la cuenta guardada: `creditLimit`, `statementDay`, `paymentDueDay` o
-  `monthlyInterestRate` sobre una cuenta que no es `CREDIT` son 400, uno por campo.
+- El tipo es el de la cuenta guardada: `creditLimit`, `statementDay`, `paymentDueDay`,
+  `monthlyInterestRate` o `chargesSingleInstallmentInterest` sobre una cuenta que no es `CREDIT` son
+  400, uno por campo.
 - Corregir el saldo inicial no descuadra nada: si la cuenta arrancó en 200000 y gastó 50000 (saldo
   150000), pasar el inicial a 300000 deja el saldo en 250000. En una cuenta que no es `CREDIT`, bajarlo
   hasta dejar el saldo en negativo es 409 `INSUFFICIENT_FUNDS` en `initialBalance`: con esos mismos
@@ -1282,8 +1290,12 @@ de diciembre.
 **Capital e interés.** El capital de cada cuota es el total entre las cuotas, en pesos enteros y
 redondeado hacia abajo; la última se lleva el resto, de modo que los capitales suman el total exacto.
 El interés de cada cuota es la tasa mensual de la tarjeta sobre el capital que falta antes de esa cuota,
-en pesos enteros, la mitad hacia arriba. Con 1 cuota, o con tasa 0 o sin tasa, no hay interés. La tasa
-se copia en la compra: cambiar la de la tarjeta después no mueve las cuotas.
+en pesos enteros, la mitad hacia arriba. Con tasa 0 o sin tasa no hay interés. Una compra a 1 cuota
+no lleva interés, salvo en una tarjeta con `chargesSingleInstallmentInterest` en `true`: ahí la cuota
+única cobra la tasa sobre el total, con el mismo redondeo (300.000 a 1 cuota con tasa 2 es una cuota
+de 306.000). La tasa se copia en la compra: cambiar la de la tarjeta después no mueve las cuotas. La
+opción de interés a 1 cuota no se copia, pero tampoco mueve las compras ya registradas: cada cuota
+guarda su interés al registrarse.
 
 | Cuota (1.200.000 a 3, tasa 2) | Capital | Interés | Total |
 |---|---|---|---|

@@ -131,6 +131,17 @@ class CreateInstallmentPurchaseUseCaseTest {
     }
 
     @Test
+    void unaCompraAUnaCuotaCobraInteresSiLaTarjetaLoCobra() {
+        StepVerifier.create(casoDeUso.create(USER_ID, unaCompra().accountId(InstallmentMother.VISA_UNA_CUOTA_ID.toString())
+                        .amount("300000").installmentCount(1).build()))
+                .assertNext(creada -> assertThat(creada.view().remainingAmount()).isEqualByComparingTo("306000"))
+                .verifyComplete();
+
+        verify(compras).save(compraGuardada.capture(), cuotas.capture());
+        assertThat(cuotas.getValue()).extracting(Transaction::amount).containsExactly(new BigDecimal("306000"));
+    }
+
+    @Test
     void devuelveLaCompraConSuPlanYElResumen() {
         StepVerifier.create(casoDeUso.create(USER_ID, unaCompra().build()))
                 .assertNext(creada -> {

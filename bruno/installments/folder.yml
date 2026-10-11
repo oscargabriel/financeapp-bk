@@ -21,5 +21,9 @@ docs: |
   `Visa 31` (cupo 2.000.000, corte y pago 31, sin tasa), `Visa sin corte` y `Ahorros`. La compra
   ajena es de `prueba@`, sin cuotas, solo para los 404.
 
+  Al final de la carpeta (FA-134) se crea `Visa una cuota`, igual que `Visa` pero con
+  `chargesSingleInstallmentInterest` en `true`: ahi se prueba el interes de una compra a 1 cuota, y
+  que quitar la opcion no recalcula la compra ya registrada.
+
   Las cuotas se leen de `reports/transactions` filtradas por `installment.purchaseId`, y cada una
   vence a medianoche de Bogotá: `T05:00:00Z`.

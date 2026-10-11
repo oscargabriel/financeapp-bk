@@ -33,6 +33,7 @@ runtime:
           expect(bolsillo.currentBalance).to.equal(250000);
           expect(bolsillo.isActive).to.equal(true);
           expect(bolsillo.monthlyInterestRate).to.equal(null);
+          expect(bolsillo.chargesSingleInstallmentInterest).to.equal(null);
         });
 
         test("la tarjeta quedo con la moneda, el cupo, las fechas y la tasa nuevas", function() {
@@ -42,6 +43,7 @@ runtime:
           expect(tarjeta.statementDay).to.equal(25);
           expect(tarjeta.paymentDueDay).to.equal(12);
           expect(tarjeta.monthlyInterestRate).to.equal(1.9);
+          expect(tarjeta.chargesSingleInstallmentInterest).to.equal(true);
         });
 
 settings:

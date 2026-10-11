@@ -35,7 +35,7 @@ public final class AccountMother {
     public static Account visaConCuotas() {
         return new Account(VISA_ID, "Visa", AccountType.CREDIT, "COP", BigDecimal.ZERO,
                 new BigDecimal("-658000.0000"), new BigDecimal("5000000.0000"), 15, 5, new BigDecimal("2.1000"),
-                true, new BigDecimal("1200000.0000"));
+                false, true, new BigDecimal("1200000.0000"));
     }
 
     /** Saldo a favor: se pago de mas y el cupo disponible supera el limite. */
@@ -87,12 +87,24 @@ public final class AccountMother {
 
     public static CreateAccountCommand altaEfectivo() {
         return new CreateAccountCommand("Billetera", "CASH", "COP", new BigDecimal("150000"),
-                null, null, null, null, null);
+                null, null, null, null, null, null);
     }
 
     public static CreateAccountCommand altaTarjeta() {
         return new CreateAccountCommand("Mastercard", "CREDIT", "COP", new BigDecimal("-200000"),
-                new BigDecimal("3000000"), 20, 5, new BigDecimal("2.15"), null);
+                new BigDecimal("3000000"), 20, 5, new BigDecimal("2.15"), null, null);
+    }
+
+    public static CreateAccountCommand altaTarjetaConInteresAUnaCuota() {
+        return new CreateAccountCommand("Diners", "CREDIT", "COP", BigDecimal.ZERO,
+                null, null, null, new BigDecimal("1.8"), true, null);
+    }
+
+    /** Una tarjeta que cobra interes en las compras a 1 cuota (FA-134). */
+    public static Account tarjetaConInteresAUnaCuota() {
+        return new Account(UUID.fromString("20000000-0000-7000-8000-000000000010"), "Diners", AccountType.CREDIT,
+                "COP", BigDecimal.ZERO, BigDecimal.ZERO, null, null, null, new BigDecimal("1.8000"), true, true,
+                BigDecimal.ZERO);
     }
 
     /** Como la vuelve a leer el INSERT ... RETURNING: con el saldo que sembro el trigger. */

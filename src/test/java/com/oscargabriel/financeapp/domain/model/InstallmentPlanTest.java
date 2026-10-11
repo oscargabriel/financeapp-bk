@@ -112,7 +112,7 @@ class InstallmentPlanTest {
     }
 
     @Test
-    void unaCuotaNoLlevaInteres() {
+    void sinLaOpcionUnaCuotaNoLlevaInteres() {
         List<InstallmentPlan.Cuota> cuotas = visa("300000", 1, DOS, LocalDate.of(2026, 10, 9)).cuotas();
 
         assertThat(cuotas).singleElement().satisfies(c -> {
@@ -120,6 +120,36 @@ class InstallmentPlanTest {
             assertThat(c.interest()).isEqualByComparingTo("0");
             assertThat(c.amount()).isEqualByComparingTo("300000");
         });
+    }
+
+    @Test
+    void conLaOpcionUnaCuotaCobraLaTasaSobreElTotalConElMismoRedondeo() {
+        InstallmentPlan plan = new InstallmentPlan(new BigDecimal("333333"), 1, new BigDecimal("2.15"),
+                LocalDate.of(2026, 10, 9), 20, 5, true);
+
+        assertThat(plan.cuotas()).singleElement().satisfies(c -> {
+            assertThat(c.principal()).isEqualByComparingTo("333333");
+            assertThat(c.interest()).isEqualByComparingTo("7167");
+            assertThat(c.amount()).isEqualByComparingTo("340500");
+        });
+        assertThat(plan.totalInterest()).isEqualByComparingTo("7167");
+    }
+
+    @Test
+    void conLaOpcionYTasaCeroUnaCuotaNoLlevaInteres() {
+        InstallmentPlan plan = new InstallmentPlan(new BigDecimal("300000"), 1, BigDecimal.ZERO,
+                LocalDate.of(2026, 10, 9), 20, 5, true);
+
+        assertThat(plan.cuotas()).singleElement()
+                .satisfies(c -> assertThat(c.interest()).isEqualByComparingTo("0"));
+    }
+
+    @Test
+    void laOpcionNoCambiaLasComprasDeVariasCuotas() {
+        InstallmentPlan conOpcion = new InstallmentPlan(new BigDecimal("1200000"), 3, DOS,
+                LocalDate.of(2026, 10, 9), 20, 5, true);
+
+        assertThat(conOpcion.cuotas()).isEqualTo(visa("1200000", 3, DOS, LocalDate.of(2026, 10, 9)).cuotas());
     }
 
     @Test

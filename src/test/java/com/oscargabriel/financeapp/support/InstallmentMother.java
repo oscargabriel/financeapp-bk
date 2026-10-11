@@ -25,19 +25,26 @@ public final class InstallmentMother {
     public static final UUID VISA_SIN_TASA_ID = UUID.fromString("30000000-0000-7000-8000-000000000013");
     public static final UUID VISA_SIN_CORTE_ID = UUID.fromString("30000000-0000-7000-8000-000000000014");
     public static final UUID VISA_SIN_PAGO_ID = UUID.fromString("30000000-0000-7000-8000-000000000015");
+    public static final UUID VISA_UNA_CUOTA_ID = UUID.fromString("30000000-0000-7000-8000-000000000016");
 
     public static final UUID COMPRA_ID = UUID.fromString("90000000-0000-7000-8000-000000000001");
 
     private InstallmentMother() {
     }
 
-    /** Las del usuario de TransactionMother mas cuatro tarjetas: corte 20 y pago 5, con y sin tasa. */
+    /**
+     * Las del usuario de TransactionMother mas cinco tarjetas: corte 20 y pago 5, con y sin tasa, y una que cobra
+     * interes en las compras a 1 cuota (FA-134).
+     */
     public static List<Account> cuentasConTarjetas() {
         List<Account> cuentas = new ArrayList<>(TransactionMother.cuentasDelUsuario());
         cuentas.add(tarjeta(VISA_ID, "Visa", 20, 5, new BigDecimal("2.0000")));
         cuentas.add(tarjeta(VISA_SIN_TASA_ID, "Visa sin tasa", 20, 5, null));
         cuentas.add(tarjeta(VISA_SIN_CORTE_ID, "Visa sin corte", null, 5, null));
         cuentas.add(tarjeta(VISA_SIN_PAGO_ID, "Visa sin pago", 20, null, null));
+        cuentas.add(new Account(VISA_UNA_CUOTA_ID, "Visa una cuota", AccountType.CREDIT, "COP", BigDecimal.ZERO,
+                BigDecimal.ZERO, new BigDecimal("5000000.0000"), 20, 5, new BigDecimal("2.0000"), true, true,
+                BigDecimal.ZERO));
         return cuentas;
     }
 

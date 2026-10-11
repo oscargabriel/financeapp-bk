@@ -16,8 +16,8 @@ import com.oscargabriel.financeapp.domain.model.AccountType;
 import com.oscargabriel.financeapp.infrastructure.adapter.in.web.dto.CreateAccountRequest;
 
 /**
- * Cupo, dia de corte, dia de pago y tasa de interes dependen del tipo: obligatorios en rango para una CREDIT y
- * prohibidos en las demas. Cada error sale sobre su propio campo, no sobre la clase. Tienen que salir
+ * Cupo, dia de corte, dia de pago, tasa de interes e interes a 1 cuota dependen del tipo: en rango para una
+ * CREDIT y prohibidos en las demas. Cada error sale sobre su propio campo, no sobre la clase. Tienen que salir
  * como 400 y no llegar a ck_accounts_credit_fields.
  */
 @Retention(RUNTIME)
@@ -78,6 +78,10 @@ public @interface CamposDeCredito {
             }
             if (cuenta.monthlyInterestRate() != null) {
                 valido = error(context, "monthlyInterestRate", "Solo una cuenta CREDIT tiene tasa de interes");
+            }
+            if (cuenta.chargesSingleInstallmentInterest() != null) {
+                valido = error(context, "chargesSingleInstallmentInterest",
+                        "Solo una cuenta CREDIT cobra interes en las compras a 1 cuota");
             }
             return valido;
         }
