@@ -56,22 +56,64 @@ public class RecurrenceR2dbcAdapter implements RecurrenceRepositoryPort {
             """;
 
     /**
-     * Activa es no cancelada y con ocurrencias por venir: toda sin fin, y una con fin mientras le quede
-     * alguna posterior a now(). La proxima sale de las filas que existen, asi que una borrada a mano no
-     * cuenta.
+     * Una serie sin fin solo crea ocurrencias si su cuenta admite movimientos y su categoria esta viva
+     * (FA-116). Las reglas de cuentas y categorias impiden llegar a otra cosa desde el API; esto cubre los
+     * datos anteriores a ellas y las carreras.
      */
+    private static final String PUEDE_CRECER = """
+            EXISTS (SELECT 1
+                              FROM finance.accounts a
+                              JOIN finance.categories c ON c.id = r.category_id
+                             WHERE a.id = r.account_id
+                               AND a.is_active
+                               AND a.deleted_at IS NULL
+                               AND c.deleted_at IS NULL)""";
+
+    private static final String CON_PROXIMA = """
+            LEFT JOIN LATERAL (SELECT MIN(t.occurred_at) AS proxima
+                                   FROM finance.transactions t
+                                  WHERE t.recurrence_id = r.id
+                                    AND t.occurred_at > now()) p ON TRUE""";
+
+    /**
+     * Activa es no cancelada y con ocurrencias por venir: una con alguna posterior a now(), y una sin fin
+     * que todavia puede crearlas. La proxima sale de las filas que existen, asi que una borrada a mano no
+     * cuenta. El listado y los conteos que impiden desactivar o borrar usan esta misma condicion: una
+     * serie que bloquea un cambio siempre esta en el listado, donde el usuario la puede cancelar.
+     */
+    private static final String ES_ACTIVA = """
+            r.status = 'ACTIVE'
+               AND (p.proxima IS NOT NULL
+                    OR (r.end_date IS NULL AND r.occurrence_limit IS NULL AND %s))""".formatted(PUEDE_CRECER);
+
     private static final String ACTIVAS = """
             SELECT %s, p.proxima
               FROM finance.recurrences r
-              LEFT JOIN LATERAL (SELECT MIN(t.occurred_at) AS proxima
-                                   FROM finance.transactions t
-                                  WHERE t.recurrence_id = r.id
-                                    AND t.occurred_at > now()) p ON TRUE
+              %s
              WHERE r.user_id = :userId
-               AND r.status = 'ACTIVE'
-               AND (p.proxima IS NOT NULL OR (r.end_date IS NULL AND r.occurrence_limit IS NULL))
+               AND %s
              ORDER BY p.proxima NULLS LAST, r.id
-            """.formatted(COLUMNAS);
+            """.formatted(COLUMNAS, CON_PROXIMA, ES_ACTIVA);
+
+    private static final String ACTIVAS_DE_CUENTA = """
+            SELECT count(*) AS series
+              FROM finance.recurrences r
+              %s
+             WHERE r.user_id = :userId
+               AND r.account_id = :accountId
+               AND %s
+            """.formatted(CON_PROXIMA, ES_ACTIVA);
+
+    /** Solo cuenta sobre una categoria viva, para que una ya borrada con series viejas siga dando 404. */
+    private static final String ACTIVAS_DE_CATEGORIA = """
+            SELECT count(*) AS series
+              FROM finance.recurrences r
+              JOIN finance.categories k ON k.id = r.category_id AND k.deleted_at IS NULL
+              %s
+             WHERE r.user_id = :userId
+               AND r.category_id = :categoryId
+               AND %s
+            """.formatted(CON_PROXIMA, ES_ACTIVA);
 
     private static final String POR_ID = """
             SELECT %s
@@ -88,7 +130,8 @@ public class RecurrenceR2dbcAdapter implements RecurrenceRepositoryPort {
                AND r.status = 'ACTIVE'
                AND r.end_date IS NULL
                AND r.occurrence_limit IS NULL
-            """.formatted(COLUMNAS);
+               AND %s
+            """.formatted(COLUMNAS, PUEDE_CRECER);
 
     private static final String PROXIMA = """
             SELECT MIN(occurred_at) AS proxima
@@ -208,6 +251,24 @@ public class RecurrenceR2dbcAdapter implements RecurrenceRepositoryPort {
                 .bind("userId", userId)
                 .map((row, metadata) -> toDomain(row))
                 .all();
+    }
+
+    @Override
+    public Mono<Long> countActiveByAccount(UUID accountId, UUID userId) {
+        return databaseClient.sql(ACTIVAS_DE_CUENTA)
+                .bind("accountId", accountId)
+                .bind("userId", userId)
+                .map((row, metadata) -> row.get("series", Long.class))
+                .one();
+    }
+
+    @Override
+    public Mono<Long> countActiveByCategory(UUID categoryId, UUID userId) {
+        return databaseClient.sql(ACTIVAS_DE_CATEGORIA)
+                .bind("categoryId", categoryId)
+                .bind("userId", userId)
+                .map((row, metadata) -> row.get("series", Long.class))
+                .one();
     }
 
     /** MIN sin filas da una fila con NULL: se vuelve vacio. */

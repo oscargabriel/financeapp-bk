@@ -18,6 +18,7 @@ import com.oscargabriel.financeapp.domain.model.UpdateAccountCommand;
 import com.oscargabriel.financeapp.domain.port.in.UpdateAccountPort;
 import com.oscargabriel.financeapp.domain.port.out.AccountRepositoryPort;
 import com.oscargabriel.financeapp.domain.port.out.CurrencyQueryPort;
+import com.oscargabriel.financeapp.domain.port.out.RecurrenceRepositoryPort;
 
 import reactor.core.publisher.Mono;
 
@@ -27,6 +28,7 @@ public class UpdateAccountUseCase implements UpdateAccountPort {
 
     private final AccountRepositoryPort cuentas;
     private final CurrencyQueryPort monedas;
+    private final RecurrenceRepositoryPort series;
 
     /**
      * El formato del parche ya viene validado por UpdateAccountRequest, incluidos los rangos y que
@@ -43,6 +45,7 @@ public class UpdateAccountUseCase implements UpdateAccountPort {
                     Account resultante = aplicar(guardada, parche);
                     saldoSuficiente(guardada, resultante);
                     return monedaCambiable(guardada, resultante.currencyCode())
+                            .then(Mono.defer(() -> sinSeriesSiSeDesactiva(userId, guardada, resultante)))
                             .then(Mono.defer(() -> cuentas.update(userId, resultante)));
                 })
                 .switchIfEmpty(Mono.error(UpdateAccountUseCase::noEncontrada));
@@ -134,6 +137,28 @@ public class UpdateAccountUseCase implements UpdateAccountPort {
                         ErrorCodes.RESOURCE_IN_USE,
                         "La cuenta tiene movimientos: su moneda ya no se puede cambiar", "currencyCode")))
                 .then();
+    }
+
+    /**
+     * Una serie activa seguiria creando ocurrencias en una cuenta que ya no admite movimientos (FA-116). Solo
+     * se mira al pasar de activa a desactivada: pedir el estado que ya tiene no cambia nada.
+     */
+    private Mono<Void> sinSeriesSiSeDesactiva(UUID userId, Account guardada, Account resultante) {
+        if (!guardada.active() || resultante.active()) {
+            return Mono.empty();
+        }
+        return series.countActiveByAccount(guardada.id(), userId)
+                .flatMap(activas -> activas == 0
+                        ? Mono.<Void>empty()
+                        : Mono.error(new BadRequestException(HttpStatus.CONFLICT, ErrorCodes.RESOURCE_IN_USE,
+                                "La cuenta tiene " + seriesActivas(activas)
+                                        + ": cancelalas o muevelas a otra cuenta antes de desactivarla",
+                                "isActive")));
+    }
+
+    /** «1 serie activa», «3 series activas»: lo usan tambien los borrados de cuentas y categorias. */
+    static String seriesActivas(long cuantas) {
+        return cuantas + (cuantas == 1 ? " serie activa" : " series activas");
     }
 
     private static ErrorDetail invalido(String descripcion, String campo) {

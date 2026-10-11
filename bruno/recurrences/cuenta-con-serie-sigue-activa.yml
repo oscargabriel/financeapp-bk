@@ -1,0 +1,30 @@
+info:
+  name: La cuenta con serie sigue activa y con su nombre
+  type: http
+  seq: 81
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("Desactivable sigue en el listado de activas, sin renombrar", function() {
+          const cuenta = res.getBody().find(function (c) { return c.id === bru.getVar("idDesactivable"); });
+          expect(cuenta).to.not.equal(undefined);
+          expect(cuenta.name).to.equal("Desactivable");
+          expect(cuenta.isActive).to.equal(true);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

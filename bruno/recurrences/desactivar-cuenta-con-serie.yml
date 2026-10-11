@@ -1,0 +1,48 @@
+info:
+  name: Desactivar una cuenta con una serie activa
+  type: http
+  seq: 80
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/{{idDesactivable}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Vieja",
+        "isActive": false
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+  scripts:
+    - type: tests
+      code: |-
+        const errores = res.getBody().errors;
+
+        test("un solo error, en isActive", function() {
+          expect(errores).to.have.length(1);
+          expect(errores[0].code).to.equal("RESOURCE_IN_USE");
+          expect(errores[0].field).to.equal("isActive");
+        });
+
+        test("dice cuantas series tiene", function() {
+          expect(errores[0].description).to.include("1 serie activa");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # No se desactiva una cuenta con series activas (FA-116)
+
+  El parche trae tambien un nombre nuevo: el rechazo no aplica nada, y el request siguiente
+  comprueba que la cuenta conserva su nombre y sigue activa.

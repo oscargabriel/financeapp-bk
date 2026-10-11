@@ -16,10 +16,12 @@ runtime:
   scripts:
     - type: tests
       code: |-
-        test("la ocurrencia futura de la serie impide el borrado", function() {
+        test("la serie y su ocurrencia futura impiden el borrado, en un solo error", function() {
           const enId = res.getBody().errors.filter(function (e) { return e.field === "id"; });
           expect(enId).to.have.length(1);
           expect(enId[0].code).to.equal("RESOURCE_IN_USE");
+          expect(enId[0].description).to.match(/\d+ series? activas?/);
+          expect(enId[0].description).to.match(/\d+ movimientos? programados?/);
         });
 
 settings:
@@ -29,7 +31,9 @@ settings:
   maxRedirects: 5
 
 docs: |
-  # Una serie activa impide borrar su cuenta (FA-115)
+  # Una serie activa impide borrar su cuenta (FA-115, FA-116)
 
-  Toda serie sin fin activa tiene una ocurrencia programada. La cuenta puede tener ademas saldo, y
-  entonces la respuesta trae tambien el error de `currentBalance`.
+  Toda serie sin fin activa tiene una ocurrencia programada. Desde FA-116 la serie cuenta por si
+  misma, y el unico error de `id` dice cuantas series activas y cuantos programados tiene. La
+  cuenta puede tener ademas saldo, y entonces la respuesta trae tambien el error de
+  `currentBalance`.

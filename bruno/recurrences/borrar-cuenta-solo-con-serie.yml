@@ -1,0 +1,42 @@
+info:
+  name: Borrar una cuenta con serie y sin programados
+  type: http
+  seq: 86
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/accounts/{{idDesactivable}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+  scripts:
+    - type: tests
+      code: |-
+        const errores = res.getBody().errors;
+
+        test("un solo error, en id, por la serie", function() {
+          expect(errores).to.have.length(1);
+          expect(errores[0].code).to.equal("RESOURCE_IN_USE");
+          expect(errores[0].field).to.equal("id");
+          expect(errores[0].description).to.include("1 serie activa");
+        });
+
+        test("no menciona programados", function() {
+          expect(errores[0].description).to.not.include("programado");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # La serie sin fin sigue activa sin su programada (FA-116)
+
+  Sin la regla de las series, este borrado daria 204 y la serie seguiria creando ocurrencias sobre
+  la cuenta borrada.

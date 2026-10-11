@@ -35,6 +35,13 @@ SET search_path TO finance, public;
 \set cuenta_series       '20000000-0000-7000-8000-000000000010'
 \set cuenta_series_otra  '20000000-0000-7000-8000-000000000011'
 \set serie_atrasada      '80000000-0000-7000-8000-000000000001'
+\set cuenta_desactivada  '20000000-0000-7000-8000-000000000016'
+\set cuenta_borrada_s    '20000000-0000-7000-8000-000000000017'
+\set cuenta_sin_categoria '20000000-0000-7000-8000-000000000018'
+\set club_viejo          '30000000-0000-7000-8000-000000000171'
+\set serie_desactivada   '80000000-0000-7000-8000-000000000002'
+\set serie_cuenta_borrada '80000000-0000-7000-8000-000000000003'
+\set serie_sin_categoria '80000000-0000-7000-8000-000000000004'
 \set cuotas              '10000000-0000-7000-8000-000000000005'
 \set visa                '20000000-0000-7000-8000-000000000012'
 \set visa_31             '20000000-0000-7000-8000-000000000013'
@@ -384,8 +391,14 @@ SELECT m.id, :'pendientes'::uuid, :'cuenta_pendientes'::uuid, m.destino,
 -- lectura de saldos tiene que crear las de hace dos semanas, hace una y hoy, más
 -- la de dentro de una semana, y no volver a crear la borrada.
 --
+-- Otras tres series sin fin, iguales a la atrasada pero con generated_count 1,
+-- no pueden crear ocurrencias (FA-116): una va sobre una cuenta desactivada,
+-- otra sobre una cuenta borrada y otra con una categoría borrada. Ninguna
+-- lectura tiene que crearles ocurrencias, ni el listado mostrarlas.
+--
 -- Saldos al cargar: Serie atrasada 990.000 (solo la primera ocurrencia),
--- Series 2.000.000 y Series otra 0.
+-- Series 2.000.000, Series otra 0, Serie desactivada 990.000, Serie cuenta
+-- borrada 0 y Serie sin categoria 990.000.
 -- -----------------------------------------------------------------------------
 INSERT INTO finance.users
     (id, email, password_hash, first_name, base_currency_code, timezone)
@@ -406,6 +419,17 @@ VALUES
     (:'cuenta_series'::uuid,      :'series'::uuid, 'Series',         'CASH', 'COP', 2000000),
     (:'cuenta_series_otra'::uuid, :'series'::uuid, 'Series otra',    'CASH', 'COP',       0);
 
+INSERT INTO finance.accounts (id, user_id, name, type, currency_code, initial_balance, is_active, deleted_at)
+VALUES
+    (:'cuenta_desactivada'::uuid,   :'series'::uuid, 'Serie desactivada',    'CASH', 'COP', 1000000, FALSE, NULL),
+    (:'cuenta_borrada_s'::uuid,     :'series'::uuid, 'Serie cuenta borrada', 'CASH', 'COP',   10000, TRUE,  now()),
+    (:'cuenta_sin_categoria'::uuid, :'series'::uuid, 'Serie sin categoria',  'CASH', 'COP', 1000000, TRUE,  NULL);
+
+INSERT INTO finance.categories
+    (id, user_id, name, applies_to, icon, color, sort_order, is_system, deleted_at)
+VALUES
+    (:'club_viejo'::uuid, :'series'::uuid, 'Club viejo', 'EXPENSE', 'dumbbell', '#6D4C41', 900, FALSE, now());
+
 INSERT INTO finance.recurrences
     (id, user_id, account_id, category_id, type, amount, currency_code, description,
      frequency, interval_count, day_of_week, start_date, generated_count)
@@ -415,13 +439,28 @@ SELECT :'serie_atrasada'::uuid, :'series'::uuid, :'cuenta_atrasada'::uuid, c.id,
   JOIN finance.categories c
     ON c.user_id = :'series'::uuid AND c.name = 'Suscripciones';
 
+INSERT INTO finance.recurrences
+    (id, user_id, account_id, category_id, type, amount, currency_code, description,
+     frequency, interval_count, day_of_week, start_date, generated_count)
+SELECT s.id, :'series'::uuid, s.cuenta,
+       COALESCE(s.categoria, (SELECT c.id FROM finance.categories c
+                               WHERE c.user_id = :'series'::uuid AND c.name = 'Suscripciones')),
+       'EXPENSE', 10000, 'COP', s.descripcion, 'WEEKLY', 1, EXTRACT(ISODOW FROM r.inicio), r.inicio, 1
+  FROM (SELECT (now() AT TIME ZONE 'America/Bogota')::date - 28 AS inicio) r
+ CROSS JOIN (VALUES
+        (:'serie_desactivada'::uuid,    :'cuenta_desactivada'::uuid,   NULL::uuid,          'Serie en cuenta desactivada'),
+        (:'serie_cuenta_borrada'::uuid, :'cuenta_borrada_s'::uuid,     NULL::uuid,          'Serie en cuenta borrada'),
+        (:'serie_sin_categoria'::uuid,  :'cuenta_sin_categoria'::uuid, :'club_viejo'::uuid, 'Serie con categoria borrada')
+       ) AS s(id, cuenta, categoria, descripcion);
+
 INSERT INTO finance.transactions
     (id, user_id, account_id, category_id, type, amount, currency_code,
      exchange_rate, amount_base, description, occurred_at, origin, recurrence_id)
 SELECT gen_random_uuid(), :'series'::uuid, s.account_id, s.category_id, s.type, s.amount, 'COP',
        1, s.amount, s.description, s.start_date::timestamp AT TIME ZONE 'America/Bogota', 'WEB', s.id
   FROM finance.recurrences s
- WHERE s.id = :'serie_atrasada'::uuid;
+ WHERE s.id IN (:'serie_atrasada'::uuid, :'serie_desactivada'::uuid, :'serie_cuenta_borrada'::uuid,
+                :'serie_sin_categoria'::uuid);
 
 
 -- -----------------------------------------------------------------------------

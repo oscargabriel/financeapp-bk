@@ -573,8 +573,15 @@ cuenta desactivada se modifica igual que una activa.
 **Desactivar y reactivar (FA-68).** `{"isActive": false}` desactiva la cuenta y `{"isActive": true}`
 la reactiva, con cualquier saldo: a favor, en deuda o en cero. El cambio de estado no toca el saldo
 ni los movimientos. Pedir el estado que la cuenta ya tiene responde 200 sin cambios. Puede ir junto
-con otros campos del parche, y si el parche se rechaza, el estado tampoco cambia. Mientras está
-desactivada:
+con otros campos del parche, y si el parche se rechaza, el estado tampoco cambia.
+
+**Sin series activas (FA-116).** Una cuenta activa sobre la que corre alguna serie activa —las de
+`GET /api/recurrences`— no se desactiva: 409 `RESOURCE_IN_USE` en `isActive`, con la cantidad de
+series en la `description`, y no se aplica nada del parche. Hay que cancelar cada serie con
+`DELETE /api/recurrences/{id}` o moverla a otra cuenta con `PATCH /api/recurrences/{id}`. Una serie
+con fin que ya terminó no impide nada.
+
+Mientras está desactivada:
 
 - No sale en `GET /api/accounts` salvo con `includeInactive=true`, ni en `accounts` de
   `reports/balance`.
@@ -610,6 +617,7 @@ Al reactivarla, todo vuelve a funcionar como antes.
 | 404 | `NOT_FOUND` | `id` | La cuenta no existe, está borrada o es de otro usuario: la respuesta es la misma |
 | 409 | `DUPLICATE_RESOURCE` | `name` | Otra cuenta viva del usuario ya usa ese nombre |
 | 409 | `RESOURCE_IN_USE` | `currencyCode` | La cuenta tiene movimientos, como origen o destino. No cambia nada del parche |
+| 409 | `RESOURCE_IN_USE` | `isActive` | Se pide desactivar una cuenta activa con series activas. No cambia nada del parche |
 | 409 | `INSUFFICIENT_FUNDS` | `initialBalance` | El inicial nuevo dejaría el saldo de una cuenta que no es `CREDIT` por debajo de cero. No cambia nada del parche |
 
 ### `DELETE /api/accounts/{id}`
@@ -630,8 +638,13 @@ que una cuenta en cero puede tenerlos. Para resolverlos:
 - una compra en cuotas: `DELETE /api/installment-purchases/{id}`, que se lleva sus cuotas por venir;
 - un movimiento suelto, también una transferencia que llega a la cuenta: `DELETE /api/transactions/{id}`.
 
-Si la cuenta tiene saldo y programados a la vez, la respuesta trae los dos errores. Los pendientes
-no impiden el borrado: se borran con la cuenta.
+**Sin series activas (FA-116).** Una serie activa sobre la cuenta también impide el borrado, aunque
+el usuario haya borrado a mano su ocurrencia programada. Es el mismo 409 en `id`: un solo error cuya
+`description` dice cuántas series activas y cuántos programados tiene, por ejemplo «La cuenta tiene
+1 serie activa y 1 movimiento programado». Se resuelve cancelando la serie.
+
+Si la cuenta tiene saldo y además programados o series, la respuesta trae los dos errores. Los
+pendientes no impiden el borrado: se borran con la cuenta.
 
 Lo que pasa después:
 
@@ -652,7 +665,7 @@ Lo que pasa después:
 | 400 | `VALIDATION_ERROR` | `id` | El id de la ruta no es un UUID |
 | 404 | `NOT_FOUND` | `id` | La cuenta no existe, ya está borrada o es de otro usuario: la respuesta es la misma |
 | 409 | `RESOURCE_IN_USE` | `currentBalance` | La cuenta tiene saldo distinto de cero |
-| 409 | `RESOURCE_IN_USE` | `id` | La cuenta es origen o destino de movimientos programados |
+| 409 | `RESOURCE_IN_USE` | `id` | La cuenta es origen o destino de movimientos programados, o tiene series activas |
 
 ### `GET /api/categories`
 
@@ -775,6 +788,9 @@ recuperarla desde el API.
 **204 No Content**, sin cuerpo.
 
 - Se puede borrar aunque tenga movimientos, y también una de la semilla.
+- No se puede borrar mientras la use alguna serie activa —las de `GET /api/recurrences`—: 409
+  `RESOURCE_IN_USE` en `id`, con la cantidad de series en la `description` (FA-116). Hay que cancelar
+  cada serie o cambiarle la categoría con `PATCH /api/recurrences/{id}`.
 - Sus movimientos no cambian: conservan su `categoryId`, y el reporte de movimientos los sigue
   mostrando con el `categoryName` que tenía.
 - Un PATCH de uno de esos movimientos que no cambie su categoría ni su tipo se acepta. Ningún
@@ -786,6 +802,7 @@ recuperarla desde el API.
 |---|---|---|---|
 | 400 | `VALIDATION_ERROR` | `id` | El id de la ruta no es un UUID |
 | 404 | `NOT_FOUND` | `id` | La categoría no existe, ya está borrada o es de otro usuario: la respuesta es la misma |
+| 409 | `RESOURCE_IN_USE` | `id` | La categoría la usa alguna serie activa |
 
 ### Catálogos — `GET /api/catalogs/*`
 
@@ -1169,6 +1186,12 @@ Sin fin, crea las que van hasta hoy y la siguiente. Las demás aparecen solas: a
 `GET /accounts`, `reports/balance`, `reports/transactions`, `monthly-spending` o la lista de series, el
 servidor crea antes las que falten, aunque haya estado apagado.
 
+**Cuenta y categoría válidas (FA-116).** Mientras una serie esté activa, su cuenta no se puede
+desactivar ni borrar, y su categoría no se puede borrar: 409 en esas rutas. Una serie sin fin de
+datos anteriores a esa regla, cuya cuenta ya está desactivada o borrada o cuya categoría ya está
+borrada, no crea más ocurrencias y no sale en la lista. Si la cuenta se reactiva, la siguiente
+consulta crea las que falten, como con cualquier serie atrasada.
+
 **Ocurrencias sueltas.** Una ocurrencia se corrige o se borra con `PATCH` o `DELETE` sobre
 `/api/transactions/{id}`, y sigue siendo de su serie. Una borrada a mano no vuelve a aparecer. Esas
 dos rutas sí validan el [saldo](#saldo-no-negativo).
@@ -1244,8 +1267,10 @@ actual: cambiar la periodicidad lo mueve (ver abajo).
 #### `GET /api/recurrences`
 
 **200 OK** — arreglo de series con la forma del alta, de la próxima ocurrencia a la más lejana. Solo
-las **activas**: no canceladas y con ocurrencias por venir. Una sin fin siempre lo está; una con fin
-deja de estarlo cuando pasa su última ocurrencia. Sin series activas, `[]`.
+las **activas**: no canceladas y con ocurrencias por venir. Una sin fin lo está mientras su cuenta
+esté activa y su categoría viva; una con fin deja de estarlo cuando pasa su última ocurrencia. Sin
+series activas, `[]`. Son las mismas series que cuentan los 409 de desactivar o borrar una cuenta y de
+borrar una categoría.
 
 #### `PATCH /api/recurrences/{id}`
 
