@@ -9,27 +9,18 @@
 FROM mcr.microsoft.com/openjdk/jdk:25-ubuntu AS build
 WORKDIR /workspace
 
-# Primero solo los build.gradle de los modulos (FA-148): las dependencias quedan en su propia capa y
-# no se vuelven a bajar cuando lo unico que cambia es el codigo.
 COPY gradlew build.gradle settings.gradle ./
 COPY gradle gradle
-COPY compartido/build.gradle compartido/
-COPY core/build.gradle core/
-COPY ia/build.gradle ia/
-COPY app/build.gradle app/
 RUN chmod +x gradlew && ./gradlew dependencies --no-daemon --quiet > /dev/null
 
 # build y no solo bootJar: corre la suite y el umbral de JaCoCo, asi que un test rojo o la
 # cobertura por debajo del minimo no producen imagen y el disparador no despliega.
-COPY compartido compartido
-COPY core core
-COPY ia ia
-COPY app app
+COPY src src
 RUN ./gradlew build --no-daemon
 
 # Por capas: las dependencias no cambian entre commits, y Artifact Registry guarda cada capa una
 # sola vez (el plan gratuito da 0,5 GB).
-RUN cp "$(ls app/build/libs/*.jar | grep -v -- '-plain.jar')" app.jar \
+RUN cp "$(ls build/libs/*.jar | grep -v -- '-plain.jar')" app.jar \
     && java -Djarmode=tools -jar app.jar extract --layers --launcher --destination extracted
 
 FROM mcr.microsoft.com/openjdk/jdk:25-distroless
