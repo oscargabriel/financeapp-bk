@@ -1,5 +1,5 @@
 {
-  "enabledMcpjsonServers": ["notion"],
+  "enabledMcpjsonServers": ["atlassian"],
   "enabledPlugins": {
     "superpowers@superpowers-marketplace": false
   },
@@ -9,13 +9,23 @@
       "mcp__notion__notion-fetch",
       "mcp__notion__notion-query-data-sources",
       "mcp__notion__notion-get-comments",
-      "mcp__notion__notion-create-pages",
-      "mcp__notion__notion-create-comment",
-      "mcp__notion__notion-update-page",
+      "mcp__atlassian__searchJiraIssuesUsingJql",
+      "mcp__atlassian__getJiraIssue",
+      "mcp__atlassian__getTransitionsForJiraIssue",
+      "mcp__atlassian__transitionJiraIssue",
+      "mcp__atlassian__addCommentToJiraIssue",
+      "mcp__atlassian__createJiraIssue",
+      "mcp__atlassian__editJiraIssue",
+      "mcp__atlassian__createIssueLink",
       "Bash(pwsh -NoProfile -File .claude/scripts/merge-pr-dev.ps1 *)",
       "PowerShell(pwsh -NoProfile -File .claude/scripts/merge-pr-dev.ps1 *)",
       "Bash(openspec *)",
       "PowerShell(openspec *)"
+    ],
+    "deny": [
+      "mcp__notion__notion-create-pages",
+      "mcp__notion__notion-create-comment",
+      "mcp__notion__notion-update-page"
     ]
   }
 }
