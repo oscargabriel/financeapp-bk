@@ -1,9 +1,0 @@
-plugins {
-	id 'java-library'
-}
-
-dependencies {
-	implementation project(':compartido')
-	implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
-	testImplementation testFixtures(project(':compartido'))
-}

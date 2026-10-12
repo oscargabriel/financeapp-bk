@@ -88,7 +88,7 @@ if ($ocupante) {
 }
 
 # 2. Base: la URL del perfil local tal como la veria la app arrancada desde esta terminal.
-$yamlLocal = Get-Content (Join-Path $repo 'app\src\main\resources\application-local.yaml') -Raw
+$yamlLocal = Get-Content (Join-Path $repo 'src\main\resources\application-local.yaml') -Raw
 if ($yamlLocal -notmatch '(?ms)^\s*r2dbc:\s*\r?\n\s*url:\s*(\S+)\s*\r?\n\s*username:\s*(\S+)\s*\r?\n\s*password:\s*(\S+)') {
     Detener 2 'no se encontro spring.r2dbc (url, username, password) en application-local.yaml.'
 }
@@ -148,7 +148,7 @@ $wrapper = $null
 $app = $null
 $codigo = 0
 try {
-    $wrapper = Start-Process -FilePath (Join-Path $repo 'gradlew.bat') -ArgumentList ':app:bootRun', '--console=plain' `
+    $wrapper = Start-Process -FilePath (Join-Path $repo 'gradlew.bat') -ArgumentList 'bootRun', '--console=plain' `
         -WorkingDirectory $repo -RedirectStandardOutput $log -RedirectStandardError "$log.err" -NoNewWindow -PassThru
 
     $limite = (Get-Date).AddSeconds($TiempoArranque)
