@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
+import com.oscargabriel.financeapp.compartido.infrastructure.adapter.in.web.UsuarioDelToken;
 import com.oscargabriel.financeapp.core.domain.port.in.GetMonthlySpendingPort;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.MonthlySpendingResponse;
 

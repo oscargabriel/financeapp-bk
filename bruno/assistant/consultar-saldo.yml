@@ -35,6 +35,13 @@ runtime:
           expect(res.getBody().report).to.equal(null);
         });
 
+        test("trae solo los campos livianos (FA-148)", function() {
+          const b = res.getBody().balance;
+          expect(Object.keys(b).sort()).to.deep.equal(["accounts", "allTimeNet", "currencyCode", "expense", "from",
+            "income", "net", "to"]);
+          expect(Object.keys(b.accounts[0]).sort()).to.deep.equal(["currencyCode", "currentBalance", "name"]);
+        });
+
 settings:
   encodeUrl: true
   timeout: 0

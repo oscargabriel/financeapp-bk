@@ -105,6 +105,12 @@ salida propio, y el adaptador que lo cumple llamando a un puerto de entrada del 
 `app/…/app/puente/`. Así el límite lo hace cumplir el compilador: un import del core desde `ia` no
 compila. Los puentes solo traducen; si uno empieza a decidir algo, esa regla es de un módulo.
 
+`ia` lee con consultas propias (`Asistente*R2dbcAdapter`) que **copian reglas del core**: solo
+movimientos confirmados, el corte de días en la zona del usuario, lo programado fuera, y la
+conversión con `finance.in_currency` (la de `MontoDeLaPersona`). Al cambiar una de esas reglas en el
+core hay que cambiarla también ahí. Si las dos copias se separan, lo detecta `bruno/assistant/`, que
+compara los totales y la lista del asistente con `/reports`.
+
 Para agregar un módulo (Telegram será el primero): carpeta en la raíz con su `build.gradle`
 (`java-library`, `implementation project(':compartido')`), `include` en `settings.gradle`, una
 `implementation project(...)` en `app`, sus paquetes bajo `com.oscargabriel.financeapp.<modulo>`, y

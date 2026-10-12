@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
+import com.oscargabriel.financeapp.compartido.infrastructure.adapter.in.web.UsuarioDelToken;
 import com.oscargabriel.financeapp.core.domain.model.AccountType;
 import com.oscargabriel.financeapp.core.domain.model.CategoryScope;
 import com.oscargabriel.financeapp.core.domain.model.TransactionType;
