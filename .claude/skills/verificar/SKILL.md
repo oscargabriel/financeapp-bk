@@ -68,8 +68,10 @@ Bruno: R/R requests, T/T tests, A/A aserciones
 Build: SUCCESS | FAILURE
 ```
 
-Si la salida de Gradle no trae el conteo, leer `build/test-results/test/*.xml` (atributos `tests`,
-`failures`, `errors`, `skipped`). La cobertura está en `build/reports/jacoco/test/`.
+Si la salida de Gradle no trae el conteo, leer `<modulo>/build/test-results/test/*.xml` de los
+cuatro módulos (`compartido`, `core`, `ia`, `app`; atributos `tests`, `failures`, `errors`,
+`skipped`) y sumarlos. La cobertura agregada está en
+`app/build/reports/jacoco/testCodeCoverageReport/`.
 
 ## 4. Si falla
 

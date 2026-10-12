@@ -1,96 +1,59 @@
 plugins {
-	id 'java'
-	id 'jacoco'
-	id 'org.springframework.boot' version '4.1.1'
-	id 'io.spring.dependency-management' version '1.1.7'
+	id 'org.springframework.boot' version '4.1.1' apply false
+	id 'io.spring.dependency-management' version '1.1.7' apply false
 }
 
-group = 'com.oscargabriel'
-version = '0.0.1-SNAPSHOT'
+// Lo comun a los cuatro modulos (FA-148). Lo propio de cada uno, sus dependencias y el plugin de
+// Spring Boot, que solo aplica app, esta en el build.gradle de su carpeta.
+subprojects {
+	apply plugin: 'java'
+	apply plugin: 'jacoco'
+	apply plugin: 'io.spring.dependency-management'
 
-java {
-	toolchain {
-		languageVersion = JavaLanguageVersion.of(25)
-	}
-}
+	group = 'com.oscargabriel'
+	version = '0.0.1-SNAPSHOT'
 
-repositories {
-	mavenCentral()
-}
-
-dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
-	implementation 'org.springframework.boot:spring-boot-starter-security'
-	// Los dos modulos de Spring Security, no el starter de Boot: la autoconfiguracion de este
-	// ultimo se cuelga de spring.security.oauth2.resourceserver.*, que esta aplicacion no usa
-	// porque declara su propio decoder con la misma clave con la que firma.
-	//   jose            -> JwtEncoder, para emitir el token en el login
-	//   resource-server -> la validacion del Bearer en la cadena de seguridad
-	implementation 'org.springframework.security:spring-security-oauth2-jose'
-	implementation 'org.springframework.security:spring-security-oauth2-resource-server'
-	implementation 'org.springframework.boot:spring-boot-starter-webflux'
-	implementation 'org.springframework.boot:spring-boot-starter-validation'
-	compileOnly 'org.projectlombok:lombok'
-	runtimeOnly 'org.postgresql:r2dbc-postgresql'
-	annotationProcessor 'org.projectlombok:lombok'
-	testImplementation 'org.springframework.boot:spring-boot-starter-data-r2dbc-test'
-	testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
-	testImplementation 'org.springframework.boot:spring-boot-starter-webflux-test'
-	testCompileOnly 'org.projectlombok:lombok'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-	testAnnotationProcessor 'org.projectlombok:lombok'
-}
-
-tasks.named('test') {
-	useJUnitPlatform()
-	finalizedBy tasks.jacocoTestReport
-}
-
-// Fijada, no heredada del plugin: la version tiene que entender bytecode de Java 25. 0.8.14 es
-// justo la que trae Gradle 9.7.1 hoy, asi que esto no cambia nada ahora y protege de un
-// downgrade de Gradle mas adelante.
-jacoco {
-	toolVersion = '0.8.14'
-}
-
-// Lo que la suite no puede cubrir, y por tanto no cuenta para el umbral:
-//   * el main, que no tiene forma de ejercitarse desde un test
-//   * el adapter R2DBC, que desde el 12-09-2026 se verifica desde bruno/ contra PostgreSQL real
-// El resto entra, DTOs y configuracion incluidos: hoy estan entre el 90 y el 100%, asi que
-// excluirlos solo esconderia el dato.
-def clasesSinCobertura = [
-	'com/oscargabriel/financeapp/FinanceappBkApplication.class',
-	'com/oscargabriel/financeapp/infrastructure/adapter/out/persistence/*R2dbcAdapter.class'
-]
-
-def clasesMedidas = { fileCollection ->
-	files(fileCollection.files.collect { fileTree(dir: it, exclude: clasesSinCobertura) })
-}
-
-tasks.named('jacocoTestReport') {
-	dependsOn tasks.test
-	classDirectories.setFrom(clasesMedidas(classDirectories))
-	reports {
-		xml.required = true
-		html.required = true
-	}
-}
-
-tasks.named('jacocoTestCoverageVerification') {
-	dependsOn tasks.test
-	classDirectories.setFrom(clasesMedidas(classDirectories))
-	violationRules {
-		rule {
-			limit {
-				counter = 'LINE'
-				value = 'COVEREDRATIO'
-				minimum = 0.85
-			}
+	java {
+		toolchain {
+			languageVersion = JavaLanguageVersion.of(25)
 		}
 	}
-}
 
-// Colgado de check, no de test: 'gradlew test' mide y deja el reporte, 'gradlew build' exige.
-tasks.named('check') {
-	dependsOn tasks.jacocoTestCoverageVerification
+	repositories {
+		mavenCentral()
+	}
+
+	dependencyManagement {
+		imports {
+			mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES
+		}
+	}
+
+	dependencies {
+		compileOnly 'org.projectlombok:lombok'
+		annotationProcessor 'org.projectlombok:lombok'
+		testImplementation 'org.springframework.boot:spring-boot-starter-data-r2dbc-test'
+		testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
+		testImplementation 'org.springframework.boot:spring-boot-starter-webflux-test'
+		testCompileOnly 'org.projectlombok:lombok'
+		testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+		testAnnotationProcessor 'org.projectlombok:lombok'
+	}
+
+	// El plugin de Spring Boot lo agrega solo donde se aplica, que es app. Sin el los controladores
+	// de los demas modulos no saben el nombre de sus @RequestParam y @PathVariable.
+	tasks.withType(JavaCompile).configureEach {
+		options.compilerArgs << '-parameters'
+	}
+
+	tasks.named('test') {
+		useJUnitPlatform()
+	}
+
+	// Fijada, no heredada del plugin: la version tiene que entender bytecode de Java 25. 0.8.14 es
+	// justo la que trae Gradle 9.7.1 hoy, asi que esto no cambia nada ahora y protege de un
+	// downgrade de Gradle mas adelante.
+	jacoco {
+		toolVersion = '0.8.14'
+	}
 }
