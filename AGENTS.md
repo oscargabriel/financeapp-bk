@@ -430,19 +430,23 @@ Tres lugares, cada uno con una sola pregunta que responde:
 
 | Dónde | Responde |
 |---|---|
-| Tablero de Notion (tareas `FA-n`) | Qué falta, con qué prioridad y en qué estado |
+| Proyecto `FIN` de Jira (issues `FIN-n`) | Qué falta, con qué prioridad y en qué estado |
 | `openspec/specs/` | Qué hace el sistema **hoy**, por capacidad. Es la documentación viva |
 | `openspec/changes/` y `openspec/changes/archive/` | Qué cambio está en marcha, y el porqué de cada uno ya hecho |
 
 Las reglas de cada artefacto (proposal, specs, design, tasks) están en `openspec/config.yaml`.
 
+Hasta el 11-10-2026 las tareas vivieron en un tablero de Notion con claves `FA-n`: las `FA-n` que
+citan este archivo, el código y los changes archivados son de ese tablero, que queda como histórico
+de solo lectura.
+
 El ciclo de una tarea:
 
 1. La tarea sale del tablero. Un encargo que llegue suelto —un mensaje, una conversación— se
-   registra primero como tarea, para que tenga `ID`. El tablero es compartido con el front: aquí
-   solo se toman tareas con `Área = Backend`, aunque se pida una de `Frontend` por su `ID`.
-2. Rama `feature/fa-<n>-<slug>` desde `dev`.
-3. Change `fa-<n>-<slug>`: explorar el código si hace falta y proponer (proposal, delta de spec con
+   registra primero como issue, para que tenga clave. El tablero es compartido con el front: aquí
+   solo se toman issues con componente `Backend`, aunque se pida uno de `Frontend` por su clave.
+2. Rama `feature/fin-<n>-<slug>` desde `dev`.
+3. Change `fin-<n>-<slug>`: explorar el código si hace falta y proponer (proposal, delta de spec con
    escenarios, design si aplica, tasks). **Lo que se aclare conversando se escribe en esos archivos**:
    un alcance que solo quedó dicho en el chat no existe para el siguiente que lea.
 4. Revisión humana de la propuesta. Sin aprobación no se escribe código.

@@ -8,7 +8,8 @@ context: |
   Proyecto: backend de finanzas personales. Java 25, Spring Boot 4 WebFlux, R2DBC sobre PostgreSQL,
   arquitectura hexagonal. La guía completa —arquitectura, errores, validación, configuración,
   pruebas y despliegue— está en AGENTS.md: léela antes de proponer y no la copies en los artefactos.
-  Las tareas vienen del tablero de Notion con ID FA-n; el change se llama fa-<n>-<slug>.
+  Las tareas vienen del proyecto FIN de Jira con clave FIN-n; el change se llama fin-<n>-<slug>.
+  Las FA-n que aparecen en el código y en los changes archivados son del tablero anterior, en Notion.
   Toda ruta del API se pide con el prefijo /api, y todo error sale como
   {"errors":[{code, description, field}]} con el code tomado del enum ErrorCodes.
   La verificación tiene dos capas que se exigen juntas: gradlew build (JUnit con mocks, cobertura
@@ -16,7 +17,7 @@ context: |
 
 rules:
   proposal:
-    - "Abre con el origen: el ID de la tarea (FA-n) y, si el encargo llegó por fuera del tablero, el texto o el resumen de cómo llegó."
+    - "Abre con el origen: la clave del issue (FIN-n) y, si el encargo llegó por fuera del tablero, el texto o el resumen de cómo llegó."
     - Incluye una sección Fuera de alcance; lo que aparezca y no quepa en la tarea va a una tarea nueva del tablero, no a este change.
   specs:
     - "Las capacidades se nombran por recurso o área del sistema (auth, cuentas, categorias, transacciones, reportes, errores), no por la tarea."
@@ -29,7 +30,7 @@ rules:
     - "Cada tarea nombra cómo se verifica: la clase de test (y el método si aplica) o el request de bruno/ que la prueba."
     - El request de Bruno de un endpoint nuevo o cambiado va en el mismo grupo que el endpoint y se escribe antes, fallando.
     - "Si el change agrega o cambia un request de bruno/, una tarea lo replica en bruno-personal/ (ruta, cuerpo, autenticación) sin ejecutarlo: esa colección apunta a Neon y está fuera de git, así que el PR no muestra si se hizo."
-    - "Indica en cada grupo qué skills de dominio cargar según la tabla del paso 5 de tareas-notion (java-architect, java-exceptions, java-security, java-logging, java-debugging, bruno-cli)."
+    - "Indica en cada grupo qué skills de dominio cargar según la tabla del paso 5 de tareas-jira (java-architect, java-exceptions, java-security, java-logging, java-debugging, bruno-cli)."
     - "El último grupo es de verificación: gradlew build y bru run . -r --env local, con los conteos reales."
 
 operations:

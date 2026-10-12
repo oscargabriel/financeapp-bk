@@ -45,3 +45,8 @@ application-prod.yaml
 
 ### Coleccion Bruno personal: datos financieros reales contra Neon (no versionada) ###
 bruno-personal/
+
+### Scripts y entornos personales (no versionados): drop/reset no coinciden con schema.sql (FIN-43) ###
+docs/database/drop.sql
+docs/database/reset-data.sql
+bruno/environments/local-oz.yml
