@@ -3,10 +3,11 @@
 Cloud Run (`financeapp-bk-git`, región `europe-west1`) contra Neon. Los dos en plan gratuito y con
 escala a 0: hay un solo usuario.
 
-**Estado al 11-10-2026:** el servicio corre el merge de `dev` a `main` del PR #64 (commit
-`4894df2`, revisión `financeapp-bk-git-00010-dj8`, FA-128). El anterior era el del PR #29
-(`b163a65`, 05-10-2026). Neon se recreó vacío el 10-10-2026 con `schema.sql` de `de1f996`, que
-incluye todos los `update/` hasta `20261010_02` (ver el registro).
+**Estado al 12-10-2026:** el servicio corre el merge de `dev` a `main` del PR #76 (commit
+`c122550`, build `8544bcba`, revisión `financeapp-bk-git-00011-tk2`, FIN-43). El anterior era el
+del PR #64 (`4894df2`, 11-10-2026). Neon se recreó el 12-10-2026 con `schema.sql` de `970844c`,
+que incluye todos los `update/` hasta `20261011_02`, y con la demo de `demo@financeapp.local` (ver
+el registro y *La demo en Neon*).
 
 ## Base de datos (Neon)
 
@@ -43,8 +44,11 @@ Para inspeccionar, se deja puesto. Al terminar, `Remove-Item env:PGPASSWORD`.
 
 ### Crear la base desde cero
 
-Solo si se recrea el proyecto. En la consola de Neon, **New project**, con PostgreSQL 18. De
-**Connect**, con *Connection pooling* apagado, se toman host, base, rol y contraseña. Después:
+Si se recrea el proyecto: en la consola de Neon, **New project**, con PostgreSQL 18. De
+**Connect**, con *Connection pooling* apagado, se toman host, base, rol y contraseña. Si se recrea
+solo el esquema en el mismo proyecto (FA-128, FIN-43), el snapshot va primero y después
+`DROP SCHEMA finance CASCADE`, sin quitar la solo lectura hasta ese momento. `drop.sql` no sirve: no
+está versionado y le faltan objetos. Después:
 
 ```powershell
 psql -X -v ON_ERROR_STOP=1 -f docs/database/schema.sql
@@ -56,16 +60,48 @@ psql -X -v ON_ERROR_STOP=1 -f docs/database/seed.sql
 - **`test-data.sql` no se carga nunca.** Es el escenario de Bruno, con usuarios y movimientos falsos.
 - El `schema.sql` del día ya incluye todos los `update/` emitidos hasta entonces: **no se
   aplican**. El registro de abajo se reinicia, con el commit del `schema.sql` cargado.
-- Después, actualizar los secretos `db-*` que cambiaron y forzar una revisión (ver *Rotar un
-  secreto*).
+- La demo va después: ver *La demo en Neon*.
+- Si se creó un proyecto nuevo, actualizar los secretos `db-*` que cambiaron y forzar una revisión
+  (ver *Rotar un secreto*).
 
 Para comprobar que no hay datos de `test-data.sql`, en solo lectura:
 
 ```powershell
-psql -X -c "SELECT count(*) AS de_prueba FROM finance.users WHERE email LIKE '%@financeapp.local' OR email LIKE '%@bruno.local'"
+psql -X -c "SELECT count(*) AS de_prueba FROM finance.users WHERE (email LIKE '%@financeapp.local' OR email LIKE '%@bruno.local') AND email <> 'demo@financeapp.local'"
 ```
 
 Tiene que dar `0`.
+
+El editor SQL de la consola de Neon no sirve para estos scripts: no entiende los comandos de psql
+(`\set`, `\if`) y parte los bloques `DO $$ … $$` en cada `;`, así que `demo-data.sql` y
+`check-saldos.sql` fallan ahí. Se corren con psql y la conexión de arriba.
+
+### La demo en Neon
+
+Desde FIN-43 (12-10-2026, decisión del usuario) Neon tiene la demo del front para
+`demo@financeapp.local`, para mostrar la app. No van `dev@` ni `test-data.sql`. Con la base recién
+creada, y sin la solo lectura:
+
+```powershell
+$cop = (Invoke-RestMethod 'https://open.er-api.com/v6/latest/USD').rates.COP
+"INSERT INTO finance.exchange_rates (from_currency_code, to_currency_code, rate, rate_date) VALUES ('USD', 'COP', :'tasa'::numeric, (now() AT TIME ZONE 'America/Bogota')::date) ON CONFLICT DO NOTHING;" |
+    psql -X -v ON_ERROR_STOP=1 -v tasa="$cop" -f -
+psql -X -v ON_ERROR_STOP=1 -f docs/database/demo-data.sql
+psql -X -v ON_ERROR_STOP=1 -f docs/database/check-saldos.sql
+```
+
+- **La tasa va primero.** `demo-data.sql` falla sin una tasa USD→COP (FIN-45); en local la pone
+  `test-data.sql`. Se toma de ExchangeRate-API, la misma fuente que usa la app, y como `usd_rate`
+  usa la primera posterior cuando no hay una anterior, una alcanza para los seis meses.
+- **Las fechas no avanzan.** Se calculan al cargar: al cambiar de mes, el mes en curso queda sin
+  movimientos. Recargar es correr de nuevo `demo-data.sql`, que borra a `demo@` y a los
+  `@front.local` y los recrea; la tasa ya existe.
+- **Riesgos aceptados por el usuario** el 12-10-2026:
+  - La contraseña de `demo@` es `claveDePrueba123`, escrita en el repo, que es público. Con la
+    Basic, que ve quien abra el front, cualquiera entra a la demo y puede usar el asistente, que
+    gasta cuota de Gemini.
+  - `demo-data.sql` agrega `@front.local` a `registration_allowlist`: con la Basic, cualquiera se
+    registra en producción con un correo `@front.local` inventado.
 
 ### Comparar Neon con el esquema esperado
 
@@ -74,7 +110,11 @@ y compara su estructura con la de Neon. Con `$hasta` en el último update del re
 resultado es el `schema.sql` que Neon debería tener. Necesita Docker y la conexión de arriba.
 
 ```powershell
-$hasta = '20261010_02'   # AAAAMMDD_NN del último update aplicado en Neon, según el registro
+$hasta = '20261011_02'   # AAAAMMDD_NN del último update aplicado en Neon, según el registro
+# Sin esto, con la consola en 437 u 850, PowerShell decodifica git show y pg_dump con esa página y
+# los COMMENT ON con tildes salen como diferencias falsas (FIN-43).
+[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
+$env:PGCLIENTENCODING = 'UTF8'
 $ruido = 'restrict |Dumped from database version'   # cambia en cada volcado o según el build del servidor
 function Volcar($db) {
     pg_dump --schema-only --no-owner --no-privileges -n finance $db |
@@ -157,12 +197,12 @@ verdad.
 
 | Update | Aplicado en Neon | Notas |
 |---|---|---|
-| Base recreada: `schema.sql` de `de1f996` y `seed.sql` de `00c3b63` | 10-10-2026 (FA-128), antes del merge del PR #64 | Decisión del usuario: borró las tablas y las recreó desde el editor SQL de Neon en vez de aplicar los ocho updates de `20261008_01` a `20261010_02`, para no arrastrar datos viejos. Ese `schema.sql` ya los incluye todos, así que no se aplicó ninguno encima. Comparada por nombre en el mismo editor (tablas, vistas, funciones y triggers de `schema.sql`): sin faltantes ni sobrantes. 9 monedas, 22 categorías semilla, 0 usuarios de prueba |
+| Base recreada: `schema.sql` de `970844c` y `seed.sql` de `00c3b63`, más una tasa USD→COP y la demo de `demo@` | 12-10-2026 (FIN-43), antes del merge del PR #76 | Decisión del usuario: borró el esquema y lo recreó desde el editor SQL de Neon en vez de aplicar `20261011_01` y `20261011_02`, y cargó la demo para mostrar la app. Ese `schema.sql` ya los incluye, así que no se aplicó ninguno encima. `demo-data.sql` se cargó en una versión de SQL plano, porque el editor no acepta comandos de psql, con una tasa de 3198,099135 (ExchangeRate-API) antes. Los datos anteriores, entre ellos la cuenta del usuario, se perdieron a sabiendas. **Sin snapshot previo**: el usuario lo aceptó porque la app todavía no se libera. Comparación con `$hasta = '20261011_02'` (13-10-2026, con el PostgreSQL 18 local en vez de Docker): `sin diferencias`, 1007 líneas de cada lado. `/api/status` 200 `UP` y `GET /api/monthly-spending` de `demo@` con `totalIncome` contra la revisión `00011-tk2` |
 
-El registro anterior (línea base de `00c3b63` más `20261005_01` y `20261005_02`, 05-10-2026) quedó
-sin efecto con la recreación; está en la historia de git de este archivo. El script de comparación
-sigue partiendo de `00c3b63` más los updates: con `$hasta = '20261010_02'` reproduce el
-`schema.sql` cargado.
+Los registros anteriores (el de FA-128, con `schema.sql` de `de1f996` del 10-10-2026, y antes la
+línea base de `00c3b63` más `20261005_01` y `20261005_02`, 05-10-2026) quedaron sin efecto con las
+recreaciones; están en la historia de git de este archivo. El script de comparación sigue partiendo
+de `00c3b63` más los updates: con `$hasta = '20261011_02'` reproduce el `schema.sql` cargado.
 
 ### Correos admitidos
 
@@ -183,7 +223,8 @@ psql -X -c "SELECT entry, created_at FROM finance.registration_allowlist ORDER B
 ```
 
 Una entrada sin nada antes de la `@` (`@correo.com`) admite **cualquier** cuenta de ese dominio.
-En producción solo van correos exactos: una fila `@gmail.com` abriría el registro a todo Gmail.
+En producción solo van correos exactos: una fila `@gmail.com` abriría el registro a todo Gmail. La
+única excepción es `@front.local`, que deja la demo (ver *La demo en Neon*).
 
 ### Respaldo
 

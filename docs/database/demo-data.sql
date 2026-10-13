@@ -25,7 +25,8 @@
 -- relativas al mes en curso, y del mes en curso solo entran los movimientos que
 -- ya ocurrieron: dos cargas el mismo dia dejan el mismo estado.
 --
--- Solo para la base local; en Neon no se carga.
+-- En Neon se carga solo para demo@ (FIN-43): cómo, en docs/despliegue.md.
+-- Necesita antes una tasa USD->COP: en local la deja test-data.sql (FIN-45).
 --
 -- Ejecutar:  psql -U postgres -d financeapp -f docs/database/demo-data.sql
 -- =============================================================================
