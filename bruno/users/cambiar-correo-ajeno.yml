@@ -1,7 +1,7 @@
 info:
   name: Cambiar correo a uno ajeno
   type: http
-  seq: 13
+  seq: 16
 
 http:
   method: PATCH

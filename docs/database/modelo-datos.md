@@ -359,6 +359,13 @@ COP no arrastra el redondeo de ida y vuelta por el dólar. Si no, aporta su
 `amount_base` por la tasa `USD→moneda_persona` de su fecha: lo que valía ese día,
 no lo que vale hoy.
 
+Las metas (`budgets`) guardan su monto en su propio `currency_code`. Las vistas de
+gasto mensual las llevan a la moneda de la persona con
+`finance.amount_in_currency(moneda_persona, moneda, monto, fecha)`, con la fecha
+del día 1 del mes de la meta (FIN-29): tal cual si ya está en esa moneda, si no
+`monto / tasa(moneda) * tasa(moneda_persona)`, con un solo redondeo a 4
+decimales. Así cambiar la moneda base tampoco reescribe las metas.
+
 Un movimiento que llega en una moneda distinta a la de su cuenta lo convierte la
 aplicación, no la base (FA-51):
 
@@ -438,8 +445,10 @@ SELECT * FROM finance.v_monthly_spending
    AND period_month = date_trunc('month', CURRENT_DATE)::date;
 ```
 
-`total_spent`, `total_income` y `currency_code` están en la moneda de la persona:
-la vista suma `finance.in_currency` (ver *Multi-moneda*), igual que la meta.
+`total_spent`, `total_income`, `budget_amount` y `currency_code` están en la
+moneda de la persona: la vista suma `finance.in_currency` y convierte la meta con
+`finance.amount_in_currency` (ver *Multi-moneda*). `category_budget` de la vista
+por categoría sigue la misma regla.
 
 `total_income` suma los `INCOME` con el mismo `WHERE` que los gastos —confirmados,
 ya ocurridos, mes en la zona del usuario— (FA-132). `transaction_count` cuenta
@@ -481,6 +490,10 @@ Los topes por categoría son filas con `category_id` diligenciado, sobre el mism
 metas por categoría y otro para la global, porque en Postgres `NULL` no colisiona
 con `NULL` y un único convencional dejaría crear varias metas globales del mismo
 mes.
+
+`amount` está en `currency_code`, que no tiene por qué ser la moneda de la
+persona: las vistas convierten la meta con la tasa del día 1 de `period_month`
+(ver *Multi-moneda*).
 
 ## Construcción y versionado
 

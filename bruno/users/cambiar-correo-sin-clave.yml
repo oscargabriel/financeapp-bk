@@ -1,7 +1,7 @@
 info:
   name: Cambiar correo sin la clave
   type: http
-  seq: 11
+  seq: 14
 
 http:
   method: PATCH

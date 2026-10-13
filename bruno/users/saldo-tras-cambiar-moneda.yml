@@ -1,0 +1,33 @@
+info:
+  name: Saldo tras cambiar la moneda
+  type: http
+  seq: 12
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/balance"
+  auth:
+    type: bearer
+    token: "{{tokenPerfil}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.currencyCode
+      operator: eq
+      value: EUR
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Los reportes leen la moneda nueva
+
+  Los totales salen en la moneda que tenga la persona al consultar (FA-122): tras el cambio, el
+  saldo ya viene en EUR. La conversion de los montos la prueban `bruno/reports/` con la persona en
+  USD; este usuario no tiene movimientos.

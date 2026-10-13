@@ -1,7 +1,7 @@
 info:
   name: Cambiar clave
   type: http
-  seq: 19
+  seq: 22
 
 http:
   method: PUT

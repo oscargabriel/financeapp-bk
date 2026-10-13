@@ -32,9 +32,14 @@ runtime:
           expect(mes.totalSpent).to.equal(0);
           expect(mes.totalIncome).to.equal(0);
           expect(mes.transactionCount).to.equal(0);
-          expect(mes.budgetAmount).to.equal(2000000);
-          expect(mes.remaining).to.equal(2000000);
           expect(mes.percentUsed).to.equal(0);
+        });
+
+        test("la meta de 500 USD llega en COP, a la tasa del dia 1 del mes (4100)", function() {
+          const mes = res.getBody()[0];
+          expect(mes.currencyCode).to.equal("COP");
+          expect(mes.budgetAmount).to.equal(2050000);
+          expect(mes.remaining).to.equal(2050000);
         });
 
         test("el gasto de las 21:30 del ultimo dia del mes en curso no se cuela en este mes", function() {
@@ -51,10 +56,13 @@ docs: |
   # Mes con meta y sin gastos
 
   La otra mitad de la distincion entre `null` y cero. El mes siguiente del escenario tiene meta
-  global de 2.000.000 y ningun movimiento, asi que llega por el lado del `FULL OUTER JOIN` que
+  global de 500 USD y ningun movimiento, asi que llega por el lado del `FULL OUTER JOIN` que
   aporta la meta: `totalSpent`, `totalIncome` y `transactionCount` en cero, `remaining` igual a la meta completa
   y `percentUsed` en 0. Comparar con el mes sin meta de "Gasto mensual (rango por defecto)", donde
   esos tres campos viajan en `null`.
+
+  La meta es la unica global en otra moneda que la persona (FIN-29): la vista la convierte con la
+  tasa USD->COP vigente el dia 1 del mes, que es la de hoy (4100), asi que llega como 2.050.000.
 
   Pide el mes explicitamente porque la ventana por defecto termina en el mes en curso y este queda
   fuera. De paso cierra por el otro lado el corte de mes: el gasto de las 21:30 del ultimo dia del

@@ -1,0 +1,45 @@
+info:
+  name: Modificar perfil con una moneda inactiva
+  type: http
+  seq: 10
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/users/me"
+  body:
+    type: json
+    data: |-
+      {
+        "firstName": "Otro",
+        "baseCurrencyCode": "XTS"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenPerfil}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: baseCurrencyCode
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Moneda inactiva
+
+  `XTS` existe en el catalogo de `test-data.sql` pero inactiva. El nombre que viaja con ella no se
+  aplica: lo comprueba el request siguiente, que sigue viendo `Ana Maria`.

@@ -18,7 +18,7 @@ class UpdateUserProfileRequestTest {
     @Test
     void unParcheCompletoNoTieneViolaciones() {
         assertThat(Violaciones.de(new UpdateUserProfileRequest(" Ana Maria ", "Perez", " Ana@Correo.com ",
-                "+573001234567", "Europe/Madrid", "unaClaveLarga"))).isEmpty();
+                "+573001234567", "Europe/Madrid", " usd ", "unaClaveLarga"))).isEmpty();
     }
 
     @Test
@@ -29,29 +29,35 @@ class UpdateUserProfileRequestTest {
     /** El blanco es la forma de borrar los opcionales: no es un error de formato. */
     @Test
     void elApellidoYElCelularEnBlancoSonValidos() {
-        assertThat(Violaciones.de(new UpdateUserProfileRequest(null, "  ", null, "", null, null))).isEmpty();
+        assertThat(Violaciones.de(new UpdateUserProfileRequest(null, "  ", null, "", null, null, null))).isEmpty();
     }
 
     static Stream<Arguments> unCampoInvalido() {
         return Stream.of(
-                Arguments.of("nombre en blanco", new UpdateUserProfileRequest("   ", null, null, null, null, null),
+                Arguments.of("nombre en blanco", conNombre("   "),
                         "firstName", "El nombre no puede ir en blanco: para no cambiarlo, omitelo"),
-                Arguments.of("nombre de 101", new UpdateUserProfileRequest("x".repeat(101), null, null, null, null, null),
+                Arguments.of("nombre de 101", conNombre("x".repeat(101)),
                         "firstName", "El nombre no puede superar los 100 caracteres"),
-                Arguments.of("apellido de 101", new UpdateUserProfileRequest(null, "x".repeat(101), null, null, null, null),
+                Arguments.of("apellido de 101", new UpdateUserProfileRequest(null, "x".repeat(101), null, null, null, null, null),
                         "lastName", "El apellido no puede superar los 100 caracteres"),
-                Arguments.of("correo en blanco", new UpdateUserProfileRequest(null, null, "  ", null, null, null),
+                Arguments.of("correo en blanco", conCorreo("  "),
                         "email", "El correo no puede ir en blanco: para no cambiarlo, omitelo"),
-                Arguments.of("correo sin arroba", new UpdateUserProfileRequest(null, null, "sin-arroba", null, null, null),
+                Arguments.of("correo sin arroba", conCorreo("sin-arroba"),
                         "email", "El correo no tiene un formato valido"),
-                Arguments.of("correo de 256", new UpdateUserProfileRequest(null, null, "a".repeat(250) + "@x.com", null, null, null),
+                Arguments.of("correo de 256", conCorreo("a".repeat(250) + "@x.com"),
                         "email", "El correo no tiene un formato valido"),
-                Arguments.of("celular con guion", new UpdateUserProfileRequest(null, null, null, "12-34", null, null),
+                Arguments.of("celular con guion", new UpdateUserProfileRequest(null, null, null, "12-34", null, null, null),
                         "phone", "El celular admite un + opcional y de 7 a 15 digitos, sin espacios ni separadores"),
-                Arguments.of("zona en blanco", new UpdateUserProfileRequest(null, null, null, null, " ", null),
+                Arguments.of("zona en blanco", conZona(" "),
                         "timezone", "La zona horaria no puede ir en blanco: para no cambiarla, omitela"),
-                Arguments.of("zona desconocida", new UpdateUserProfileRequest(null, null, null, null, "Marte/Base", null),
-                        "timezone", "La zona horaria no es una zona IANA conocida"));
+                Arguments.of("zona desconocida", conZona("Marte/Base"),
+                        "timezone", "La zona horaria no es una zona IANA conocida"),
+                Arguments.of("moneda en blanco", conMoneda("  "),
+                        "baseCurrencyCode", "La moneda no puede ir en blanco: para no cambiarla, omitela"),
+                Arguments.of("moneda de dos letras", conMoneda("US"),
+                        "baseCurrencyCode", "La moneda debe ser un codigo de tres letras"),
+                Arguments.of("moneda con un digito", conMoneda("U5D"),
+                        "baseCurrencyCode", "La moneda debe ser un codigo de tres letras"));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -63,16 +69,34 @@ class UpdateUserProfileRequestTest {
     @Test
     void unParcheSinCamposModificablesNoCambiaNada() {
         assertThat(vacio().sinCambios()).isTrue();
-        assertThat(new UpdateUserProfileRequest(null, null, null, null, null, "unaClaveLarga").sinCambios()).isTrue();
+        assertThat(new UpdateUserProfileRequest(null, null, null, null, null, null, "unaClaveLarga").sinCambios())
+                .isTrue();
     }
 
     @Test
     void cualquierCampoModificableCuentaComoCambio() {
-        assertThat(new UpdateUserProfileRequest(null, null, null, "", null, null).sinCambios()).isFalse();
-        assertThat(new UpdateUserProfileRequest(null, null, null, null, "Europe/Madrid", null).sinCambios()).isFalse();
+        assertThat(new UpdateUserProfileRequest(null, null, null, "", null, null, null).sinCambios()).isFalse();
+        assertThat(conZona("Europe/Madrid").sinCambios()).isFalse();
+        assertThat(conMoneda("USD").sinCambios()).isFalse();
     }
 
     private static UpdateUserProfileRequest vacio() {
-        return new UpdateUserProfileRequest(null, null, null, null, null, null);
+        return new UpdateUserProfileRequest(null, null, null, null, null, null, null);
+    }
+
+    private static UpdateUserProfileRequest conNombre(String nombre) {
+        return new UpdateUserProfileRequest(nombre, null, null, null, null, null, null);
+    }
+
+    private static UpdateUserProfileRequest conCorreo(String correo) {
+        return new UpdateUserProfileRequest(null, null, correo, null, null, null, null);
+    }
+
+    private static UpdateUserProfileRequest conZona(String zona) {
+        return new UpdateUserProfileRequest(null, null, null, null, zona, null, null);
+    }
+
+    private static UpdateUserProfileRequest conMoneda(String moneda) {
+        return new UpdateUserProfileRequest(null, null, null, null, null, moneda, null);
     }
 }

@@ -1,7 +1,7 @@
 info:
   name: Cambiar correo con la clave equivocada
   type: http
-  seq: 12
+  seq: 15
 
 http:
   method: PATCH

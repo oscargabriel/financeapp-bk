@@ -1,7 +1,7 @@
 info:
   name: Login con el correo nuevo
   type: http
-  seq: 15
+  seq: 18
 
 http:
   method: POST

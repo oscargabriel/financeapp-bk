@@ -195,7 +195,7 @@ Todos los errores salen con la misma forma:
 | 409 | `INSUFFICIENT_FUNDS` | La petición dejaría por debajo de cero el saldo de una cuenta que no es de crédito. Ver [Saldo no negativo](#saldo-no-negativo) |
 | 413 | `PAYLOAD_TOO_LARGE` | El cuerpo pasa de 1 MB |
 | 500 | `INTERNAL_SERVER_ERROR` | Error inesperado. Nunca trae detalle técnico |
-| 502 | `EXTERNAL_SERVICE_ERROR` | El modelo del asistente falló o no respondió a tiempo (`field`: `server`). Ver [`POST /api/assistant/messages`](#post-apiassistantmessages). También al registrar o modificar un movimiento cuya moneda no tiene ninguna tasa de cambio guardada y el proveedor no respondió: no se guardó nada y se puede reintentar |
+| 502 | `EXTERNAL_SERVICE_ERROR` | El modelo del asistente falló o no respondió a tiempo (`field`: `server`). Ver [`POST /api/assistant/messages`](#post-apiassistantmessages). También al registrar o modificar un movimiento, o al cambiar la moneda base en `PATCH /api/users/me`, cuando la moneda no tiene ninguna tasa de cambio guardada y el proveedor no respondió: no se guardó nada y se puede reintentar |
 | 503 | — | Solo en `/status`, cuando la base no responde (ver su sección) |
 
 ### Saldo no negativo
@@ -459,16 +459,34 @@ Modifica el perfil del usuario del token. **Bearer.** Se envían solo los campos
 | `email` | string | Formato de correo, hasta 255 caracteres, no en blanco. Se guarda en minúsculas. **Si cambia, exige `currentPassword`** |
 | `phone` | string | Las reglas del alta. **En blanco lo borra** |
 | `timezone` | string | Zona IANA, no en blanco |
+| `baseCurrencyCode` | string | Código de 3 letras de una moneda **activa** del catálogo, no en blanco. Sin distinguir mayúsculas; se guarda en mayúsculas |
 | `currentPassword` | string | La contraseña actual. Solo se mira si el correo cambia |
-| `baseCurrencyCode` | — | **Se omite**: ni error ni cambio. Cambiar la moneda base todavía no existe (FA-91) |
 
 - **Ausente o `null` es "no cambia".** Para vaciar el apellido o el celular se manda el texto en
   blanco (`""`).
-- Un parche sin ningún campo modificable es 400 en `body`. `currentPassword` y `baseCurrencyCode`
-  no cuentan: `{"baseCurrencyCode": "USD"}` solo también es 400 en `body`.
+- Un parche sin ningún campo modificable es 400 en `body`. `currentPassword` no cuenta;
+  `baseCurrencyCode` sí: `{"baseCurrencyCode": "USD"}` solo es un parche válido.
 - El correo cuenta como cambiado si difiere del guardado después de recortarlo y pasarlo a
   minúsculas. Mandar el mismo en otra caja no exige la contraseña.
 - Cambiar el correo no invalida el token: sigue sirviendo hasta que vence.
+
+**Cambiar la moneda base** (FIN-29). Es la moneda en que la persona ve todos sus totales: los
+reportes, el saldo, el gasto mensual con sus metas y el asistente pasan a darla desde la respuesta
+siguiente. No reescribe nada: cada movimiento conserva su monto, y los totales se reconvierten con
+la tasa de la fecha de cada movimiento. Los saldos de las cuentas siguen en la moneda de cada cuenta.
+
+- Mandar la moneda que ya tiene es 200 sin efecto: no consulta el catálogo ni las tasas.
+- Antes de guardar una moneda distinta de la actual y de `USD`, el API asegura que exista una tasa
+  `USD→<moneda>`, con las mismas reglas que `GET /api/exchange-rates` para hoy. Si no hay ninguna
+  guardada y el proveedor no responde, es 502 y no se aplica nada del parche.
+
+**Orden de los errores.** Sale solo el primer paso que falle, y ningún error aplica nada:
+
+1. Formato de todos los campos, a la vez (400 en cada campo).
+2. Parche vacío (400 en `body`).
+3. Moneda inexistente o inactiva (400 en `baseCurrencyCode`).
+4. Contraseña actual y correo libre, si el correo cambia (400 en `currentPassword`, 409 en `email`).
+5. Tasa de la moneda nueva (502 en `server`).
 
 ```json
 {
@@ -487,9 +505,11 @@ Modifica el perfil del usuario del token. **Bearer.** Se envían solo los campos
 |---|---|---|---|
 | 400 | `VALIDATION_ERROR` | `body` | El parche no trae ningún campo modificable |
 | 400 | `VALIDATION_ERROR` | el campo | Formato inválido o campo obligatorio en blanco, uno por campo |
+| 400 | `VALIDATION_ERROR` | `baseCurrencyCode` | La moneda no existe en el catálogo o está inactiva |
 | 400 | `VALIDATION_ERROR` | `currentPassword` | El correo cambia y no vino la contraseña actual |
 | 400 | `INVALID_CREDENTIALS` | `currentPassword` | El correo cambia y la contraseña actual no es correcta |
 | 409 | `DUPLICATE_RESOURCE` | `email` | Otro usuario ya usa ese correo, sin distinguir mayúsculas |
+| 502 | `EXTERNAL_SERVICE_ERROR` | `server` | La moneda nueva no tiene ninguna tasa guardada y el proveedor no respondió. Se puede reintentar |
 
 **La contraseña equivocada es 400, no 401.** El token es válido: un 401 haría que el cliente cerrara
 la sesión de alguien que solo se equivocó al escribir. Se verifica antes que el correo, así que con
@@ -1625,7 +1645,7 @@ extremos. Errores 400 `VALIDATION_ERROR`:
 |---|---|
 | `totalSpent` | Suma de los gastos (`EXPENSE`) confirmados del mes que ya ocurrieron, en la moneda base del usuario con la misma regla que `amountBase` del reporte de movimientos. Ingresos, transferencias, pendientes y programados no cuentan |
 | `totalIncome` | Suma de los ingresos (`INCOME`) del mes con las mismas reglas que `totalSpent`: confirmados, ya ocurridos, en la moneda base del usuario. Gastos, transferencias, pendientes y programados no cuentan |
-| `budgetAmount` | Meta de gasto total del mes, o `null` si no hay |
+| `budgetAmount` | Meta de gasto total del mes en la moneda base del usuario, o `null` si no hay. Una meta guardada en otra moneda se convierte con la tasa del día 1 de su mes (FIN-29) |
 | `remaining` | `budgetAmount - totalSpent`. Negativo si se pasó de la meta. `null` sin meta |
 | `percentUsed` | Porcentaje consumido de la meta, con 2 decimales. Puede pasar de 100. `null` sin meta |
 | `currencyCode` | La moneda base del usuario |
@@ -1937,7 +1957,6 @@ Para que el frontend no lo busque:
 - Crear metas de gasto.
 - Listar las sesiones abiertas, o cerrarlas todas sin cambiar la contraseña.
 - Revocar el access en el logout: sigue sirviendo hasta vencer, como mucho una hora.
-- Cambiar la moneda base del usuario (FA-91): el `PATCH /api/users/me` la omite.
 - Recuperar la contraseña olvidada (FA-90).
 - Series y compras en cuotas en monedas distintas de COP.
 - Transferencias recurrentes, y cambiar el fin (`endDate`, `occurrences`) o el tipo de una serie.
