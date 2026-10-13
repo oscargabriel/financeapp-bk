@@ -1,0 +1,40 @@
+info:
+  name: Refresco de la segunda sesion
+  type: http
+  seq: 26
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/refresh"
+  body:
+    type: json
+    data: |-
+      {
+        "refreshToken": "{{refreshToken}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("guarda el par nuevo", function() {
+          bru.setVar("refreshToken", res.getBody().refreshToken);
+          bru.setVar("accessToken", res.getBody().accessToken);
+          expect(bru.getVar("accessToken")).to.equal(res.getBody().accessToken);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El refresh sigue sirviendo
+
+  Ni los requests sin credencial ni el del Bearer tocaron la sesion.

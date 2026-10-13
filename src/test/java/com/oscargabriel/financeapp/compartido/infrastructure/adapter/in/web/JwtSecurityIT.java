@@ -1,6 +1,9 @@
 package com.oscargabriel.financeapp.compartido.infrastructure.adapter.in.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.when;
 import static org.springframework.web.reactive.function.server.RequestPredicates.GET;
 import static org.springframework.web.reactive.function.server.RouterFunctions.route;
 
@@ -8,6 +11,8 @@ import java.time.Duration;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -15,12 +20,16 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.web.reactive.function.server.RouterFunction;
 import org.springframework.web.reactive.function.server.ServerResponse;
 
+import com.oscargabriel.financeapp.compartido.domain.port.out.SesionDelTokenPort;
 import com.oscargabriel.financeapp.compartido.support.BasicMother;
 import com.oscargabriel.financeapp.compartido.support.TokenMother;
+
+import reactor.core.publisher.Mono;
 
 /**
  * Las dos cadenas de seguridad enteras contra un servidor real, que es el unico sitio donde se
@@ -56,12 +65,17 @@ class JwtSecurityIT {
         }
     }
 
+    /** Reemplaza al adapter R2DBC: la suite no tiene base, y aqui hay que poder cerrar la sesion. */
+    @MockitoBean
+    private SesionDelTokenPort sesiones;
+
     @BeforeEach
     void setUp() {
         webTestClient = WebTestClient.bindToServer()
                 .baseUrl("http://localhost:" + port)
                 .responseTimeout(Duration.ofSeconds(10))
                 .build();
+        when(sesiones.abierta(any(), anyLong())).thenReturn(Mono.just(true));
     }
 
     @Test
@@ -103,6 +117,25 @@ class JwtSecurityIT {
     @Test
     void devuelve401ConUnaCadenaQueNiSiquieraEsUnToken() {
         esperaUn401Identico("esto-no-es-un-jwt");
+    }
+
+    /**
+     * FIN-47: el usuario cambio la contrasena o lo desactivaron despues de emitir el token. Firma,
+     * emisor y vencimiento siguen bien; el 401 tiene que ser el mismo de siempre, y con su reto.
+     */
+    @Test
+    void devuelve401ConUnTokenDeUnaSesionCerrada() {
+        when(sesiones.abierta(TokenMother.USUARIO, TokenMother.VERSION_DE_SESION))
+                .thenReturn(Mono.just(false));
+
+        esperaUn401Identico(TokenMother.valido());
+        assertThat(retoCon(TokenMother.valido())).isEqualTo("Bearer");
+    }
+
+    /** Un access de antes de FIN-47 no trae la version de sesion: al desplegar, se vuelve al login. */
+    @Test
+    void devuelve401ConUnTokenSinVersionDeSesion() {
+        esperaUn401Identico(TokenMother.sinVersionDeSesion());
     }
 
     /**
@@ -168,6 +201,36 @@ class JwtSecurityIT {
                 .bodyValue("{\"email\":\"\",\"password\":\"\"}")
                 .exchange()
                 .expectStatus().isBadRequest();
+    }
+
+    /** FIN-47: el refresco y el logout viven en la cadena del Basic, con el base-path delante. */
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/auth/refresh", "/api/auth/logout"})
+    void elRefrescoYElLogoutSonAlcanzablesConBasic(String ruta) {
+        webTestClient.post().uri(ruta)
+                .headers(BasicMother.cabecera())
+                .header(HttpHeaders.CONTENT_TYPE, "application/json")
+                .bodyValue("{}")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].field").isEqualTo("refreshToken");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/auth/refresh", "/api/auth/logout"})
+    void elRefrescoYElLogoutNoAceptanUnTokenValido(String ruta) {
+        String reto = webTestClient.post().uri(ruta)
+                .headers(headers -> headers.setBearerAuth(TokenMother.valido()))
+                .header(HttpHeaders.CONTENT_TYPE, "application/json")
+                .bodyValue("{\"refreshToken\":\"un-refresh\"}")
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .returnResult(String.class)
+                .getResponseHeaders()
+                .getFirst(HttpHeaders.WWW_AUTHENTICATE);
+
+        assertThat(reto).isEqualTo("Basic");
     }
 
     @Test
@@ -257,6 +320,16 @@ class JwtSecurityIT {
                 .getFirst(HttpHeaders.WWW_AUTHENTICATE);
     }
 
+    private String retoCon(String token) {
+        return webTestClient.get().uri(RUTA_PROTEGIDA)
+                .headers(headers -> headers.setBearerAuth(token))
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .returnResult(String.class)
+                .getResponseHeaders()
+                .getFirst(HttpHeaders.WWW_AUTHENTICATE);
+    }
+
     private void esperaUn401Identico(String token) {
         webTestClient.get().uri(RUTA_PROTEGIDA)
                 .headers(headers -> headers.setBearerAuth(token))
@@ -264,6 +337,7 @@ class JwtSecurityIT {
                 .expectStatus().isUnauthorized()
                 .expectBody()
                 .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED")
-                .jsonPath("$.errors[0].description").isEqualTo("Autenticacion requerida");
+                .jsonPath("$.errors[0].description").isEqualTo("Autenticacion requerida")
+                .jsonPath("$.errors[0].field").isEqualTo("authorization");
     }
 }

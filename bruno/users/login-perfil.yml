@@ -27,6 +27,7 @@ runtime:
     - type: tests
       code: |-
         bru.setVar("tokenPerfil", res.getBody().accessToken);
+        bru.setVar("refreshPerfil", res.getBody().refreshToken);
 
 settings:
   encodeUrl: true
@@ -37,4 +38,4 @@ settings:
 docs: |
   # Login del usuario de la carpeta
 
-  Guarda el token en `tokenPerfil`.
+  Guarda el token en `tokenPerfil` y el refresh en `refreshPerfil`.

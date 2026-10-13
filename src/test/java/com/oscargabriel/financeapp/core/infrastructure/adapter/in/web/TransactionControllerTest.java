@@ -41,6 +41,7 @@ import com.oscargabriel.financeapp.core.domain.port.in.ListPendingTransactionsPo
 import com.oscargabriel.financeapp.core.domain.port.in.RejectPendingTransactionPort;
 import com.oscargabriel.financeapp.core.domain.port.in.UpdateTransactionPort;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
+import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.SecurityConfig;
 import com.oscargabriel.financeapp.compartido.support.RelojFijo;
 import com.oscargabriel.financeapp.core.support.TransactionMother;
@@ -50,7 +51,7 @@ import reactor.core.publisher.Mono;
 
 /** Sin el base-path /api, igual que el resto de slices: la ruta completa la cubre TransactionsIT. */
 @WebFluxTest(TransactionController.class)
-@Import({SecurityConfig.class, JwtConfig.class, RelojFijo.class})
+@Import({SecurityConfig.class, JwtConfig.class, SesionSiempreAbierta.class, RelojFijo.class})
 class TransactionControllerTest {
 
     private static final String URI_BASE = "/transactions";

@@ -30,6 +30,7 @@ erDiagram
     installment_purchases |o--o{ transactions : "cuota de"
     categories      ||--o{ budgets        : "tope por categoría"
     default_categories ..|| categories    : "se copia al registrarse"
+    users           ||--o{ refresh_tokens : "sesiones de"
 
     users {
         uuid id PK
@@ -44,6 +45,7 @@ erDiagram
         varchar timezone
         boolean is_active
         timestamptz deleted_at
+        int token_version
     }
 
     accounts {
@@ -167,6 +169,17 @@ erDiagram
     registration_allowlist {
         varchar entry PK
         timestamptz created_at
+    }
+
+    refresh_tokens {
+        uuid id PK
+        uuid user_id FK
+        uuid family_id
+        char token_hash UK
+        int token_version
+        timestamptz expires_at
+        timestamptz used_at
+        timestamptz revoked_at
     }
 ```
 
@@ -384,6 +397,17 @@ y el login no la consulta. Las filas se insertan y se borran, nunca se
 modifican, por eso no lleva `updated_at`. Se mantiene a mano: las sentencias
 están en `docs/despliegue.md`. El porqué del diseño está en el `design.md` de
 `openspec/changes/archive/2026-10-09-fa-103-registro-admitidos/`.
+
+### Sesiones y refresh tokens
+
+`users.token_version` cuenta los cambios de contraseña: el access lleva la
+versión con la que se emitió y cada request Bearer la compara con la del
+usuario, así que subirla invalida en el acto todo lo emitido antes (FIN-47).
+`refresh_tokens` guarda una fila por refresh, agrupadas por sesión
+(`family_id`), con el SHA-256 del valor y nunca el valor. El login abre la
+sesión; cada refresco marca `used_at` en su fila e inserta la siguiente en la
+misma sentencia, con el mismo `expires_at`. Las filas vencidas no se borran
+todavía. El porqué está en el `design.md` del change `fin-47-refresh-token`.
 
 ### El mes se corta en la zona del usuario
 

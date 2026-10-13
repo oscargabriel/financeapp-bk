@@ -15,13 +15,14 @@ import com.oscargabriel.financeapp.core.domain.model.ServiceHealth;
 import com.oscargabriel.financeapp.core.domain.model.SystemStatus;
 import com.oscargabriel.financeapp.core.domain.port.in.CheckSystemStatusPort;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
+import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.SecurityConfig;
 import com.oscargabriel.financeapp.compartido.support.BasicMother;
 
 import reactor.core.publisher.Mono;
 
 @WebFluxTest(StatusController.class)
-@Import({SecurityConfig.class, JwtConfig.class})
+@Import({SecurityConfig.class, JwtConfig.class, SesionSiempreAbierta.class})
 class StatusControllerTest {
 
     // El slice monta el controller directamente: spring.webflux.base-path (/api) lo aplica el

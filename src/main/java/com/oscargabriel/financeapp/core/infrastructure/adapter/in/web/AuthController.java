@@ -10,11 +10,14 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.oscargabriel.financeapp.core.domain.port.in.LoginPort;
+import com.oscargabriel.financeapp.core.domain.port.in.LogoutPort;
+import com.oscargabriel.financeapp.core.domain.port.in.RefreshSessionPort;
 import com.oscargabriel.financeapp.core.domain.port.in.RegisterUserPort;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.LoginRequest;
-import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.LoginResponse;
+import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.RefreshTokenRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.RegisterUserRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.RegisterUserResponse;
+import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.TokenResponse;
 
 import reactor.core.publisher.Mono;
 
@@ -25,6 +28,8 @@ public class AuthController {
 
     private final RegisterUserPort registerUser;
     private final LoginPort login;
+    private final RefreshSessionPort refreshSession;
+    private final LogoutPort logout;
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
@@ -34,8 +39,20 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public Mono<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
+    public Mono<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
         return login.login(request.toCommand())
-                .map(LoginResponse::from);
+                .map(TokenResponse::from);
+    }
+
+    @PostMapping("/refresh")
+    public Mono<TokenResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
+        return refreshSession.refresh(request.refreshToken())
+                .map(TokenResponse::from);
+    }
+
+    @PostMapping("/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public Mono<Void> logout(@Valid @RequestBody RefreshTokenRequest request) {
+        return logout.logout(request.refreshToken());
     }
 }

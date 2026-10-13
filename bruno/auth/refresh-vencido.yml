@@ -1,0 +1,38 @@
+info:
+  name: Refresco con un refresh vencido
+  type: http
+  seq: 19
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/refresh"
+  body:
+    type: json
+    data: |-
+      {
+        "refreshToken": "refresh-vencido-de-pruebas-fin47"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: refreshToken
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Refresco con un refresh vencido
+
+  Lo siembra `test-data.sql` para `prueba@financeapp.local`, con `expires_at` de hace una hora.

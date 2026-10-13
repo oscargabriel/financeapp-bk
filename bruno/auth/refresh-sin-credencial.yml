@@ -1,0 +1,44 @@
+info:
+  name: Refresco sin credencial
+  type: http
+  seq: 23
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/refresh"
+  body:
+    type: json
+    data: |-
+      {
+        "refreshToken": "{{refreshToken}}"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: authorization
+  scripts:
+    - type: tests
+      code: |-
+        test("el reto es el de la cadena del Basic", function() {
+          expect(res.getHeader("www-authenticate")).to.equal("Basic");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Sin Authorization
+
+  Sin la clave `http.auth` a proposito, para romper la herencia del Basic de la carpeta. Manda el
+  refresh vigente: `Refresco de la segunda sesion` comprueba que la sesion no se toco.

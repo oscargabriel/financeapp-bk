@@ -1,7 +1,7 @@
 info:
   name: Login con la clave nueva
   type: http
-  seq: 19
+  seq: 22
 
 http:
   method: POST
@@ -23,6 +23,10 @@ runtime:
     - expression: res.status
       operator: eq
       value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("refreshPerfil", res.getBody().refreshToken);
 
 settings:
   encodeUrl: true

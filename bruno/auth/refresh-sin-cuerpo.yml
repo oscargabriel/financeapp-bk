@@ -1,0 +1,34 @@
+info:
+  name: Refresco sin refreshToken
+  type: http
+  seq: 21
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/refresh"
+  body:
+    type: json
+    data: |-
+      {}
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: refreshToken
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Refresco sin refreshToken

@@ -23,6 +23,9 @@ runtime:
     - expression: res.body.tokenType
       operator: eq
       value: Bearer
+    - expression: res.body.refreshExpiresIn
+      operator: eq
+      value: "86400"
   scripts:
     - type: tests
       code: |-
@@ -62,6 +65,15 @@ runtime:
           expect(bru.getVar("accessToken")).to.be.a("string").and.not.be.empty;
         });
 
+        test("entrega un refresh opaco y lo guarda", function() {
+          const refresh = res.getBody().refreshToken;
+          expect(refresh).to.be.a("string").and.not.be.empty;
+          expect(refresh.split(".")).to.have.lengthOf(1);
+          bru.setVar("refreshToken", refresh);
+          bru.setVar("refreshLogin", refresh);
+          bru.setVar("refreshExpiresInLogin", res.getBody().refreshExpiresIn);
+        });
+
 settings:
   encodeUrl: true
   timeout: 0
@@ -82,3 +94,6 @@ docs: |
   El token queda en la variable `accessToken` de la corrida, y desde FA-14 es lo que autentica al
   resto de la coleccion: por eso la carpeta `auth` va primera. Si este request se cae, todo lo que
   viene detras responde 401 y el motivo real es este.
+
+  Desde FIN-47 guarda tambien el refresh en `refreshToken`, y `Refresco correcto` cambia los dos:
+  desde ahi el resto de la coleccion usa el access refrescado.

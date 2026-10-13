@@ -111,6 +111,24 @@ class CloudRunConfigTest {
         assertThat(entorno.getRequiredProperty("tasas.reintento-tras-fallo")).isEqualTo("1h");
     }
 
+    /** La sesion dura 24 horas desde el login sin tocar el servicio (FIN-47). */
+    @Test
+    void laSesionDura24HorasSinVariable() throws IOException {
+        StandardEnvironment entorno = configuracion(variablesDelServicio());
+
+        assertThat(entorno.getRequiredProperty("spring.security.jwt.refresh-expiration")).isEqualTo("24h");
+    }
+
+    @Test
+    void laDuracionDeLaSesionSeCambiaPorVariable() throws IOException {
+        Map<String, Object> variables = variablesDelServicio();
+        variables.put("JWT_REFRESH_EXPIRATION", "12h");
+
+        StandardEnvironment entorno = configuracion(variables);
+
+        assertThat(entorno.getRequiredProperty("spring.security.jwt.refresh-expiration")).isEqualTo("12h");
+    }
+
     /** Falla cerrado: un servicio que no declara la variable queda con el registro restringido (FA-103). */
     @Test
     void laRestriccionDelAltaQuedaEncendidaSinVariable() throws IOException {

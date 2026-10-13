@@ -105,6 +105,20 @@ VALUES
      'Cuenta', 'COP', 'America/Bogota', FALSE);
 
 
+-- Refresh tokens que bruno/auth/ no puede conseguir con un login (FIN-47): uno vencido del usuario
+-- de pruebas y uno vigente del inactivo. Los valores en claro son los que mandan esos requests; la
+-- tabla guarda solo su SHA-256, como hace la aplicacion. Caen en cascada con sus usuarios.
+INSERT INTO finance.refresh_tokens
+    (id, user_id, family_id, token_hash, token_version, expires_at, created_at)
+VALUES
+    (gen_random_uuid(), :'uid'::uuid, gen_random_uuid(),
+     encode(sha256(convert_to('refresh-vencido-de-pruebas-fin47', 'UTF8')), 'hex'),
+     0, now() - INTERVAL '1 hour', now() - INTERVAL '25 hours'),
+    (gen_random_uuid(), :'inactivo'::uuid, gen_random_uuid(),
+     encode(sha256(convert_to('refresh-de-usuario-inactivo-fin47', 'UTF8')), 'hex'),
+     0, now() + INTERVAL '23 hours', now() - INTERVAL '1 hour');
+
+
 -- -----------------------------------------------------------------------------
 -- Categorías: copia de la semilla, igual que hace el registro en la aplicación
 -- -----------------------------------------------------------------------------

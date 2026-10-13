@@ -1,0 +1,38 @@
+info:
+  name: Login de la sesion a cerrar
+  type: http
+  seq: 28
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/login"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{testUserEmail}}",
+        "password": "{{testUserPassword}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("refreshACerrar", res.getBody().refreshToken);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Una tercera sesion, solo para el logout
+
+  Guarda su refresh en `refreshACerrar`. El access y el refresh del resto de la coleccion no se
+  tocan.

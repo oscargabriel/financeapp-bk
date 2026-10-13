@@ -1,0 +1,61 @@
+info:
+  name: Refresco correcto
+  type: http
+  seq: 13
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/refresh"
+  body:
+    type: json
+    data: |-
+      {
+        "refreshToken": "{{refreshToken}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.tokenType
+      operator: eq
+      value: Bearer
+    - expression: res.body.expiresIn
+      operator: eq
+      value: "3600"
+  scripts:
+    - type: tests
+      code: |-
+        test("entrega un access y un refresh nuevos", function() {
+          expect(res.getBody().accessToken).to.be.a("string").and.not.equal(bru.getVar("accessToken"));
+          expect(res.getBody().refreshToken).to.be.a("string").and.not.equal(bru.getVar("refreshToken"));
+        });
+
+        test("la sesion no se alarga al refrescar", function() {
+          const restante = res.getBody().refreshExpiresIn;
+          expect(restante).to.be.above(0);
+          expect(restante).to.be.at.most(Number(bru.getVar("refreshExpiresInLogin")));
+        });
+
+        test("guarda el par nuevo y el refresh ya usado", function() {
+          bru.setVar("refreshRotado", bru.getVar("refreshToken"));
+          bru.setVar("refreshToken", res.getBody().refreshToken);
+          bru.setVar("accessToken", res.getBody().accessToken);
+          expect(bru.getVar("refreshRotado")).to.not.equal(bru.getVar("refreshToken"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Refresco con el refresh del login (FIN-47)
+
+  Desde aqui el resto de la coleccion se autentica con el access que entrega el refresco, no con el
+  del login: si el access refrescado no sirviera, todo lo que viene detras daria 401.
+
+  Guarda el refresh que se acaba de usar en `refreshRotado`, para el request del reuso.

@@ -240,7 +240,7 @@ pasen por `boundedElastic`.
   de «hoy» se puedan probar con fecha fija. Inyéctalo en vez de llamar a `YearMonth.now()`.
 - **Dos cadenas y ninguna ruta pública**: `SecurityConfig` expone dos
   `SecurityWebFilterChain`. La de `@Order(0)` lleva un `securityMatcher` con `POST /auth/register`,
-  `POST /auth/login` y `GET /status`, y las autentica con `httpBasic` contra el único usuario del
+  `/auth/login`, `/auth/refresh` y `/auth/logout` (FIN-47) y `GET /status`, y las autentica con `httpBasic` contra el único usuario del
   `MapReactiveUserDetailsService`; la de `@Order(1)` recoge todo lo demás con
   `oauth2ResourceServer().jwt()` y el Basic deshabilitado. CSRF, CORS y `formLogin` salen del método
   `comun(...)`, para que las dos no se separen con el tiempo. Las reglas se escriben **sin** el
@@ -253,6 +253,13 @@ pasen por `boundedElastic`.
 - **La clave de firma vive solo en `JwtConfig`**, que expone el `SecretKey` y el `ReactiveJwtDecoder`.
   `JwtTokenIssuerAdapter` recibe ese mismo bean: leer el secreto dos veces por separado dejaría
   emitir tokens que el propio API no acepta. El decoder valida además expiración y emisor.
+- **El decoder consulta la base en cada request Bearer** (FIN-47): exige el claim `sv` y pregunta a
+  `SesionDelTokenPort` si el usuario sigue activo con esa versión de sesión, que sube con cada
+  cambio de contraseña. El puerto vive en `compartido` porque el decoder es de todos los módulos, y
+  lo implementa `core` (`SesionDelTokenR2dbcAdapter`), dueño de `users`: `core` puede importar
+  `compartido`, al revés no. Por eso los slices que importan `JwtConfig` y los `*IT` que firman con
+  `TokenMother` importan `SesionSiempreAbierta`; sin ella, el contexto no tiene el puerto o el IT
+  intentaría consultar la base.
 - Preferir `@Value` sobre inyectar `Environment`.
 
 `src/main/resources/application-local.yaml` no se versiona y tiene las credenciales reales

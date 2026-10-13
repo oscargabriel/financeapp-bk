@@ -47,13 +47,14 @@ import com.oscargabriel.financeapp.core.domain.model.TransactionType;
 import com.oscargabriel.financeapp.core.domain.port.in.GetBalancePort;
 import com.oscargabriel.financeapp.core.domain.port.in.GetTransactionReportPort;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
+import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.SecurityConfig;
 
 import reactor.core.publisher.Mono;
 
 /** Sin el base-path /api, como los demas slices: la ruta completa la verifica TransactionReportIT. */
 @WebFluxTest(TransactionReportController.class)
-@Import({SecurityConfig.class, JwtConfig.class})
+@Import({SecurityConfig.class, JwtConfig.class, SesionSiempreAbierta.class})
 class TransactionReportControllerTest {
 
     private static final String RUTA = "/reports/transactions";

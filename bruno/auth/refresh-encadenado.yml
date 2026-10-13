@@ -1,0 +1,41 @@
+info:
+  name: Refresco con el refresh del refresco
+  type: http
+  seq: 14
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/refresh"
+  body:
+    type: json
+    data: |-
+      {
+        "refreshToken": "{{refreshToken}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("el refresh nuevo sirve para el siguiente refresco", function() {
+          expect(res.getBody().refreshToken).to.be.a("string").and.not.equal(bru.getVar("refreshToken"));
+          expect(res.getBody().refreshExpiresIn).to.be.at.most(Number(bru.getVar("refreshExpiresInLogin")));
+          bru.setVar("refreshToken", res.getBody().refreshToken);
+          bru.setVar("accessToken", res.getBody().accessToken);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Segundo refresco de la misma sesion
+
+  Conserva el vencimiento de la sesion: `refreshExpiresIn` no pasa del que dio el login.

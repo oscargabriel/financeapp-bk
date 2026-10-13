@@ -1,0 +1,38 @@
+info:
+  name: Refresco de la sesion con la clave nueva
+  type: http
+  seq: 23
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/refresh"
+  body:
+    type: json
+    data: |-
+      {
+        "refreshToken": "{{refreshPerfil}}"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.tokenType
+      operator: eq
+      value: Bearer
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # La sesion abierta despues del cambio funciona (FIN-47)
+
+  `Login con la clave nueva` guardo su refresh en `refreshPerfil`.

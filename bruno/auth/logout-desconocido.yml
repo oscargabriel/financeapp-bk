@@ -1,0 +1,32 @@
+info:
+  name: Logout de un refresh desconocido
+  type: http
+  seq: 27
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/logout"
+  body:
+    type: json
+    data: |-
+      {
+        "refreshToken": "refresh-que-el-api-nunca-emitio"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Logout idempotente
+
+  No hay nada que el cliente pueda corregir, y un 401 aqui solo diria si el valor se emitio.

@@ -22,6 +22,7 @@ import com.oscargabriel.financeapp.core.domain.model.CategoryScope;
 import com.oscargabriel.financeapp.core.domain.port.in.ListCategoriesPort;
 import com.oscargabriel.financeapp.core.domain.port.in.ListCurrenciesPort;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
+import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.SecurityConfig;
 import com.oscargabriel.financeapp.core.support.CategoryMother;
 import com.oscargabriel.financeapp.core.support.CurrencyMother;
@@ -30,7 +31,7 @@ import reactor.core.publisher.Flux;
 
 /** Sin el base-path /api, igual que el resto de slices: la ruta completa la cubre CatalogsIT. */
 @WebFluxTest(CatalogController.class)
-@Import({SecurityConfig.class, JwtConfig.class})
+@Import({SecurityConfig.class, JwtConfig.class, SesionSiempreAbierta.class})
 class CatalogControllerTest {
 
     private static final String URI_BASE = "/catalogs";

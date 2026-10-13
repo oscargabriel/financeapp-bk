@@ -6,10 +6,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import com.oscargabriel.financeapp.compartido.support.BasicMother;
+import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.support.TokenMother;
 
 /**
@@ -18,6 +20,7 @@ import com.oscargabriel.financeapp.compartido.support.TokenMother;
  * MonthlySpendingIT: el R2DBC de la suite apunta a un puerto sin escucha.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Import(SesionSiempreAbierta.class)
 class CategoriesIT {
 
     @Value("${local.server.port}")

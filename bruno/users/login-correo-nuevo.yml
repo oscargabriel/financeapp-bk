@@ -27,6 +27,7 @@ runtime:
     - type: tests
       code: |-
         bru.setVar("tokenPerfil", res.getBody().accessToken);
+        bru.setVar("refreshPerfil", res.getBody().refreshToken);
 
 settings:
   encodeUrl: true

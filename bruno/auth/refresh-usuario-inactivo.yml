@@ -1,0 +1,38 @@
+info:
+  name: Refresco de un usuario inactivo
+  type: http
+  seq: 20
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/refresh"
+  body:
+    type: json
+    data: |-
+      {
+        "refreshToken": "refresh-de-usuario-inactivo-fin47"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: refreshToken
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Refresco de un usuario inactivo
+
+  Lo siembra `test-data.sql` para `inactivo@financeapp.local`, vigente: lo unico que falla es el usuario.

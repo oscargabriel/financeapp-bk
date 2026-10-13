@@ -1,0 +1,36 @@
+info:
+  name: Refresco tras el logout
+  type: http
+  seq: 30
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/refresh"
+  body:
+    type: json
+    data: |-
+      {
+        "refreshToken": "{{refreshACerrar}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: refreshToken
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El refresh no sirve despues del logout

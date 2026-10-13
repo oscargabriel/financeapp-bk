@@ -27,6 +27,9 @@ public final class TokenMother {
 
     public static final UUID USUARIO = UUID.fromString("10000000-0000-7000-8000-000000000001");
 
+    /** La version de sesion con la que se firman los tokens validos (FIN-47). */
+    public static final long VERSION_DE_SESION = 0L;
+
     private TokenMother() {
     }
 
@@ -49,14 +52,36 @@ public final class TokenMother {
         return firmado(SECRETO, "otra-aplicacion", Instant.now().plus(1, ChronoUnit.HOURS));
     }
 
-    private static String firmado(String secreto, String emisor, Instant expiracion) {
-        JWTClaimsSet claims = new JWTClaimsSet.Builder()
-                .issuer(emisor)
-                .subject(USUARIO.toString())
-                .issueTime(Date.from(Instant.now().minus(1, ChronoUnit.MINUTES)))
-                .expirationTime(Date.from(expiracion))
-                .build();
+    /** Firma, emisor y vencimiento validos, sin la version de sesion: un token de antes de FIN-47. */
+    public static String sinVersionDeSesion() {
+        return firmado(base(EMISOR, USUARIO.toString())
+                .expirationTime(Date.from(Instant.now().plus(1, ChronoUnit.HOURS)))
+                .build(), SECRETO);
+    }
 
+    /** Valido en todo menos el subject, que no es un UUID y no identifica a nadie. */
+    public static String conSujetoQueNoEsUuid() {
+        return firmado(base(EMISOR, "no-es-un-uuid")
+                .expirationTime(Date.from(Instant.now().plus(1, ChronoUnit.HOURS)))
+                .claim("sv", VERSION_DE_SESION)
+                .build(), SECRETO);
+    }
+
+    private static String firmado(String secreto, String emisor, Instant expiracion) {
+        return firmado(base(emisor, USUARIO.toString())
+                .expirationTime(Date.from(expiracion))
+                .claim("sv", VERSION_DE_SESION)
+                .build(), secreto);
+    }
+
+    private static JWTClaimsSet.Builder base(String emisor, String sujeto) {
+        return new JWTClaimsSet.Builder()
+                .issuer(emisor)
+                .subject(sujeto)
+                .issueTime(Date.from(Instant.now().minus(1, ChronoUnit.MINUTES)));
+    }
+
+    private static String firmado(JWTClaimsSet claims, String secreto) {
         SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claims);
         try {
             jwt.sign(new MACSigner(new SecretKeySpec(secreto.getBytes(), JWSAlgorithm.HS256.getName())));

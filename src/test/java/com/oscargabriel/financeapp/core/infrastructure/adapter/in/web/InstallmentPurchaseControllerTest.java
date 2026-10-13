@@ -38,6 +38,7 @@ import com.oscargabriel.financeapp.core.domain.port.in.ListInstallmentPurchasesP
 import com.oscargabriel.financeapp.core.domain.port.in.PreviewInstallmentPurchasePort;
 import com.oscargabriel.financeapp.core.domain.port.in.UpdateInstallmentPurchasePort;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
+import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.SecurityConfig;
 import com.oscargabriel.financeapp.core.support.InstallmentMother;
 import com.oscargabriel.financeapp.core.support.TransactionMother;
@@ -47,7 +48,7 @@ import reactor.core.publisher.Mono;
 
 /** Sin el base-path /api, igual que el resto de slices: la ruta completa la cubre InstallmentPurchasesIT. */
 @WebFluxTest(InstallmentPurchaseController.class)
-@Import({SecurityConfig.class, JwtConfig.class})
+@Import({SecurityConfig.class, JwtConfig.class, SesionSiempreAbierta.class})
 class InstallmentPurchaseControllerTest {
 
     private static final String URI_BASE = "/installment-purchases";

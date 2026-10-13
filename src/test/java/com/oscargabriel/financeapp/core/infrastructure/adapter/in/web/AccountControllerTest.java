@@ -35,6 +35,7 @@ import com.oscargabriel.financeapp.core.domain.port.in.DeleteAccountPort;
 import com.oscargabriel.financeapp.core.domain.port.in.ListAccountsPort;
 import com.oscargabriel.financeapp.core.domain.port.in.UpdateAccountPort;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
+import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.SecurityConfig;
 import com.oscargabriel.financeapp.core.support.AccountMother;
 
@@ -43,7 +44,7 @@ import reactor.core.publisher.Mono;
 
 /** Sin el base-path /api, igual que el resto de slices: la ruta completa la cubre AccountsIT. */
 @WebFluxTest(AccountController.class)
-@Import({SecurityConfig.class, JwtConfig.class})
+@Import({SecurityConfig.class, JwtConfig.class, SesionSiempreAbierta.class})
 class AccountControllerTest {
 
     private static final String URI_BASE = "/accounts";

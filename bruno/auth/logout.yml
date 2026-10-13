@@ -1,0 +1,37 @@
+info:
+  name: Logout
+  type: http
+  seq: 29
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/logout"
+  body:
+    type: json
+    data: |-
+      {
+        "refreshToken": "{{refreshACerrar}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+  scripts:
+    - type: tests
+      code: |-
+        test("no trae cuerpo", function() {
+          const cuerpo = res.getBody();
+          expect(cuerpo === undefined || cuerpo === null || cuerpo === "").to.be.true;
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Cerrar sesion

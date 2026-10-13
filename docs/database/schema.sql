@@ -157,7 +157,8 @@ CREATE TABLE finance.users (
     deleted_at          TIMESTAMPTZ,
     created_at          TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at          TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    CONSTRAINT ck_users_email     CHECK (email ~ '^[^@[:space:]]+@[^@[:space:]]+\.[A-Za-z]{2,}$'),
+    token_version       INTEGER      NOT NULL DEFAULT 0,
+    CONSTRAINT ck_users_email    CHECK (email ~ '^[^@[:space:]]+@[^@[:space:]]+\.[A-Za-z]{2,}$'),
     -- Postgres exige funciones IMMUTABLE en un CHECK, así que aquí solo cabe un
     -- límite fijo; que la fecha no sea futura lo valida la aplicación.
     CONSTRAINT ck_users_birthdate CHECK (birth_date IS NULL OR birth_date > DATE '1900-01-01')
@@ -167,6 +168,7 @@ COMMENT ON TABLE  finance.users IS 'Persona que registra finanzas. La autenticac
 COMMENT ON COLUMN finance.users.password_hash IS 'Hash BCrypt/Argon2 calculado en la aplicación. Jamás la contraseña en claro.';
 COMMENT ON COLUMN finance.users.base_currency_code IS 'Moneda en la que la persona ve sus totales y reportes. Solo es de presentación: lo guardado está en la moneda de cada cuenta y en USD (amount_base), y cambiarla no reescribe nada (FA-122).';
 COMMENT ON COLUMN finance.users.timezone IS 'Zona IANA. Determina dónde corta el mes en las vistas de gasto: un gasto del 30 a las 21:00 en Bogotá no puede caer en el mes siguiente.';
+COMMENT ON COLUMN finance.users.token_version IS 'Versión de sesión (FIN-47). Sube con cada cambio de contraseña; un access o un refresh con otra versión ya no sirve.';
 
 -- Únicos parciales: una fila borrada lógicamente libera el email y el chat de Telegram.
 CREATE UNIQUE INDEX ux_users_email
@@ -193,6 +195,30 @@ CREATE TABLE finance.registration_allowlist (
 
 COMMENT ON TABLE  finance.registration_allowlist IS 'Correos que pueden registrarse cuando la restricción del alta está encendida. Se mantiene a mano con SQL. El login no la consulta: quitar un correo no afecta al usuario ya registrado.';
 COMMENT ON COLUMN finance.registration_allowlist.entry IS 'Un correo exacto (ana@correo.com) o un dominio completo (@correo.com), en minúsculas. Una fila de dominio admite a CUALQUIER cuenta de ese dominio: no usarla con dominios públicos como @gmail.com.';
+
+-- =============================================================================
+-- REFRESH_TOKENS
+-- =============================================================================
+
+CREATE TABLE finance.refresh_tokens (
+    id             UUID         PRIMARY KEY,
+    user_id        UUID         NOT NULL REFERENCES finance.users (id) ON DELETE CASCADE,
+    family_id      UUID         NOT NULL,
+    token_hash     CHAR(64)     NOT NULL,
+    token_version  INTEGER      NOT NULL,
+    expires_at     TIMESTAMPTZ  NOT NULL,
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    used_at        TIMESTAMPTZ,
+    revoked_at     TIMESTAMPTZ,
+    CONSTRAINT ux_refresh_tokens_hash UNIQUE (token_hash)
+);
+
+COMMENT ON TABLE  finance.refresh_tokens IS 'Refresh tokens emitidos (FIN-47). El login abre una sesión (family_id) y cada refresco usa una fila y crea la siguiente, con el mismo expires_at. Reusar una fila ya usada revoca toda la sesión.';
+COMMENT ON COLUMN finance.refresh_tokens.token_hash IS 'SHA-256 en hexadecimal del refresh que recibió el cliente. Jamás el valor en claro.';
+COMMENT ON COLUMN finance.refresh_tokens.token_version IS 'users.token_version al abrir la sesión. Si ya no coincide, la contraseña cambió y el refresh no sirve.';
+COMMENT ON COLUMN finance.refresh_tokens.expires_at IS 'Fin de la sesión: el login más la duración del refresh. Los refrescos lo copian, no lo extienden.';
+
+CREATE INDEX ix_refresh_tokens_family ON finance.refresh_tokens (family_id);
 
 
 -- =============================================================================
