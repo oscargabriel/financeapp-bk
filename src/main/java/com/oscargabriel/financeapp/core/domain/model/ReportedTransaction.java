@@ -7,7 +7,8 @@ import java.util.UUID;
 /**
  * Un movimiento tal como sale en el reporte: con el nombre de su categoria y con amountBase, el monto
  * en la moneda base del usuario que suman los totales. categoryId y categoryName van en null en las
- * transferencias.
+ * transferencias. destinationAmount es lo que entro al destino de una transferencia entre monedas, en la
+ * moneda del destino, y null en todo lo demas (FIN-63).
  */
 public record ReportedTransaction(
         UUID id,
@@ -19,6 +20,7 @@ public record ReportedTransaction(
         BigDecimal amount,
         String currencyCode,
         BigDecimal amountBase,
+        BigDecimal destinationAmount,
         String description,
         String notes,
         Instant occurredAt,

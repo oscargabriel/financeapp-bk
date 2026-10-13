@@ -1113,7 +1113,8 @@ cuerpo trae un `status`, se ignora. Lo demás que entra `PENDING` lo pone el asi
 
 `destinationAmount`, `originalAmount` y `originalCurrencyCode` van en toda respuesta de un movimiento,
 en `null` cuando no aplican: el primero solo en una transferencia entre monedas distintas, y los otros
-dos solo si el movimiento se convirtió.
+dos solo si el movimiento se convirtió. El [reporte de movimientos](#get-apireportstransactions) tiene
+su propia forma: trae `destinationAmount`, pero no `originalAmount` ni `originalCurrencyCode`.
 
 `origin` dice por dónde entró el movimiento, y no cambia después:
 
@@ -1714,6 +1715,7 @@ dos extremos. Errores 400 `VALIDATION_ERROR`, en el campo del parámetro:
       "amount": 100.0000,
       "currencyCode": "USD",
       "amountBase": 410000.0000,
+      "destinationAmount": 410000.0000,
       "description": "Cambio de dólares",
       "notes": null,
       "occurredAt": "2026-10-10T20:00:00Z",
@@ -1731,6 +1733,7 @@ dos extremos. Errores 400 `VALIDATION_ERROR`, en el campo del parámetro:
       "amount": 85000.0000,
       "currencyCode": "COP",
       "amountBase": 85000.0000,
+      "destinationAmount": null,
       "description": "Carne y verduras",
       "notes": null,
       "occurredAt": "2026-10-02T15:00:00Z",
@@ -1756,6 +1759,7 @@ dos extremos. Errores 400 `VALIDATION_ERROR`, en el campo del parámetro:
 | `currencyCode` | La moneda base del usuario: la de `amountBase` y la de todos los totales |
 | `amount` / `currencyCode` del movimiento | El monto en la moneda de la cuenta origen |
 | `amountBase` | El mismo monto en la moneda base. Si el movimiento ya está en esa moneda, es su `amount` tal cual; si no, se convierte con la tasa de su fecha, no con la de hoy. Es lo que suman los totales |
+| `destinationAmount` | Solo en una `TRANSFER` entre cuentas de monedas distintas: lo que entró al destino, en la moneda del destino, tal como se registró. `null` en todo lo demás, incluidas las transferencias en la misma moneda, donde entra el mismo `amount`. No suma en ningún total |
 | `scheduled` | `true` si el movimiento está programado: sale en la lista, pero no en los totales ni en `net` |
 | `recurrenceId` | La serie de la que el movimiento es ocurrencia, o `null`. Sirve para mostrar juntas las ocurrencias de una serie |
 | `installment` | `{purchaseId, number, count}` si el movimiento es una cuota de una [compra en cuotas](#compras-en-cuotas) ("3 de 12"), o `null` |
