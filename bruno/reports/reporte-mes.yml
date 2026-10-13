@@ -31,8 +31,8 @@ runtime:
           expect(r.to).to.equal(bru.getVar("ultimoDia"));
           expect(r.currencyCode).to.equal("COP");
           expect(r.transactions[0]).to.have.all.keys("id", "type", "accountId", "destinationAccountId",
-              "categoryId", "categoryName", "amount", "currencyCode", "amountBase", "description",
-              "notes", "occurredAt", "scheduled", "recurrenceId", "installment");
+              "categoryId", "categoryName", "amount", "currencyCode", "amountBase", "destinationAmount",
+              "description", "notes", "occurredAt", "scheduled", "recurrenceId", "installment");
           r.transactions.forEach(function (t) {
             expect(t.scheduled).to.equal(false);
             expect(t.recurrenceId).to.equal(null);
@@ -62,6 +62,14 @@ runtime:
           expect(cambio.amount).to.equal(100);
           expect(cambio.currencyCode).to.equal("USD");
           expect(cambio.amountBase).to.equal(410000);
+        });
+
+        test("destinationAmount solo en la transferencia entre monedas distintas", function() {
+          expect(porDescripcion("Cambio de dólares").destinationAmount).to.equal(410000);
+          expect(porDescripcion("Retiro de cajero").destinationAmount).to.equal(null);
+          r.transactions.filter(function (t) { return t.type !== "TRANSFER"; }).forEach(function (t) {
+            expect(t.destinationAmount).to.equal(null);
+          });
         });
 
         test("los totales por tipo suman amountBase", function() {
@@ -97,4 +105,5 @@ docs: |
 
   Primer y ultimo dia del mes en curso, sin filtros: los gastos, ingresos y transferencias del
   escenario. La transferencia en dolares es la que distingue `amountBase` de `amount`: si los
-  totales sumaran `amount`, TRANSFER daria 300.100 y no 710.000.
+  totales sumaran `amount`, TRANSFER daria 300.100 y no 710.000. Tambien es la unica con
+  `destinationAmount`: el retiro de cajero va de COP a COP y lo trae en null (FIN-63).

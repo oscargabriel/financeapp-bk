@@ -6,6 +6,7 @@ import static com.oscargabriel.financeapp.core.support.ReportMother.HASTA;
 import static com.oscargabriel.financeapp.core.support.ReportMother.MERCADO_ID;
 import static com.oscargabriel.financeapp.core.support.ReportMother.USER_ID;
 import static com.oscargabriel.financeapp.core.support.ReportMother.unGasto;
+import static com.oscargabriel.financeapp.core.support.ReportMother.unaTransferenciaEnDolares;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
@@ -33,6 +34,7 @@ import org.springframework.http.HttpStatus;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.responses.ErrorDetail;
+import com.oscargabriel.financeapp.core.domain.model.ReportedTransaction;
 import com.oscargabriel.financeapp.core.domain.model.TransactionReport.TypeTotal;
 import com.oscargabriel.financeapp.core.domain.model.TransactionReportFilter;
 import com.oscargabriel.financeapp.core.domain.model.TransactionType;
@@ -101,6 +103,22 @@ class GetTransactionReportUseCaseTest {
         verify(query).findByUser(eq(USER_ID), filtro.capture());
         assertThat(filtro.getValue()).isEqualTo(new TransactionReportFilter(DESDE, HASTA, Set.of(MERCADO_ID),
                 Set.of(CUENTA_ID), Set.of(TransactionType.EXPENSE)));
+    }
+
+    @Test
+    void conservaElMontoDeDestinoQueTraeElPuerto() {
+        when(query.findBaseCurrency(USER_ID)).thenReturn(Mono.just("COP"));
+        when(query.findByUser(eq(USER_ID), any())).thenReturn(Flux.just(
+                unaTransferenciaEnDolares("2026-09-10T20:00:00Z"),
+                unGasto(MERCADO_ID, "Mercado", "85000.0000", "2026-09-02T15:00:00Z")));
+
+        StepVerifier.create(casoDeUso.get(USER_ID, DESDE, HASTA, Set.of(), Set.of(), Set.of()))
+                .assertNext(reporte -> assertThat(reporte.transactions())
+                        .extracting(ReportedTransaction::type, ReportedTransaction::destinationAmount)
+                        .containsExactly(
+                                tuple(TransactionType.TRANSFER, new BigDecimal("410000.0000")),
+                                tuple(TransactionType.EXPENSE, null)))
+                .verifyComplete();
     }
 
     @Test

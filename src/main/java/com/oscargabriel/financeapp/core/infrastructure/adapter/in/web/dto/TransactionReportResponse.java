@@ -11,6 +11,7 @@ import com.oscargabriel.financeapp.core.domain.model.TransactionReport;
  * El reporte de movimientos. occurredAt sale en UTC, como en el resto del API. scheduled marca los
  * programados (FA-106): salen en la lista y no en los totales. recurrenceId es la serie de la que el
  * movimiento es ocurrencia (FA-107), o null, e installment la cuota de una compra (FA-108), o null.
+ * destinationAmount es lo que entro al destino de una transferencia entre monedas, o null (FIN-63).
  */
 public record TransactionReportResponse(
         String from,
@@ -31,6 +32,7 @@ public record TransactionReportResponse(
             BigDecimal amount,
             String currencyCode,
             BigDecimal amountBase,
+            BigDecimal destinationAmount,
             String description,
             String notes,
             String occurredAt,
@@ -49,6 +51,7 @@ public record TransactionReportResponse(
                     t.amount(),
                     t.currencyCode(),
                     t.amountBase(),
+                    t.destinationAmount(),
                     t.description(),
                     t.notes(),
                     t.occurredAt().toString(),

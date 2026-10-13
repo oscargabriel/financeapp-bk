@@ -45,32 +45,37 @@ public final class ReportMother {
 
     public static ReportedTransaction unGasto(UUID categoria, String nombre, String montoBase, String instante) {
         return new ReportedTransaction(UUID.randomUUID(), TransactionType.EXPENSE, CUENTA_ID, null, categoria, nombre,
-                new BigDecimal(montoBase), "COP", new BigDecimal(montoBase), "Gasto", null, Instant.parse(instante), null, null);
+                new BigDecimal(montoBase), "COP", new BigDecimal(montoBase), null, "Gasto", null, Instant.parse(instante),
+                null, null);
     }
 
     /** El mismo movimiento como cuota 1 de 3 de una compra en cuotas (FA-108). */
     public static ReportedTransaction cuota(ReportedTransaction t, UUID compra) {
         return new ReportedTransaction(t.id(), t.type(), t.accountId(), t.destinationAccountId(), t.categoryId(),
-                t.categoryName(), t.amount(), t.currencyCode(), t.amountBase(), t.description(), t.notes(),
-                t.occurredAt(), t.recurrenceId(), new InstallmentRef(compra, 1, 3, new BigDecimal("400000")));
+                t.categoryName(), t.amount(), t.currencyCode(), t.amountBase(), t.destinationAmount(), t.description(),
+                t.notes(), t.occurredAt(), t.recurrenceId(), new InstallmentRef(compra, 1, 3, new BigDecimal("400000")));
     }
 
     /** El mismo movimiento como ocurrencia de una serie (FA-107). */    public static ReportedTransaction deLaSerie(ReportedTransaction t, UUID serie) {
         return new ReportedTransaction(t.id(), t.type(), t.accountId(), t.destinationAccountId(), t.categoryId(),
-                t.categoryName(), t.amount(), t.currencyCode(), t.amountBase(), t.description(), t.notes(),
-                t.occurredAt(), serie, t.installment());
+                t.categoryName(), t.amount(), t.currencyCode(), t.amountBase(), t.destinationAmount(), t.description(),
+                t.notes(), t.occurredAt(), serie, t.installment());
     }
 
     public static ReportedTransaction unIngreso(String montoBase, String instante) {
         return new ReportedTransaction(UUID.randomUUID(), TransactionType.INCOME, CUENTA_ID, null, SALARIO_ID,
-                "Salario", new BigDecimal(montoBase), "COP", new BigDecimal(montoBase), "Ingreso", null,
+                "Salario", new BigDecimal(montoBase), "COP", new BigDecimal(montoBase), null, "Ingreso", null,
                 Instant.parse(instante), null, null);
     }
 
-    /** 100 USD que valen 410.000 COP: amount y amountBase distintos a proposito. */
+    /**
+     * 100 USD que valen 410.000 COP y entran como 410.000 a una cuenta en pesos: amount y amountBase distintos a
+     * proposito.
+     */
     public static ReportedTransaction unaTransferenciaEnDolares(String instante) {
         return new ReportedTransaction(UUID.randomUUID(), TransactionType.TRANSFER, CUENTA_ID, DESTINO_ID, null, null,
-                new BigDecimal("100.0000"), "USD", new BigDecimal("410000.0000"), "Cambio de dolares", null,
+                new BigDecimal("100.0000"), "USD", new BigDecimal("410000.0000"), new BigDecimal("410000.0000"),
+                "Cambio de dolares", null,
                 Instant.parse(instante), null, null);
     }
 }
