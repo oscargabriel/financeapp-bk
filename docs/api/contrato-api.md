@@ -695,6 +695,11 @@ series en la `description`, y no se aplica nada del parche. Hay que cancelar cad
 `DELETE /api/recurrences/{id}` o moverla a otra cuenta con `PATCH /api/recurrences/{id}`. Una serie
 con fin que ya terminó no impide nada.
 
+**Las compras en cuotas no lo impiden (FIN-41).** Una tarjeta con compras activas se desactiva igual,
+y las compras no cambian. Una compra no crea movimientos después del alta: sus cuotas ya existen y son
+deuda contraída. Cada cuota sigue venciendo en su fecha y bajando el saldo de la tarjeta desactivada,
+y la compra sigue en `GET /api/installment-purchases`, donde se edita y se cancela como siempre.
+
 Mientras está desactivada:
 
 - No sale en `GET /api/accounts` salvo con `includeInactive=true`, ni en `accounts` de
@@ -1572,6 +1577,10 @@ de nuevo.
 
 **204 No Content.** Borra las cuotas futuras, conserva las pasadas con su `installment` y saca la compra
 de la lista. El capital de las cuotas borradas vuelve al cupo. No lleva `scope`.
+
+**Con la tarjeta desactivada (FIN-41)** la compra se lista, se edita y se cancela igual que con la
+tarjeta activa, y sus cuotas siguen venciendo. Mientras tenga cuotas por venir, la tarjeta no se borra,
+esté activa o no: 409 `RESOURCE_IN_USE` en `id` (ver [`DELETE /api/accounts/{id}`](#delete-apiaccountsid)).
 
 **Errores de las cinco rutas**
 

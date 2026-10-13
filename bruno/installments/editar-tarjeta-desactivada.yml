@@ -1,0 +1,31 @@
+info:
+  name: Editar la compra con la tarjeta desactivada
+  type: http
+  seq: 75
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/installment-purchases/{{idCompraUsd}}"
+  body:
+    type: json
+    data: |-
+      {
+        "scope": "FUTURE",
+        "description": "Audífonos viejos"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.description
+      operator: eq
+      value: Audífonos viejos
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

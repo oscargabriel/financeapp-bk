@@ -1,0 +1,38 @@
+info:
+  name: Tarjeta desactivada con una cuota vencida
+  type: http
+  seq: 71
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts?includeInactive=true"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const guardada = res.getBody().find(function (c) { return c.id === bru.getVar("idVisaGuardada"); });
+
+        test("la cuota vencida cuenta en el saldo aunque la tarjeta este desactivada", function() {
+          expect(guardada.isActive).to.equal(false);
+          expect(guardada.currentBalance).to.equal(-100000);
+          expect(guardada.availableCredit).to.equal(700000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Una cuota vence con la tarjeta desactivada (FIN-41)
+
+  `test-data.sql` siembra `Visa guardada` desactivada, con cupo 1.000.000 y la compra `Bicicleta` a 3
+  cuotas de 100.000 sin interes. La primera vencio ayer y las otras dos estan por venir: el saldo
+  baja 100.000 y el cupo comprometido es el capital de las dos que faltan.

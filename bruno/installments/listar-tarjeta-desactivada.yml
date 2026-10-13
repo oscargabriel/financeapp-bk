@@ -1,0 +1,32 @@
+info:
+  name: La compra sigue con la tarjeta desactivada
+  type: http
+  seq: 74
+
+http:
+  method: GET
+  url: "{{baseUrl}}/installment-purchases"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const compra = res.getBody().find(function (p) { return p.id === bru.getVar("idCompraUsd"); });
+
+        test("desactivar la tarjeta no toco la compra", function() {
+          expect(compra.paidCount).to.equal(0);
+          expect(compra.remainingPrincipal).to.equal(100);
+          expect(compra.remainingAmount).to.equal(104);
+          expect(compra.nextInstallment.number).to.equal(1);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -1,0 +1,35 @@
+info:
+  name: Borrar una tarjeta desactivada con cuotas por venir
+  type: http
+  seq: 76
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/accounts/{{idVisaUsd}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: RESOURCE_IN_USE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: id
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Desactivada tampoco se borra (FA-115, FIN-41)
+
+  Sus cuotas por venir son movimientos programados, este activa o no.
