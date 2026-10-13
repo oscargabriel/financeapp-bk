@@ -37,6 +37,7 @@ import com.oscargabriel.financeapp.ia.domain.model.CreatedMovement;
 import com.oscargabriel.financeapp.ia.domain.model.TransactionType;
 import com.oscargabriel.financeapp.ia.domain.port.in.AssistantPort;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
+import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.SecurityConfig;
 import com.oscargabriel.financeapp.compartido.support.BasicMother;
 import com.oscargabriel.financeapp.ia.support.AsistenteMother;
@@ -45,7 +46,7 @@ import reactor.core.publisher.Mono;
 
 /** Sin el base-path /api, como los demas slices: bruno/assistant/ prueba la ruta completa. */
 @WebFluxTest(AssistantController.class)
-@Import({SecurityConfig.class, JwtConfig.class})
+@Import({SecurityConfig.class, JwtConfig.class, SesionSiempreAbierta.class})
 class AssistantControllerTest {
 
     private static final String RUTA = "/assistant/messages";

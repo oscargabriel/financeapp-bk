@@ -1,0 +1,47 @@
+info:
+  name: Refresco con Bearer
+  type: http
+  seq: 25
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/refresh"
+  body:
+    type: json
+    data: |-
+      {
+        "refreshToken": "{{refreshToken}}"
+      }
+  auth:
+    type: bearer
+    token: "{{accessToken}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: authorization
+  scripts:
+    - type: tests
+      code: |-
+        test("el reto es el de la cadena del Basic", function() {
+          expect(res.getHeader("www-authenticate")).to.equal("Basic");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Con el Bearer en vez del Basic
+
+  El access es valido, pero esta ruta vive en la cadena del Basic. El refresh que manda es el vigente
+  de la sesion, y el request siguiente comprueba que sigue sirviendo.

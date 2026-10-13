@@ -27,6 +27,7 @@ import com.oscargabriel.financeapp.core.domain.port.in.ChangePasswordPort;
 import com.oscargabriel.financeapp.core.domain.port.in.GetUserProfilePort;
 import com.oscargabriel.financeapp.core.domain.port.in.UpdateUserProfilePort;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
+import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.SecurityConfig;
 import com.oscargabriel.financeapp.core.support.UserMother;
 
@@ -34,7 +35,7 @@ import reactor.core.publisher.Mono;
 
 /** Sin el base-path /api, igual que el resto de slices: la ruta completa la cubre UsersIT. */
 @WebFluxTest(UserController.class)
-@Import({SecurityConfig.class, JwtConfig.class})
+@Import({SecurityConfig.class, JwtConfig.class, SesionSiempreAbierta.class})
 class UserControllerTest {
 
     private static final String URI_PERFIL = "/users/me";

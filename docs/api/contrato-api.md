@@ -9,7 +9,9 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | Método | Ruta | Autenticación | Para qué |
 |---|---|---|---|
 | `POST` | `/api/auth/register` | Basic | Crear un usuario |
-| `POST` | `/api/auth/login` | Basic | Obtener el token de un usuario |
+| `POST` | `/api/auth/login` | Basic | Abrir una sesión: access y refresh |
+| `POST` | `/api/auth/refresh` | Basic | Cambiar un refresh vigente por un access y un refresh nuevos |
+| `POST` | `/api/auth/logout` | Basic | Cerrar la sesión de un refresh |
 | `GET` | `/api/status` | Basic | Estado del servicio y de la base |
 | `GET` | `/api/users/me` | Bearer | Perfil del usuario del token |
 | `PATCH` | `/api/users/me` | Bearer | Modificar el perfil |
@@ -100,7 +102,7 @@ el cliente la convierte a la zona que quiera mostrar.
 **No hay rutas públicas.** El API tiene dos esquemas y cada ruta acepta exactamente uno. Si llega el
 otro, la respuesta es 401 aunque sea válido.
 
-### Basic — `register`, `login`, `status`
+### Basic — `register`, `login`, `refresh`, `logout`, `status`
 
 Es una credencial **compartida de la aplicación**, no la del usuario. La entrega quien administra el
 servicio.
@@ -123,7 +125,18 @@ Authorization: Bearer <accessToken>
 
 - **Dura 1 hora** por defecto. `expiresIn` de la respuesta de login dice cuántos segundos le
   quedan, así el cliente no tiene que decodificar el token ni fiarse de su reloj.
-- **No hay refresh token.** Cuando vence, el API responde 401 y hay que volver a hacer login.
+- **Se renueva con el refresh token** (FIN-47). El login abre una sesión que dura **24 horas**, y
+  `refreshExpiresIn` dice cuántos segundos le quedan. Antes de que venza el access, el cliente lo
+  cambia en [`POST /auth/refresh`](#post-apiauthrefresh) por un access y un refresh nuevos. Los
+  refrescos no alargan la sesión: a las 24 horas del login hay que volver a entrar.
+- **Cada refresh sirve una sola vez.** Presentar uno ya usado cierra la sesión entera, incluido el
+  refresh que lo reemplazó. Dos refrescos simultáneos con el mismo refresh cuentan como reuso: el
+  cliente tiene que hacerlos de uno en uno.
+- **El access deja de servir en cuanto se cierra su sesión de usuario**: si el usuario cambia la
+  contraseña o lo desactivan, cualquier access emitido antes responde 401 desde ese momento, no al
+  vencer. El API lo comprueba en cada request.
+- Un access emitido antes de FIN-47 no trae la marca de sesión y responde 401: al desplegar
+  FIN-47, cada usuario vuelve a hacer login una vez.
 - El usuario sale del token (`sub`). Ninguna ruta lleva el id del usuario en la URL, y nadie puede
   pedir datos de otro.
 
@@ -138,10 +151,15 @@ credencial equivocada):
 
 Lleva además la cabecera `WWW-Authenticate: Basic` o `WWW-Authenticate: Bearer`, según la ruta. El
 motivo concreto solo queda en el log del servidor. El cliente no lo puede saber y no debe
-intentarlo: ante un 401 en una ruta Bearer, se vuelve al login.
+intentarlo: ante un 401 en una ruta Bearer, prueba una vez con
+[`POST /auth/refresh`](#post-apiauthrefresh), y si el refresco también da 401, vuelve al login.
 
-La excepción es el login con credenciales del usuario incorrectas, que tiene su propio código
-(ver [`POST /auth/login`](#post-apiauthlogin)).
+Dos excepciones:
+
+- El login con credenciales del usuario incorrectas tiene su propio código (ver
+  [`POST /auth/login`](#post-apiauthlogin)).
+- El refresh que no sirve da el mismo `UNAUTHENTICATED`, pero con `field: "refreshToken"` y sin
+  `WWW-Authenticate`: la credencial Basic de la cabecera era buena, lo que falló es el cuerpo.
 
 ## Errores
 
@@ -166,7 +184,7 @@ Todos los errores salen con la misma forma:
 |---|---|---|
 | 400 | `VALIDATION_ERROR` | Un campo o parámetro no cumple las reglas del endpoint |
 | 400 | `JSON_PARSING_ERROR` | El cuerpo no es JSON válido o un campo tiene un tipo incompatible (`"amount": "abc"`) |
-| 401 | `UNAUTHENTICATED` | Falta la credencial o no es válida para esa ruta |
+| 401 | `UNAUTHENTICATED` | Falta la credencial o no es válida para esa ruta, o el refresh de `POST /auth/refresh` no sirve |
 | 401 | `INVALID_CREDENTIALS` | Login con correo o contraseña incorrectos |
 | 403 | `REGISTRATION_NOT_ALLOWED` | Alta con un correo que no está en la lista de admitidos (`field`: `email`) |
 | 404 | `NOT_FOUND` | La ruta no existe (con token válido), o el recurso de la ruta no existe o es de otro usuario (`field`: `id`) |
@@ -282,8 +300,8 @@ correo repetido.
 
 ### `POST /api/auth/login`
 
-Cambia correo y contraseña por un token. **Basic** (la credencial compartida va en la cabecera y
-la del usuario en el cuerpo).
+Cambia correo y contraseña por una sesión: un access y un refresh. **Basic** (la credencial
+compartida va en la cabecera y la del usuario en el cuerpo).
 
 **Cuerpo**
 
@@ -302,9 +320,20 @@ la del usuario en el cuerpo).
 {
   "accessToken": "eyJhbGciOiJIUzI1NiJ9...",
   "tokenType": "Bearer",
-  "expiresIn": 3600
+  "expiresIn": 3600,
+  "refreshToken": "q3Jf8m0W1x...",
+  "refreshExpiresIn": 86400
 }
 ```
+
+| Campo | Qué es |
+|---|---|
+| `accessToken` | El JWT para `Authorization: Bearer` |
+| `expiresIn` | Segundos que le quedan al access |
+| `refreshToken` | Valor opaco de 43 caracteres para [`POST /auth/refresh`](#post-apiauthrefresh) y [`POST /auth/logout`](#post-apiauthlogout). No es un JWT: no se decodifica. Es una credencial, y no debe ir a logs ni a la URL |
+| `refreshExpiresIn` | Segundos que le quedan a la sesión. Recién hecho el login, 86400 |
+
+Cada login abre una sesión nueva e independiente: las de otros dispositivos siguen abiertas.
 
 **Errores**
 
@@ -316,6 +345,69 @@ la del usuario en el cuerpo).
 
 El login **no consulta la lista de admitidos** del registro. Si un correo sale de la lista, el usuario
 que ya se registró con él sigue entrando; para cortarle el acceso se desactiva el usuario.
+
+### `POST /api/auth/refresh`
+
+Cambia un refresh vigente por un access y un refresh nuevos (FIN-47). **Basic**, como el login: el
+access puede estar vencido justo cuando hace falta refrescar.
+
+**Cuerpo**
+
+| Campo | Tipo | Obligatorio |
+|---|---|---|
+| `refreshToken` | string | sí |
+
+```json
+{ "refreshToken": "q3Jf8m0W1x..." }
+```
+
+**200 OK** — la misma forma que el login. `refreshExpiresIn` es lo que le queda a la sesión, que no
+se alarga: el refresh nuevo vence cuando vencía el anterior, a las 24 horas del login.
+
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiJ9...",
+  "tokenType": "Bearer",
+  "expiresIn": 3600,
+  "refreshToken": "Zt0b2Lr9pE...",
+  "refreshExpiresIn": 72000
+}
+```
+
+El refresh enviado queda usado: el siguiente refresco va con el nuevo.
+
+**Errores**
+
+| HTTP | `code` | `field` | Cuándo |
+|---|---|---|---|
+| 400 | `VALIDATION_ERROR` | `refreshToken` | Falta o viene en blanco |
+| 401 | `UNAUTHENTICATED` | `refreshToken` | El refresh no existe, venció, ya se usó, fue revocado, es de antes del último cambio de contraseña o su usuario está desactivado. La respuesta no dice cuál: el cliente vuelve al login |
+
+**Reuso.** Si el refresh ya se había usado, además del 401 se cierra la sesión entera: el refresh
+que lo reemplazó también deja de servir. Es la señal de que alguien más lo tiene, y así el legítimo
+y el que lo copió vuelven los dos al login. Por lo mismo, **el cliente no debe mandar dos refrescos
+a la vez** con el mismo refresh: el segundo cuenta como reuso.
+
+### `POST /api/auth/logout`
+
+Cierra la sesión del refresh (FIN-47). **Basic.**
+
+**Cuerpo**
+
+| Campo | Tipo | Obligatorio |
+|---|---|---|
+| `refreshToken` | string | sí |
+
+**204 No Content** — sin cuerpo. El refresh y la sesión a la que pertenece quedan revocados. Responde
+204 también si el refresh no existe, ya venció o ya estaba revocado: no hay nada que el cliente
+pueda corregir. El access de esa sesión **no** se revoca y sigue sirviendo hasta vencer, como mucho
+una hora; el cliente lo descarta. Las sesiones de otros dispositivos siguen abiertas.
+
+**Errores**
+
+| HTTP | `code` | `field` | Cuándo |
+|---|---|---|---|
+| 400 | `VALIDATION_ERROR` | `refreshToken` | Falta o viene en blanco |
 
 ### `GET /api/status`
 
@@ -419,7 +511,9 @@ Cambia la contraseña del usuario del token. **Bearer.**
 ```
 
 **204 No Content** — sin cuerpo. Desde ese momento el login funciona con la nueva y no con la
-anterior. Los tokens ya emitidos siguen sirviendo hasta que vencen: no hay forma de revocarlos.
+anterior, y **todas las sesiones del usuario quedan cerradas** (FIN-47): todo access y todo refresh
+emitido antes del cambio, incluido el access con el que se pidió, responde 401. El 204 no trae
+tokens nuevos: el cliente vuelve al login. Un cambio rechazado no cierra ninguna sesión.
 
 **Errores propios**
 
@@ -1841,7 +1935,8 @@ Para que el frontend no lo busque:
 - Crear movimientos pendientes por otra vía que el asistente.
 - Aprobar o rechazar pendientes en lote.
 - Crear metas de gasto.
-- Refresh token o logout. El token simplemente vence, también después de cambiar la contraseña.
+- Listar las sesiones abiertas, o cerrarlas todas sin cambiar la contraseña.
+- Revocar el access en el logout: sigue sirviendo hasta vencer, como mucho una hora.
 - Cambiar la moneda base del usuario (FA-91): el `PATCH /api/users/me` la omite.
 - Recuperar la contraseña olvidada (FA-90).
 - Series y compras en cuotas en monedas distintas de COP.

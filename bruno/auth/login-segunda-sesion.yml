@@ -1,0 +1,45 @@
+info:
+  name: Login de una segunda sesion
+  type: http
+  seq: 17
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/login"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{testUserEmail}}",
+        "password": "{{testUserPassword}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("cada login da un refresh distinto", function() {
+          expect(res.getBody().refreshToken).to.be.a("string").and.not.equal(bru.getVar("refreshLogin"));
+        });
+
+        test("guarda la sesion nueva", function() {
+          bru.setVar("refreshToken", res.getBody().refreshToken);
+          bru.setVar("accessToken", res.getBody().accessToken);
+          expect(bru.getVar("refreshToken")).to.equal(res.getBody().refreshToken);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Sesion nueva tras cerrar la anterior por reuso
+
+  La sesion del primer login quedo revocada. Esta es la que usan los requests que siguen.

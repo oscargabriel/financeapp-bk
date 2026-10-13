@@ -6,9 +6,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import com.oscargabriel.financeapp.compartido.support.BasicMother;
+import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.support.TokenMother;
 
 /**
@@ -16,6 +18,7 @@ import com.oscargabriel.financeapp.compartido.support.TokenMother;
  * y el corte de dia por zona horaria los verifica bruno/reports/: la suite no tiene base.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Import(SesionSiempreAbierta.class)
 class TransactionReportIT {
 
     private static final String RUTA = "/api/reports/transactions?from=2026-09-01&to=2026-09-30";

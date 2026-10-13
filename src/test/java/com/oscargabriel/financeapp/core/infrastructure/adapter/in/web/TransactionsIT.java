@@ -10,11 +10,13 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import com.oscargabriel.financeapp.compartido.support.BasicMother;
+import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.support.TokenMother;
 
 /**
@@ -23,6 +25,7 @@ import com.oscargabriel.financeapp.compartido.support.TokenMother;
  * puerto sin escucha.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Import(SesionSiempreAbierta.class)
 class TransactionsIT {
 
     @Value("${local.server.port}")

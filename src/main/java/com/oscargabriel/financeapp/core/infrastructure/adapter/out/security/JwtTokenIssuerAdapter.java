@@ -45,7 +45,7 @@ public class JwtTokenIssuerAdapter implements TokenIssuerPort {
     }
 
     @Override
-    public AccessToken issueFor(UUID userId) {
+    public AccessToken issueFor(UUID userId, long tokenVersion) {
         Instant ahora = clock.instant();
 
         JwtClaimsSet claims = JwtClaimsSet.builder()
@@ -53,6 +53,8 @@ public class JwtTokenIssuerAdapter implements TokenIssuerPort {
                 .subject(userId.toString())
                 .issuedAt(ahora)
                 .expiresAt(ahora.plus(vigencia))
+                .id(UUID.randomUUID().toString())
+                .claim(JwtConfig.CLAIM_VERSION_DE_SESION, tokenVersion)
                 .build();
 
         String token = encoder

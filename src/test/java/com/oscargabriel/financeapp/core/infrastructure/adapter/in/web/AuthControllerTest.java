@@ -11,6 +11,8 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webflux.test.autoconfigure.WebFluxTest;
 import org.springframework.context.annotation.Import;
@@ -23,12 +25,17 @@ import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestExcept
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.core.domain.model.AccessToken;
 import com.oscargabriel.financeapp.core.domain.model.LoginCommand;
+import com.oscargabriel.financeapp.core.domain.model.RefreshToken;
 import com.oscargabriel.financeapp.core.domain.model.RegisteredUser;
+import com.oscargabriel.financeapp.core.domain.model.SessionTokens;
 import com.oscargabriel.financeapp.core.domain.model.RegistrationCommand;
 import com.oscargabriel.financeapp.core.domain.model.User;
 import com.oscargabriel.financeapp.core.domain.port.in.LoginPort;
+import com.oscargabriel.financeapp.core.domain.port.in.LogoutPort;
+import com.oscargabriel.financeapp.core.domain.port.in.RefreshSessionPort;
 import com.oscargabriel.financeapp.core.domain.port.in.RegisterUserPort;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
+import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.SecurityConfig;
 import com.oscargabriel.financeapp.compartido.support.BasicMother;
 import com.oscargabriel.financeapp.compartido.support.TokenMother;
@@ -41,14 +48,22 @@ import reactor.core.publisher.Mono;
  * bruno/auth/ contra un servidor real.
  */
 @WebFluxTest(AuthController.class)
-@Import({SecurityConfig.class, JwtConfig.class})
+@Import({SecurityConfig.class, JwtConfig.class, SesionSiempreAbierta.class})
 class AuthControllerTest {
 
     private static final String URI_REGISTRO = "/auth/register";
 
     private static final String URI_LOGIN = "/auth/login";
 
+    private static final String URI_REFRESCO = "/auth/refresh";
+
+    private static final String URI_LOGOUT = "/auth/logout";
+
     private static final UUID ID = UUID.fromString("01994f00-0000-7000-8000-000000000001");
+
+    private static final SessionTokens SESION = new SessionTokens(
+            new AccessToken("un.jwt.firmado", Duration.ofHours(1)),
+            new RefreshToken("un-refresh-opaco", Duration.ofHours(24)));
 
     @Autowired
     private WebTestClient webTestClient;
@@ -58,6 +73,12 @@ class AuthControllerTest {
 
     @MockitoBean
     private LoginPort login;
+
+    @MockitoBean
+    private RefreshSessionPort refreshSession;
+
+    @MockitoBean
+    private LogoutPort logout;
 
     /**
      * FA-43 cerro el alta detras del Basic: ya no hay ninguna ruta publica, asi que un cliente sin
@@ -270,9 +291,9 @@ class AuthControllerTest {
     }
 
     @Test
-    void devuelve200ConElTokenYSuVigenciaEnSegundos() {
+    void devuelve200ConLosDosTokensYSusVigenciasEnSegundos() {
         when(login.login(any()))
-                .thenReturn(Mono.just(new AccessToken("un.jwt.firmado", Duration.ofHours(1))));
+                .thenReturn(Mono.just(SESION));
 
         webTestClient.post().uri(URI_LOGIN)
                 .headers(BasicMother.cabecera())
@@ -283,13 +304,15 @@ class AuthControllerTest {
                 .expectBody()
                 .jsonPath("$.accessToken").isEqualTo("un.jwt.firmado")
                 .jsonPath("$.tokenType").isEqualTo("Bearer")
-                .jsonPath("$.expiresIn").isEqualTo(3600);
+                .jsonPath("$.expiresIn").isEqualTo(3600)
+                .jsonPath("$.refreshToken").isEqualTo("un-refresh-opaco")
+                .jsonPath("$.refreshExpiresIn").isEqualTo(86400);
     }
 
     @Test
     void trasladaLasCredencialesTalCualAlCasoDeUso() {
         when(login.login(any()))
-                .thenReturn(Mono.just(new AccessToken("un.jwt.firmado", Duration.ofHours(1))));
+                .thenReturn(Mono.just(SESION));
 
         webTestClient.post().uri(URI_LOGIN)
                 .headers(BasicMother.cabecera())
@@ -322,7 +345,7 @@ class AuthControllerTest {
     @Test
     void laRespuestaDelLoginNoDevuelveLaClaveQueSeMando() {
         when(login.login(any()))
-                .thenReturn(Mono.just(new AccessToken("un.jwt.firmado", Duration.ofHours(1))));
+                .thenReturn(Mono.just(SESION));
 
         byte[] cuerpo = webTestClient.post().uri(URI_LOGIN)
                 .headers(BasicMother.cabecera())
@@ -375,13 +398,110 @@ class AuthControllerTest {
         verifyNoInteractions(registerUser);
     }
 
+    @Test
+    void elRefrescoDevuelve200ConLaMismaFormaDelLogin() {
+        when(refreshSession.refresh("un-refresh-vigente")).thenReturn(Mono.just(SESION));
+
+        webTestClient.post().uri(URI_REFRESCO)
+                .headers(BasicMother.cabecera())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("refreshToken", "un-refresh-vigente"))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.accessToken").isEqualTo("un.jwt.firmado")
+                .jsonPath("$.tokenType").isEqualTo("Bearer")
+                .jsonPath("$.expiresIn").isEqualTo(3600)
+                .jsonPath("$.refreshToken").isEqualTo("un-refresh-opaco")
+                .jsonPath("$.refreshExpiresIn").isEqualTo(86400);
+    }
+
+    @Test
+    void elRefrescoDevuelve401ConElCampoDelRefreshCuandoNoSirve() {
+        when(refreshSession.refresh(any())).thenReturn(Mono.error(new BadRequestException(
+                HttpStatus.UNAUTHORIZED, ErrorCodes.UNAUTHENTICATED, "Autenticacion requerida",
+                "refreshToken")));
+
+        webTestClient.post().uri(URI_REFRESCO)
+                .headers(BasicMother.cabecera())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("refreshToken", "uno-usado"))
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED")
+                .jsonPath("$.errors[0].field").isEqualTo("refreshToken");
+    }
+
+    @Test
+    void elLogoutDevuelve204SinCuerpo() {
+        when(logout.logout("un-refresh-vigente")).thenReturn(Mono.empty());
+
+        webTestClient.post().uri(URI_LOGOUT)
+                .headers(BasicMother.cabecera())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("refreshToken", "un-refresh-vigente"))
+                .exchange()
+                .expectStatus().isNoContent()
+                .expectBody().isEmpty();
+
+        verify(logout).logout("un-refresh-vigente");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {URI_REFRESCO, URI_LOGOUT})
+    void sinRefreshTokenDevuelve400SinLlamarAlCasoDeUso(String ruta) {
+        webTestClient.post().uri(ruta)
+                .headers(BasicMother.cabecera())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("refreshToken", "  "))
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors.length()").isEqualTo(1)
+                .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.errors[0].field").isEqualTo("refreshToken");
+
+        verifyNoInteractions(refreshSession, logout);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {URI_REFRESCO, URI_LOGOUT})
+    void elRefrescoYElLogoutExigenLaCredencialCompartida(String ruta) {
+        webTestClient.post().uri(ruta)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("refreshToken", "un-refresh-vigente"))
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().valueEquals("WWW-Authenticate", "Basic")
+                .expectBody()
+                .jsonPath("$.errors[0].field").isEqualTo("authorization");
+
+        verifyNoInteractions(refreshSession, logout);
+    }
+
+    /** El refresh no es un Bearer: con un access valido en vez del Basic, la cadena lo rechaza. */
+    @ParameterizedTest
+    @ValueSource(strings = {URI_REFRESCO, URI_LOGOUT})
+    void unTokenValidoNoSirveEnElRefrescoNiEnElLogout(String ruta) {
+        webTestClient.post().uri(ruta)
+                .headers(headers -> headers.setBearerAuth(TokenMother.valido()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("refreshToken", "un-refresh-vigente"))
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().valueEquals("WWW-Authenticate", "Basic");
+
+        verifyNoInteractions(refreshSession, logout);
+    }
+
     /**
-     * Con Basic son esas dos rutas y nada mas: cualquier otra bajo /auth cae en la cadena del JWT,
-     * donde la credencial compartida no vale.
+     * Con Basic son las rutas de auth que existen y nada mas: cualquier otra bajo /auth cae en la
+     * cadena del JWT, donde la credencial compartida no vale.
      */
     @Test
     void ningunaOtraRutaDeAuthAceptaElBasic() {
-        webTestClient.post().uri("/auth/refresh")
+        webTestClient.post().uri("/auth/otra-cosa")
                 .headers(BasicMother.cabecera())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(unasCredenciales())

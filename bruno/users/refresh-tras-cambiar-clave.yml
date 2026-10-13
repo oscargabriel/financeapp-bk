@@ -1,0 +1,41 @@
+info:
+  name: Refresco con el refresh de antes del cambio de clave
+  type: http
+  seq: 21
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/refresh"
+  body:
+    type: json
+    data: |-
+      {
+        "refreshToken": "{{refreshPerfil}}"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: refreshToken
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El refresh de antes del cambio tampoco sirve (FIN-47)
+
+  `refreshPerfil` no se uso nunca y no ha vencido: lo unico que lo invalida es el cambio de clave.

@@ -25,3 +25,9 @@ docs: |
 
   `Login` entra con `prueba@financeapp.local`, que no esta en la lista: es la prueba de que el login
   no la consulta.
+
+  **Sesiones (FIN-47).** Despues de los requests de alta van el refresco y el logout. La sesion del
+  primer login acaba revocada por el reuso; la que usa el resto de la coleccion es la de `Login de
+  una segunda sesion`, refrescada en `Refresco de la segunda sesion`. El logout cierra una tercera,
+  propia. `Refresco con un refresh vencido` y `Refresco de un usuario inactivo` usan los refresh que
+  siembra `test-data.sql`.

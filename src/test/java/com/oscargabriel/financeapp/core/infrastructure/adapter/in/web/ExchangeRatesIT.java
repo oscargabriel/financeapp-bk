@@ -6,9 +6,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import com.oscargabriel.financeapp.compartido.support.BasicMother;
+import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.support.TokenMother;
 
 /**
@@ -16,6 +18,7 @@ import com.oscargabriel.financeapp.compartido.support.TokenMother;
  * un token valido la consulta toca la base, asi que el camino feliz lo verifica bruno/exchange-rates/.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Import(SesionSiempreAbierta.class)
 class ExchangeRatesIT {
 
     private static final String CONSULTA = "/exchange-rates?from=USD&to=COP&date=2026-10-10";

@@ -28,7 +28,8 @@ import tools.jackson.databind.ObjectMapper;
 
 /**
  * Dos cadenas, no una. Desde FA-43 el registro, el login y el status se autentican con la
- * credencial compartida del Basic, y el resto del API con el JWT. Lo que separa las dos es el
+ * credencial compartida del Basic, y desde FIN-47 tambien el refresco y el logout; el resto del API
+ * con el JWT. Lo que separa las dos es el
  * securityMatcher de la primera: lo que no cae ahi lo atiende la segunda.
  *
  * El precio, aceptado al disenarlo: no queda ninguna ruta publica. Un cliente sin la credencial
@@ -43,9 +44,13 @@ public class SecurityConfig {
      * Las rutas del Basic. Van sin el prefijo /api porque spring.webflux.base-path lo quita el
      * HttpHandler, antes de que la cadena de seguridad vea la peticion. El metodo es parte del
      * criterio: un GET a /auth/register no entra por aqui, cae en la cadena del JWT.
+     *
+     * El refresco y el logout van aqui y no con el Bearer (FIN-47): el refresh viaja en el cuerpo,
+     * como la contrasena en el login, y el access puede estar vencido justo cuando hacen falta.
      */
     private static final ServerWebExchangeMatcher RUTAS_BASIC = ServerWebExchangeMatchers.matchers(
-            ServerWebExchangeMatchers.pathMatchers(HttpMethod.POST, "/auth/register", "/auth/login"),
+            ServerWebExchangeMatchers.pathMatchers(HttpMethod.POST,
+                    "/auth/register", "/auth/login", "/auth/refresh", "/auth/logout"),
             ServerWebExchangeMatchers.pathMatchers(HttpMethod.GET, "/status"));
 
     private final String allowedOrigins;

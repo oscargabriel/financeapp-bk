@@ -1,0 +1,39 @@
+info:
+  name: Refresco tras el reuso
+  type: http
+  seq: 16
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/refresh"
+  body:
+    type: json
+    data: |-
+      {
+        "refreshToken": "{{refreshToken}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: refreshToken
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El reemplazo tambien quedo revocado
+
+  Es el refresh vigente de la sesion, el que entrego el ultimo refresco. Despues del reuso ya no
+  sirve. El access de esa sesion si sigue sirviendo hasta vencer: el reuso no lo revoca.

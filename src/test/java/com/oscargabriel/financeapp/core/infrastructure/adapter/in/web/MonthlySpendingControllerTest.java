@@ -22,6 +22,7 @@ import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestExcept
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.core.domain.port.in.GetMonthlySpendingPort;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
+import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.SecurityConfig;
 import com.oscargabriel.financeapp.core.support.MonthlySpendingMother;
 
@@ -32,7 +33,7 @@ import reactor.core.publisher.Flux;
  * completa la verifica MonthlySpendingIT contra un servidor real.
  */
 @WebFluxTest(MonthlySpendingController.class)
-@Import({SecurityConfig.class, JwtConfig.class})
+@Import({SecurityConfig.class, JwtConfig.class, SesionSiempreAbierta.class})
 class MonthlySpendingControllerTest {
 
     private static final String URI_BASE = "/monthly-spending";

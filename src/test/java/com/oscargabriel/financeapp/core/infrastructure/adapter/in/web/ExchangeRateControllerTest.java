@@ -23,6 +23,7 @@ import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.core.domain.model.ExchangeRate;
 import com.oscargabriel.financeapp.core.domain.port.in.ResolveExchangeRatePort;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
+import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.SecurityConfig;
 import com.oscargabriel.financeapp.core.support.CategoryMother;
 
@@ -30,7 +31,7 @@ import reactor.core.publisher.Mono;
 
 /** Sin el base-path /api, igual que el resto de slices: la ruta completa la cubre ExchangeRatesIT. */
 @WebFluxTest(ExchangeRateController.class)
-@Import({SecurityConfig.class, JwtConfig.class})
+@Import({SecurityConfig.class, JwtConfig.class, SesionSiempreAbierta.class})
 class ExchangeRateControllerTest {
 
     private static final LocalDate HOY = LocalDate.of(2026, 10, 10);

@@ -18,6 +18,7 @@ import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSVerifier;
 import com.nimbusds.jose.crypto.MACVerifier;
 import com.nimbusds.jwt.SignedJWT;
+import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
 import com.oscargabriel.financeapp.core.domain.model.AccessToken;
 
 class JwtTokenIssuerAdapterTest {
@@ -31,6 +32,8 @@ class JwtTokenIssuerAdapterTest {
     private static final Duration VIGENCIA = Duration.ofHours(1);
 
     private static final UUID ID = UUID.fromString("01994f00-0000-7000-8000-000000000001");
+
+    private static final long VERSION = 3L;
 
     @Test
     void firmaElTokenConElSecretoConfigurado() throws ParseException, JOSEException {
@@ -74,10 +77,31 @@ class JwtTokenIssuerAdapterTest {
         assertThat(emitir().expiresIn()).isEqualTo(VIGENCIA);
     }
 
+    /** El decoder compara este claim con la version del usuario en cada request (FIN-47). */
+    @Test
+    void llevaLaVersionDeSesionDelUsuario() throws ParseException {
+        var claims = SignedJWT.parse(emitir().value()).getJWTClaimsSet();
+
+        assertThat(claims.getLongClaim(JwtConfig.CLAIM_VERSION_DE_SESION)).isEqualTo(VERSION);
+    }
+
+    /**
+     * Con el mismo usuario, la misma version y el mismo segundo, sin jti los dos tokens saldrian
+     * identicos: un refresco inmediato devolveria el mismo access que ya tenia el cliente.
+     */
+    @Test
+    void dosTokensDelMismoInstanteSonDistintos() throws ParseException {
+        AccessToken uno = emitir();
+        AccessToken otro = emitir();
+
+        assertThat(uno.value()).isNotEqualTo(otro.value());
+        assertThat(SignedJWT.parse(uno.value()).getJWTClaimsSet().getJWTID()).isNotBlank();
+    }
+
     private static AccessToken emitir() {
         return new JwtTokenIssuerAdapter(
                 new SecretKeySpec(SECRETO.getBytes(), JWSAlgorithm.HS256.getName()),
                 VIGENCIA, "financeapp-bk-test", RELOJ)
-                .issueFor(ID);
+                .issueFor(ID, VERSION);
     }
 }

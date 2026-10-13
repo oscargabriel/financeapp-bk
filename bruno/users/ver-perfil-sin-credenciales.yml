@@ -1,7 +1,7 @@
 info:
   name: Ver perfil sin credenciales
   type: http
-  seq: 21
+  seq: 25
 
 http:
   method: GET

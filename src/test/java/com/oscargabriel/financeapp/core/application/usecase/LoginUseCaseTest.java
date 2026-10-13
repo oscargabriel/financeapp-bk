@@ -2,16 +2,21 @@ package com.oscargabriel.financeapp.core.application.usecase;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -23,8 +28,13 @@ import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.responses.ErrorDetail;
 import com.oscargabriel.financeapp.core.domain.model.AccessToken;
 import com.oscargabriel.financeapp.core.domain.model.LoginCommand;
+import com.oscargabriel.financeapp.core.domain.model.NewRefreshToken;
+import com.oscargabriel.financeapp.core.domain.model.RefreshToken;
+import com.oscargabriel.financeapp.core.domain.model.SessionTokens;
 import com.oscargabriel.financeapp.core.domain.model.UserCredentials;
 import com.oscargabriel.financeapp.core.domain.port.out.PasswordHasherPort;
+import com.oscargabriel.financeapp.core.domain.port.out.RefreshTokenGeneratorPort;
+import com.oscargabriel.financeapp.core.domain.port.out.SesionRepositoryPort;
 import com.oscargabriel.financeapp.core.domain.port.out.TokenIssuerPort;
 import com.oscargabriel.financeapp.core.domain.port.out.UserRepositoryPort;
 import com.oscargabriel.financeapp.core.support.UserMother;
@@ -38,7 +48,20 @@ class LoginUseCaseTest {
 
     private static final UUID ID = UUID.fromString("01994f00-0000-7000-8000-000000000001");
 
+    private static final long VERSION = 2L;
+
     private static final AccessToken TOKEN = new AccessToken("un.jwt.firmado", Duration.ofHours(1));
+
+    private static final Instant AHORA = Instant.parse("2026-10-12T15:00:00Z");
+
+    private static final Duration DURACION_DE_LA_SESION = Duration.ofHours(24);
+
+    private static final String REFRESH = "refresh-en-claro";
+
+    private static final String HASH_DEL_REFRESH = "hash-del-refresh";
+
+    private static final SessionTokens SESION =
+            new SessionTokens(TOKEN, new RefreshToken(REFRESH, DURACION_DE_LA_SESION));
 
     @Mock
     private UserRepositoryPort usuarios;
@@ -49,15 +72,51 @@ class LoginUseCaseTest {
     @Mock
     private TokenIssuerPort emisor;
 
+    @Mock
+    private RefreshTokenGeneratorPort generador;
+
+    @Mock
+    private SesionRepositoryPort sesiones;
+
+    /** FIN-47: el login abre una sesion de 24 horas y en la base deja solo el hash del refresh. */
+    @Test
+    void abreLaSesionGuardandoSoloElHashDelRefresh() {
+        loginPosible();
+
+        StepVerifier.create(login().login(new LoginCommand(UserMother.EMAIL, UserMother.PASSWORD)))
+                .expectNext(SESION)
+                .verifyComplete();
+
+        ArgumentCaptor<NewRefreshToken> abierta = ArgumentCaptor.forClass(NewRefreshToken.class);
+        verify(sesiones).abrir(abierta.capture());
+        assertThat(abierta.getValue().userId()).isEqualTo(ID);
+        assertThat(abierta.getValue().tokenHash()).isEqualTo(HASH_DEL_REFRESH);
+        assertThat(abierta.getValue().tokenVersion()).isEqualTo(VERSION);
+        assertThat(abierta.getValue().createdAt()).isEqualTo(AHORA);
+        assertThat(abierta.getValue().expiresAt()).isEqualTo(AHORA.plus(DURACION_DE_LA_SESION));
+        assertThat(abierta.getValue().id()).isNotNull();
+        assertThat(abierta.getValue().familyId()).isNotNull().isNotEqualTo(abierta.getValue().id());
+    }
+
+    /** Un refresh que no quedo guardado no serviria: mejor que el login falle a entregarlo. */
+    @Test
+    void noEntregaTokensSiLaSesionNoSePudoAbrir() {
+        loginPosible();
+        when(sesiones.abrir(any())).thenReturn(Mono.error(new IllegalStateException("base caida")));
+
+        StepVerifier.create(login().login(new LoginCommand(UserMother.EMAIL, UserMother.PASSWORD)))
+                .verifyError(IllegalStateException.class);
+    }
+
     @Test
     void emiteElTokenDelUsuarioCuandoLaClaveCoincide() {
         loginPosible();
 
         StepVerifier.create(login().login(new LoginCommand(UserMother.EMAIL, UserMother.PASSWORD)))
-                .expectNext(TOKEN)
+                .expectNext(SESION)
                 .verifyComplete();
 
-        verify(emisor).issueFor(ID);
+        verify(emisor).issueFor(ID, VERSION);
     }
 
     /** El indice unico de la tabla es sobre lower(email), y el alta guarda el correo normalizado. */
@@ -66,7 +125,7 @@ class LoginUseCaseTest {
         loginPosible();
 
         StepVerifier.create(login().login(new LoginCommand("  ANA@Ejemplo.COM  ", UserMother.PASSWORD)))
-                .expectNext(TOKEN)
+                .expectNext(SESION)
                 .verifyComplete();
 
         verify(usuarios).findActiveByEmail(UserMother.EMAIL);
@@ -80,7 +139,7 @@ class LoginUseCaseTest {
         StepVerifier.create(login().login(new LoginCommand(UserMother.EMAIL, "otraClave")))
                 .verifyErrorSatisfies(error -> assertThat(unaCredencialInvalida(error)).isTrue());
 
-        verifyNoInteractions(emisor);
+        verifyNoInteractions(emisor, generador, sesiones);
     }
 
     /**
@@ -94,7 +153,7 @@ class LoginUseCaseTest {
         StepVerifier.create(login().login(new LoginCommand(UserMother.EMAIL, UserMother.PASSWORD)))
                 .verifyErrorSatisfies(error -> assertThat(unaCredencialInvalida(error)).isTrue());
 
-        verifyNoInteractions(emisor);
+        verifyNoInteractions(emisor, generador, sesiones);
     }
 
     /** OWASP A07: los dos fallos son indistinguibles desde fuera, hasta en el texto. */
@@ -129,17 +188,21 @@ class LoginUseCaseTest {
     }
 
     private LoginUseCase login() {
-        return new LoginUseCase(usuarios, hasher, emisor);
+        return new LoginUseCase(usuarios, hasher, emisor, generador, sesiones,
+                Clock.fixed(AHORA, ZoneOffset.UTC), DURACION_DE_LA_SESION);
     }
 
     private void loginPosible() {
         when(usuarios.findActiveByEmail(anyString())).thenReturn(Mono.just(credenciales()));
         when(hasher.matches(anyString(), anyString())).thenReturn(true);
-        when(emisor.issueFor(any())).thenReturn(TOKEN);
+        when(emisor.issueFor(any(), anyLong())).thenReturn(TOKEN);
+        when(generador.generar()).thenReturn(REFRESH);
+        when(generador.hash(REFRESH)).thenReturn(HASH_DEL_REFRESH);
+        when(sesiones.abrir(any())).thenReturn(Mono.empty());
     }
 
     private static UserCredentials credenciales() {
-        return new UserCredentials(ID, UserMother.HASH);
+        return new UserCredentials(ID, UserMother.HASH, VERSION);
     }
 
     private static boolean unaCredencialInvalida(Throwable error) {
@@ -152,7 +215,7 @@ class LoginUseCaseTest {
         return error.getErrorResponse().getErrors().get(0);
     }
 
-    private static BadRequestException capturarError(Mono<AccessToken> cadena) {
+    private static BadRequestException capturarError(Mono<SessionTokens> cadena) {
         try {
             cadena.block();
         } catch (BadRequestException esperado) {

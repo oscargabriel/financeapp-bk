@@ -36,7 +36,7 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
      * token para una cuenta desactivada por haberse olvidado una condicion aguas arriba.
      */
     private static final String CREDENCIALES_ACTIVAS = """
-            SELECT id, password_hash
+            SELECT id, password_hash, token_version
               FROM finance.users
              WHERE lower(email) = lower(:email)
                AND deleted_at IS NULL
@@ -85,9 +85,14 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
             RETURNING id, email, first_name, last_name, phone, base_currency_code, timezone
             """;
 
+    /**
+     * Sube token_version en la misma sentencia (FIN-47): todo access y todo refresh emitido con la
+     * version anterior deja de servir en el acto, sin tocar refresh_tokens.
+     */
     private static final String ACTUALIZAR_CLAVE = """
             UPDATE finance.users
-               SET password_hash = :passwordHash
+               SET password_hash = :passwordHash,
+                   token_version = token_version + 1
              WHERE id = :id
                AND deleted_at IS NULL
                AND is_active
@@ -134,7 +139,8 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
                 .bind("email", email)
                 .map((row, metadata) -> new UserCredentials(
                         row.get("id", UUID.class),
-                        row.get("password_hash", String.class)))
+                        row.get("password_hash", String.class),
+                        row.get("token_version", Integer.class)))
                 .one();
     }
 

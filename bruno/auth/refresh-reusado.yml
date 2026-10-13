@@ -1,0 +1,46 @@
+info:
+  name: Refresco con un refresh ya usado
+  type: http
+  seq: 15
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/refresh"
+  body:
+    type: json
+    data: |-
+      {
+        "refreshToken": "{{refreshRotado}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: refreshToken
+  scripts:
+    - type: tests
+      code: |-
+        test("no emite ningun token", function() {
+          expect(res.getBody().accessToken).to.be.undefined;
+          expect(res.getBody().refreshToken).to.be.undefined;
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Reuso de un refresh rotado
+
+  `refreshRotado` ya se cambio en `Refresco correcto`. Presentarlo otra vez es la senal de que alguien
+  mas lo tiene: el API cierra la sesion entera, y el request siguiente lo comprueba.

@@ -10,5 +10,6 @@ import com.oscargabriel.financeapp.core.domain.model.AccessToken;
  */
 public interface TokenIssuerPort {
 
-    AccessToken issueFor(UUID userId);
+    /** {@code tokenVersion} es la version de sesion del usuario al emitir: el token deja de servir si cambia. */
+    AccessToken issueFor(UUID userId, long tokenVersion);
 }

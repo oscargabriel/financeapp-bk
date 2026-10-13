@@ -1,7 +1,7 @@
 info:
   name: Cambiar clave por una invalida
   type: http
-  seq: 17
+  seq: 18
 
 http:
   method: PUT
