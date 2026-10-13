@@ -53,6 +53,10 @@ runtime:
           expect(res.getBody().monthlyInterestRate).to.equal(2.15);
         });
 
+        test("sin la opcion, no cobra interes a una cuota", function() {
+          expect(res.getBody().chargesSingleInstallmentInterest).to.equal(false);
+        });
+
         bru.setVar("idCuentaCredito", res.getBody().id);
 
 settings:

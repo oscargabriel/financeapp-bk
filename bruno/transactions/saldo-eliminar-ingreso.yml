@@ -1,0 +1,36 @@
+info:
+  name: Saldo — borrar un ingreso ya gastado
+  type: http
+  seq: 66
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/transactions/{{idIngresoNomina}}"
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+  scripts:
+    - type: tests
+      code: |-
+        test("un solo INSUFFICIENT_FUNDS en id", function() {
+          expect(res.getBody().errors).to.eql([{
+            code: "INSUFFICIENT_FUNDS",
+            description: "Saldo insuficiente en Nómina: quedaría en -50000 COP",
+            field: "id"
+          }]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  Borrar no tiene cuerpo: el error va en `id`, el de la ruta.

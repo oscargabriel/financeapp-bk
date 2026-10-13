@@ -32,9 +32,9 @@ runtime:
         test("es una transferencia pendiente entre las dos cuentas, sin categoria", function() {
           expect(t.type).to.equal("TRANSFER");
           expect(t.status).to.equal("PENDING");
-          expect(t.accountId).to.equal(bru.getVar("idEfectivo"));
-          expect(t.destinationAccountId).to.equal(bru.getVar("idAhorros"));
-          expect(t.categoryId).to.equal(null);
+          expect(t.account).to.equal("Efectivo");
+          expect(t.destinationAccount).to.equal("Ahorros");
+          expect(t.category).to.equal(null);
         });
 
 settings:

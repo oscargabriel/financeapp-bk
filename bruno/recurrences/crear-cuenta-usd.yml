@@ -1,0 +1,39 @@
+info:
+  name: Crear cuenta en dolares
+  type: http
+  seq: 67
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Series USD",
+        "type": "SAVINGS",
+        "currencyCode": "USD",
+        "initialBalance": 0
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: after-response
+      code: |-
+        bru.setVar("idCuentaSeriesUsd", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Series en otras monedas (FA-123)
+
+  La crea la coleccion y no `test-data.sql` para no mover los saldos ni los listados del escenario.

@@ -55,12 +55,13 @@ jacoco {
 
 // Lo que la suite no puede cubrir, y por tanto no cuenta para el umbral:
 //   * el main, que no tiene forma de ejercitarse desde un test
-//   * el adapter R2DBC, que desde el 12-09-2026 se verifica desde bruno/ contra PostgreSQL real
+//   * los adapters R2DBC de cualquier modulo, que desde el 12-09-2026 se verifican desde bruno/
+//     contra PostgreSQL real
 // El resto entra, DTOs y configuracion incluidos: hoy estan entre el 90 y el 100%, asi que
 // excluirlos solo esconderia el dato.
 def clasesSinCobertura = [
 	'com/oscargabriel/financeapp/FinanceappBkApplication.class',
-	'com/oscargabriel/financeapp/infrastructure/adapter/out/persistence/*R2dbcAdapter.class'
+	'**/*R2dbcAdapter.class'
 ]
 
 def clasesMedidas = { fileCollection ->

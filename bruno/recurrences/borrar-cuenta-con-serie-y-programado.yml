@@ -1,0 +1,36 @@
+info:
+  name: Borrar una cuenta con serie y programado
+  type: http
+  seq: 83
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/accounts/{{idDesactivable}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+  scripts:
+    - type: tests
+      code: |-
+        const errores = res.getBody().errors;
+
+        test("un solo error, en id, sin el de saldo", function() {
+          expect(errores).to.have.length(1);
+          expect(errores[0].code).to.equal("RESOURCE_IN_USE");
+          expect(errores[0].field).to.equal("id");
+        });
+
+        test("dice cuantas series y cuantos programados", function() {
+          expect(errores[0].description).to.include("1 serie activa");
+          expect(errores[0].description).to.include("1 movimiento programado");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

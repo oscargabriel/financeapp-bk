@@ -58,6 +58,7 @@ erDiagram
         smallint statement_day
         smallint payment_due_day
         numeric monthly_interest_rate
+        boolean charges_single_installment_interest
         boolean is_active
         timestamptz deleted_at
     }
@@ -276,6 +277,13 @@ valor si `type = 'CREDIT'` (lo garantiza `ck_accounts_credit_fields`).
 fracción: `2.15` es el 2,15 % mensual. Va de 0 a 10; el tope atrapa una tasa
 anual escrita por error en el campo mensual (FA-105).
 
+`charges_single_installment_interest` dice si la tarjeta cobra interés en las
+compras a 1 cuota (FA-134). Es `NOT NULL DEFAULT FALSE`, y fuera de una
+`CREDIT` tiene que quedar en `FALSE` (`ck_accounts_credit_fields`); el API lo
+devuelve como `null` en esas cuentas. Con `NOT NULL DEFAULT` los `INSERT` de los
+scripts de datos no tienen que nombrarla. La compra no la copia: el interés
+queda guardado en cada cuota al registrarla.
+
 ### Compras en cuotas
 
 Una compra en cuotas (`installment_purchases`, FA-108) es una compra con
@@ -313,7 +321,7 @@ Tres niveles de moneda (FA-122, decidido el 10-10-2026):
 - **Servicio (USD).** `amount_base` es el equivalente en dólares de cada
   movimiento: la base común entre monedas, que no depende de quién lo mire.
 - **Cuenta.** `amount` y `currency_code` están en la moneda de la cuenta: es el
-  cargo real. Las series y las cuotas todavía solo admiten cuentas en COP.
+  cargo real. Las series y las cuotas también van en la moneda de su cuenta (FA-123).
 - **Persona.** `users.base_currency_code` es solo la moneda en que la persona ve
   sus totales. Cambiarla no reescribe nada.
 
@@ -394,10 +402,10 @@ usar el primero.
 
 ### `v_monthly_spending`
 
-Una fila por usuario y mes.
+Una fila por usuario y mes con gastos, ingresos o meta.
 
 ```
-user_id | period_month | currency_code | total_spent | budget_amount | remaining | percent_used | transaction_count
+user_id | period_month | currency_code | total_spent | budget_amount | remaining | percent_used | transaction_count | total_income
 ```
 
 ```sql
@@ -406,12 +414,17 @@ SELECT * FROM finance.v_monthly_spending
    AND period_month = date_trunc('month', CURRENT_DATE)::date;
 ```
 
-`total_spent` y `currency_code` están en la moneda de la persona: la vista suma
-`finance.in_currency` (ver *Multi-moneda*), igual que la meta.
+`total_spent`, `total_income` y `currency_code` están en la moneda de la persona:
+la vista suma `finance.in_currency` (ver *Multi-moneda*), igual que la meta.
+
+`total_income` suma los `INCOME` con el mismo `WHERE` que los gastos —confirmados,
+ya ocurridos, mes en la zona del usuario— (FA-132). `transaction_count` cuenta
+solo los `EXPENSE`.
 
 `budget_amount`, `remaining` y `percent_used` son `NULL` cuando el mes no tiene
 meta definida — no cero, para poder distinguir «no configuró meta» de «su meta es
-cero». Un mes con meta y sin gastos aparece igual, con `total_spent = 0`.
+cero». Un mes con meta o con ingresos y sin gastos aparece igual, con
+`total_spent = 0`.
 
 ### `v_monthly_spending_by_category`
 

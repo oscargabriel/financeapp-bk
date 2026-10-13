@@ -1,0 +1,47 @@
+info:
+  name: Saldo — gasto programado mayor que el saldo
+  type: http
+  seq: 60
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idNomina}}",
+          "categoryId": "{{idMercado}}",
+          "amount": 150000,
+          "description": "Arriendo programado",
+          "occurredAt": "{{diaFuturoSaldo}}T12:00:00-05:00"
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body[0].scheduled
+      operator: eq
+      value: "true"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idProgramadoNomina", res.getBody()[0].id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  Lo programado no se valida: todavía no mueve el saldo vigente, y al llegar su fecha cuenta aunque
+  deje la cuenta en negativo.

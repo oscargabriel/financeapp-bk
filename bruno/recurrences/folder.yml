@@ -24,6 +24,15 @@ docs: |
   días. Su contador dice que creó dos ocurrencias pero solo existe la primera: la segunda se borró a
   mano y no tiene que volver.
 
+  Tambien siembra tres series sin fin atrasadas que no pueden crear ocurrencias (FA-116): una sobre
+  la cuenta desactivada `Serie desactivada`, otra sobre la cuenta borrada `Serie cuenta borrada` y
+  otra con la categoria borrada `Club viejo`, sobre `Serie sin categoria`. Cada una tiene solo su
+  primera ocurrencia, y al final de la carpeta se comprueba que sigue asi y que no salen en el
+  listado. Despues, `Desactivable` y `Club` recorren los 409 por series activas.
+
+  Al final de la carpeta (FA-123) se crean `Series USD` y `Series USD otra`, dos cuentas en
+  dolares: ahi se prueba una serie en USD y que su PATCH solo admite otra cuenta en USD.
+
   Los casos ajenos usan un usuario `series-ajeno-<timestamp>@bruno.local` creado en la corrida.
   Las ocurrencias se leen de `reports/transactions` filtradas por `recurrenceId`, y cada una cae a
   medianoche de Bogotá: `T05:00:00Z`.

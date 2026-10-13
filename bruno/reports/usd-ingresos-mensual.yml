@@ -1,0 +1,50 @@
+info:
+  name: Persona en USD — ingresos en el gasto mensual
+  type: http
+  seq: 57
+
+http:
+  method: GET
+  url: "{{baseUrl}}/monthly-spending?from={{usdMesHace100}}&to={{usdMes}}"
+  auth:
+    type: bearer
+    token: "{{tokenUsd}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const porMes = {};
+        res.getBody().forEach(function (m) { porMes[m.periodMonth] = m; });
+
+        test("el mes en curso trae el gasto y el ingreso en dolares", function() {
+          const mes = porMes[bru.getVar("usdMes")];
+          expect(mes.currencyCode).to.equal("USD");
+          expect(mes.totalSpent).to.equal(10);
+          expect(mes.totalIncome).to.equal(20);
+        });
+
+        test("el mes con solo un ingreso viene, con el gasto en cero y sin meta", function() {
+          const mes = porMes[bru.getVar("usdMesHace100")];
+          expect(mes).to.not.equal(undefined);
+          expect(mes.totalIncome).to.equal(10);
+          expect(mes.totalSpent).to.equal(0);
+          expect(mes.transactionCount).to.equal(0);
+          expect(mes.budgetAmount).to.equal(null);
+          expect(mes.remaining).to.equal(null);
+          expect(mes.percentUsed).to.equal(null);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  Los ingresos de "ingresos en pesos" convertidos a la moneda de la persona con la misma regla que
+  `totalSpent`. Antes de FA-132 el mes de hace 100 dias no venia: no tenia gastos ni meta.

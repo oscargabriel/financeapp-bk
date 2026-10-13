@@ -1,0 +1,39 @@
+info:
+  name: Saldo — crear una cuenta de ahorros en negativo
+  type: http
+  seq: 88
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      { "name": "Ahorros en rojo", "type": "SAVINGS", "currencyCode": "COP", "initialBalance": -1000 }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+  scripts:
+    - type: tests
+      code: |-
+        test("un solo VALIDATION_ERROR en initialBalance", function() {
+          const errores = res.getBody().errors;
+          expect(errores).to.have.length(1);
+          expect(errores[0].code).to.equal("VALIDATION_ERROR");
+          expect(errores[0].field).to.equal("initialBalance");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  Solo una tarjeta de crédito puede arrancar en negativo (FA-133).

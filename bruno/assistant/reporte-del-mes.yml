@@ -23,8 +23,29 @@ runtime:
         bru.setVar("ultimoDiaAsistente", reporte.to);
     - type: tests
       code: |-
-        test("es el mismo reporte que devolvio el asistente", function() {
-          expect(res.getBody()).to.deep.equal(JSON.parse(bru.getVar("reporteAsistente")));
+        const asistente = JSON.parse(bru.getVar("reporteAsistente"));
+        const api = res.getBody();
+        function total(tipo) {
+          const t = api.totalsByType.find(function (x) { return x.type === tipo; });
+          return t ? t.total : 0;
+        }
+
+        test("el rango y la moneda son los del reporte", function() {
+          expect(asistente.from).to.equal(api.from);
+          expect(asistente.to).to.equal(api.to);
+          expect(asistente.currencyCode).to.equal(api.currencyCode);
+        });
+
+        test("los totales son los del reporte (FA-148: la IA los calcula con sus propias consultas)", function() {
+          expect(asistente.income).to.equal(total("INCOME"));
+          expect(asistente.expense).to.equal(total("EXPENSE"));
+          expect(asistente.net).to.equal(api.net);
+        });
+
+        test("la lista es la del reporte sin los programados, en el mismo orden", function() {
+          const vigentes = api.transactions.filter(function (t) { return !t.scheduled; });
+          expect(asistente.transactions.map(function (t) { return t.id; }))
+            .to.deep.equal(vigentes.map(function (t) { return t.id; }));
         });
 
 settings:

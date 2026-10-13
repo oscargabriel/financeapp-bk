@@ -15,7 +15,8 @@ http:
         "currencyCode": "COP",
         "creditLimit": 1000000,
         "statementDay": 15,
-        "monthlyInterestRate": 50
+        "monthlyInterestRate": 50,
+        "chargesSingleInstallmentInterest": false
       }
   auth:
     type: bearer
@@ -31,7 +32,8 @@ runtime:
       code: |-
         test("reporta cada campo de credito mal puesto", function() {
           const campos = res.getBody().errors.map(function (e) { return e.field; });
-          expect(campos.sort()).to.eql(["creditLimit", "monthlyInterestRate", "statementDay"]);
+          expect(campos.sort()).to.eql(["chargesSingleInstallmentInterest", "creditLimit", "monthlyInterestRate",
+              "statementDay"]);
         });
 
         test("todos son errores de validacion", function() {

@@ -1,0 +1,38 @@
+info:
+  name: Simular tres cuotas en la tarjeta con la opcion
+  type: http
+  seq: 57
+
+http:
+  method: POST
+  url: "{{baseUrl}}/installment-purchases/preview"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idVisaUnaCuota}}",
+        "categoryId": "{{idTecnologia}}",
+        "amount": 1200000,
+        "description": "Televisor",
+        "purchaseDate": "{{hoyCuotas}}",
+        "installmentCount": 3
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("la opcion no cambia las compras de varias cuotas", function() {
+          expect(res.getBody().installments.map(function (c) { return c.interest; })).to.eql([24000, 16000, 8000]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

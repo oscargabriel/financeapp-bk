@@ -9,35 +9,35 @@ se presentan en el API y cómo se corrigen sin descuadrar su saldo vigente.
 ### Requirement: Forma de la cuenta en las respuestas
 `GET /api/accounts`, `POST /api/accounts` y `PATCH /api/accounts/{id}` SHALL presentar cada cuenta
 como `{id, name, type, currencyCode, initialBalance, currentBalance, creditLimit, availableCredit,
-statementDay, paymentDueDay, monthlyInterestRate, isActive}`. En una cuenta que no es `CREDIT`,
-`creditLimit`, `availableCredit`, `statementDay`, `paymentDueDay` y `monthlyInterestRate` SHALL ser
-`null`.
+statementDay, paymentDueDay, monthlyInterestRate, chargesSingleInstallmentInterest, isActive}`. En una
+cuenta que no es `CREDIT`, `creditLimit`, `availableCredit`, `statementDay`, `paymentDueDay`,
+`monthlyInterestRate` y `chargesSingleInstallmentInterest` SHALL ser `null`.
 
 #### Scenario: Una tarjeta de crédito
 - **WHEN** el usuario crea una cuenta `CREDIT` con `initialBalance` -200000, `creditLimit` 3000000, `statementDay` 20, `paymentDueDay` 5 y `monthlyInterestRate` 2.15
-- **THEN** la respuesta trae `initialBalance` -200000, `currentBalance` -200000, `creditLimit` 3000000, `availableCredit` 2800000, `statementDay` 20, `paymentDueDay` 5 y `monthlyInterestRate` 2.15
+- **THEN** la respuesta trae `initialBalance` -200000, `currentBalance` -200000, `creditLimit` 3000000, `availableCredit` 2800000, `statementDay` 20, `paymentDueDay` 5, `monthlyInterestRate` 2.15 y `chargesSingleInstallmentInterest` `false`
 
 #### Scenario: Una cuenta que no es de crédito
 - **WHEN** el usuario lista sus cuentas y tiene una `CASH`
-- **THEN** esa cuenta trae `initialBalance` con su saldo de arranque y `creditLimit`, `availableCredit`, `statementDay`, `paymentDueDay` y `monthlyInterestRate` en `null`
+- **THEN** esa cuenta trae `initialBalance` con su saldo de arranque y `creditLimit`, `availableCredit`, `statementDay`, `paymentDueDay`, `monthlyInterestRate` y `chargesSingleInstallmentInterest` en `null`
 
 ### Requirement: Modificación parcial de una cuenta
 `PATCH /api/accounts/{id}` SHALL aceptar cualquier subconjunto de `name`, `currencyCode`,
-`initialBalance`, `creditLimit`, `statementDay`, `paymentDueDay`, `monthlyInterestRate` e `isActive`,
-normalizados como en el alta. Un campo ausente o en `null` SHALL conservar su valor. La respuesta
-SHALL ser 200 con la cuenta tal como quedó.
+`initialBalance`, `creditLimit`, `statementDay`, `paymentDueDay`, `monthlyInterestRate`,
+`chargesSingleInstallmentInterest` e `isActive`, normalizados como en el alta. Un campo ausente o en
+`null` SHALL conservar su valor. La respuesta SHALL ser 200 con la cuenta tal como quedó.
 
 #### Scenario: Cambiar nombre y saldo inicial
 - **WHEN** el usuario envía `PATCH /api/accounts/{id}` sobre su cuenta `Billetera` (`CASH`, saldo inicial 150000, sin movimientos) con `{"name": " Bolsillo ", "initialBalance": 200000}`
 - **THEN** la respuesta es 200 con `name` `Bolsillo`, `initialBalance` 200000, `currentBalance` 200000 y el mismo `id`, `type` y `currencyCode`
 
 #### Scenario: Cambiar los campos de una tarjeta
-- **WHEN** el parche trae `{"creditLimit": 4000000, "statementDay": 25, "paymentDueDay": 10, "monthlyInterestRate": 1.9}` sobre su tarjeta `Mastercard` con saldo -200000
-- **THEN** la respuesta es 200 con `creditLimit` 4000000, `availableCredit` 3800000, `statementDay` 25, `paymentDueDay` 10 y `monthlyInterestRate` 1.9
+- **WHEN** el parche trae `{"creditLimit": 4000000, "statementDay": 25, "paymentDueDay": 10, "monthlyInterestRate": 1.9, "chargesSingleInstallmentInterest": true}` sobre su tarjeta `Mastercard` con saldo -200000
+- **THEN** la respuesta es 200 con `creditLimit` 4000000, `availableCredit` 3800000, `statementDay` 25, `paymentDueDay` 10, `monthlyInterestRate` 1.9 y `chargesSingleInstallmentInterest` `true`
 
 #### Scenario: Campo en null
-- **WHEN** el parche trae `{"paymentDueDay": 12, "creditLimit": null, "monthlyInterestRate": null}` sobre una tarjeta con cupo y tasa
-- **THEN** la respuesta es 200, el día de pago cambia y el cupo y la tasa siguen siendo los mismos
+- **WHEN** el parche trae `{"paymentDueDay": 12, "creditLimit": null, "monthlyInterestRate": null, "chargesSingleInstallmentInterest": null}` sobre una tarjeta con cupo, tasa y la opción en `true`
+- **THEN** la respuesta es 200, el día de pago cambia y el cupo, la tasa y la opción siguen siendo los mismos
 
 #### Scenario: El listado refleja el cambio
 - **WHEN** después de modificar una cuenta el usuario pide `GET /api/accounts`
@@ -77,9 +77,10 @@ respuesta SHALL ser 400 con un error `VALIDATION_ERROR` en ese campo, sin modifi
 - **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en `currentBalance` y otro en `type`, ninguno en `isActive`, y la cuenta no cambia: sigue activa
 
 ### Requirement: Campos de crédito según el tipo de la cuenta
-`creditLimit`, `statementDay`, `paymentDueDay` y `monthlyInterestRate` SHALL admitirse solo sobre una
-cuenta `CREDIT`. Sobre cualquier otro tipo, cada uno que llegue con valor SHALL responder 400 con un
-error `VALIDATION_ERROR` en su campo, sin modificar nada.
+`creditLimit`, `statementDay`, `paymentDueDay`, `monthlyInterestRate` y
+`chargesSingleInstallmentInterest` SHALL admitirse solo sobre una cuenta `CREDIT`. Sobre cualquier
+otro tipo, cada uno que llegue con valor SHALL responder 400 con un error `VALIDATION_ERROR` en su
+campo, sin modificar nada.
 
 #### Scenario: Campos de crédito sobre una cuenta de efectivo
 - **WHEN** el parche trae `{"creditLimit": 1000000, "statementDay": 3}` sobre la cuenta `CASH` `Bolsillo`
@@ -88,6 +89,10 @@ error `VALIDATION_ERROR` en su campo, sin modificar nada.
 #### Scenario: Tasa sobre una cuenta de efectivo
 - **WHEN** el parche trae `{"monthlyInterestRate": 2}` sobre la cuenta `CASH` `Bolsillo`
 - **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en `monthlyInterestRate`, y `Bolsillo` sigue con la tasa en `null`
+
+#### Scenario: Interés a una cuota sobre una cuenta de efectivo
+- **WHEN** el parche trae `{"chargesSingleInstallmentInterest": true}` sobre la cuenta `CASH` `Bolsillo`
+- **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en `chargesSingleInstallmentInterest`, y `Bolsillo` sigue con el campo en `null`
 
 ### Requirement: El saldo inicial corre el saldo vigente
 Cambiar `initialBalance` SHALL desplazar `currentBalance` en la misma diferencia, de modo que el
@@ -419,3 +424,155 @@ compras en cuotas de la tarjeta cuyo `occurredAt` todavía no llega.
 #### Scenario: Una cuota de la compra ya venció
 - **WHEN** la misma compra tiene vencida la primera cuota, de 400000 de capital y 24000 de interés
 - **THEN** la tarjeta trae `currentBalance` -424000 y `availableCredit` 3776000
+
+### Requirement: Saldo no negativo en las cuentas que no son de crédito
+Una petición que baja el `currentBalance` de una cuenta `CASH`, `DEBIT`, `SAVINGS`, `INVESTMENT` u
+`OTHER` SHALL rechazarse si lo deja por debajo de cero. SHALL responder 409 con un error
+`INSUFFICIENT_FUNDS` por cada cuenta afectada, cuya `description` nombra la cuenta y el saldo en que
+quedaría, sin cambiar nada. Una petición que no baja el saldo de una cuenta no SHALL rechazarse por
+esta regla. Una cuenta `CREDIT` no tiene tope.
+
+#### Scenario: Gasto mayor que el saldo de una cuenta de débito
+- **WHEN** la cuenta `DEBIT` `Nómina`, con `currentBalance` 100000, recibe un gasto de 150000 con fecha de hoy
+- **THEN** la respuesta es 409 con un error `INSUFFICIENT_FUNDS` cuya `description` nombra `Nómina` y el saldo -50000, y el `currentBalance` de `Nómina` sigue en 100000
+
+#### Scenario: Gasto que deja la cuenta exactamente en cero
+- **WHEN** la misma cuenta, con `currentBalance` 100000, recibe un gasto de 100000
+- **THEN** el gasto se registra y el `currentBalance` queda en 0
+
+#### Scenario: Tarjeta de crédito sin tope
+- **WHEN** una cuenta `CREDIT` con `currentBalance` 0 recibe un gasto de 500000
+- **THEN** el gasto se registra y el `currentBalance` queda en -500000
+
+### Requirement: Cuentas que ya están en negativo
+Una cuenta no `CREDIT` cuyo `currentBalance` ya es negativo —por datos anteriores a esta regla o por
+un programado que llegó a su fecha— SHALL seguir aceptando las peticiones que suben su saldo, aunque
+no lo lleven a cero, y SHALL rechazar con 409 `INSUFFICIENT_FUNDS` las que lo bajan. Ningún dato
+existente SHALL modificarse por esta regla.
+
+#### Scenario: Ingreso que no alcanza a salir de cero
+- **WHEN** la cuenta `CASH` `Bolsillo`, con `currentBalance` -30000, recibe un ingreso de 10000
+- **THEN** el ingreso se registra y el `currentBalance` queda en -20000
+
+#### Scenario: Gasto sobre una cuenta en negativo
+- **WHEN** la misma cuenta, con `currentBalance` -20000, recibe un gasto de 1000
+- **THEN** la respuesta es 409 con un error `INSUFFICIENT_FUNDS` y el saldo no cambia
+
+### Requirement: Saldo inicial según el tipo de la cuenta
+`initialBalance` negativo SHALL admitirse solo en una cuenta `CREDIT`. En `POST /api/accounts` sobre
+cualquier otro tipo, y en `PATCH /api/accounts/{id}` sobre una cuenta guardada de otro tipo, SHALL
+responder 400 con un error `VALIDATION_ERROR` en `initialBalance`, sin crear ni modificar nada.
+
+#### Scenario: Alta de una cuenta de ahorros con saldo negativo
+- **WHEN** se envía `POST /api/accounts` con `{"name": "Ahorros", "type": "SAVINGS", "currencyCode": "COP", "initialBalance": -1000}`
+- **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en `initialBalance` y la cuenta no se crea
+
+#### Scenario: Alta de una tarjeta con saldo negativo
+- **WHEN** se envía `POST /api/accounts` con una cuenta `CREDIT` válida e `initialBalance` -200000
+- **THEN** la respuesta es 201 con `currentBalance` -200000
+
+#### Scenario: Parche con saldo inicial negativo
+- **WHEN** el parche trae `{"initialBalance": -1}` sobre la cuenta `CASH` `Bolsillo`
+- **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en `initialBalance` y `Bolsillo` no cambia
+
+### Requirement: Bajar el saldo inicial por debajo de lo gastado
+Un `PATCH /api/accounts/{id}` sobre una cuenta no `CREDIT` cuyo `initialBalance` nuevo, no negativo,
+dejaría el `currentBalance` por debajo de cero SHALL responder 409 con un error `INSUFFICIENT_FUNDS`
+en `initialBalance`, sin modificar ningún campo del parche.
+
+#### Scenario: Saldo inicial menor que los gastos
+- **WHEN** la cuenta `Bolsillo` tiene saldo inicial 200000 y un gasto de 150000 (saldo vigente 50000) y el parche trae `{"initialBalance": 100000, "name": "Bolsillo 2"}`
+- **THEN** la respuesta es 409 con un error `INSUFFICIENT_FUNDS` en `initialBalance`, y `Bolsillo` sigue con su nombre, `initialBalance` 200000 y `currentBalance` 50000
+
+#### Scenario: Saldo inicial que deja la cuenta en cero
+- **WHEN** la misma cuenta recibe el parche `{"initialBalance": 150000}`
+- **THEN** la respuesta es 200 con `currentBalance` 0
+
+### Requirement: Interés en las compras a una cuota
+Una cuenta `CREDIT` SHALL guardar `chargesSingleInstallmentInterest`: `true` si la tarjeta cobra
+interés en las compras a 1 cuota, `false` si no. `POST /api/accounts` SHALL aceptarlo al crear una
+`CREDIT`, y una tarjeta creada sin él SHALL quedar en `false`. En cualquier otro tipo, enviarlo con
+valor, también `false`, SHALL responder 400 `VALIDATION_ERROR` en `chargesSingleInstallmentInterest`
+sin crear la cuenta.
+
+#### Scenario: Crear una tarjeta que cobra interés a una cuota
+- **WHEN** el usuario crea una cuenta `CREDIT` con `chargesSingleInstallmentInterest` `true`
+- **THEN** la respuesta es 201 con `chargesSingleInstallmentInterest` `true`, y `GET /api/accounts` la trae igual
+
+#### Scenario: Crear una tarjeta sin la opción
+- **WHEN** el usuario crea una cuenta `CREDIT` sin `chargesSingleInstallmentInterest`
+- **THEN** la respuesta es 201 con `chargesSingleInstallmentInterest` `false`
+
+#### Scenario: La opción en una cuenta que no es de crédito
+- **WHEN** el usuario crea una cuenta `DEBIT` con `chargesSingleInstallmentInterest` `false`
+- **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en `chargesSingleInstallmentInterest`, y la cuenta no se crea
+
+#### Scenario: Las tarjetas anteriores a la opción
+- **WHEN** el usuario lista sus cuentas y tiene una tarjeta creada antes de que existiera la opción
+- **THEN** esa tarjeta trae `chargesSingleInstallmentInterest` `false`
+
+### Requirement: Solo se borra una cuenta sin movimientos programados
+Una cuenta con movimientos programados —`CONFIRMED` con `occurredAt` posterior al momento actual—,
+como origen o como destino, o con series activas, MUST NOT borrarse. La respuesta SHALL ser 409 con
+un solo error `RESOURCE_IN_USE` en el campo `id` cuya `description` dice cuántas series activas y
+cuántos programados tiene, y nada SHALL cambiar. Si además tiene saldo, la respuesta SHALL traer
+también el error de `currentBalance`. Los movimientos `PENDING` no cuentan para esta regla.
+
+#### Scenario: Cuenta en cero con un gasto programado
+- **WHEN** el usuario borra su cuenta `Sobre`, con saldo vigente 0 y un gasto con fecha de mañana
+- **THEN** la respuesta es 409 con un error `RESOURCE_IN_USE` en el campo `id` que dice que tiene 1 movimiento programado, y `Sobre` sigue en el listado
+
+#### Scenario: Cuenta destino de una transferencia programada
+- **WHEN** `Sobre`, con saldo 0, es destino de una transferencia con fecha de mañana desde `Bolsillo`, y el usuario la borra
+- **THEN** la respuesta es 409 con un error `RESOURCE_IN_USE` en el campo `id`
+
+#### Scenario: Borrar los programados y después la cuenta
+- **WHEN** el usuario borra con `DELETE /api/transactions/{id}` los programados de `Sobre` y después borra la cuenta
+- **THEN** la respuesta es 204
+
+#### Scenario: Tarjeta con cuotas por venir
+- **WHEN** el usuario borra una tarjeta con saldo vigente 0 que tiene una compra en cuotas con cuotas por venir
+- **THEN** la respuesta es 409 con un error `RESOURCE_IN_USE` en el campo `id`, y la compra sigue en `GET /api/installment-purchases`
+
+#### Scenario: Cuenta con una serie activa
+- **WHEN** el usuario borra una cuenta sobre la que corre una serie sin fin
+- **THEN** la respuesta es 409 y trae un solo error `RESOURCE_IN_USE` en el campo `id`, que dice que tiene 1 serie activa y 1 movimiento programado
+
+#### Scenario: Serie sin fin cuya programada se borró a mano
+- **WHEN** el usuario borra con `DELETE /api/transactions/{id}` la ocurrencia programada de la única serie de `Desactivable`, que queda con saldo 0, y después borra la cuenta
+- **THEN** la respuesta es 409 con un error `RESOURCE_IN_USE` en el campo `id` que dice que tiene 1 serie activa
+
+#### Scenario: Borrar tras cancelar la serie
+- **WHEN** el usuario cancela la serie de una cuenta con saldo 0 y sin otros programados, y después la borra
+- **THEN** la respuesta es 204
+
+#### Scenario: Saldo y programados a la vez
+- **WHEN** el usuario borra una cuenta con saldo vigente -30000 y un gasto programado
+- **THEN** la respuesta es 409 con un error `RESOURCE_IN_USE` en `currentBalance` y otro en `id`
+
+#### Scenario: Los pendientes no impiden el borrado
+- **WHEN** el usuario borra una cuenta con saldo 0, sin programados y con un gasto pendiente
+- **THEN** la respuesta es 204, y el pendiente ya no sale en `GET /api/transactions/pending`
+
+### Requirement: Solo se desactiva una cuenta sin series activas
+Un parche con `isActive` en `false` sobre una cuenta activa que tiene series activas MUST NOT
+aplicarse. Serie activa es una no cancelada con ocurrencias por venir, como en `GET /api/recurrences`.
+La respuesta SHALL ser 409 con un error `RESOURCE_IN_USE` en el campo `isActive` cuya `description`
+dice cuántas series tiene, y ningún campo del parche SHALL cambiar. Al cancelar sus series, la cuenta
+SHALL poder desactivarse.
+
+#### Scenario: Cuenta con una serie sin fin
+- **WHEN** el usuario envía `{"isActive": false}` sobre su cuenta `Desactivable`, activa, sobre la que corre una serie sin fin
+- **THEN** la respuesta es 409 con un error `RESOURCE_IN_USE` en el campo `isActive` que dice que tiene 1 serie activa, y `Desactivable` sigue en `GET /api/accounts`
+
+#### Scenario: El rechazo no aplica el resto del parche
+- **WHEN** el parche trae `{"name": "Vieja", "isActive": false}` sobre `Desactivable` con su serie activa
+- **THEN** la respuesta es 409 con un error `RESOURCE_IN_USE` en `isActive`, y la cuenta conserva su nombre
+
+#### Scenario: Desactivar tras cancelar la serie
+- **WHEN** el usuario cancela con `DELETE /api/recurrences/{id}` la serie de `Desactivable` y después envía `{"isActive": false}`
+- **THEN** la respuesta es 200 con `isActive` en `false`
+
+#### Scenario: Una serie terminada no impide desactivar
+- **WHEN** la única serie de la cuenta es una con fin cuyas ocurrencias ya pasaron todas, y el usuario envía `{"isActive": false}`
+- **THEN** la respuesta es 200 con `isActive` en `false`

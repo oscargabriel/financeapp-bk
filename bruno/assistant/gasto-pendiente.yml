@@ -30,18 +30,23 @@ runtime:
         const t = res.getBody().transaction;
         bru.setVar("idPendienteAsistente", t.id);
 
-        test("queda pendiente y con el origen del asistente", function() {
+        test("queda pendiente", function() {
           expect(t.status).to.equal("PENDING");
-          expect(t.origin).to.equal("TELEGRAM");
         });
 
-        test("resuelve la cuenta y la categoria sin mayusculas", function() {
+        test("resuelve la cuenta y la categoria sin mayusculas y las nombra como las guardo el usuario", function() {
           expect(t.type).to.equal("EXPENSE");
           expect(t.amount).to.equal(20000);
           expect(t.currencyCode).to.equal("COP");
-          expect(t.accountId).to.equal(bru.getVar("idEfectivo"));
-          expect(t.categoryId).to.equal(bru.getVar("idMercado"));
+          expect(t.account).to.equal("Efectivo");
+          expect(t.destinationAccount).to.equal(null);
+          expect(t.category).to.equal("Mercado");
           expect(t.description).to.equal("Almuerzo");
+        });
+
+        test("trae solo los campos livianos (FA-148)", function() {
+          expect(Object.keys(t).sort()).to.deep.equal(["account", "amount", "category", "currencyCode",
+            "description", "destinationAccount", "id", "occurredAt", "status", "type"]);
         });
 
         test("el mensaje dice que queda pendiente, y solo viene el movimiento", function() {

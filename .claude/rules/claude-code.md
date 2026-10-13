@@ -31,7 +31,7 @@ proyecto y taparía la copia.
 `openspec init` instaló sus skills en `.claude/skills/openspec-*` y sus comandos en
 `.claude/commands/opsx/`: `/opsx:explore`, `/opsx:propose`, `/opsx:apply`, `/opsx:update`,
 `/opsx:sync` y `/opsx:archive`. **No se editan**: `openspec update` los regenera y pisa cualquier
-cambio. Lo propio del proyecto va en `openspec/config.yaml`, en `AGENTS.md` y en `tareas-notion`.
+cambio. Lo propio del proyecto va en `openspec/config.yaml`, en `AGENTS.md` y en `tareas-jira`.
 
 ## superpowers está apagado en este repo
 
@@ -39,21 +39,25 @@ cambio. Lo propio del proyecto va en `openspec/config.yaml`, en `AGENTS.md` y en
 los dos traen su propio paso de diseño y habría dos dueños de la misma decisión. En este repo eso
 reemplaza la regla global de hacer brainstorming antes de una feature: el diseño se hace en el
 change. La ejecución la cubren las skills del proyecto: `java-testing` (TDD por capa),
-`java-debugging`, `verificar` y las de dominio de la tabla del paso 5 de `tareas-notion`.
+`java-debugging`, `verificar` y las de dominio de la tabla del paso 5 de `tareas-jira`.
 
-## Tareas en Notion
+## Tareas en Jira
 
-El servidor MCP `notion` está declarado en `.mcp.json` con alcance de proyecto: solo existe aquí.
-Requiere `claude mcp login notion` una vez por máquina. El ciclo completo —consumir la tarea,
-pasarla por un change de OpenSpec, entregarla y cerrarla— está en el skill `tareas-notion`, que
-tiene los IDs de las bases. El diseño original del tablero está en
-`docs/superpowers/specs/2026-09-11-notion-tareas-design.md`.
+El servidor MCP `atlassian` está declarado en `.mcp.json` con alcance de proyecto: solo existe
+aquí. Requiere autenticarse una vez por máquina desde `/mcp`. El ciclo completo —consumir el issue,
+pasarlo por un change de OpenSpec, entregarlo y cerrarlo— está en el skill `tareas-jira`, que tiene
+el `cloudId`, los estados y sus transiciones.
 
-**Reparto con la memoria persistente:** Notion guarda lo accionable, `openspec/specs/` lo que el
+El servidor `notion` sigue declarado en `.mcp.json` solo para leer el histórico de las tareas
+`FA-n`, pero no está en `enabledMcpjsonServers`: se activa desde `/mcp` cuando hace falta, y
+`.claude/settings.json` niega sus herramientas de escritura. El diseño original de ese tablero está
+en `docs/superpowers/specs/2026-09-11-notion-tareas-design.md`.
+
+**Reparto con la memoria persistente:** Jira guarda lo accionable, `openspec/specs/` lo que el
 sistema hace, y el `design.md` de cada change el porqué. La memoria de Claude queda para cómo
 trabajar con el usuario y para decisiones viejas que todavía no tienen spec: cuando un change toque
 una capacidad descrita en una memoria, su contenido pasa a la spec y la memoria se borra.
 
 Esto adapta la regla del `~/.claude/CLAUDE.md` global que pide registrar cada mock o stub acordado
-en una memoria tipo `project`: aquí se cumple creando la tarea en Notion. Es deliberado, no un
+en una memoria tipo `project`: aquí se cumple creando el issue en Jira. Es deliberado, no un
 olvido.

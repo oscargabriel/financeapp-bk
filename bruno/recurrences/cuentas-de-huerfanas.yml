@@ -1,0 +1,35 @@
+info:
+  name: Saldos de las cuentas de las series que no crecen
+  type: http
+  seq: 75
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts?includeInactive=true"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const cuenta = function (v) {
+          return res.getBody().find(function (c) { return c.id === bru.getVar(v); });
+        };
+
+        test("la cuenta desactivada solo descuenta la primera ocurrencia", function() {
+          expect(cuenta("idCuentaDesactivada").currentBalance).to.equal(990000);
+        });
+
+        test("la cuenta de la serie con categoria borrada solo descuenta la primera", function() {
+          expect(cuenta("idCuentaSinCategoria").currentBalance).to.equal(990000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

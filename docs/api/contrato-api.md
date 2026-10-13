@@ -42,7 +42,7 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | `GET` | `/api/installment-purchases` | Bearer | Compras con cuotas por venir |
 | `PATCH` | `/api/installment-purchases/{id}` | Bearer | Modificar una compra, en sus cuotas futuras o en todas |
 | `DELETE` | `/api/installment-purchases/{id}` | Bearer | Cancelar las cuotas que faltan |
-| `GET` | `/api/monthly-spending` | Bearer | Gasto mensual contra la meta |
+| `GET` | `/api/monthly-spending` | Bearer | Gasto e ingreso mensual, y el gasto contra la meta |
 | `GET` | `/api/reports/transactions` | Bearer | Movimientos y totales de un rango de días |
 | `GET` | `/api/reports/balance` | Bearer | Ingresos menos gastos de un rango y de siempre, con las cuentas |
 | `POST` | `/api/assistant/messages` | Bearer | Registrar o consultar con un mensaje en lenguaje natural |
@@ -82,7 +82,7 @@ Una ruta sin el prefijo `/api` no existe: responde 404.
   decimal (`decimal.js`, `big.js`) y no la aritmética nativa.
 - Cada movimiento está en la **moneda de su cuenta** (FA-51). Lo que llega en otra moneda se convierte
   y queda pendiente: ver [`POST /api/transactions`](#post-apitransactions). Las series y las compras
-  en cuotas todavía solo admiten cuentas en COP.
+  en cuotas también van en la moneda de su cuenta, sin conversión (FA-123).
 
 ### Fechas
 
@@ -174,10 +174,37 @@ Todos los errores salen con la misma forma:
 | 409 | `DUPLICATE_RESOURCE` | Ya existe: correo registrado, o nombre de cuenta o de categoría repetido |
 | 409 | `RESOURCE_IN_USE` | El cambio dejaría inconsistentes otros datos que usan el recurso: el alcance de una categoría con movimientos que no admitiría (`field`: `appliesTo`), la moneda de una cuenta con movimientos (`field`: `currencyCode`), o borrar una cuenta con saldo (`field`: `currentBalance`) |
 | 409 | `INVALID_STATE` | El recurso no está en el estado que la acción exige: aprobar o rechazar un movimiento ya confirmado (`field`: `status`), o aprobar un pendiente con una cuenta desactivada (`field`: `accountId` o `destinationAccountId`) |
+| 409 | `INSUFFICIENT_FUNDS` | La petición dejaría por debajo de cero el saldo de una cuenta que no es de crédito. Ver [Saldo no negativo](#saldo-no-negativo) |
 | 413 | `PAYLOAD_TOO_LARGE` | El cuerpo pasa de 1 MB |
 | 500 | `INTERNAL_SERVER_ERROR` | Error inesperado. Nunca trae detalle técnico |
 | 502 | `EXTERNAL_SERVICE_ERROR` | El modelo del asistente falló o no respondió a tiempo (`field`: `server`). Ver [`POST /api/assistant/messages`](#post-apiassistantmessages). También al registrar o modificar un movimiento cuya moneda no tiene ninguna tasa de cambio guardada y el proveedor no respondió: no se guardó nada y se puede reintentar |
 | 503 | — | Solo en `/status`, cuando la base no responde (ver su sección) |
+
+### Saldo no negativo
+
+Una cuenta `CASH`, `DEBIT`, `SAVINGS`, `INVESTMENT` u `OTHER` no puede quedar por debajo de cero
+(FA-133). Una tarjeta `CREDIT` sí: ahí el negativo es la deuda.
+
+- Se mide sobre el `currentBalance`, el saldo vigente. Lo programado y lo pendiente no cuentan hasta
+  que lo mueven.
+- Solo se rechaza una petición que **baja** el saldo de la cuenta. Una cuenta que ya está en negativo
+  —por datos anteriores a esta regla o por un programado que llegó a su fecha— sigue recibiendo
+  dinero aunque no salga de cero, y no acepta salidas.
+- El rechazo es 409 `INSUFFICIENT_FUNDS`, uno por cuenta afectada, y no cambia nada. La `description`
+  nombra la cuenta y el saldo en que quedaría, y se puede mostrar tal cual:
+  `"Saldo insuficiente en Nómina: quedaría en -50000 COP"`.
+
+| Ruta | Se rechaza cuando… | `field` |
+|---|---|---|
+| `POST /api/transactions` | El efecto neto del lote deja la cuenta en negativo | `[i].amount` |
+| `PATCH /api/transactions/{id}` | El movimiento resultante baja la cuenta por debajo de cero | `amount` |
+| `DELETE /api/transactions/{id}` | Borrar un ingreso o una transferencia entrante deja la cuenta en negativo | `id` |
+| `POST /api/transactions/{id}/approve` | Aprobar el pendiente deja la cuenta en negativo | `amount` |
+| `PATCH /api/accounts/{id}` | Bajar `initialBalance` deja el saldo en negativo | `initialBalance` |
+
+**No se valida** en lo que llega solo: un programado que alcanza su fecha, ni las ocurrencias que las
+series crean al consultar. Esas pueden dejar una cuenta en negativo. Tampoco en el alta ni la
+edición de una serie (ver [Series recurrentes](#series-recurrentes)).
 
 ## Endpoints
 
@@ -430,6 +457,7 @@ sin distinguir mayúsculas.
     "statementDay": 15,
     "paymentDueDay": 30,
     "monthlyInterestRate": 2.1500,
+    "chargesSingleInstallmentInterest": false,
     "isActive": true
   },
   {
@@ -444,6 +472,7 @@ sin distinguir mayúsculas.
     "statementDay": null,
     "paymentDueDay": null,
     "monthlyInterestRate": null,
+    "chargesSingleInstallmentInterest": null,
     "isActive": true
   }
 ]
@@ -458,6 +487,7 @@ sin distinguir mayúsculas.
 | `availableCredit` | Solo en `CREDIT`: `creditLimit + currentBalance` menos el capital de las cuotas de [compras en cuotas](#compras-en-cuotas) que todavía no llegan. `null` en los demás tipos o si la tarjeta no tiene cupo |
 | `statementDay`, `paymentDueDay` | Solo en `CREDIT`: día de corte y día de pago, 1 a 31. `null` en los demás tipos |
 | `monthlyInterestRate` | Solo en `CREDIT`: tasa de interés **mensual en porcentaje** (`2.15` es el 2,15 % mensual, no 0.0215). `null` en los demás tipos o si la tarjeta no la tiene cargada |
+| `chargesSingleInstallmentInterest` | Solo en `CREDIT`: `true` si la tarjeta cobra interés en las [compras a 1 cuota](#compras-en-cuotas), `false` si no. Siempre `true` o `false` en una tarjeta; `null` en los demás tipos |
 | `isActive` | `false` si la cuenta está [desactivada](#patch-apiaccountsid). Solo sale en `false` con `includeInactive=true` o en la respuesta del parche que la desactivó |
 
 ### `POST /api/accounts`
@@ -471,15 +501,18 @@ Crea una cuenta del usuario del token. **Bearer.**
 | `name` | string | sí | Hasta 80 caracteres. Único por usuario sin distinguir mayúsculas |
 | `type` | string | sí | `CASH`, `DEBIT`, `CREDIT`, `SAVINGS`, `INVESTMENT`, `OTHER` |
 | `currencyCode` | string | sí | 3 letras, debe existir y estar activa en el catálogo |
-| `initialBalance` | number | no | Saldo con el que entra la cuenta. Por defecto `0`. Puede ser negativo (la deuda actual de una tarjeta) |
+| `initialBalance` | number | no | Saldo con el que entra la cuenta. Por defecto `0`. **Solo `CREDIT`** puede ser negativo (la deuda actual de la tarjeta) |
 | `creditLimit` | number | no | **Solo `CREDIT`.** Mayor que cero |
 | `statementDay` | integer | no | **Solo `CREDIT`.** Día de corte, 1 a 31 |
 | `paymentDueDay` | integer | no | **Solo `CREDIT`.** Día de pago, 1 a 31 |
 | `monthlyInterestRate` | number | no | **Solo `CREDIT`.** Tasa mensual en porcentaje, de 0 a 10 con hasta 4 decimales. 0 es una tarjeta sin interés |
+| `chargesSingleInstallmentInterest` | boolean | no | **Solo `CREDIT`.** Si la tarjeta cobra interés en las compras a 1 cuota. Por defecto `false` |
 | `currentBalance` | — | **no se envía** | Si llega, es 400: el saldo vigente lo calcula el sistema. Para fijar el saldo de arranque se usa `initialBalance` |
 
-En una cuenta que no es `CREDIT`, mandar `creditLimit`, `statementDay`, `paymentDueDay` o
-`monthlyInterestRate` es 400, uno por campo.
+En una cuenta que no es `CREDIT`, mandar `creditLimit`, `statementDay`, `paymentDueDay`,
+`monthlyInterestRate` o `chargesSingleInstallmentInterest` es 400, uno por campo, y un
+`initialBalance` negativo es 400 en `initialBalance`. `chargesSingleInstallmentInterest` es 400
+también en `false`: fuera de una tarjeta no se envía.
 
 El tope de 10 en la tasa existe para atrapar la tasa **efectiva anual** del extracto (por ejemplo
 28,5) escrita en el campo mensual: como mensual daría cuotas con diez veces el interés real.
@@ -493,7 +526,8 @@ El tope de 10 en la tasa existe para atrapar la tasa **efectiva anual** del extr
   "creditLimit": 5000000,
   "statementDay": 15,
   "paymentDueDay": 30,
-  "monthlyInterestRate": 2.15
+  "monthlyInterestRate": 2.15,
+  "chargesSingleInstallmentInterest": true
 }
 ```
 
@@ -514,29 +548,40 @@ cuenta desactivada se modifica igual que una activa.
 |---|---|---|
 | `name` | string | Hasta 80 caracteres, no en blanco. Se recorta. Único entre las cuentas vivas del usuario sin distinguir mayúsculas |
 | `currencyCode` | string | 3 letras, debe existir y estar activa. **Solo si la cuenta no tiene movimientos** |
-| `initialBalance` | number | Hasta 4 decimales. **Corre `currentBalance` en la misma diferencia**, con o sin movimientos |
+| `initialBalance` | number | Hasta 4 decimales. **Corre `currentBalance` en la misma diferencia**, con o sin movimientos. Negativo solo en `CREDIT` |
 | `creditLimit` | number | **Solo `CREDIT`.** Mayor que cero |
 | `statementDay` | integer | **Solo `CREDIT`.** 1 a 31 |
 | `paymentDueDay` | integer | **Solo `CREDIT`.** 1 a 31 |
 | `monthlyInterestRate` | number | **Solo `CREDIT`.** Tasa mensual en porcentaje, de 0 a 10 con hasta 4 decimales |
+| `chargesSingleInstallmentInterest` | boolean | **Solo `CREDIT`.** Si la tarjeta cobra interés en las compras a 1 cuota. No mueve las compras ya registradas |
 | `isActive` | boolean | `false` desactiva la cuenta y `true` la reactiva (ver abajo) |
 | `currentBalance`, `type` | — | **No se envían.** Si llegan con valor, 400 en su campo |
 
 - **Ausente o `null` es "no cambia".** El parche no vacía campos: no hay forma de quitarle el cupo,
   las fechas o la tasa a una tarjeta.
 - Un parche sin ningún campo modificable (`{}`, o todo en `null`) es 400 en `body`.
-- El tipo es el de la cuenta guardada: `creditLimit`, `statementDay`, `paymentDueDay` o
-  `monthlyInterestRate` sobre una cuenta que no es `CREDIT` son 400, uno por campo.
+- El tipo es el de la cuenta guardada: `creditLimit`, `statementDay`, `paymentDueDay`,
+  `monthlyInterestRate` o `chargesSingleInstallmentInterest` sobre una cuenta que no es `CREDIT` son
+  400, uno por campo.
 - Corregir el saldo inicial no descuadra nada: si la cuenta arrancó en 200000 y gastó 50000 (saldo
-  150000), pasar el inicial a 300000 deja el saldo en 250000.
+  150000), pasar el inicial a 300000 deja el saldo en 250000. En una cuenta que no es `CREDIT`, bajarlo
+  hasta dejar el saldo en negativo es 409 `INSUFFICIENT_FUNDS` en `initialBalance`: con esos mismos
+  movimientos, el inicial puede bajar hasta 50000 (saldo 0), no más.
 - Mandar la moneda que la cuenta ya tiene, en cualquier caja, no es un cambio y no da 409.
 - Cambiar solo las mayúsculas del nombre de la propia cuenta no es un choque.
 
 **Desactivar y reactivar (FA-68).** `{"isActive": false}` desactiva la cuenta y `{"isActive": true}`
 la reactiva, con cualquier saldo: a favor, en deuda o en cero. El cambio de estado no toca el saldo
 ni los movimientos. Pedir el estado que la cuenta ya tiene responde 200 sin cambios. Puede ir junto
-con otros campos del parche, y si el parche se rechaza, el estado tampoco cambia. Mientras está
-desactivada:
+con otros campos del parche, y si el parche se rechaza, el estado tampoco cambia.
+
+**Sin series activas (FA-116).** Una cuenta activa sobre la que corre alguna serie activa —las de
+`GET /api/recurrences`— no se desactiva: 409 `RESOURCE_IN_USE` en `isActive`, con la cantidad de
+series en la `description`, y no se aplica nada del parche. Hay que cancelar cada serie con
+`DELETE /api/recurrences/{id}` o moverla a otra cuenta con `PATCH /api/recurrences/{id}`. Una serie
+con fin que ya terminó no impide nada.
+
+Mientras está desactivada:
 
 - No sale en `GET /api/accounts` salvo con `includeInactive=true`, ni en `accounts` de
   `reports/balance`.
@@ -567,11 +612,13 @@ Al reactivarla, todo vuelve a funcionar como antes.
 |---|---|---|---|
 | 400 | `VALIDATION_ERROR` | `id` | El id de la ruta no es un UUID |
 | 400 | `VALIDATION_ERROR` | `body` | El parche no trae ningún campo modificable |
-| 400 | `VALIDATION_ERROR` | el campo | Formato inválido, campo en blanco, campo de crédito en una cuenta que no es `CREDIT`, o `currentBalance` o `type` en el cuerpo |
+| 400 | `VALIDATION_ERROR` | el campo | Formato inválido, campo en blanco, campo de crédito o `initialBalance` negativo en una cuenta que no es `CREDIT`, o `currentBalance` o `type` en el cuerpo |
 | 400 | `VALIDATION_ERROR` | `currencyCode` | La moneda nueva no existe o no está activa |
 | 404 | `NOT_FOUND` | `id` | La cuenta no existe, está borrada o es de otro usuario: la respuesta es la misma |
 | 409 | `DUPLICATE_RESOURCE` | `name` | Otra cuenta viva del usuario ya usa ese nombre |
 | 409 | `RESOURCE_IN_USE` | `currencyCode` | La cuenta tiene movimientos, como origen o destino. No cambia nada del parche |
+| 409 | `RESOURCE_IN_USE` | `isActive` | Se pide desactivar una cuenta activa con series activas. No cambia nada del parche |
+| 409 | `INSUFFICIENT_FUNDS` | `initialBalance` | El inicial nuevo dejaría el saldo de una cuenta que no es `CREDIT` por debajo de cero. No cambia nada del parche |
 
 ### `DELETE /api/accounts/{id}`
 
@@ -581,6 +628,23 @@ todos sus movimientos. Una cuenta desactivada se borra igual que una activa.
 **Solo una cuenta en cero.** Con `currentBalance` distinto de cero, a favor o en deuda, responde 409
 y no borra nada. Para dejarla en cero: una transferencia a otra cuenta, o corregir su
 `initialBalance` con `PATCH /api/accounts/{id}`.
+
+**Sin movimientos programados (FA-115).** Si la cuenta es origen o destino de algún movimiento
+[programado](#movimientos-programados) —confirmado con fecha futura—, responde 409 en `id`, con la
+cantidad en la `description`, y no borra nada. Los programados no cuentan en `currentBalance`, así
+que una cuenta en cero puede tenerlos. Para resolverlos:
+
+- una serie: `DELETE /api/recurrences/{id}`, que se lleva sus ocurrencias futuras;
+- una compra en cuotas: `DELETE /api/installment-purchases/{id}`, que se lleva sus cuotas por venir;
+- un movimiento suelto, también una transferencia que llega a la cuenta: `DELETE /api/transactions/{id}`.
+
+**Sin series activas (FA-116).** Una serie activa sobre la cuenta también impide el borrado, aunque
+el usuario haya borrado a mano su ocurrencia programada. Es el mismo 409 en `id`: un solo error cuya
+`description` dice cuántas series activas y cuántos programados tiene, por ejemplo «La cuenta tiene
+1 serie activa y 1 movimiento programado». Se resuelve cancelando la serie.
+
+Si la cuenta tiene saldo y además programados o series, la respuesta trae los dos errores. Los
+pendientes no impiden el borrado: se borran con la cuenta.
 
 Lo que pasa después:
 
@@ -601,6 +665,7 @@ Lo que pasa después:
 | 400 | `VALIDATION_ERROR` | `id` | El id de la ruta no es un UUID |
 | 404 | `NOT_FOUND` | `id` | La cuenta no existe, ya está borrada o es de otro usuario: la respuesta es la misma |
 | 409 | `RESOURCE_IN_USE` | `currentBalance` | La cuenta tiene saldo distinto de cero |
+| 409 | `RESOURCE_IN_USE` | `id` | La cuenta es origen o destino de movimientos programados, o tiene series activas |
 
 ### `GET /api/categories`
 
@@ -723,6 +788,9 @@ recuperarla desde el API.
 **204 No Content**, sin cuerpo.
 
 - Se puede borrar aunque tenga movimientos, y también una de la semilla.
+- No se puede borrar mientras la use alguna serie activa —las de `GET /api/recurrences`—: 409
+  `RESOURCE_IN_USE` en `id`, con la cantidad de series en la `description` (FA-116). Hay que cancelar
+  cada serie o cambiarle la categoría con `PATCH /api/recurrences/{id}`.
 - Sus movimientos no cambian: conservan su `categoryId`, y el reporte de movimientos los sigue
   mostrando con el `categoryName` que tenía.
 - Un PATCH de uno de esos movimientos que no cambie su categoría ni su tipo se acepta. Ningún
@@ -734,6 +802,7 @@ recuperarla desde el API.
 |---|---|---|---|
 | 400 | `VALIDATION_ERROR` | `id` | El id de la ruta no es un UUID |
 | 404 | `NOT_FOUND` | `id` | La categoría no existe, ya está borrada o es de otro usuario: la respuesta es la misma |
+| 409 | `RESOURCE_IN_USE` | `id` | La categoría la usa alguna serie activa |
 
 ### Catálogos — `GET /api/catalogs/*`
 
@@ -765,8 +834,8 @@ El API recibe y devuelve siempre el `code`; `description` es solo para mostrar.
 acepta `currencyCode` en `POST /api/accounts`. El alta de movimientos admite cuentas en cualquiera
 de ellas: cada movimiento va en la moneda de su cuenta, y uno que llegue en otra moneda activa se
 convierte y queda pendiente (ver [`POST /api/transactions`](#post-apitransactions)). Las
-[series recurrentes](#series-recurrentes) y las [compras en cuotas](#compras-en-cuotas), por ahora,
-solo admiten cuentas en COP.
+[series recurrentes](#series-recurrentes) y las [compras en cuotas](#compras-en-cuotas) también admiten
+cuentas en cualquiera de ellas, y van en la moneda de su cuenta.
 
 ```json
 [{ "code": "COP", "name": "Peso colombiano", "symbol": "$" }]
@@ -830,6 +899,12 @@ arreglo de un elemento.
 - **Todo o nada.** Si un solo elemento es inválido, no se guarda ninguno, y la respuesta trae los
   errores de **todos** los elementos, cada uno con su índice (`[0].amount`, `[3].categoryId`). El
   cliente puede marcarlos todos de una vez.
+- **Saldo suficiente** (FA-133). Con todos los elementos válidos, el lote se rechaza entero con 409
+  `INSUFFICIENT_FUNDS` si deja por debajo de cero una cuenta que no es de crédito (ver
+  [Saldo no negativo](#saldo-no-negativo)). Cuenta el efecto neto del lote: un ingreso del mismo lote
+  compensa un gasto. Sale un error por cuenta, en `[i].amount` del primer elemento que saca dinero de
+  ella y la deja en negativo, en el orden del lote. Los programados y los que quedan pendientes no
+  cuentan.
 - **No es idempotente.** Reenviar el mismo lote crea los movimientos otra vez. Si la petición
   falla por red sin respuesta, revisa los saldos antes de reintentar. Un duplicado se borra con
   [`DELETE /api/transactions/{id}`](#delete-apitransactionsid).
@@ -1027,6 +1102,7 @@ aplica el movimiento, y al revés lo retira hasta que llegue; `scheduled` sale s
 | 400 | `body` | El parche no trae ningún campo |
 | 400 | el campo | Formato inválido, o una regla del tipo resultante, sin índice (`amount`, `categoryId`) |
 | 404 | `id` | El movimiento no existe o es de otro usuario: la respuesta es la misma |
+| 409 | `amount` | `INSUFFICIENT_FUNDS`: el movimiento resultante bajaría por debajo de cero una cuenta que no es de crédito, un error por cuenta. Pasa al subir un gasto, cambiar de cuenta o de tipo, reducir un ingreso o una transferencia entrante, o pasar un ingreso a fecha futura. No cambia nada |
 
 ### `DELETE /api/transactions/{id}`
 
@@ -1038,6 +1114,7 @@ Borra un movimiento del usuario del token. **Bearer.** El borrado es físico: no
 |---|---|---|
 | 400 | `id` | El id de la ruta no es un UUID |
 | 404 | `id` | El movimiento no existe, ya se borró, o es de otro usuario |
+| 409 | `id` | `INSUFFICIENT_FUNDS`: borrar un ingreso o una transferencia ya gastados dejaría una cuenta que no es de crédito en negativo. Un gasto, un pendiente o un programado siempre se pueden borrar |
 
 ### Movimientos pendientes
 
@@ -1065,6 +1142,7 @@ deja rastro.
 | 404 | `NOT_FOUND` | `id` | No existe, ya se rechazó, o es de otro usuario: la respuesta es la misma |
 | 409 | `INVALID_STATE` | `status` | Ya está confirmado. Para borrar un confirmado está `DELETE /api/transactions/{id}` |
 | 409 | `INVALID_STATE` | `accountId` / `destinationAccountId` | Solo al aprobar: la cuenta de ese campo está desactivada, un error por cuenta. Sigue pendiente y ningún saldo cambia; se aprueba después de reactivarla |
+| 409 | `INSUFFICIENT_FUNDS` | `amount` | Solo al aprobar, con las cuentas activas: aprobarlo dejaría por debajo de cero una cuenta que no es de crédito. Sigue pendiente y ningún saldo cambia. Un pendiente con fecha futura se aprueba sin este chequeo |
 
 Un pendiente también se corrige con `PATCH` y se borra con `DELETE`, igual que uno confirmado.
 
@@ -1081,6 +1159,11 @@ Un movimiento confirmado con `occurredAt` posterior al momento actual está **pr
 Cuando llega la fecha empieza a contar solo: nada lo "activa", y no hace falta modificarlo ni que el
 servidor haya estado encendido. Un pendiente con fecha futura sigue `PENDING` y además sale con
 `"scheduled": true`; al aprobarlo, queda programado hasta su fecha.
+
+Un programado **no se valida contra el saldo** (FA-133): ni al registrarlo ni al llegar su fecha. Un
+gasto programado mayor que el saldo se acepta y, si al llegar la fecha deja la cuenta en negativo,
+queda así; desde ahí la cuenta no acepta salidas hasta recibir dinero (ver
+[Saldo no negativo](#saldo-no-negativo)).
 
 `scheduled` no es un estado que se guarde ni que el cliente envíe: el servidor lo calcula en cada
 respuesta comparando `occurredAt` con su reloj. Una misma respuesta puede marcarlo `true` y, unos
@@ -1103,8 +1186,21 @@ Sin fin, crea las que van hasta hoy y la siguiente. Las demás aparecen solas: a
 `GET /accounts`, `reports/balance`, `reports/transactions`, `monthly-spending` o la lista de series, el
 servidor crea antes las que falten, aunque haya estado apagado.
 
+**Cuenta y categoría válidas (FA-116).** Mientras una serie esté activa, su cuenta no se puede
+desactivar ni borrar, y su categoría no se puede borrar: 409 en esas rutas. Una serie sin fin de
+datos anteriores a esa regla, cuya cuenta ya está desactivada o borrada o cuya categoría ya está
+borrada, no crea más ocurrencias y no sale en la lista. Si la cuenta se reactiva, la siguiente
+consulta crea las que falten, como con cualquier serie atrasada.
+
 **Ocurrencias sueltas.** Una ocurrencia se corrige o se borra con `PATCH` o `DELETE` sobre
-`/api/transactions/{id}`, y sigue siendo de su serie. Una borrada a mano no vuelve a aparecer.
+`/api/transactions/{id}`, y sigue siendo de su serie. Una borrada a mano no vuelve a aparecer. Esas
+dos rutas sí validan el [saldo](#saldo-no-negativo).
+
+> **Advertencia: las series no validan el saldo.** El alta con un `startDate` pasado y un `PATCH`
+> con `scope: ALL` que sube el monto o cambia la cuenta mueven el saldo de una vez, y pueden dejar
+> por debajo de cero una cuenta que no es de crédito. Es una excepción provisional a
+> [Saldo no negativo](#saldo-no-negativo), pendiente de análisis en FA-143. Tampoco se validan las
+> ocurrencias que se crean solas al consultar.
 
 #### `POST /api/recurrences`
 
@@ -1126,7 +1222,7 @@ servidor crea antes las que falten, aunque haya estado apagado.
 | Campo | Obligatorio | Regla |
 |---|---|---|
 | `type` | Sí | `EXPENSE` o `INCOME`. No hay transferencias recurrentes |
-| `accountId` | Sí | Cuenta propia, activa y en COP: por ahora las series solo admiten cuentas en COP |
+| `accountId` | Sí | Cuenta propia y activa, en una moneda activa. La serie y sus ocurrencias van en la moneda de la cuenta, que se devuelve en `currencyCode` |
 | `categoryId` | Sí | Categoría propia que aplique al tipo |
 | `amount` | Sí | Mayor que cero, hasta 4 decimales |
 | `description` | Sí | Hasta 255 caracteres; se recorta |
@@ -1171,8 +1267,10 @@ actual: cambiar la periodicidad lo mueve (ver abajo).
 #### `GET /api/recurrences`
 
 **200 OK** — arreglo de series con la forma del alta, de la próxima ocurrencia a la más lejana. Solo
-las **activas**: no canceladas y con ocurrencias por venir. Una sin fin siempre lo está; una con fin
-deja de estarlo cuando pasa su última ocurrencia. Sin series activas, `[]`.
+las **activas**: no canceladas y con ocurrencias por venir. Una sin fin lo está mientras su cuenta
+esté activa y su categoría viva; una con fin deja de estarlo cuando pasa su última ocurrencia. Sin
+series activas, `[]`. Son las mismas series que cuentan los 409 de desactivar o borrar una cuenta y de
+borrar una categoría.
 
 #### `PATCH /api/recurrences/{id}`
 
@@ -1193,6 +1291,8 @@ deja de estarlo cuando pasa su última ocurrencia. Sin series activas, `[]`.
   hasta esa fecha; una sin fin queda con la siguiente.
 - La regla se valida sobre la serie resultante: pasar a `MONTHLY` exige `dayOfMonth` en el parche, y
   un `dayOfWeek` en una serie que queda mensual es error.
+- La moneda de la serie no cambia: un `accountId` nuevo tiene que estar en ella, o es 400 en
+  `accountId` (FA-123).
 
 **200 OK** — la serie como quedó.
 
@@ -1227,11 +1327,15 @@ no; las demás, el día de pago de cada mes. Un día que el mes no tiene cae en 
 Con corte 20 y pago 5, una compra del 9 o del 20 de octubre vence el 5 de noviembre; una del 21, el 5
 de diciembre.
 
-**Capital e interés.** El capital de cada cuota es el total entre las cuotas, en pesos enteros y
-redondeado hacia abajo; la última se lleva el resto, de modo que los capitales suman el total exacto.
-El interés de cada cuota es la tasa mensual de la tarjeta sobre el capital que falta antes de esa cuota,
-en pesos enteros, la mitad hacia arriba. Con 1 cuota, o con tasa 0 o sin tasa, no hay interés. La tasa
-se copia en la compra: cambiar la de la tarjeta después no mueve las cuotas.
+**Capital e interés.** El capital de cada cuota es el total entre las cuotas, redondeado hacia abajo a
+los decimales de la moneda de la tarjeta (pesos enteros en COP, centavos en USD); la última se lleva el
+resto, de modo que los capitales suman el total exacto. El interés de cada cuota es la tasa mensual de la
+tarjeta sobre el capital que falta antes de esa cuota, a esos mismos decimales, la mitad hacia arriba. Con tasa 0 o sin tasa no hay interés. Una compra a 1 cuota
+no lleva interés, salvo en una tarjeta con `chargesSingleInstallmentInterest` en `true`: ahí la cuota
+única cobra la tasa sobre el total, con el mismo redondeo (300.000 a 1 cuota con tasa 2 es una cuota
+de 306.000). La tasa se copia en la compra: cambiar la de la tarjeta después no mueve las cuotas. La
+opción de interés a 1 cuota no se copia, pero tampoco mueve las compras ya registradas: cada cuota
+guarda su interés al registrarse.
 
 | Cuota (1.200.000 a 3, tasa 2) | Capital | Interés | Total |
 |---|---|---|---|
@@ -1266,9 +1370,9 @@ Los dos reciben el mismo cuerpo y aplican las mismas reglas:
 
 | Campo | Obligatorio | Regla |
 |---|---|---|
-| `accountId` | Sí | Tarjeta `CREDIT` propia, activa y en COP (por ahora las cuotas solo se registran en tarjetas en COP), con día de corte y día de pago |
+| `accountId` | Sí | Tarjeta `CREDIT` propia y activa, en una moneda activa, con día de corte y día de pago. La compra y sus cuotas van en la moneda de la tarjeta |
 | `categoryId` | Sí | Categoría propia que aplique a gastos |
-| `amount` | Sí | Total de la compra, sin interés. Mayor que cero, hasta 4 decimales, y no menor que `installmentCount`: cada cuota lleva al menos 1 peso de capital |
+| `amount` | Sí | Total de la compra, sin interés. Mayor que cero, hasta 4 decimales, y no menor que `installmentCount` por la unidad mínima de la moneda de la tarjeta: cada cuota lleva al menos 1 peso, o 0.01 USD, de capital |
 | `description` | Sí | Hasta 255 caracteres; se recorta. Es la de cada cuota |
 | `purchaseDate` | Sí | `YYYY-MM-DD`, hoy o antes en la zona del usuario. Si es pasada, las cuotas vencidas cuentan de una vez |
 | `installmentCount` | Sí | De 1 a 48 |
@@ -1369,7 +1473,8 @@ de la lista. El capital de las cuotas borradas vuelve al cupo. No lleva `scope`.
 
 ### `GET /api/monthly-spending`
 
-Gasto por mes del usuario del token comparado con su meta mensual. **Bearer.**
+Gasto e ingreso por mes del usuario del token, con el gasto comparado con su meta mensual.
+**Bearer.**
 
 **Query params**
 
@@ -1396,7 +1501,8 @@ extremos. Errores 400 `VALIDATION_ERROR`:
     "budgetAmount": 2500000.0000,
     "remaining": 670000.0000,
     "percentUsed": 73.20,
-    "transactionCount": 42
+    "transactionCount": 42,
+    "totalIncome": 5300000.0000
   },
   {
     "periodMonth": "2026-08",
@@ -1405,7 +1511,18 @@ extremos. Errores 400 `VALIDATION_ERROR`:
     "budgetAmount": null,
     "remaining": null,
     "percentUsed": null,
-    "transactionCount": 37
+    "transactionCount": 37,
+    "totalIncome": 4500000.0000
+  },
+  {
+    "periodMonth": "2026-07",
+    "currencyCode": "COP",
+    "totalSpent": 0,
+    "budgetAmount": null,
+    "remaining": null,
+    "percentUsed": null,
+    "transactionCount": 0,
+    "totalIncome": 4500000.0000
   }
 ]
 ```
@@ -1413,18 +1530,19 @@ extremos. Errores 400 `VALIDATION_ERROR`:
 | Campo | Significado |
 |---|---|
 | `totalSpent` | Suma de los gastos (`EXPENSE`) confirmados del mes que ya ocurrieron, en la moneda base del usuario con la misma regla que `amountBase` del reporte de movimientos. Ingresos, transferencias, pendientes y programados no cuentan |
+| `totalIncome` | Suma de los ingresos (`INCOME`) del mes con las mismas reglas que `totalSpent`: confirmados, ya ocurridos, en la moneda base del usuario. Gastos, transferencias, pendientes y programados no cuentan |
 | `budgetAmount` | Meta de gasto total del mes, o `null` si no hay |
 | `remaining` | `budgetAmount - totalSpent`. Negativo si se pasó de la meta. `null` sin meta |
 | `percentUsed` | Porcentaje consumido de la meta, con 2 decimales. Puede pasar de 100. `null` sin meta |
 | `currencyCode` | La moneda base del usuario |
-| `transactionCount` | Cuántos gastos tuvo el mes |
+| `transactionCount` | Cuántos gastos tuvo el mes. Los ingresos no cuentan |
 
 **A tener en cuenta**
 
-- **Los meses vacíos no vienen.** Un mes sin gastos y sin meta no aparece en el arreglo. Si el
-  frontend dibuja una serie continua, tiene que rellenar los huecos con cero. Un mes con meta y
-  sin gastos sí viene, con `totalSpent: 0`.
-- El mes de cada gasto se decide con la **zona horaria del usuario** (la del registro), no con la
+- **Los meses vacíos no vienen.** Un mes sin gastos, sin ingresos y sin meta no aparece en el
+  arreglo. Si el frontend dibuja una serie continua, tiene que rellenar los huecos con cero. Un mes
+  con meta o con ingresos y sin gastos sí viene, con `totalSpent: 0` (FA-132).
+- El mes de cada movimiento se decide con la **zona horaria del usuario** (la del registro), no con la
   del servidor ni la del navegador. Un gasto del 31 a las 23:00 en Bogotá es de ese mes aunque en
   UTC ya sea el siguiente.
 - Hoy el API no tiene endpoint para crear metas, así que `budgetAmount` llega `null` hasta que se

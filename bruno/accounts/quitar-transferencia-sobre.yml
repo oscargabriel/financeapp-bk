@@ -1,0 +1,23 @@
+info:
+  name: Quitar la transferencia programada
+  type: http
+  seq: 102
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/transactions/{{idTransferenciaSobre}}"
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

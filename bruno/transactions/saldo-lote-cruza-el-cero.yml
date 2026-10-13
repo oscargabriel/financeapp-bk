@@ -1,0 +1,44 @@
+info:
+  name: Saldo — el error va en el elemento que cruza el cero
+  type: http
+  seq: 59
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        { "type": "EXPENSE", "accountId": "{{idNomina}}", "categoryId": "{{idMercado}}", "amount": 60000, "description": "Uno" },
+        { "type": "EXPENSE", "accountId": "{{idNomina}}", "categoryId": "{{idMercado}}", "amount": 70000, "description": "Dos" },
+        { "type": "EXPENSE", "accountId": "{{idNomina}}", "categoryId": "{{idMercado}}", "amount": 10000, "description": "Tres" }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+  scripts:
+    - type: tests
+      code: |-
+        test("un solo error, en el segundo elemento", function() {
+          expect(res.getBody().errors).to.eql([{
+            code: "INSUFFICIENT_FUNDS",
+            description: "Saldo insuficiente en Nómina: quedaría en -40000 COP",
+            field: "[1].amount"
+          }]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  El neto del lote deja la cuenta en -40.000; el acumulado cruza el cero en el elemento 1.

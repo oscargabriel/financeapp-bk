@@ -1,0 +1,36 @@
+info:
+  name: Crear tarjeta en dolares sin tasa
+  type: http
+  seq: 65
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Visa USD sin tasa",
+        "type": "CREDIT",
+        "currencyCode": "USD",
+        "creditLimit": 5000,
+        "statementDay": 20,
+        "paymentDueDay": 5
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: after-response
+      code: |-
+        bru.setVar("idVisaUsdSinTasa", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -1,0 +1,27 @@
+info:
+  name: Saldo — gasto de 150.000 en Sencillo
+  type: http
+  seq: 90
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [{ "type": "EXPENSE", "accountId": "{{idSencillo}}", "categoryId": "{{idMercadoCuentas}}", "amount": 150000, "description": "Mercado del mes" }]
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

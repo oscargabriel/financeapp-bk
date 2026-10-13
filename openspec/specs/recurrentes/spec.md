@@ -14,7 +14,8 @@ Cada ocurrencia de una serie es un movimiento normal, programado mientras su fec
 `startDate`, con `endDate` u `occurrences` opcionales. SHALL responder 201 con la serie: `id`, los
 campos recibidos, `currencyCode` y `nextOccurrenceAt`. Las ocurrencias SHALL crearse como movimientos
 `CONFIRMED` del usuario, con la cuenta, la categoría, el monto y la descripción de la serie, en la
-misma transacción de base que la serie: o entra todo o no entra nada.
+misma transacción de base que la serie: o entra todo o no entra nada. La serie SHALL tomar la moneda
+de su cuenta, en cualquier moneda activa, y sus ocurrencias SHALL quedar en esa misma moneda.
 
 #### Scenario: Serie mensual con número de repeticiones
 - **WHEN** el usuario crea una serie `MONTHLY` de 44900 con `dayOfMonth` 15, `startDate` dentro de un mes y `occurrences` 3
@@ -23,6 +24,10 @@ misma transacción de base que la serie: o entra todo o no entra nada.
 #### Scenario: Interval por defecto
 - **WHEN** el usuario crea una serie sin `interval`
 - **THEN** la respuesta trae `"interval": 1`
+
+#### Scenario: Serie en una cuenta en dólares
+- **WHEN** el usuario crea una serie `MONTHLY` de 12.5 sobre una cuenta propia en USD, con `occurrences` 2
+- **THEN** la respuesta es 201 con `currencyCode` `USD`, y existen 2 movimientos de 12.5 en `USD` con ese `recurrenceId`
 
 ### Requirement: Fechas de las ocurrencias
 La primera ocurrencia SHALL ser la primera fecha igual o posterior a `startDate` que cae en el día de
@@ -83,7 +88,7 @@ creadas.
 ### Requirement: Validación del alta
 El alta SHALL rechazar con 400 `VALIDATION_ERROR` y todos los errores juntos, cada uno en su campo:
 `type` ausente o distinto de `EXPENSE` e `INCOME`; `accountId` o `categoryId` ausentes, ajenos,
-inexistentes, desactivados, en otra moneda que COP o de una categoría que no aplica al tipo; `amount`
+inexistentes, desactivados, en una moneda que ya no está activa o de una categoría que no aplica al tipo; `amount`
 ausente, cero, negativo o con más decimales o dígitos de los admitidos; `description` vacía o de más
 de 255 caracteres; `frequency` ausente o desconocida; `interval` menor que 1 o mayor que 52 en `WEEKLY` y
 que 12 en `MONTHLY`; `dayOfWeek` ausente o desconocido en `WEEKLY`, o presente en `MONTHLY`;
@@ -135,11 +140,11 @@ sobre `endDate`. Nada SHALL guardarse.
 
 ### Requirement: Listado de series activas
 `GET /api/recurrences` SHALL devolver las series del usuario que no están canceladas y tienen
-ocurrencias por venir: toda serie sin fin, y una con fin mientras le quede alguna ocurrencia con
-`occurredAt` posterior al momento actual. Cada una SHALL traer los campos del alta y
-`nextOccurrenceAt`: la ocurrencia más próxima con fecha posterior al momento actual o, en una serie sin
-fin que no tiene ninguna creada, la fecha de la que va a crear. SHALL ir ordenadas por
-`nextOccurrenceAt`. Sin series activas, SHALL responder 200 con una lista vacía.
+ocurrencias por venir: una serie con al menos una ocurrencia con `occurredAt` posterior al momento
+actual, y una sin fin cuya cuenta está activa y no borrada y cuya categoría no está borrada. Cada una
+SHALL traer los campos del alta y `nextOccurrenceAt`: la ocurrencia más próxima con fecha posterior
+al momento actual o, en una serie sin fin que no tiene ninguna creada, la fecha de la que va a crear.
+SHALL ir ordenadas por `nextOccurrenceAt`. Sin series activas, SHALL responder 200 con una lista vacía.
 
 #### Scenario: Una activa y una terminada
 - **WHEN** el usuario tiene una serie sin fin y otra con fin cuyas ocurrencias ya pasaron todas
@@ -152,6 +157,10 @@ fin que no tiene ninguna creada, la fecha de la que va a crear. SHALL ir ordenad
 #### Scenario: Series de otro usuario
 - **WHEN** otro usuario tiene series activas
 - **THEN** no aparecen en el listado del usuario autenticado
+
+#### Scenario: Serie sin fin que ya no puede crear ocurrencias
+- **WHEN** el usuario tiene series sin fin atrasadas, sin ocurrencias futuras, sobre una cuenta desactivada, sobre una cuenta borrada y con una categoría borrada
+- **THEN** ninguna de las tres aparece en el listado
 
 ### Requirement: Edición en grupo con alcance
 `PATCH /api/recurrences/{id}` SHALL recibir `scope` (`FUTURE` o `ALL`) y al menos uno de `amount`,
@@ -193,7 +202,9 @@ SHALL aplicarse a la serie resultante.
 ### Requirement: Validación de la edición
 La edición SHALL rechazar con 400 `VALIDATION_ERROR`: `scope` ausente o distinto de `FUTURE` y `ALL`,
 en el campo `scope`; un parche sin ningún campo que modificar, en el campo `body`; y cada campo
-presente que no cumpla la regla del alta, en su campo. Nada SHALL modificarse.
+presente que no cumpla la regla del alta, en su campo. La moneda de la serie no cambia: un `accountId`
+en una moneda distinta de la de la serie SHALL rechazarse en el campo `accountId`. Nada SHALL
+modificarse.
 
 #### Scenario: Sin alcance
 - **WHEN** el usuario envía `{"amount": 35000}`
@@ -206,6 +217,14 @@ presente que no cumpla la regla del alta, en su campo. Nada SHALL modificarse.
 #### Scenario: Intervalo inválido en la edición
 - **WHEN** el usuario envía `{"scope": "FUTURE", "interval": 0}`
 - **THEN** la respuesta es 400 con `VALIDATION_ERROR` en el campo `interval`
+
+#### Scenario: Cuenta en otra moneda
+- **WHEN** el usuario envía `{"scope": "ALL", "accountId": <cuenta propia en COP>}` sobre una serie en USD
+- **THEN** la respuesta es 400 con `VALIDATION_ERROR` en el campo `accountId`, y la serie y sus ocurrencias no cambian
+
+#### Scenario: Cuenta en la misma moneda
+- **WHEN** el usuario envía `{"scope": "ALL", "accountId": <otra cuenta propia en USD>}` sobre una serie en USD
+- **THEN** la respuesta es 200 con el `accountId` nuevo y `currencyCode` `USD`, y las ocurrencias pasan a la cuenta nueva
 
 ### Requirement: Cancelación de una serie
 `DELETE /api/recurrences/{id}` SHALL borrar las ocurrencias de la serie con `occurredAt` posterior al
@@ -265,3 +284,32 @@ credencial, o con la credencial Basic compartida, SHALL responder 401 sin modifi
 #### Scenario: Cancelación con la credencial Basic compartida
 - **WHEN** se envía `DELETE /api/recurrences/{id}` con el Basic válido de `/auth/*`
 - **THEN** la respuesta es 401 con un error `UNAUTHENTICATED` en el campo `authorization`
+
+### Requirement: Las series no validan el saldo
+`POST /api/recurrences` y `PATCH /api/recurrences/{id}` SHALL aceptarse aunque sus ocurrencias con
+fecha ya llegada dejen una cuenta no `CREDIT` en negativo. Eso ocurre con un `startDate` pasado o
+con un `scope: ALL` que sube el monto o cambia la cuenta. Es una excepción provisional a la regla del
+saldo no negativo de las cuentas, pendiente de análisis.
+
+#### Scenario: Serie de gastos con inicio pasado
+- **WHEN** el usuario crea una serie mensual de gastos de 60000 sobre la cuenta `CASH` `Bolsillo`, con saldo 100000 y `startDate` hace dos meses
+- **THEN** la respuesta es 201 y el `currentBalance` de `Bolsillo` queda en -80000
+
+### Requirement: La puesta al día respeta la cuenta y la categoría
+La puesta al día de las series sin fin MUST NOT crear ocurrencias de una serie cuya cuenta está
+desactivada o borrada, o cuya categoría está borrada. La serie SHALL seguir sin cancelar. Si su
+cuenta se reactiva, la siguiente puesta al día SHALL crear las ocurrencias que falten desde su
+contador, como con una serie atrasada. Las reglas de cuentas y categorías impiden llegar a ese estado
+desde el API; el requisito cubre los datos anteriores a ellas.
+
+#### Scenario: Serie atrasada sobre una cuenta desactivada
+- **WHEN** una serie semanal sin fin tiene creada solo una ocurrencia de hace cuatro semanas, sobre una cuenta desactivada, y el usuario pide `GET /api/accounts`
+- **THEN** la serie sigue con una sola ocurrencia, y el `currentBalance` de la cuenta no cambia
+
+#### Scenario: Serie atrasada sobre una cuenta borrada
+- **WHEN** la misma situación se da sobre una cuenta borrada
+- **THEN** la serie sigue con una sola ocurrencia
+
+#### Scenario: Serie atrasada con la categoría borrada
+- **WHEN** la misma situación se da sobre una cuenta activa, con la categoría de la serie borrada
+- **THEN** la serie sigue con una sola ocurrencia, y el `currentBalance` de la cuenta no cambia

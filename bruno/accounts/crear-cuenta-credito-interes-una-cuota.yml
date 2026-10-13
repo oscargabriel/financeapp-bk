@@ -1,0 +1,43 @@
+info:
+  name: Crear tarjeta que cobra interes a una cuota
+  type: http
+  seq: 95
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Diners",
+        "type": "CREDIT",
+        "currencyCode": "COP",
+        "monthlyInterestRate": 1.8,
+        "chargesSingleInstallmentInterest": true
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.chargesSingleInstallmentInterest
+      operator: eq
+      value: true
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Interes a una cuota (FA-134)
+
+  `chargesSingleInstallmentInterest` solo se acepta en `CREDIT`. Sin el campo la tarjeta queda en
+  `false`: una compra a 1 cuota no cobra interes. Va al final de la carpeta, despues de todos los
+  listados que cuentan las cuentas de este usuario.

@@ -1,0 +1,35 @@
+info:
+  name: Ocurrencias de la serie en dolares
+  type: http
+  seq: 71
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{desdeSeries}}&to={{hastaSeries}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const ocurrencias = res.getBody().transactions
+            .filter(function (t) { return t.recurrenceId === bru.getVar("idSerieUsd"); });
+
+        test("crea las dos en dolares, en la cuenta original pese al PATCH rechazado", function() {
+          expect(ocurrencias).to.have.length(2);
+          ocurrencias.forEach(function (t) {
+            expect(t.currencyCode).to.equal("USD");
+            expect(t.amount).to.equal(12.5);
+            expect(t.accountId).to.equal(bru.getVar("idCuentaSeriesUsd"));
+          });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

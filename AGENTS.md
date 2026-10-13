@@ -4,7 +4,7 @@ Guía del proyecto para cualquier agente de código y para quien lo lea. Lo prop
 va en su carpeta (`.claude/rules/` para Claude Code); aquí solo lo que vale para todas.
 
 Backend de finanzas personales. Java 25 + Spring Boot 4.1.1 (WebFlux), R2DBC contra PostgreSQL 18,
-Gradle 9.7.1 con wrapper. Arquitectura hexagonal. Se construye por etapas. La base de producción es
+Gradle 9.7.1 con wrapper. Arquitectura hexagonal dentro de cada módulo. Se construye por etapas. La base de producción es
 Neon (PostgreSQL 18 administrado), y la app corre en Cloud Run: ver *Despliegue*.
 
 ## Comandos
@@ -18,6 +18,7 @@ $env:SPRING_PROFILES_ACTIVE = 'local'; .\gradlew.bat bootRun   # levanta la app;
 
 .\gradlew.bat test --tests "*MonthlySpendingIT"                        # una clase
 .\gradlew.bat test --tests "*MonthlySpendingIT.devuelve401*"           # un método
+.\gradlew.bat test --tests "com.oscargabriel.financeapp.ia.*"          # los tests de un módulo
 
 docker build -f deployment/Dockerfile -t financeapp-bk .   # la imagen de Cloud Run, desde la raíz
 ```
@@ -84,7 +85,42 @@ cierre solo con Gradle en verde no está verificada.
 
 ## Arquitectura
 
-Hexagonal estricta en tres paquetes bajo `com.oscargabriel.financeapp`:
+### Módulos
+
+Un solo proyecto de Gradle con un solo `src/main/resources`. Los módulos son paquetes bajo
+`src/main/java/com/oscargabriel/financeapp/` (FA-148, FA-149):
+
+| Paquete | Qué tiene | Puede importar |
+|---|---|---|
+| `core/` | Finanzas: todo lo que atiende al front | `compartido` |
+| `ia/` | El asistente: modelo de lenguaje, sus lecturas y su endpoint | `compartido` |
+| `compartido/` | Errores (`ErrorCodes`, `BadRequestException`, `WebExceptionHandler`), las dos cadenas de seguridad, la trazabilidad, el `Clock` y la conexión R2DBC | nada de los otros |
+| `puente/` | Los adaptadores que conectan `ia` con el core | `core` e `ia` |
+
+El `main` (`FinanceappBkApplication`) queda en la raíz del paquete.
+
+Un módulo de negocio **no importa nada de otro**. Lo que `ia` necesita del core lo declara como
+puerto de salida propio, y el adaptador que lo cumple llamando a un puerto de entrada del core vive en
+`puente/`. **Es una convención: nada la verifica** (decidido en FA-149; FA-148 la hacía cumplir con
+subproyectos de Gradle). Un import de `core` dentro de `ia`, o de `ia` dentro de `core`, es un error
+de revisión. Los puentes solo traducen; si uno empieza a decidir algo, esa regla es de un módulo.
+
+`ia` lee con consultas propias (`Asistente*R2dbcAdapter`) que **copian reglas del core**: solo
+movimientos confirmados, el corte de días en la zona del usuario, lo programado fuera, y la
+conversión con `finance.in_currency` (la de `MontoDeLaPersona`). Al cambiar una de esas reglas en el
+core hay que cambiarla también ahí. Si las dos copias se separan, lo detecta `bruno/assistant/`, que
+compara los totales y la lista del asistente con `/reports`.
+
+Para agregar un módulo (Telegram será el primero): un paquete nuevo
+`com.oscargabriel.financeapp.<modulo>` con su `domain/`, `application/` e `infrastructure/`, y sus
+tests en el mismo paquete bajo `src/test/java`. Lo que necesite de otro módulo va por un puerto de
+salida propio y un adaptador en `puente/`. Los nombres de clase de los beans no se repiten entre
+módulos (Spring los registra por nombre simple): por eso los adapters de `ia` se llaman
+`Asistente*R2dbcAdapter`.
+
+### Capas dentro de cada módulo
+
+Hexagonal estricta en tres paquetes bajo `com.oscargabriel.financeapp.<modulo>`:
 
 ```
 domain/          model, port/in, port/out, exceptions   ← sin Spring (salvo Reactor)
@@ -219,7 +255,9 @@ pasen por `boundedElastic`.
   emitir tokens que el propio API no acepta. El decoder valida además expiración y emisor.
 - Preferir `@Value` sobre inyectar `Environment`.
 
-`src/main/resources/application-local.yaml` no se versiona y tiene las credenciales reales. No hay
+`src/main/resources/application-local.yaml` no se versiona y tiene las credenciales reales
+(entre FA-148 y FA-149 vivió en `app/src/main/resources/`: una copia del repo de esa época hay que
+devolverla a mano, junto con `application-prod.yaml`). No hay
 archivo de ejemplo: se borró el 15-09-2026 porque se quedaba viejo cada vez que aparecía una clave
 nueva. Estas son las que el perfil local necesita, y este párrafo es el que hay que actualizar
 cuando cambien:
@@ -254,7 +292,11 @@ corre todos, y ninguno necesita base ni Docker.
   PostgreSQL real; no vuelvas a introducir `@Testcontainers` sin cambiar esta decisión.
 - Web con servidor real: `@SpringBootTest(webEnvironment = RANDOM_PORT)` + `WebTestClient`.
 - Reactivo: `StepVerifier`, no `block()`.
-- Datos de prueba: Object Mother en `src/test/java/.../support/`.
+- Datos de prueba: Object Mother en el paquete `support` de cada módulo
+  (`src/test/java/.../<modulo>/support/`). Lo que usan varios (`TokenMother`, `BasicMother`,
+  `RelojFijo`, `Violaciones`) está en `compartido/support/`.
+- Cada test va en el paquete de la clase que prueba; un `*IT`, en el paquete web del módulo cuyo
+  endpoint ejercita.
 
 `src/test/resources/application.yaml` **reemplaza por completo** al de `main` en el classpath de
 test. Toda propiedad nueva que un bean exija con `@Value` hay que replicarla ahí o el contexto
@@ -268,7 +310,7 @@ cualquier cambio en la configuración que va a Cloud Run.
 
 ### Cobertura
 
-JaCoCo mide sobre la suite de Gradle. El reporte queda en
+JaCoCo mide sobre la suite de Gradle, sobre todos los módulos juntos. El reporte queda en
 `build/reports/jacoco/test/html/index.html` (ábrelo en el navegador; el XML del mismo directorio
 es para herramientas). Se regenera solo: `test` lo produce como paso final.
 
@@ -277,7 +319,7 @@ Es decir: `gradlew test` mide y deja el reporte, **`gradlew build` es el que fal
 umbral. El mensaje del fallo dice el ratio real y el mínimo esperado.
 
 Quedan fuera del cálculo dos patrones, listados en `build.gradle` con el porqué:
-`FinanceappBkApplication` (el `main`) y `*R2dbcAdapter` (todos los adapters R2DBC: los verifica
+`FinanceappBkApplication` (el `main`) y `*R2dbcAdapter` (los adapters R2DBC de cualquier módulo: los verifica
 `bruno/`, y la suite no tiene base). **Los DTOs y la configuración sí cuentan** — están entre el
 90 y el 100 %, y excluirlos, como suele hacerse por inercia, solo bajaría el número y escondería
 el dato.
@@ -388,19 +430,23 @@ Tres lugares, cada uno con una sola pregunta que responde:
 
 | Dónde | Responde |
 |---|---|
-| Tablero de Notion (tareas `FA-n`) | Qué falta, con qué prioridad y en qué estado |
+| Proyecto `FIN` de Jira (issues `FIN-n`) | Qué falta, con qué prioridad y en qué estado |
 | `openspec/specs/` | Qué hace el sistema **hoy**, por capacidad. Es la documentación viva |
 | `openspec/changes/` y `openspec/changes/archive/` | Qué cambio está en marcha, y el porqué de cada uno ya hecho |
 
 Las reglas de cada artefacto (proposal, specs, design, tasks) están en `openspec/config.yaml`.
 
+Hasta el 11-10-2026 las tareas vivieron en un tablero de Notion con claves `FA-n`: las `FA-n` que
+citan este archivo, el código y los changes archivados son de ese tablero, que queda como histórico
+de solo lectura.
+
 El ciclo de una tarea:
 
 1. La tarea sale del tablero. Un encargo que llegue suelto —un mensaje, una conversación— se
-   registra primero como tarea, para que tenga `ID`. El tablero es compartido con el front: aquí
-   solo se toman tareas con `Área = Backend`, aunque se pida una de `Frontend` por su `ID`.
-2. Rama `feature/fa-<n>-<slug>` desde `dev`.
-3. Change `fa-<n>-<slug>`: explorar el código si hace falta y proponer (proposal, delta de spec con
+   registra primero como issue, para que tenga clave. El tablero es compartido con el front: aquí
+   solo se toman issues con componente `Backend`, aunque se pida uno de `Frontend` por su clave.
+2. Rama `feature/fin-<n>-<slug>` desde `dev`.
+3. Change `fin-<n>-<slug>`: explorar el código si hace falta y proponer (proposal, delta de spec con
    escenarios, design si aplica, tasks). **Lo que se aclare conversando se escribe en esos archivos**:
    un alcance que solo quedó dicho en el chat no existe para el siguiente que lea.
 4. Revisión humana de la propuesta. Sin aprobación no se escribe código.

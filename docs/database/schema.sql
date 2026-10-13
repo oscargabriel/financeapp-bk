@@ -215,6 +215,7 @@ CREATE TABLE finance.accounts (
     created_at       TIMESTAMPTZ    NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ    NOT NULL DEFAULT now(),
     monthly_interest_rate NUMERIC(6,4),
+    charges_single_installment_interest BOOLEAN NOT NULL DEFAULT FALSE,
     CONSTRAINT ck_accounts_type CHECK (type IN ('CASH', 'DEBIT', 'CREDIT', 'SAVINGS', 'INVESTMENT', 'OTHER')),
     CONSTRAINT ck_accounts_credit_limit    CHECK (credit_limit IS NULL OR credit_limit > 0),
     CONSTRAINT ck_accounts_statement_day   CHECK (statement_day IS NULL OR statement_day BETWEEN 1 AND 31),
@@ -224,13 +225,14 @@ CREATE TABLE finance.accounts (
     CONSTRAINT ck_accounts_credit_fields CHECK (
         type = 'CREDIT'
         OR (credit_limit IS NULL AND statement_day IS NULL AND payment_due_day IS NULL
-            AND monthly_interest_rate IS NULL)
+            AND monthly_interest_rate IS NULL AND charges_single_installment_interest = FALSE)
     )
 );
 
 COMMENT ON TABLE  finance.accounts IS 'Origen o destino del dinero: efectivo, cuenta bancaria, tarjeta de crédito, etc.';
 COMMENT ON COLUMN finance.accounts.current_balance IS 'initial_balance más el efecto de todos los movimientos confirmados, también los programados (fecha futura). El saldo vigente que ve el usuario es current_balance - finance.scheduled_balance_delta(id). Lo mantienen los triggers trg_transactions_sync_balance y trg_accounts_shift_balance; la aplicación NUNCA lo escribe directamente. En una tarjeta de crédito un valor negativo es la deuda, y el cupo disponible es credit_limit más el saldo vigente.';
 COMMENT ON COLUMN finance.accounts.monthly_interest_rate IS 'Tasa de interés mensual de una tarjeta de crédito, en porcentaje: 2.15 es el 2,15 % mensual. NULL si no se ha cargado.';
+COMMENT ON COLUMN finance.accounts.charges_single_installment_interest IS 'Si la tarjeta de crédito cobra interés en las compras a 1 cuota (FA-134). FALSE fuera de una tarjeta. Las compras ya registradas no se recalculan al cambiarlo.';
 COMMENT ON COLUMN finance.accounts.initial_balance IS'Saldo con el que la cuenta entra al sistema. Se copia a current_balance al crearla, y si después cambia, current_balance se corre en la misma diferencia.';
 
 CREATE UNIQUE INDEX ux_accounts_user_name
@@ -729,6 +731,9 @@ CREATE TRIGGER trg_budgets_updated_at
 --   * El mes se corta en la zona horaria del usuario.
 --   * FULL OUTER JOIN contra budgets: un mes con meta y sin gastos aparece con
 --     total 0, y un mes con gastos y sin meta aparece con budget_amount NULL.
+--   * v_monthly_spending suma además los INCOME en total_income (FA-132), con
+--     el mismo WHERE que los gastos: un mes con solo ingresos aparece con
+--     total_spent 0. transaction_count sigue contando solo los EXPENSE.
 -- =============================================================================
 
 CREATE OR REPLACE VIEW finance.v_monthly_spending AS
@@ -736,11 +741,15 @@ WITH spent AS (
     SELECT t.user_id,
            date_trunc('month', t.occurred_at AT TIME ZONE u.timezone)::date AS period_month,
            SUM(finance.in_currency(u.base_currency_code, t.currency_code, t.amount, t.amount_base,
-                                 (t.occurred_at AT TIME ZONE u.timezone)::date))     AS total_spent,
-           COUNT(*)                                                         AS transaction_count
+                                 (t.occurred_at AT TIME ZONE u.timezone)::date))
+               FILTER (WHERE t.type = 'EXPENSE')                            AS total_spent,
+           SUM(finance.in_currency(u.base_currency_code, t.currency_code, t.amount, t.amount_base,
+                                 (t.occurred_at AT TIME ZONE u.timezone)::date))
+               FILTER (WHERE t.type = 'INCOME')                             AS total_income,
+           COUNT(*) FILTER (WHERE t.type = 'EXPENSE')                       AS transaction_count
       FROM finance.transactions t
       JOIN finance.users u ON u.id = t.user_id
-     WHERE t.type = 'EXPENSE'
+     WHERE t.type IN ('EXPENSE', 'INCOME')
        AND t.status = 'CONFIRMED'
        AND t.occurred_at <= now()
      GROUP BY t.user_id, 2
@@ -761,7 +770,8 @@ SELECT COALESCE(s.user_id, b.user_id)               AS user_id,
        CASE WHEN b.budget_amount IS NOT NULL
             THEN ROUND(COALESCE(s.total_spent, 0) * 100 / b.budget_amount, 2)
        END                                          AS percent_used,
-       COALESCE(s.transaction_count, 0)             AS transaction_count
+       COALESCE(s.transaction_count, 0)             AS transaction_count,
+       COALESCE(s.total_income, 0)                  AS total_income
   FROM spent s
   FULL OUTER JOIN budget b
     ON b.user_id = s.user_id
@@ -769,7 +779,7 @@ SELECT COALESCE(s.user_id, b.user_id)               AS user_id,
   JOIN finance.users u
     ON u.id = COALESCE(s.user_id, b.user_id);
 
-COMMENT ON VIEW finance.v_monthly_spending IS 'Una fila por usuario y mes: cuánto gastó, cuál era la meta, cuánto le queda y qué porcentaje consumió.';
+COMMENT ON VIEW finance.v_monthly_spending IS 'Una fila por usuario y mes con gastos, ingresos o meta: cuánto gastó, cuánto ingresó, cuál era la meta, cuánto le queda y qué porcentaje consumió.';
 
 
 CREATE OR REPLACE VIEW finance.v_monthly_spending_by_category AS

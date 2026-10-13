@@ -1,0 +1,41 @@
+info:
+  name: Saldo — un ingreso del mismo lote compensa
+  type: http
+  seq: 61
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        { "type": "EXPENSE", "accountId": "{{idNomina}}", "categoryId": "{{idMercado}}", "amount": 150000, "description": "Compra grande" },
+        { "type": "INCOME", "accountId": "{{idNomina}}", "categoryId": "{{idSalario}}", "amount": 80000, "description": "Reintegro" }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body
+      operator: length
+      value: "2"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idGastoNomina", res.getBody()[0].id);
+        bru.setVar("idIngresoNomina", res.getBody()[1].id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  El lote es todo o nada: se valida su neto. 100.000 - 150.000 + 80.000 deja la cuenta en 30.000.

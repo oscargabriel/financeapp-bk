@@ -1,0 +1,40 @@
+info:
+  name: Simular 0.12 dolares a 12 cuotas
+  type: http
+  seq: 68
+
+http:
+  method: POST
+  url: "{{baseUrl}}/installment-purchases/preview"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idVisaUsdSinTasa}}",
+        "categoryId": "{{idTecnologia}}",
+        "amount": 0.12,
+        "description": "Chicle",
+        "purchaseDate": "{{hoyCuotas}}",
+        "installmentCount": 12
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("cada cuota lleva un centavo de capital", function() {
+          const cuotas = res.getBody().installments;
+          expect(cuotas).to.have.length(12);
+          cuotas.forEach(function (c) { expect(c.amount).to.equal(0.01); });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

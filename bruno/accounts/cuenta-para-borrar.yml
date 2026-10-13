@@ -12,7 +12,8 @@ http:
       {
         "name": "Caja chica",
         "type": "CASH",
-        "currencyCode": "COP"
+        "currencyCode": "COP",
+        "initialBalance": 50000
       }
   auth:
     type: bearer
@@ -25,7 +26,7 @@ runtime:
       value: "201"
     - expression: res.body.currentBalance
       operator: eq
-      value: 0
+      value: 50000
   scripts:
     - type: tests
       code: |-
@@ -38,6 +39,6 @@ settings:
   maxRedirects: 5
 
 docs: |
-  # Una cuenta en cero para el borrado
+  # Una cuenta con 50000 para el borrado
 
   Guarda su id en `idCajaChica`.

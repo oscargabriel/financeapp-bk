@@ -36,6 +36,19 @@ runtime:
           expect(res.getBody().balance).to.equal(null);
         });
 
+        test("el movimiento nombra su cuenta y su categoria", function() {
+          expect(res.getBody().report.transactions[0].account).to.equal("Efectivo");
+          expect(res.getBody().report.transactions[0].category).to.equal("Mercado");
+        });
+
+        test("trae solo los campos livianos (FA-148)", function() {
+          const r = res.getBody().report;
+          expect(Object.keys(r).sort()).to.deep.equal(["currencyCode", "expense", "from", "income", "net", "to",
+            "transactions"]);
+          expect(Object.keys(r.transactions[0]).sort()).to.deep.equal(["account", "amount", "category",
+            "currencyCode", "description", "id", "occurredAt", "type"]);
+        });
+
 settings:
   encodeUrl: true
   timeout: 0

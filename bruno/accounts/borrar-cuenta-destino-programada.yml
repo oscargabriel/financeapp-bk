@@ -1,0 +1,35 @@
+info:
+  name: Borrar cuenta destino de una transferencia programada
+  type: http
+  seq: 101
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/accounts/{{idSobre}}"
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: RESOURCE_IN_USE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: id
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Tambien como destino
+
+  La transferencia sale de `Bolsillo`, pero llega a `Sobre`: borrarla dejaria un destino que ya no
+  existe.

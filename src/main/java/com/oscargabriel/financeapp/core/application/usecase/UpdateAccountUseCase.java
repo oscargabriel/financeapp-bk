@@ -1,0 +1,173 @@
+package com.oscargabriel.financeapp.core.application.usecase;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+import lombok.AllArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+
+import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestException;
+import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
+import com.oscargabriel.financeapp.compartido.domain.exceptions.responses.ErrorDetail;
+import com.oscargabriel.financeapp.core.domain.model.Account;
+import com.oscargabriel.financeapp.core.domain.model.AccountType;
+import com.oscargabriel.financeapp.core.domain.model.UpdateAccountCommand;
+import com.oscargabriel.financeapp.core.domain.port.in.UpdateAccountPort;
+import com.oscargabriel.financeapp.core.domain.port.out.AccountRepositoryPort;
+import com.oscargabriel.financeapp.core.domain.port.out.CurrencyQueryPort;
+import com.oscargabriel.financeapp.core.domain.port.out.RecurrenceRepositoryPort;
+
+import reactor.core.publisher.Mono;
+
+@Service
+@AllArgsConstructor
+public class UpdateAccountUseCase implements UpdateAccountPort {
+
+    private final AccountRepositoryPort cuentas;
+    private final CurrencyQueryPort monedas;
+    private final RecurrenceRepositoryPort series;
+
+    /**
+     * El formato del parche ya viene validado por UpdateAccountRequest, incluidos los rangos y que
+     * no traiga saldo vigente ni tipo. Aqui queda lo que depende de la cuenta guardada: su tipo, su
+     * moneda y sus movimientos. Ningun chequeo escribe; solo el update final, que lleva tambien el
+     * estado: un parche rechazado no desactiva ni reactiva nada.
+     */
+    @Override
+    public Mono<Account> update(UUID userId, UUID accountId, UpdateAccountCommand parche) {
+        return cuentas.findActiveByIdAndUser(accountId, userId)
+                .switchIfEmpty(Mono.error(UpdateAccountUseCase::noEncontrada))
+                .flatMap(guardada -> {
+                    camposDeCreditoSegunElTipo(guardada.type(), parche);
+                    Account resultante = aplicar(guardada, parche);
+                    saldoSuficiente(guardada, resultante);
+                    return monedaCambiable(guardada, resultante.currencyCode())
+                            .then(Mono.defer(() -> sinSeriesSiSeDesactiva(userId, guardada, resultante)))
+                            .then(Mono.defer(() -> cuentas.update(userId, resultante)));
+                })
+                .switchIfEmpty(Mono.error(UpdateAccountUseCase::noEncontrada));
+    }
+
+    /**
+     * El saldo vigente y el cupo comprometido se copian tal cual: si cambia el inicial, la base lo corre
+     * en la misma diferencia (trg_accounts_shift_balance) y el RETURNING del update trae el resultado.
+     */
+    private static Account aplicar(Account guardada, UpdateAccountCommand parche) {
+        return new Account(
+                guardada.id(),
+                parche.name() == null ? guardada.name() : parche.name().trim(),
+                guardada.type(),
+                parche.currencyCode() == null
+                        ? guardada.currencyCode()
+                        : parche.currencyCode().trim().toUpperCase(),
+                parche.initialBalance() == null ? guardada.initialBalance() : parche.initialBalance(),
+                guardada.currentBalance(),
+                parche.creditLimit() == null ? guardada.creditLimit() : parche.creditLimit(),
+                parche.statementDay() == null ? guardada.statementDay() : parche.statementDay(),
+                parche.paymentDueDay() == null ? guardada.paymentDueDay() : parche.paymentDueDay(),
+                parche.monthlyInterestRate() == null ? guardada.monthlyInterestRate() : parche.monthlyInterestRate(),
+                parche.chargesSingleInstallmentInterest() == null
+                        ? guardada.chargesSingleInstallmentInterest()
+                        : parche.chargesSingleInstallmentInterest(), parche.isActive() == null ? guardada.active() : parche.isActive(),
+                guardada.committedCredit());
+    }
+
+    /**
+     * Bajar el saldo inicial corre el vigente en la misma diferencia: no puede dejarlo por debajo de cero en una cuenta
+     * que no es de credito (FA-133). Va antes del update, asi que no se escribe ningun campo del parche.
+     */
+    private static void saldoSuficiente(Account guardada, Account resultante) {
+        new SaldoNoNegativo(Map.of(guardada.id(), guardada)).exigir(
+                Map.of(guardada.id(), resultante.initialBalance().subtract(guardada.initialBalance())),
+                "initialBalance");
+    }
+
+    /**
+     * El alta lo decide con el tipo del cuerpo (CamposDeCredito y SaldoInicialSegunElTipo); el parche no trae tipo,
+     * asi que se decide con el guardado. Lanza dentro del flatMap, que lo convierte en senal de error.
+     */
+    private static void camposDeCreditoSegunElTipo(AccountType tipo, UpdateAccountCommand parche) {
+        if (tipo == AccountType.CREDIT) {
+            return;
+        }
+        List<ErrorDetail> errores = new ArrayList<>();
+        if (parche.initialBalance() != null && parche.initialBalance().signum() < 0) {
+            errores.add(invalido("Solo una cuenta CREDIT puede tener saldo inicial negativo", "initialBalance"));
+        }
+        if (parche.creditLimit() != null) {
+            errores.add(invalido("Solo una cuenta CREDIT tiene cupo", "creditLimit"));
+        }
+        if (parche.statementDay() != null) {
+            errores.add(invalido("Solo una cuenta CREDIT tiene dia de corte", "statementDay"));
+        }
+        if (parche.paymentDueDay() != null) {
+            errores.add(invalido("Solo una cuenta CREDIT tiene dia de pago", "paymentDueDay"));
+        }
+        if (parche.monthlyInterestRate() != null) {
+            errores.add(invalido("Solo una cuenta CREDIT tiene tasa de interes", "monthlyInterestRate"));
+        }
+        if (parche.chargesSingleInstallmentInterest() != null) {
+            errores.add(invalido("Solo una cuenta CREDIT cobra interes en las compras a 1 cuota",
+                    "chargesSingleInstallmentInterest"));
+        }
+        if (!errores.isEmpty()) {
+            throw new BadRequestException(HttpStatus.BAD_REQUEST, errores);
+        }
+    }
+
+    /**
+     * Una moneda distinta tiene que estar activa, y la cuenta no puede tener historial: sus
+     * movimientos quedarian en una moneda y la cuenta en otra. La misma moneda no es un cambio.
+     */
+    private Mono<Void> monedaCambiable(Account guardada, String nueva) {
+        if (nueva.equals(guardada.currencyCode())) {
+            return Mono.empty();
+        }
+        return monedas.exists(nueva)
+                .filter(Boolean::booleanValue)
+                .switchIfEmpty(Mono.error(() -> new BadRequestException(HttpStatus.BAD_REQUEST,
+                        ErrorCodes.VALIDATION_ERROR, "La moneda no existe en el catalogo o no esta activa",
+                        "currencyCode")))
+                .flatMap(activa -> cuentas.hasTransactions(guardada.id()))
+                .filter(tiene -> !tiene)
+                .switchIfEmpty(Mono.error(() -> new BadRequestException(HttpStatus.CONFLICT,
+                        ErrorCodes.RESOURCE_IN_USE,
+                        "La cuenta tiene movimientos: su moneda ya no se puede cambiar", "currencyCode")))
+                .then();
+    }
+
+    /**
+     * Una serie activa seguiria creando ocurrencias en una cuenta que ya no admite movimientos (FA-116). Solo
+     * se mira al pasar de activa a desactivada: pedir el estado que ya tiene no cambia nada.
+     */
+    private Mono<Void> sinSeriesSiSeDesactiva(UUID userId, Account guardada, Account resultante) {
+        if (!guardada.active() || resultante.active()) {
+            return Mono.empty();
+        }
+        return series.countActiveByAccount(guardada.id(), userId)
+                .flatMap(activas -> activas == 0
+                        ? Mono.<Void>empty()
+                        : Mono.error(new BadRequestException(HttpStatus.CONFLICT, ErrorCodes.RESOURCE_IN_USE,
+                                "La cuenta tiene " + seriesActivas(activas)
+                                        + ": cancelalas o muevelas a otra cuenta antes de desactivarla",
+                                "isActive")));
+    }
+
+    /** «1 serie activa», «3 series activas»: lo usan tambien los borrados de cuentas y categorias. */
+    static String seriesActivas(long cuantas) {
+        return cuantas + (cuantas == 1 ? " serie activa" : " series activas");
+    }
+
+    private static ErrorDetail invalido(String descripcion, String campo) {
+        return ErrorDetail.of(ErrorCodes.VALIDATION_ERROR.getCode(), descripcion, campo);
+    }
+
+    /** Inexistente, borrada y ajena dan lo mismo: distinguirlas confirmaria que el id existe. */
+    static BadRequestException noEncontrada() {
+        return new BadRequestException(HttpStatus.NOT_FOUND, List.of(
+                ErrorDetail.of(ErrorCodes.NOT_FOUND.getCode(), "La cuenta no existe", "id")));
+    }
+}

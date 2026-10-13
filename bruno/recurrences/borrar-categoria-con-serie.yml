@@ -1,0 +1,35 @@
+info:
+  name: Borrar una categoria con una serie activa
+  type: http
+  seq: 82
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/categories/{{idClub}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+  scripts:
+    - type: tests
+      code: |-
+        const errores = res.getBody().errors;
+
+        test("un solo error RESOURCE_IN_USE en id que dice cuantas series", function() {
+          expect(errores).to.have.length(1);
+          expect(errores[0].code).to.equal("RESOURCE_IN_USE");
+          expect(errores[0].field).to.equal("id");
+          expect(errores[0].description).to.include("1 serie activa");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # No se borra una categoria con series activas (FA-116)

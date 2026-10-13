@@ -18,8 +18,23 @@ runtime:
   scripts:
     - type: tests
       code: |-
-        test("es el mismo saldo que devolvio el asistente", function() {
-          expect(res.getBody()).to.deep.equal(JSON.parse(bru.getVar("saldoAsistente")));
+        const asistente = JSON.parse(bru.getVar("saldoAsistente"));
+        const api = res.getBody();
+
+        test("el periodo y los totales son los del saldo (FA-148: la IA los calcula con sus propias consultas)", function() {
+          expect(asistente.currencyCode).to.equal(api.currencyCode);
+          expect(asistente.from).to.equal(api.period.from);
+          expect(asistente.to).to.equal(api.period.to);
+          expect(asistente.income).to.equal(api.period.income);
+          expect(asistente.expense).to.equal(api.period.expense);
+          expect(asistente.net).to.equal(api.period.net);
+          expect(asistente.allTimeNet).to.equal(api.allTime.net);
+        });
+
+        test("las cuentas son las del saldo, con su nombre, moneda y saldo vigente", function() {
+          expect(asistente.accounts).to.deep.equal(api.accounts.map(function (c) {
+            return { name: c.name, currencyCode: c.currencyCode, currentBalance: c.currentBalance };
+          }));
         });
 
 settings:

@@ -1,0 +1,71 @@
+info:
+  name: Persona en USD — ingresos en pesos
+  type: http
+  seq: 56
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "INCOME",
+          "accountId": "{{idCuentaUsd}}",
+          "categoryId": "{{idSalarioUsd}}",
+          "amount": 82000,
+          "description": "Salario de hoy"
+        },
+        {
+          "type": "INCOME",
+          "accountId": "{{idCuentaUsd}}",
+          "categoryId": "{{idSalarioUsd}}",
+          "amount": 39000,
+          "description": "Salario viejo",
+          "occurredAt": "{{usdHace100}}T12:00:00-05:00"
+        },
+        {
+          "type": "INCOME",
+          "accountId": "{{idCuentaUsd}}",
+          "categoryId": "{{idSalarioUsd}}",
+          "amount": 50000,
+          "description": "Salario programado",
+          "occurredAt": "{{usdDiaSiguienteMes}}T12:00:00-05:00"
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenUsd}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: before-request
+      code: |-
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const comoMes = function (f) { return f.getFullYear() + "-" + dos(f.getMonth() + 1); };
+        const hoy = new Date();
+        const hace100 = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - 100);
+        const siguiente = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 15);
+        bru.setVar("usdHace100", comoMes(hace100) + "-" + dos(hace100.getDate()));
+        bru.setVar("usdMesHace100", comoMes(hace100));
+        bru.setVar("usdDiaSiguienteMes", comoMes(siguiente) + "-15");
+        bru.setVar("usdMesSiguiente", comoMes(siguiente));
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  Tres ingresos en la cuenta en pesos de la persona en USD, despues de los requests que verifican
+  sus gastos (FA-132): 82.000 de hoy (tasa 4100, 20 USD), 39.000 de hace 100 dias (antes de la tasa
+  mas antigua, 3900, 10 USD) y 50.000 programados para el 15 del mes siguiente.
+
+  Hace 100 dias nunca cae en el mismo mes que el gasto de hace 50 dias, asi que ese mes queda con
+  solo ingresos. Los usan "ingresos en el gasto mensual" e "ingreso programado".

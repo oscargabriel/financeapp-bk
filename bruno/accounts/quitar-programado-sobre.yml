@@ -1,0 +1,23 @@
+info:
+  name: Quitar el programado de Sobre
+  type: http
+  seq: 99
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/transactions/{{idProgramadoSobre}}"
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

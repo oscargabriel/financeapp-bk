@@ -19,6 +19,7 @@ runtime:
     - type: tests
       code: |-
         bru.setVar("idMercadoUsd", res.getBody().find(function (c) { return c.name === "Mercado"; }).id);
+        bru.setVar("idSalarioUsd", res.getBody().find(function (c) { return c.name === "Salario"; }).id);
 
 settings:
   encodeUrl: true

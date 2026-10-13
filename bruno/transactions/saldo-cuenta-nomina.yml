@@ -1,0 +1,45 @@
+info:
+  name: Saldo — cuenta Nómina
+  type: http
+  seq: 56
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Nómina",
+        "type": "DEBIT",
+        "currencyCode": "COP",
+        "initialBalance": 100000
+      }
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: before-request
+      code: |-
+        bru.setVar("diaFuturoSaldo", new Date(Date.now() + 30 * 86400000).toISOString().substring(0, 10));
+    - type: tests
+      code: |-
+        bru.setVar("idNomina", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Escenario de FA-133: una cuenta de débito con 100.000
+
+  Los `saldo-*` comprueban que ninguna petición baja una cuenta que no es de crédito por debajo de
+  cero. Usan una cuenta propia para que sus montos no dependan del resto de la carpeta.

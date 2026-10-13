@@ -1,0 +1,40 @@
+info:
+  name: Transferencia programada hacia Sobre
+  type: http
+  seq: 100
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "TRANSFER",
+          "accountId": "{{idCuentaEfectivo}}",
+          "destinationAccountId": "{{idSobre}}",
+          "amount": 1000,
+          "description": "Al sobre",
+          "occurredAt": "{{mananaCuentas}}T12:00:00-05:00"
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenCuentas}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: after-response
+      code: |-
+        bru.setVar("idTransferenciaSobre", res.getBody()[0].id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

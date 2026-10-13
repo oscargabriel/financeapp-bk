@@ -1,0 +1,46 @@
+info:
+  name: Series sin cuenta o categoria valida no crecen
+  type: http
+  seq: 74
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{desdeSeries}}&to={{hastaSeries}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const deLaSerie = function (v) {
+          return res.getBody().transactions.filter(function (t) { return t.recurrenceId === bru.getVar(v); });
+        };
+
+        test("la serie sobre la cuenta desactivada sigue con una ocurrencia", function() {
+          expect(deLaSerie("idSerieDesactivada")).to.have.length(1);
+        });
+
+        test("la serie sobre la cuenta borrada sigue con una ocurrencia", function() {
+          expect(deLaSerie("idSerieCuentaBorrada")).to.have.length(1);
+        });
+
+        test("la serie con la categoria borrada sigue con una ocurrencia", function() {
+          expect(deLaSerie("idSerieSinCategoria")).to.have.length(1);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # La puesta al dia respeta la cuenta y la categoria (FA-116)
+
+  Las tres series las siembra `test-data.sql`: semanales, sin fin, empezaron hace cuatro semanas y
+  solo tienen su primera ocurrencia. Las lecturas anteriores de la carpeta ya pusieron al dia las
+  series del usuario; a estas no les tienen que haber creado nada.
