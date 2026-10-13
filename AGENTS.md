@@ -386,15 +386,19 @@ la siguiente recarga.
 
 **Un `update/` que modifique tablas reinicia los datos de la base local.** Después de aplicarlo en
 local se corre `cargar-datos-local.sql`. El encabezado del update lo dice, y el PR lo destaca para
-que el front sepa que sus datos se reiniciaron. En Neon no aplica: ahí no hay datos de prueba.
+que el front sepa que sus datos se reiniciaron. En Neon no aplica: el update se aplica sobre los
+datos que haya, incluida la demo.
 
 `src/test/resources/db/monthly-spending-fixture.sql` quedó sin uso al salir Testcontainers. Se
 conserva porque sus fechas absolutas y su segundo usuario son la base del escenario que falta
 montar en Bruno.
 
-**Producción es Neon, y ahí no se carga ningún dato de prueba** (`test-data.sql`, `demo-data.sql`,
-`cargar-datos-local.sql`). Solo van `schema.sql`, `seed.sql` y los `update/`, aplicados a mano con
-psql, igual que en local. Cómo se aplica un update ahí, el registro de los ya aplicados y el
+**Producción es Neon, y ahí no se carga el escenario de Bruno** (`test-data.sql`,
+`cargar-datos-local.sql`). Van `schema.sql`, `seed.sql` y los `update/`, aplicados a mano con psql,
+igual que en local, y además la demo de `demo@financeapp.local` (`demo-data.sql`, decisión del
+usuario en FIN-43, 12-10-2026): la app se muestra con esos datos. Su contraseña es la del repo,
+que es público, y deja `@front.local` en la lista de admitidos: riesgos aceptados, descritos en
+`docs/despliegue.md`. Cargarla en una base nueva exige antes una tasa USD→COP (FIN-45). Cómo se aplica un update ahí, el registro de los ya aplicados y el
 respaldo del plan están en [`docs/despliegue.md`](docs/despliegue.md#base-de-datos-neon). El
 encabezado de cada update dice si va antes o después del despliegue de su app; ese orden es el que
 sigue el procedimiento.
