@@ -21,6 +21,9 @@ docs: |
   `Visa 31` (cupo 2.000.000, corte y pago 31, sin tasa), `Visa sin corte` y `Ahorros`. La compra
   ajena es de `prueba@`, sin cuotas, solo para los 404.
 
+  Ademas (FIN-41), `Visa guardada`, desactivada, con la compra `Bicicleta` a 3 cuotas de 100.000: la
+  primera vencio ayer. Es la unica forma de ver una cuota vencer con la tarjeta desactivada.
+
   Al final de la carpeta (FA-134) se crea `Visa una cuota`, igual que `Visa` pero con
   `chargesSingleInstallmentInterest` en `true`: ahi se prueba el interes de una compra a 1 cuota, y
   que quitar la opcion no recalcula la compra ya registrada.

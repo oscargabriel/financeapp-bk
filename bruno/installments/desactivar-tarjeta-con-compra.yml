@@ -1,0 +1,43 @@
+info:
+  name: Desactivar una tarjeta con una compra activa
+  type: http
+  seq: 73
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/accounts/{{idVisaUsd}}"
+  body:
+    type: json
+    data: |-
+      {
+        "isActive": false
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.isActive
+      operator: eq
+      value: false
+    - expression: res.body.currentBalance
+      operator: eq
+      value: "0"
+    - expression: res.body.availableCredit
+      operator: eq
+      value: "4900"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Las compras no impiden desactivar la tarjeta (FIN-41)
+
+  A diferencia de una serie (FA-116), una compra no crea movimientos despues del alta: sus cuotas ya
+  existen y son deuda contraida. La tarjeta se desactiva, y su saldo y su cupo no cambian. Las 100 de
+  capital de la compra en dolares siguen comprometidas.

@@ -298,6 +298,10 @@ cambio de estado.
 - **WHEN** el cuerpo es `{"isActive": null}`
 - **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en el campo `body`
 
+#### Scenario: Tarjeta con compras en cuotas activas
+- **WHEN** el usuario envía `{"isActive": false}` sobre una tarjeta activa que tiene una compra en cuotas con cuotas por venir
+- **THEN** la respuesta es 200 con `isActive` en `false` y el mismo `currentBalance` y `availableCredit` que tenía, y la compra sigue en `GET /api/installment-purchases`
+
 ### Requirement: Efecto de desactivar una cuenta
 Una cuenta desactivada MUST NOT aparecer en `GET /api/accounts` sin `includeInactive=true`, y SHALL
 aparecer con `isActive` en `false` cuando se pide. Un movimiento nuevo que la elija como origen o
@@ -553,6 +557,10 @@ también el error de `currentBalance`. Los movimientos `PENDING` no cuentan para
 #### Scenario: Los pendientes no impiden el borrado
 - **WHEN** el usuario borra una cuenta con saldo 0, sin programados y con un gasto pendiente
 - **THEN** la respuesta es 204, y el pendiente ya no sale en `GET /api/transactions/pending`
+
+#### Scenario: Tarjeta desactivada con cuotas por venir
+- **WHEN** el usuario borra una tarjeta desactivada, con saldo vigente 0, que tiene una compra en cuotas con cuotas por venir
+- **THEN** la respuesta es 409 con un error `RESOURCE_IN_USE` en el campo `id`, y la compra sigue en `GET /api/installment-purchases`
 
 ### Requirement: Solo se desactiva una cuenta sin series activas
 Un parche con `isActive` en `false` sobre una cuenta activa que tiene series activas MUST NOT

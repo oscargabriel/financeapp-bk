@@ -48,6 +48,8 @@ SET search_path TO finance, public;
 \set visa_sin_corte      '20000000-0000-7000-8000-000000000014'
 \set ahorros_cuotas      '20000000-0000-7000-8000-000000000015'
 \set compra_ajena        '90000000-0000-7000-8000-000000000001'
+\set visa_guardada       '20000000-0000-7000-8000-000000000019'
+\set compra_guardada     '90000000-0000-7000-8000-000000000002'
 
 BEGIN;
 
@@ -497,6 +499,12 @@ SELECT gen_random_uuid(), :'series'::uuid, s.account_id, s.category_id, s.type, 
 -- La compra ajena es de prueba@, sobre su tarjeta y sin cuotas: solo existe
 -- para que la edición y la cancelación de cuotas@ den 404. Sin cuotas no mueve
 -- el saldo ni el cupo que verifican las demás carpetas.
+--
+-- Visa guardada (FIN-41) está desactivada, con cupo 1.000.000, y tiene la
+-- compra Bicicleta a 3 cuotas de 100.000 sin interés: la primera venció ayer y
+-- las otras dos vencen dentro de uno y de dos meses. Prueba que una cuota vence
+-- igual con la tarjeta desactivada, cosa que una corrida no puede provocar.
+-- Sus fechas no siguen la regla de corte y pago: no es lo que se prueba.
 -- -----------------------------------------------------------------------------
 INSERT INTO finance.users
     (id, email, password_hash, first_name, base_currency_code, timezone)
@@ -519,6 +527,33 @@ VALUES
     (:'visa_31'::uuid,        :'cuotas'::uuid, 'Visa 31',        'CREDIT',  'COP', 0, 2000000,   31,   31, NULL),
     (:'visa_sin_corte'::uuid, :'cuotas'::uuid, 'Visa sin corte', 'CREDIT',  'COP', 0, 1000000, NULL,    5, NULL),
     (:'ahorros_cuotas'::uuid, :'cuotas'::uuid, 'Ahorros',        'SAVINGS', 'COP', 0,    NULL, NULL, NULL, NULL);
+
+INSERT INTO finance.accounts
+    (id, user_id, name, type, currency_code, initial_balance,
+     credit_limit, statement_day, payment_due_day, monthly_interest_rate, is_active)
+VALUES
+    (:'visa_guardada'::uuid, :'cuotas'::uuid, 'Visa guardada', 'CREDIT', 'COP', 0, 1000000, 20, 5, NULL, FALSE);
+
+INSERT INTO finance.installment_purchases
+    (id, user_id, account_id, category_id, amount, currency_code, description,
+     purchase_date, installment_count, monthly_interest_rate)
+SELECT :'compra_guardada'::uuid, :'cuotas'::uuid, :'visa_guardada'::uuid, c.id, 300000, 'COP', 'Bicicleta',
+       (now() AT TIME ZONE 'America/Bogota')::date - 30, 3, 0
+  FROM finance.categories c
+ WHERE c.user_id = :'cuotas'::uuid AND c.applies_to = 'EXPENSE' AND c.deleted_at IS NULL
+ ORDER BY c.name
+ LIMIT 1;
+
+INSERT INTO finance.transactions
+    (id, user_id, account_id, category_id, type, amount, currency_code, exchange_rate, amount_base,
+     description, occurred_at, origin, installment_purchase_id, installment_number, installment_principal)
+SELECT gen_random_uuid(), p.user_id, p.account_id, p.category_id, 'EXPENSE', 100000, 'COP', 1, 100000,
+       p.description, c.vence, 'WEB', p.id, c.numero, 100000
+  FROM finance.installment_purchases p
+ CROSS JOIN (VALUES (1, now() - INTERVAL '1 day'),
+                    (2, now() + INTERVAL '1 month'),
+                    (3, now() + INTERVAL '2 months')) AS c(numero, vence)
+ WHERE p.id = :'compra_guardada'::uuid;
 
 INSERT INTO finance.installment_purchases
     (id, user_id, account_id, category_id, amount, currency_code, description,

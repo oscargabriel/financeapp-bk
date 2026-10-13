@@ -21,8 +21,9 @@ runtime:
         const ids = lista.map(function (p) { return p.id; });
         const porId = function (v) { return lista.find(function (p) { return p.id === bru.getVar(v); }); };
 
-        test("trae las tres compras con cuotas por venir", function() {
-          expect(ids).to.have.members([bru.getVar("idCompraHoy"), bru.getVar("idCompraUna"), bru.getVar("idCompraPasada")]);
+        test("trae las cuatro compras con cuotas por venir, una de la tarjeta desactivada", function() {
+          expect(ids).to.have.members([bru.getVar("idCompraHoy"), bru.getVar("idCompraUna"), bru.getVar("idCompraPasada"),
+              bru.getVar("idCompraGuardada")]);
         });
 
         test("no trae la compra pagada ni la de otro usuario", function() {

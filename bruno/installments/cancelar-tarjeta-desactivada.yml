@@ -1,0 +1,21 @@
+info:
+  name: Cancelar la compra con la tarjeta desactivada
+  type: http
+  seq: 77
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/installment-purchases/{{idCompraUsd}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

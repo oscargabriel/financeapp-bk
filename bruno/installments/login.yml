@@ -33,6 +33,8 @@ runtime:
         bru.setVar("idAhorrosCuotas", "20000000-0000-7000-8000-000000000015");
         bru.setVar("idTarjetaAjena", "20000000-0000-7000-8000-000000000003");
         bru.setVar("idCompraAjena", "90000000-0000-7000-8000-000000000001");
+        bru.setVar("idVisaGuardada", "20000000-0000-7000-8000-000000000019");
+        bru.setVar("idCompraGuardada", "90000000-0000-7000-8000-000000000002");
 
         const dos = function (n) { return String(n).padStart(2, "0"); };
         const comoDia = function (f) {

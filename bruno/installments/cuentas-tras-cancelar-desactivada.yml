@@ -1,0 +1,31 @@
+info:
+  name: El cupo vuelve con la tarjeta desactivada
+  type: http
+  seq: 78
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts?includeInactive=true"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const usd = res.getBody().find(function (c) { return c.id === bru.getVar("idVisaUsd"); });
+
+        test("el capital de las cuotas canceladas vuelve al cupo", function() {
+          expect(usd.isActive).to.equal(false);
+          expect(usd.currentBalance).to.equal(0);
+          expect(usd.availableCredit).to.equal(5000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
