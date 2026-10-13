@@ -13,7 +13,7 @@ http:
         "firstName": " Ana Maria ",
         "phone": "3109876543",
         "timezone": "Europe/Madrid",
-        "baseCurrencyCode": "USD"
+        "baseCurrencyCode": " usd "
       }
   auth:
     type: bearer
@@ -40,8 +40,8 @@ runtime:
           expect(res.getBody().phone).to.equal("3109876543");
         });
 
-        test("la moneda base se omite: sigue en COP", function() {
-          expect(res.getBody().baseCurrencyCode).to.equal("COP");
+        test("la moneda base cambia de COP a USD, recortada y en mayusculas", function() {
+          expect(res.getBody().baseCurrencyCode).to.equal("USD");
         });
 
 settings:
@@ -53,4 +53,5 @@ settings:
 docs: |
   # Parche parcial
 
-  `baseCurrencyCode` viaja a proposito: el perfil lo omite hasta FA-91, sin error ni cambio.
+  Cambio de moneda valido (FIN-29): `" usd "` se recorta y se guarda en mayusculas. USD no necesita
+  tasa: USD->USD vale 1.

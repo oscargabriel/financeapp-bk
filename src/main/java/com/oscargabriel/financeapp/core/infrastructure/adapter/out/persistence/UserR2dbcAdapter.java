@@ -78,6 +78,7 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
                    first_name = :firstName,
                    last_name = :lastName,
                    phone = :phone,
+                   base_currency_code = :baseCurrencyCode,
                    timezone = :timezone
              WHERE id = :id
                AND deleted_at IS NULL
@@ -175,6 +176,7 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
                 .bind("id", profile.id())
                 .bind("email", profile.email())
                 .bind("firstName", profile.firstName())
+                .bind("baseCurrencyCode", profile.baseCurrencyCode())
                 .bind("timezone", profile.timezone());
         sentencia = bindOpcional(sentencia, "lastName", profile.lastName());
         sentencia = bindOpcional(sentencia, "phone", profile.phone());

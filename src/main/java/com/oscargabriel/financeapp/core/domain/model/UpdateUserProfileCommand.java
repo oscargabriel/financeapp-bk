@@ -10,5 +10,6 @@ public record UpdateUserProfileCommand(
         String email,
         String phone,
         String timezone,
+        String baseCurrencyCode,
         String currentPassword) {
 }

@@ -10,7 +10,7 @@ http:
     type: json
     data: |-
       {
-        "baseCurrencyCode": "USD"
+        "baseCurrencyCode": "EUR"
       }
   auth:
     type: bearer
@@ -20,13 +20,13 @@ runtime:
   assertions:
     - expression: res.status
       operator: eq
-      value: "400"
-    - expression: res.body.errors[0].code
+      value: "200"
+    - expression: res.body.baseCurrencyCode
       operator: eq
-      value: VALIDATION_ERROR
-    - expression: res.body.errors[0].field
+      value: EUR
+    - expression: res.body.firstName
       operator: eq
-      value: body
+      value: Ana Maria
 
 settings:
   encodeUrl: true
@@ -37,4 +37,6 @@ settings:
 docs: |
   # Solo la moneda base
 
-  Omitida la moneda, el parche queda vacio.
+  La moneda cuenta como campo modificable (FIN-29): un parche que solo la trae no es vacio. EUR
+  necesita la tasa USD->EUR de hoy; si falta, el cambio la pide al proveedor (el stub de
+  `verificar-bruno.ps1` responde 0.8) antes de guardar.

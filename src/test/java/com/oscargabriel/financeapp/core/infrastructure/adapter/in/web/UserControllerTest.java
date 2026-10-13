@@ -105,7 +105,7 @@ class UserControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("""
                         {"firstName": " Ana ", "lastName": "", "email": "Ana@Ejemplo.com", "phone": "3001234567",
-                         "timezone": "America/Bogota", "currentPassword": "unaClaveLarga"}
+                         "timezone": "America/Bogota", "baseCurrencyCode": " usd ", "currentPassword": "unaClaveLarga"}
                         """)
                 .exchange()
                 .expectStatus().isOk()
@@ -114,7 +114,7 @@ class UserControllerTest {
                 .jsonPath("$.firstName").isEqualTo("Ana");
 
         verify(updateProfile).update(UserMother.ID, new UpdateUserProfileCommand(
-                " Ana ", "", "Ana@Ejemplo.com", "3001234567", "America/Bogota", "unaClaveLarga"));
+                " Ana ", "", "Ana@Ejemplo.com", "3001234567", "America/Bogota", " usd ", "unaClaveLarga"));
     }
 
     @ParameterizedTest
@@ -132,33 +132,35 @@ class UserControllerTest {
         verifyNoInteractions(updateProfile);
     }
 
-    /** La moneda se omite como cualquier propiedad desconocida: no es un error de deserializacion. */
+    /** La moneda cuenta como campo modificable (FIN-29): sola no es un parche vacio. */
     @Test
-    void laMonedaBaseSolaSeOmiteYElParcheQuedaVacio() {
-        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_PERFIL)
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue("{\"baseCurrencyCode\": \"USD\"}")
-                .exchange()
-                .expectStatus().isBadRequest()
-                .expectBody()
-                .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
-                .jsonPath("$.errors[0].field").isEqualTo("body");
-
-        verifyNoInteractions(updateProfile);
-    }
-
-    @Test
-    void laMonedaBaseJuntoAOtrosCamposNoLlegaAlCasoDeUso() {
+    void laMonedaBaseSolaLlegaAlCasoDeUso() {
         when(updateProfile.update(any(), any())).thenReturn(Mono.just(UserMother.unPerfil()));
 
         webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_PERFIL)
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue("{\"firstName\": \"Ana\", \"baseCurrencyCode\": \"USD\"}")
+                .bodyValue("{\"baseCurrencyCode\": \"USD\"}")
                 .exchange()
                 .expectStatus().isOk();
 
         verify(updateProfile).update(UserMother.ID,
-                new UpdateUserProfileCommand("Ana", null, null, null, null, null));
+                new UpdateUserProfileCommand(null, null, null, null, null, "USD", null));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"  ", "US", "U5D", "USDX"})
+    void unaMonedaEnBlancoOMalFormadaEsUn400EnSuCampo(String moneda) {
+        webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_PERFIL)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"baseCurrencyCode\": \"" + moneda + "\"}")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors.length()").isEqualTo(1)
+                .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.errors[0].field").isEqualTo("baseCurrencyCode");
+
+        verifyNoInteractions(updateProfile);
     }
 
     @Test

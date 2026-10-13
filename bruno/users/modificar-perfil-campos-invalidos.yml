@@ -1,7 +1,7 @@
 info:
   name: Modificar perfil con campos invalidos
   type: http
-  seq: 10
+  seq: 13
 
 http:
   method: PATCH
@@ -13,7 +13,8 @@ http:
         "firstName": "   ",
         "phone": "12-34",
         "email": "sin-arroba",
-        "timezone": "Marte/Base"
+        "timezone": "Marte/Base",
+        "baseCurrencyCode": "US"
       }
   auth:
     type: bearer
@@ -31,7 +32,7 @@ runtime:
           const errores = res.getBody().errors;
           expect(errores.every(e => e.code === "VALIDATION_ERROR")).to.equal(true);
           expect(errores.map(e => e.field).sort()).to.deep.equal(
-            ["email", "firstName", "phone", "timezone"]);
+            ["baseCurrencyCode", "email", "firstName", "phone", "timezone"]);
         });
 
 settings:

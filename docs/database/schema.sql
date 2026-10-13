@@ -137,6 +137,21 @@ AS $$
            END;
 $$;
 
+-- p_amount en p_currency, llevado a p_target con las tasas USD→X de p_on (FIN-29).
+-- NULL si alguna de las dos monedas no tiene ninguna tasa.
+CREATE OR REPLACE FUNCTION finance.amount_in_currency(p_target TEXT, p_currency TEXT, p_amount NUMERIC,
+                                                      p_on DATE)
+RETURNS NUMERIC
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT CASE
+               WHEN p_currency = p_target THEN p_amount
+               ELSE round(p_amount / (SELECT d.rate FROM finance.usd_rate(p_currency, p_on) d)
+                                   * (SELECT h.rate FROM finance.usd_rate(p_target, p_on) h), 4)
+           END;
+$$;
+
 
 -- =============================================================================
 -- USERS
@@ -727,7 +742,7 @@ CREATE TABLE finance.budgets (
 
 COMMENT ON TABLE  finance.budgets IS 'Meta de gasto de un mes. La fila con category_id NULL es el tope global del mes; las demás son topes por categoría.';
 COMMENT ON COLUMN finance.budgets.period_month IS 'Siempre el día 1 del mes (el CHECK lo garantiza), para que la comparación sea exacta.';
-COMMENT ON COLUMN finance.budgets.amount IS 'Expresado en la moneda en que la persona ve sus totales (users.base_currency_code), la misma de total_spent en las vistas.';
+COMMENT ON COLUMN finance.budgets.amount IS 'Expresado en currency_code, la moneda de la meta. Las vistas de gasto mensual lo convierten a la moneda de la persona con finance.amount_in_currency y la tasa del día 1 del mes (FIN-29).';
 
 -- Dos únicos parciales porque en Postgres NULL no colisiona con NULL:
 -- sin el segundo índice se podrían crear varias metas globales para el mismo mes.
@@ -754,6 +769,9 @@ CREATE TRIGGER trg_budgets_updated_at
 --   * Suman en la moneda de la persona con finance.in_currency (FA-122): el monto
 --     tal cual si ya está en esa moneda, si no su equivalente en USD convertido
 --     con la tasa de su fecha.
+--   * La meta está en su propio currency_code: se convierte a la moneda de la
+--     persona con finance.amount_in_currency y la tasa del día 1 de su mes
+--     (FIN-29). Las metas guardadas no se reescriben.
 --   * El mes se corta en la zona horaria del usuario.
 --   * FULL OUTER JOIN contra budgets: un mes con meta y sin gastos aparece con
 --     total 0, y un mes con gastos y sin meta aparece con budget_amount NULL.
@@ -783,8 +801,10 @@ WITH spent AS (
 budget AS (
     SELECT b.user_id,
            b.period_month,
-           b.amount AS budget_amount
+           finance.amount_in_currency(u.base_currency_code, b.currency_code, b.amount,
+                                      b.period_month)::NUMERIC(18,4) AS budget_amount
       FROM finance.budgets b
+      JOIN finance.users u ON u.id = b.user_id
      WHERE b.category_id IS NULL
 )
 SELECT COALESCE(s.user_id, b.user_id)               AS user_id,
@@ -827,8 +847,10 @@ budget AS (
     SELECT b.user_id,
            b.period_month,
            b.category_id,
-           b.amount AS category_budget
+           finance.amount_in_currency(u.base_currency_code, b.currency_code, b.amount,
+                                      b.period_month)::NUMERIC(18,4) AS category_budget
       FROM finance.budgets b
+      JOIN finance.users u ON u.id = b.user_id
      WHERE b.category_id IS NOT NULL
 ),
 merged AS (

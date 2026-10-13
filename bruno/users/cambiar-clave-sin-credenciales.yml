@@ -1,7 +1,7 @@
 info:
   name: Cambiar clave sin credenciales
   type: http
-  seq: 29
+  seq: 32
 
 http:
   method: PUT

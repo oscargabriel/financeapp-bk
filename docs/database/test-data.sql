@@ -319,26 +319,32 @@ SELECT gen_random_uuid(), :'uid'::uuid, m.account_id, c.id, m.type, m.amount, 'C
 -- Metas
 --   * Global de este mes: 2.000.000
 --   * Restaurantes se pasa del tope (88.000 sobre 80.000)
---   * Mes siguiente: solo meta, sin gastos todavía
+--   * Mes siguiente: solo meta, sin gastos todavía, y en USD: 500
 --   * Hace dos meses: deliberadamente ausente, para el caso NULL
+--   * Viajes tiene su tope en USD: 100
+--
+-- Las dos metas en USD son las únicas en otra moneda que la persona (FIN-29):
+-- las vistas las convierten con la tasa del día 1 de su mes. Ese día la tasa
+-- vigente es la de hoy (mes siguiente) o la de hace 35 días (mes en curso), las
+-- dos en 4100, así que se ven como 2.050.000 y 410.000 sea cual sea el día.
 -- -----------------------------------------------------------------------------
 INSERT INTO finance.budgets (id, user_id, period_month, category_id, amount, currency_code)
-SELECT gen_random_uuid(), :'uid'::uuid, (r.m0 + b.mes)::date, NULL, b.amount, 'COP'
+SELECT gen_random_uuid(), :'uid'::uuid, (r.m0 + b.mes)::date, NULL, b.amount, b.currency
   FROM (VALUES
-        (INTERVAL '0 month',  2000000::numeric),
-        (INTERVAL '-1 month', 1800000::numeric),
-        (INTERVAL '1 month',  2000000::numeric)
-       ) AS b(mes, amount)
+        (INTERVAL '0 month',  2000000::numeric, 'COP'),
+        (INTERVAL '-1 month', 1800000::numeric, 'COP'),
+        (INTERVAL '1 month',      500::numeric, 'USD')
+       ) AS b(mes, amount, currency)
  CROSS JOIN (SELECT date_trunc('month', now() AT TIME ZONE 'America/Bogota') AS m0) r;
 
 INSERT INTO finance.budgets (id, user_id, period_month, category_id, amount, currency_code)
-SELECT gen_random_uuid(), :'uid'::uuid, r.m0::date, c.id, b.amount, 'COP'
+SELECT gen_random_uuid(), :'uid'::uuid, r.m0::date, c.id, b.amount, b.currency
   FROM (VALUES
-        ('Mercado',      150000::numeric),
-        ('Restaurantes',  80000::numeric),
-        ('Transporte',    60000::numeric),
-        ('Viajes',       400000::numeric)
-       ) AS b(category_name, amount)
+        ('Mercado',      150000::numeric, 'COP'),
+        ('Restaurantes',  80000::numeric, 'COP'),
+        ('Transporte',    60000::numeric, 'COP'),
+        ('Viajes',           100::numeric, 'USD')
+       ) AS b(category_name, amount, currency)
  CROSS JOIN (SELECT date_trunc('month', now() AT TIME ZONE 'America/Bogota') AS m0) r
   JOIN finance.categories c
     ON c.user_id = :'uid'::uuid AND c.name = b.category_name;

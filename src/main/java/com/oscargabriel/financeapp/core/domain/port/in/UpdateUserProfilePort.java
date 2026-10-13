@@ -9,6 +9,9 @@ import reactor.core.publisher.Mono;
 
 public interface UpdateUserProfilePort {
 
-    /** Cambiar el correo exige la contrasena actual; la moneda base no se cambia aqui (FA-91). */
+    /**
+     * Cambiar el correo exige la contrasena actual. Cambiar la moneda base exige que este activa y que tenga
+     * alguna tasa USD→moneda: sin ninguna es 502 (FIN-29).
+     */
     Mono<UserProfile> update(UUID userId, UpdateUserProfileCommand command);
 }

@@ -9,14 +9,7 @@ import com.oscargabriel.financeapp.core.domain.model.UpdateUserProfileCommand;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.validation.Formatos;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.validation.ZonaIana;
 
-/**
- * El parche de PATCH /users/me: todo opcional, y null es "no cambia".
- *
- * No tiene componente baseCurrencyCode a proposito: Jackson descarta la propiedad como cualquier
- * otra desconocida, asi que el cambio de moneda se omite sin error hasta FA-91. Las cuentas hacen
- * lo contrario con los campos que no se cambian; aqui lo decidio el usuario el 07-10-2026 (ver el
- * design.md de fa-89-perfil-usuario).
- */
+/** El parche de PATCH /users/me: todo opcional, y null es "no cambia". */
 public record UpdateUserProfileRequest(
 
         @Pattern(regexp = Formatos.NO_EN_BLANCO, message = "El nombre no puede ir en blanco: para no cambiarlo, omitelo")
@@ -40,15 +33,22 @@ public record UpdateUserProfileRequest(
         @ZonaIana
         String timezone,
 
+        /** Que exista y este activa lo decide el caso de uso, que normaliza (FIN-29). */
+        @Pattern(regexp = Formatos.NO_EN_BLANCO, message = "La moneda no puede ir en blanco: para no cambiarla, omitela")
+        @Pattern(regexp = Formatos.CODIGO_MONEDA, message = "La moneda debe ser un codigo de tres letras")
+        String baseCurrencyCode,
+
         /** Sin reglas de formato: solo se compara contra el hash, y solo si el correo cambia. */
         String currentPassword) {
 
     /** currentPassword no cuenta: sin un campo que cambiar, no hay nada que autorizar. */
     public boolean sinCambios() {
-        return Stream.of(firstName, lastName, email, phone, timezone).allMatch(campo -> campo == null);
+        return Stream.of(firstName, lastName, email, phone, timezone, baseCurrencyCode)
+                .allMatch(campo -> campo == null);
     }
 
     public UpdateUserProfileCommand toCommand() {
-        return new UpdateUserProfileCommand(firstName, lastName, email, phone, timezone, currentPassword);
+        return new UpdateUserProfileCommand(
+                firstName, lastName, email, phone, timezone, baseCurrencyCode, currentPassword);
     }
 }

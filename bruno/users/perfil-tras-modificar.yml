@@ -23,7 +23,7 @@ runtime:
       value: Europe/Madrid
     - expression: res.body.baseCurrencyCode
       operator: eq
-      value: COP
+      value: USD
   scripts:
     - type: tests
       code: |-

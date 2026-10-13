@@ -446,6 +446,10 @@ reescribir movimientos.
 - **WHEN** la persona con moneda USD tiene en su cuenta COP un ingreso de 82000 de hoy (tasa 4100) y otro de 39000 de hace 100 días (antes de la tasa más antigua, 3900)
 - **THEN** `monthly-spending` trae `totalIncome` 20 en el mes en curso y 10 en el mes de hace 100 días
 
+#### Scenario: Después de cambiar la moneda base
+- **WHEN** una persona con moneda COP cambia su moneda base a EUR desde `PATCH /api/users/me` y pide `reports/balance`
+- **THEN** la respuesta trae `currencyCode` EUR, y sus movimientos conservan `amount`, `amount_base` y `exchange_rate`
+
 ### Requirement: Ingresos de cada mes en el gasto mensual
 Cada mes de `GET /api/monthly-spending` SHALL traer `totalIncome`: la suma de los ingresos (`INCOME`)
 confirmados del mes que ya ocurrieron, con el mes decidido en la zona horaria del usuario. Las
@@ -501,3 +505,22 @@ un `from` posterior a `to`, SHALL responder 400 `VALIDATION_ERROR`.
 #### Scenario: Rango invertido
 - **WHEN** se pide `GET /api/monthly-spending` con `from` posterior a `to`
 - **THEN** la respuesta es 400 con `VALIDATION_ERROR` en el campo `from`
+
+### Requirement: Metas en la moneda de la persona
+`budgetAmount`, `remaining` y `percentUsed` de `GET /api/monthly-spending` SHALL calcularse con la
+meta en la moneda base de la persona. Una meta en esa moneda SHALL aportar su monto tal cual; una en
+otra SHALL convertirse con las tasas `USD→X` del primer día de su mes, elegidas con la regla de
+`tasas-de-cambio`, a 4 decimales. Los topes por categoría SHALL seguir la misma regla. Las metas
+guardadas MUST NOT reescribirse.
+
+#### Scenario: Meta en la moneda de la persona
+- **WHEN** el usuario del escenario, con moneda COP y meta global de 2000000 COP en el mes en curso, pide `GET /api/monthly-spending`
+- **THEN** el mes en curso trae `budgetAmount` 2000000
+
+#### Scenario: Meta en otra moneda
+- **WHEN** el usuario del escenario, con moneda COP, tiene en el mes siguiente una meta global de 500 USD y ningún movimiento, y la tasa `USD→COP` vigente el primer día de ese mes es 4100
+- **THEN** ese mes trae `budgetAmount` 2050000, `remaining` 2050000 y `percentUsed` 0
+
+#### Scenario: Tope por categoría en otra moneda
+- **WHEN** el usuario del escenario, con moneda COP, tiene en el mes en curso un tope de 100 USD en Viajes y la tasa `USD→COP` vigente el primer día del mes es 4100
+- **THEN** el desglose por categoría del mes trae para Viajes un tope de 410000
