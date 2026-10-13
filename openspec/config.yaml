@@ -17,7 +17,8 @@ context: |
 
 rules:
   proposal:
-    - "Abre con el origen: la clave del issue (FIN-n) y, si el encargo llegó por fuera del tablero, el texto o el resumen de cómo llegó."
+    - "Abre con el origen: la clave del issue (FIN-n), la de su epic y, si el encargo llegó por fuera del tablero, el texto o el resumen de cómo llegó."
+    - "Nombra las decisiones de ## Decisiones del epic que el change aplica, con su fecha; lo que el epic deja en ## Fuera de alcance tampoco entra en el change."
     - Incluye una sección Fuera de alcance; lo que aparezca y no quepa en la tarea va a una tarea nueva del tablero, no a este change.
   specs:
     - "Las capacidades se nombran por recurso o área del sistema (auth, cuentas, categorias, transacciones, reportes, errores), no por la tarea."

@@ -456,9 +456,12 @@ El ciclo de una tarea:
 1. La tarea sale del tablero. Un encargo que llegue suelto —un mensaje, una conversación— se
    registra primero como issue, para que tenga clave. El tablero es compartido con el front: aquí
    solo se toman issues con componente `Backend`, aunque se pida uno de `Frontend` por su clave.
+   Cada tarea cuelga de un epic, que es el tema de la app y cubre los dos repos: guarda las
+   decisiones, lo que queda fuera de alcance y el orden de las tareas del tema. La tarea se lee
+   junto con su epic, que se mantiene desde la raíz `1-finanzas` y aquí no se edita.
 2. Rama `feature/fin-<n>-<slug>` desde `dev`.
-3. Change `fin-<n>-<slug>`: explorar el código si hace falta y proponer (proposal, delta de spec con
-   escenarios, design si aplica, tasks). **Lo que se aclare conversando se escribe en esos archivos**:
+3. Change `fin-<n>-<slug>`, que parte de la tarea y de su epic: explorar el código si hace falta y
+   proponer (proposal, delta de spec con escenarios, design si aplica, tasks). **Lo que se aclare conversando se escribe en esos archivos**:
    un alcance que solo quedó dicho en el chat no existe para el siguiente que lea.
 4. Revisión humana de la propuesta. Sin aprobación no se escribe código.
 5. Implementar tarea por tarea con TDD —el test primero, fallando por la razón correcta— y marcar

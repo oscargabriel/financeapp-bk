@@ -18,17 +18,23 @@ Todas las llamadas al MCP `atlassian` llevan `cloudId` = `d1af94ae-8a43-4c17-b20
 Cada issue tiene una clave `FIN-n`. Úsala al referirte a una tarea en el chat, en la rama y en los
 mensajes de commit.
 
-El tablero es compartido con el front, que vive en su propio repo, `financeapp-fr`. El componente
-de cada issue dice dónde se resuelve: `Backend` es este repo, `Frontend` el otro. Los epics son las
-etapas, también con su componente. **Este skill solo toma y modifica issues con componente
-`Backend`**, y todo issue que cree lleva el componente puesto: sin él no aparece en la consulta de
-ningún repo.
+El tablero es compartido con el front, que vive en su propio repo, `financeapp-fr`. Tiene dos capas:
+
+| Capa | Qué es | Reglas |
+|---|---|---|
+| **Epic** | Un tema de la app (Finanzas compartidas, Asistente y Telegram…). Cubre los dos repos | **Sin componente.** Guarda el objetivo, `## Decisiones`, `## Fuera de alcance`, `## Flujo` y `## Pedidos`. Lo mantiene el skill `crear-tareas` de la raíz `1-finanzas`: **este repo lo lee y no edita su descripción** |
+| **Tarea** (`Historia`, `Error` o `Tarea`) | Un repo, un resultado | **Componente y `parent` obligatorios.** Nombra las decisiones del epic por su clave, no las copia |
+
+El componente de cada tarea dice dónde se resuelve: `Backend` es este repo, `Frontend` el otro.
+**Este skill solo toma y modifica tareas con componente `Backend`**, y toda tarea que cree lleva el
+componente y el epic puestos: sin componente no aparece en la consulta de ningún repo, y sin epic la
+raíz no la ve al refinar el tema.
 
 | Concepto | En Jira |
 |---|---|
 | Tipo | `Historia` (feature), `Error` (bug), `Tarea` (el resto, con etiqueta `deuda-tecnica`, `infra`, `cobertura` o `documentacion`) |
 | Prioridad | `High`, `Medium`, `Low` |
-| Etapa | Epic, como `parent` del issue |
+| Tema | Epic, como `parent` de la tarea |
 | Dependencia | Enlace `Blocks` |
 
 Estados, con el id de la transición que lleva a cada uno:
@@ -55,9 +61,9 @@ declarado en `.mcp.json` pero apagado, para no cargarlo en cada sesión: para le
 ### 1. Consumir
 
 `searchJiraIssuesUsingJql` con
-`project = FIN AND component = Backend AND status = "Por hacer" ORDER BY priority DESC, key ASC`,
-`maxResults` 5, campos `summary`, `issuetype`, `priority`, `labels`. Mostrar las candidatas con
-clave, título, tipo y prioridad. Si el usuario pidió "la siguiente", tomar la primera; si no,
+`project = FIN AND component = Backend AND issuetype != Epic AND status = "Por hacer" ORDER BY priority DESC, key ASC`,
+`maxResults` 5, campos `summary`, `issuetype`, `priority`, `labels`, `parent`. Mostrar las
+candidatas con clave, título, tipo, prioridad y epic. Si el usuario pidió "la siguiente", tomar la primera; si no,
 esperar a que elija.
 
 La clave desempata dentro de un mismo nivel de prioridad, y hace falta porque la mayoría de los
@@ -68,7 +74,7 @@ issues comparten prioridad: sin ella, "la siguiente" no es una pregunta con una 
 | Nivel | Cuándo | Cuántas esperar |
 |---|---|---|
 | `High` | Sale primero: un bug, una corrección urgente, o que el usuario diga que esa va antes que las demás. | Pocas; lo normal es una |
-| `Medium` | **El valor por defecto de todo issue nuevo.** El trabajo ordinario de las etapas. | La mayoría |
+| `Medium` | **El valor por defecto de todo issue nuevo.** El trabajo ordinario de cada tema. | La mayoría |
 | `Low` | Accesorio. Se hace cuando no queda nada en `Medium`. | Las que sobran |
 
 `Highest` y `Lowest` existen en Jira y no se usan, a propósito: un nivel nuevo se infla igual que el
@@ -76,11 +82,24 @@ anterior si no hay una regla de uso, y `High` con la regla escrita ya cubre el c
 primero". Si la mayoría de los issues tomables acaba en `High`, la prioridad dejó de discriminar: se
 recalibra, no se agregan niveles.
 
-`getJiraIssue` del elegido, con `responseContentFormat: "markdown"`, para leer `## Contexto`,
-`## Criterios de aceptación` y sus enlaces (`issuelinks`).
+`getJiraIssue` del elegido, con `responseContentFormat: "markdown"` y `parent` e `issuelinks` en los
+campos, para leer `## Contexto`, `## Criterios de aceptación` y sus enlaces.
 
 **Si los criterios no permiten decidir cuándo el issue está hecho, no lo tomes.** Deja la duda en un
 comentario con `addCommentToJiraIssue`, mantén el estado en `Por hacer` y dilo en chat.
+
+#### El epic de la tarea
+
+Después, `getJiraIssue` del epic (`parent`), también en markdown, para leer sus `## Decisiones`,
+`## Fuera de alcance` y `## Flujo`. Ahí está lo acordado con el usuario para todo el tema, y la
+tarea no lo repite. El flujo dice qué otras tareas del tema hay, en los dos repos, y en qué orden.
+
+**Si un criterio de la tarea choca con una decisión del epic, no la tomes.** Deja un comentario con
+`addCommentToJiraIssue` que cite el criterio y la decisión, con su fecha, mantén el estado y dilo en
+chat. Resolver el choque es refinar el tema, y eso se hace desde la raíz, no aquí.
+
+Un epic migrado de Notion puede no tener esas secciones, o tener la etiqueta `por-refinar`. Eso no
+bloquea: sin decisiones no hay choque. Se menciona en el resumen del paso 4.
 
 #### Dependencias entre issues
 
@@ -107,13 +126,18 @@ estado, ni comentario, ni rama. Decirlo en chat —el issue es del front y se re
 resuelve: si en realidad necesita algo del API, lo que corresponde es un issue nuevo con componente
 `Backend`, no tomar el del front.
 
+Si la clave es de un epic, tampoco se toma: un epic no se implementa. Se ofrecen sus tareas de este
+repo, con `parent = FIN-x AND component = Backend AND statusCategory != Done`.
+
 #### Un encargo que llega suelto
 
 Si el usuario pide algo para este repo sin clave —un mensaje, lo que salió de una conversación—,
-primero se registra como issue en `Por hacer` con la etiqueta `sprint-actual` y componente
-`Backend` (ver *Crear un issue*): el texto **tal como llegó** bajo `## Contexto` y los criterios que
-se puedan deducir bajo `## Criterios de aceptación`. Lo que no se pueda deducir se pregunta antes de
-seguir. Después se toma como cualquier otro.
+primero se registra como issue en `Por hacer`, con la etiqueta `sprint-actual`, componente
+`Backend` y el epic de su tema como `parent` (ver *Crear un issue*). El texto **tal como llegó** va
+bajo `## Contexto`, después de la línea que nombra el epic, y los criterios que se puedan deducir van
+bajo `## Criterios de aceptación`. El epic se elige entre los vigentes. **Si ninguno encaja, se
+pregunta**: este repo no crea epics, así que un tema nuevo se abre desde la raíz con `crear-tareas`.
+Lo que no se pueda deducir también se pregunta antes de seguir. Después se toma como cualquier otro.
 
 ### 2. Tomar
 
@@ -135,9 +159,11 @@ El change se llama igual que la rama sin el prefijo: `fin-<n>-<slug>`.
 
 1. Si el área a tocar no es evidente o el issue deja dudas de alcance, `/opsx:explore` (skill
    `openspec-explore`) para leer el código y aclarar antes de escribir nada.
-2. `/opsx:propose fin-<n>-<slug>` (skill `openspec-propose`) con el `## Contexto` y los
-   `## Criterios de aceptación` del issue como entrada. Cada criterio termina como requisito con
-   sus escenarios en la delta de spec, o queda explicado en `proposal.md` si no es comportamiento.
+2. `/opsx:propose fin-<n>-<slug>` (skill `openspec-propose`). La entrada es el `## Contexto` y los
+   `## Criterios de aceptación` de la tarea, más las `## Decisiones` y el `## Fuera de alcance` de
+   su epic. Cada criterio termina como requisito con sus escenarios en la delta de spec, o queda
+   explicado en `proposal.md` si no es comportamiento. Las decisiones del epic acotan el diseño, y
+   lo que el epic deja fuera de alcance queda fuera del change.
 3. **Lo que se aclare en el chat se escribe en los artefactos.** Un alcance que solo se dijo
    conversando —como el de FA-55, que no estaba en la tarea— no existe para el siguiente que lea.
 4. `openspec validate fin-<n>-<slug>` en verde.
@@ -146,9 +172,10 @@ Las reglas de cada artefacto están en `openspec/config.yaml`; no se repiten aqu
 
 ### 4. Aprobar
 
-Mostrar en el chat un resumen de la propuesta —el porqué, los requisitos con sus escenarios, lo que
-queda fuera de alcance y la lista de tareas— con la ruta del change, y **esperar la aprobación
-explícita del usuario**. Los ajustes que pida se hacen con `/opsx:update` (skill
+Mostrar en el chat un resumen de la propuesta —el porqué, las decisiones del epic que aplica, los
+requisitos con sus escenarios, lo que queda fuera de alcance y la lista de tareas— con la ruta del
+change, y **esperar la aprobación explícita del usuario**. Si el epic no tiene `## Decisiones` o
+lleva `por-refinar`, decirlo aquí. Los ajustes que pida se hacen con `/opsx:update` (skill
 `openspec-update-change`) y se vuelve a mostrar lo que cambió.
 
 Única excepción: que el usuario haya aprobado de antemano en el mismo pedido ("propón e implementa
@@ -237,9 +264,27 @@ que nunca mergea. Los PRs contra `main` **no** se mergean nunca: el script los r
 
 ### 9. Cerrar
 
-`transitionJiraIssue` con `transition: {"id": "51"}` → `Por revisar`.
+Primero, `addCommentToJiraIssue` con las notas de implementación, que es donde la raíz lee qué se
+hizo de verdad cuando refina el epic:
 
-Después `addCommentToJiraIssue` con el cierre, en este orden:
+```markdown
+## Notas de implementación
+
+- Change: `openspec/changes/archive/<fecha>-fin-<n>-<slug>/`
+- <cada decisión de implementación que cambie algo general del tema: un contrato que otras tareas
+  van a consumir, una regla que el resto del tema tiene que respetar, algo pedido que se hizo
+  distinto. Si no hay ninguna: «Sin decisiones que cambien el tema.»>
+```
+
+Va en un comentario aparte y no en la sección `## Notas de implementación` de la descripción, que
+`crear-tareas` deja vacía: el MCP solo devuelve la descripción en markdown, y reescribirla desde ahí
+pierde las casillas. Ver `design.md` de `fin-76-tareas-jira-epics-por-tema`. Las notas se escriben
+siempre, aunque no haya decisiones: sin el comentario no se distingue «nada que reportar» de un
+olvido.
+
+Después, `transitionJiraIssue` con `transition: {"id": "51"}` → `Por revisar`.
+
+Por último, `addCommentToJiraIssue` con el cierre, en este orden:
 
 - **Evidencia** — conteo de tests de la suite y resultado de `bru run`, con números reales tomados
   de la salida, nunca estimados.
@@ -261,12 +306,14 @@ El discriminador es una sola pregunta:
 > **¿Puedo dejar este issue en verde y cerrado sin eso?**
 
 - **Sí** → issue nuevo en `pendiente` (ver *Crear un issue*): componente del repo donde se resuelve,
-  tipo correspondiente, prioridad `Medium` salvo que sea un bug o una urgencia, el epic si alguno
-  encaja, y bajo `## Contexto` **por qué surgió y en qué issue apareció**.
+  tipo correspondiente, prioridad `Medium` salvo que sea un bug o una urgencia, y bajo
+  `## Contexto` **por qué surgió y en qué issue apareció**. El epic es el de la tarea en curso,
+  también cuando el issue es del otro repo o es un bug. Si de verdad es de otro tema, se usa el epic
+  de ese tema; si ninguno encaja, se pregunta, porque este repo no crea epics.
 - **No** —el código no compila, la suite no pasa, el endpoint queda roto sin eso— es parte del issue
   actual, y se dice explícitamente en el comentario de cierre.
 
-Decir siempre en chat qué issues se crearon. Que una etapa crezca mientras se implementa es la regla
+Decir siempre en chat qué issues se crearon. Que un tema crezca mientras se implementa es la regla
 funcionando, no un desvío.
 
 Esto cubre la regla del CLAUDE.md global sobre registrar mocks y stubs acordados: el issue en Jira
@@ -309,22 +356,39 @@ La descripción va en ADF, no en markdown: con `contentFormat: "markdown"` Jira 
 criterios quedan como texto en vez de casillas.
 
 1. Escribir la descripción en un archivo temporal, precedida de una línea `=== <clave>` (por ejemplo
-   `=== nuevo`), con las secciones `## Contexto`, `## Depende de` (si hay) y
-   `## Criterios de aceptación` con casillas `- [ ]`. El último criterio es la verificación del
-   repo: tests de la capa que toca, `gradlew build` y `bru run` en verde, y si toca endpoints,
-   `contrato-api.md` y `bruno/` al día.
+   `=== nuevo`):
+
+   ```markdown
+   ## Contexto
+   Parte del epic FIN-<x>: leer sus `## Decisiones` antes de proponer. <Por qué surgió, en qué
+   issue apareció o el encargo tal como llegó, y las rutas de archivo que lo muestran.>
+   ## Depende de
+   - FIN-<n> — <qué entrega que esta necesita>
+   ## Criterios de aceptación
+   - [ ] <comportamiento observable, verificable>
+   - [ ] <verificación del repo>
+   ```
+
+   - El `## Contexto` **no copia** las decisiones ni los pedidos del epic: los nombra por su clave.
+     Una decisión que solo afecta a esta tarea sí va, como criterio.
+   - `## Depende de` se omite si no hay dependencias.
+   - El último criterio es la verificación del repo: tests de la capa que toca, `gradlew build` y
+     `bru run` en verde, y si toca endpoints, `contrato-api.md` y `bruno/` al día.
+   - No lleva `## Notas de implementación`: este repo deja las notas en un comentario al cerrar
+     (paso 9).
 2. `& .claude/skills/tareas-jira/md2adf.ps1 -Path <archivo> -OutDir <carpeta>` deja un
    `<clave>.json`. Soporta `## `, `> `, `- [ ]`, `- [x]`, `- `, párrafos, `código`, `**negrita**` y
    URLs; nada más.
-3. `createJiraIssue`: `projectKey: "FIN"`, `issueTypeName`, `summary`, `parent` (clave del epic, si
-   hay), `description` = contenido del `.json`, `contentFormat: "adf"`, `additional_fields` =
+3. `createJiraIssue`: `projectKey: "FIN"`, `issueTypeName`, `summary`, `parent` (clave del epic,
+   **siempre**), `description` = contenido del `.json`, `contentFormat: "adf"`, `additional_fields` =
    `{"components": [{"name": "Backend"}], "priority": {"name": "Medium"}, "labels": [...]}`. Sin
    `transition` queda en `pendiente`; con `transition: {"id": "21"}` y la etiqueta `sprint-actual`,
    en `Por hacer`.
 4. Si depende de otro, `createIssueLink` con `type: "Blocks"`, `inwardIssue` = el que bloquea,
    `outwardIssue` = el nuevo.
 
-Los epics vigentes salen de `project = FIN AND issuetype = Epic AND statusCategory != Done`.
+Los epics vigentes salen de `project = FIN AND issuetype = Epic AND statusCategory != Done` (campos
+`summary` y `labels`).
 
 ## Prohibiciones
 
@@ -332,7 +396,9 @@ Los epics vigentes salen de `project = FIN AND issuetype = Epic AND statusCatego
 - **Nunca** borrar un issue. Lo obsoleto se descarta con el paso 11, que es reversible y localizable.
 - **Nunca** modificar issues distintos del que está en curso. Dos excepciones: crear nuevos, y las
   operaciones de tablero que el usuario pida explícitamente —repriorizar un conjunto, descartar lo
-  obsoleto, reordenar una etapa—, que se ejecutan y se reportan una por una.
+  obsoleto, reordenar las tareas de un tema—, que se ejecutan y se reportan una por una.
+- **Nunca** crear un epic ni editar su descripción: los mantiene `crear-tareas` desde la raíz.
+- **Nunca** crear una tarea sin componente o sin epic (`parent`).
 - **Nunca** escribir en Notion: es histórico de solo lectura.
 - **Nunca** inventar el resultado de una verificación que no se corrió.
 
