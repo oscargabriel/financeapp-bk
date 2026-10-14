@@ -2117,6 +2117,8 @@ Para que el frontend no lo busque:
 - Recuperar o listar las categorías borradas.
 - Consultar un movimiento por su id. Para listarlos está `GET /api/reports/transactions`.
 - Crear movimientos pendientes por otra vía que el asistente.
+- Aprobar o rechazar en una sola petición pendientes elegidos de grupos distintos: hoy se confirma o
+  se descarta un grupo entero, o un pendiente a la vez.
 - Crear metas de gasto.
 - Listar las sesiones abiertas, o cerrarlas todas sin cambiar la contraseña.
 - Revocar el access en el logout: sigue sirviendo hasta vencer, como mucho una hora.
