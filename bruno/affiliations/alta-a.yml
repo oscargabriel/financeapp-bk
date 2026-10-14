@@ -1,0 +1,42 @@
+info:
+  name: Usuario A — alta
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/register"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailAfiliadoA}}",
+        "password": "unaClaveLarga",
+        "firstName": "Ana",
+        "lastName": "Afiliada"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: before-request
+      code: |-
+        const ts = Date.now();
+        ["a", "b", "c", "nadie"].forEach(function (l) {
+          bru.setVar("emailAfiliado" + (l === "nadie" ? "Nadie" : l.toUpperCase()), "afiliados-" + l + "-" + ts + "@bruno.local");
+        });
+        bru.setVar("emailAfiliadoAMayusculas", bru.getVar("emailAfiliadoA").toUpperCase());
+        bru.setVar("emailAfiliadoBMayusculas", bru.getVar("emailAfiliadoB").toUpperCase());
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

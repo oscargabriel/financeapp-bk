@@ -1,0 +1,36 @@
+info:
+  name: A lista la aceptada
+  type: http
+  seq: 33
+
+http:
+  method: GET
+  url: "{{baseUrl}}/affiliations"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: length
+      value: "2"
+  scripts:
+    - type: tests
+      code: |-
+        const a = res.getBody().find(function (x) { return x.id === bru.getVar("idAfiliacion"); });
+
+        test("aceptada, enviada, ahora con el nombre de B", function() {
+          expect(a.status).to.equal("ACCEPTED");
+          expect(a.direction).to.equal("SENT");
+          expect(a.person.email).to.equal(bru.getVar("emailAfiliadoB"));
+          expect(a.person.firstName).to.equal("Beto");
+          expect(a.person.lastName).to.equal("Afiliado");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

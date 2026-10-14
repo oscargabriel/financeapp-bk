@@ -1,0 +1,33 @@
+info:
+  name: Usuario C — alta
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/register"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailAfiliadoC}}",
+        "password": "unaClaveLarga",
+        "firstName": "Carla",
+        "lastName": "Ajena"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

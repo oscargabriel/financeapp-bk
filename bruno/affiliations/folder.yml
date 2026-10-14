@@ -1,0 +1,26 @@
+info:
+  name: Affiliations
+  type: folder
+  seq: 16
+
+request:
+  auth:
+    type: bearer
+    token: "{{tokenAfiliadoA}}"
+
+docs: |
+  # Afiliaciones (FIN-65)
+
+  Corre con tres usuarios que registra en cada corrida: `afiliados-a-`, `afiliados-b-` y
+  `afiliados-c-<timestamp>@bruno.local`, con sus tokens en `tokenAfiliadoA`, `tokenAfiliadoB` y
+  `tokenAfiliadoC`. La carpeta autentica con A; los requests de B y C declaran su token. Usa además
+  un correo que nadie registra, `afiliados-nadie-<timestamp>@bruno.local`, y el usuario desactivado
+  `inactivo@financeapp.local` de `test-data.sql`, que cuenta como correo sin cuenta.
+
+  El recorrido: A le envía a B y al correo sin cuenta; los duplicados, el envío a sí mismo y las
+  acciones que no corresponden dan error; C, que no participa, recibe 404; B rechaza, A vuelve a
+  enviar, B acepta y después desvincula; B vuelve a enviar y cancela; A cancela lo suyo.
+
+  **Termina sin relaciones abiertas**, así que se repite sin recargar datos: cada corrida usa usuarios
+  nuevos, y la única fila que comparte con la anterior es la solicitud a `inactivo@`, que se cancela
+  antes de terminar.

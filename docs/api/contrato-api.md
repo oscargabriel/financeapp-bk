@@ -48,6 +48,12 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | `GET` | `/api/reports/transactions` | Bearer | Movimientos y totales de un rango de días |
 | `GET` | `/api/reports/balance` | Bearer | Ingresos menos gastos de un rango y de siempre, con las cuentas |
 | `POST` | `/api/assistant/messages` | Bearer | Registrar o consultar con un mensaje en lenguaje natural |
+| `GET` | `/api/affiliations` | Bearer | Solicitudes de afiliación abiertas y afiliaciones aceptadas |
+| `POST` | `/api/affiliations` | Bearer | Enviar una solicitud de afiliación a un correo |
+| `POST` | `/api/affiliations/{id}/accept` | Bearer | Aceptar una solicitud recibida |
+| `POST` | `/api/affiliations/{id}/reject` | Bearer | Rechazar una solicitud recibida |
+| `POST` | `/api/affiliations/{id}/cancel` | Bearer | Cancelar una solicitud enviada |
+| `POST` | `/api/affiliations/{id}/unlink` | Bearer | Desvincular una afiliación aceptada |
 
 ## Generalidades
 
@@ -189,9 +195,9 @@ Todos los errores salen con la misma forma:
 | 403 | `REGISTRATION_NOT_ALLOWED` | Alta con un correo que no está en la lista de admitidos (`field`: `email`) |
 | 404 | `NOT_FOUND` | La ruta no existe (con token válido), o el recurso de la ruta no existe o es de otro usuario (`field`: `id`) |
 | 405 | `VALIDATION_ERROR` | Método no soportado en esa ruta (`description`: "La peticion no pudo ser procesada") |
-| 409 | `DUPLICATE_RESOURCE` | Ya existe: correo registrado, o nombre de cuenta o de categoría repetido |
+| 409 | `DUPLICATE_RESOURCE` | Ya existe: correo registrado, nombre de cuenta o de categoría repetido, o una solicitud de afiliación abierta o una afiliación con esa persona (`field`: `email`) |
 | 409 | `RESOURCE_IN_USE` | El cambio dejaría inconsistentes otros datos que usan el recurso: el alcance de una categoría con movimientos que no admitiría (`field`: `appliesTo`), la moneda de una cuenta con movimientos (`field`: `currencyCode`), o borrar una cuenta con saldo (`field`: `currentBalance`) |
-| 409 | `INVALID_STATE` | El recurso no está en el estado que la acción exige: aprobar o rechazar un movimiento ya confirmado (`field`: `status`), o aprobar un pendiente con una cuenta desactivada (`field`: `accountId` o `destinationAccountId`) |
+| 409 | `INVALID_STATE` | El recurso no está en el estado que la acción exige: aprobar o rechazar un movimiento ya confirmado (`field`: `status`), o aprobar un pendiente con una cuenta desactivada (`field`: `accountId` o `destinationAccountId`), o una acción sobre una afiliación que no corresponde a su estado o al papel del usuario (`field`: `status`) |
 | 409 | `INSUFFICIENT_FUNDS` | La petición dejaría por debajo de cero el saldo de una cuenta que no es de crédito. Ver [Saldo no negativo](#saldo-no-negativo) |
 | 413 | `PAYLOAD_TOO_LARGE` | El cuerpo pasa de 1 MB |
 | 500 | `INTERNAL_SERVER_ERROR` | Error inesperado. Nunca trae detalle técnico |
@@ -1951,6 +1957,94 @@ no se compara: para decidir se usa `intent`.
 | 401 | `UNAUTHENTICATED` | `authorization` | Sin token, token inválido o la credencial Basic |
 | 502 | `EXTERNAL_SERVICE_ERROR` | `server` | El modelo falló o no respondió a tiempo. No se registró nada: se puede reintentar |
 
+### Afiliaciones
+
+Dos personas registradas se afilian para compartir gastos (FIN-65, epic FIN-9). Una envía una
+**solicitud** a un correo, la otra la acepta o la rechaza, y cualquiera de las dos desvincula una
+afiliación aceptada. Las seis rutas son **Bearer**.
+
+| Método | Ruta | Respuesta | Quién |
+|---|---|---|---|
+| `GET` | `/api/affiliations` | 200 con la lista | — |
+| `POST` | `/api/affiliations` | 201 con la relación | — |
+| `POST` | `/api/affiliations/{id}/accept` | 200 con la relación | Quien la recibió, mientras sigue `REQUESTED` |
+| `POST` | `/api/affiliations/{id}/reject` | 204 | Quien la recibió, mientras sigue `REQUESTED` |
+| `POST` | `/api/affiliations/{id}/cancel` | 204 | Quien la envió, mientras sigue `REQUESTED` |
+| `POST` | `/api/affiliations/{id}/unlink` | 204 | Cualquiera de los dos, sobre una `ACCEPTED` |
+
+Las cuatro acciones van sin cuerpo.
+
+**Estados.** `REQUESTED` y `ACCEPTED` son las abiertas. `REJECTED`, `CANCELLED` y `UNLINKED` la cierran:
+la relación deja de salir en el listado, y entre las mismas personas se puede enviar una solicitud
+nueva, en cualquier sentido. La nueva es otra relación, con otro `id`.
+
+**El API no revela qué correos tienen cuenta.** Una solicitud a un correo sin usuario —o de un usuario
+desactivado— responde igual que a uno registrado: 201 con la misma forma. Nadie la recibe, aunque la
+persona se registre después, y quien la envió la puede cancelar. Por lo mismo, una solicitud enviada
+que no está aceptada nunca trae el nombre de la otra persona.
+
+**Desvincular** solo cierra la afiliación: no cambia movimientos ni partes compartidas entre los dos.
+Compartir con una persona exige una afiliación `ACCEPTED`.
+
+#### `GET /api/affiliations`
+
+**200 OK** con las relaciones abiertas en las que participa el usuario, enviadas o recibidas, de la
+más reciente a la más antigua por `createdAt`. Sin relaciones, `[]`.
+
+```json
+[
+  {
+    "id": "0199e1a2-3c4d-7e5f-8a9b-0c1d2e3f4a5b",
+    "status": "REQUESTED",
+    "direction": "RECEIVED",
+    "person": { "email": "laura@correo.com", "firstName": "Laura", "lastName": "Pérez" },
+    "createdAt": "2026-10-13T15:00:00Z",
+    "updatedAt": "2026-10-13T15:00:00Z"
+  }
+]
+```
+
+- `direction` es `SENT` si la envió el usuario y `RECEIVED` si la recibió.
+- `person` es la otra persona:
+
+| Relación | `person.email` | `firstName` y `lastName` |
+|---|---|---|
+| Enviada, `REQUESTED` | El correo escrito, normalizado | `null`, tenga o no cuenta |
+| Recibida, `REQUESTED` | El correo actual de quien la envió | Los de quien la envió (`lastName` puede ser `null`) |
+| `ACCEPTED`, en cualquier sentido | El correo actual de la otra persona | Los de la otra persona |
+
+#### `POST /api/affiliations`
+
+```json
+{ "email": "laura@correo.com" }
+```
+
+| Campo | Tipo | Obligatorio | Reglas |
+|---|---|---|---|
+| `email` | string | sí | Formato de correo, hasta 255 caracteres. Se normaliza como en el registro: sin espacios alrededor y en minúsculas |
+
+**201 Created** con la relación, con `"status": "REQUESTED"`, `"direction": "SENT"` y `person` con el
+correo normalizado y el nombre en `null`.
+
+#### `POST /api/affiliations/{id}/accept`
+
+**200 OK** con la relación, ya `ACCEPTED` y con el nombre de quien la envió.
+
+#### Errores
+
+| HTTP | `code` | `field` | Cuándo |
+|---|---|---|---|
+| 400 | `VALIDATION_ERROR` | `email` | Solo al enviar: el correo falta, está en blanco, no tiene formato de correo o es el del propio usuario |
+| 400 | `JSON_PARSING_ERROR` | `body` | Solo al enviar: el cuerpo no es JSON válido |
+| 400 | `VALIDATION_ERROR` | `id` | El id de la ruta no es un UUID |
+| 401 | `UNAUTHENTICATED` | `authorization` | Sin token, token inválido o la credencial Basic |
+| 404 | `NOT_FOUND` | `id` | La relación no existe o el usuario no participa en ella: la respuesta es la misma |
+| 409 | `DUPLICATE_RESOURCE` | `email` | Solo al enviar: ya hay con esa persona una solicitud abierta, en cualquier sentido, o una afiliación aceptada. No se crea nada |
+| 409 | `INVALID_STATE` | `status` | El usuario participa, pero la acción no corresponde a su papel o al estado: aceptar la que envió, cancelar la que recibió, aceptar una ya aceptada, desvincular una sin aceptar. No cambia nada |
+
+El 409 `DUPLICATE_RESOURCE` solo mira las relaciones que el usuario ya ve en su listado, así que
+tampoco revela si el correo tiene cuenta.
+
 ## CORS
 
 El servicio acepta los orígenes que declare su configuración (`CORS_ALLOWED_ORIGINS`). Mientras no
@@ -1977,3 +2071,4 @@ Para que el frontend no lo busque:
 - Cambiar el monto, el número de cuotas, la tarjeta o la fecha de una compra en cuotas, o recalcular
   sus cuotas si cambian los datos de la tarjeta. Tampoco valida que la compra quepa en el cupo.
 - Listar las cuotas de una compra: se filtran por `installment.purchaseId` en `reports/transactions`.
+- Listar las solicitudes de afiliación rechazadas, canceladas o desvinculadas.

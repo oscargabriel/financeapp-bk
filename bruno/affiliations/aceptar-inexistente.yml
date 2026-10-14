@@ -1,0 +1,29 @@
+info:
+  name: Aceptar una inexistente
+  type: http
+  seq: 25
+
+http:
+  method: POST
+  url: "{{baseUrl}}/affiliations/0199a1b2-3c4d-7e5f-8a9b-0c1d2e3f4a5b/accept"
+  auth:
+    type: bearer
+    token: "{{tokenAfiliadoB}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "404"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: NOT_FOUND
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: id
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

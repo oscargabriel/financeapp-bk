@@ -1,0 +1,50 @@
+info:
+  name: Enviar a B
+  type: http
+  seq: 8
+
+http:
+  method: POST
+  url: "{{baseUrl}}/affiliations"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "  {{emailAfiliadoBMayusculas}} "
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        const r = res.getBody();
+
+        test("devuelve el contrato de la relacion", function() {
+          expect(r).to.have.all.keys("id", "status", "direction", "person", "createdAt", "updatedAt");
+          expect(r.person).to.have.all.keys("email", "firstName", "lastName");
+        });
+
+        test("enviada, abierta y sin el nombre de la otra persona", function() {
+          expect(r.status).to.equal("REQUESTED");
+          expect(r.direction).to.equal("SENT");
+          expect(r.person.email).to.equal(bru.getVar("emailAfiliadoB"));
+          expect(r.person.firstName).to.equal(null);
+          expect(r.person.lastName).to.equal(null);
+        });
+
+        bru.setVar("idAfiliacion", r.id);
+        bru.setVar("idRechazada", r.id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  El correo va en mayusculas y con espacios: se guarda normalizado, como en el registro.
