@@ -17,7 +17,7 @@ erDiagram
     users           ||--o{ categories     : personaliza
     users           ||--o{ transactions   : registra
     users           ||--o{ budgets        : define
-    accounts        ||--o{ transactions   : origen
+    accounts        |o--o{ transactions   : "origen (un pendiente puede no tenerla)"
     accounts        ||--o{ transactions   : destino
     categories      ||--o{ transactions   : clasifica
     users           ||--o{ recurrences    : programa
@@ -31,6 +31,14 @@ erDiagram
     categories      ||--o{ budgets        : "tope por categoría"
     default_categories ..|| categories    : "se copia al registrarse"
     users           ||--o{ refresh_tokens : "sesiones de"
+    users           ||--o{ affiliations   : solicita
+    users           |o--o{ affiliations   : recibe
+    users           ||--o{ expense_shares : "paga"
+    users           ||--o{ expense_shares : "debe"
+    currencies      ||--o{ expense_shares : denomina
+    transactions    |o--o{ expense_shares : "parte de"
+    expense_shares  |o--o{ transactions   : "pendiente de"
+    users           |o--o{ transactions   : "compartido por"
 
     users {
         uuid id PK
@@ -96,6 +104,29 @@ erDiagram
         uuid installment_purchase_id FK
         smallint installment_number
         numeric installment_principal
+        uuid shared_by_user_id FK
+        uuid share_id FK
+    }
+
+    affiliations {
+        uuid id PK
+        uuid requester_id FK
+        varchar addressee_email
+        uuid addressee_id FK
+        varchar status
+    }
+
+    expense_shares {
+        uuid id PK
+        uuid source_transaction_id FK
+        uuid payer_id FK
+        uuid debtor_id FK
+        numeric amount
+        char currency_code FK
+        varchar description
+        timestamptz occurred_at
+        varchar status
+        timestamptz resolved_at
     }
 
     recurrences {
@@ -211,9 +242,9 @@ trigger `trg_accounts_seed_balance` al crear la cuenta.
 
 ### Movimientos pendientes
 
-`transactions.status` vale `CONFIRMED` (el default) o `PENDING`, y lo pone el
-asistente de IA (FA-76). Un pendiente no tiene efecto hasta que el usuario lo
-aprueba:
+`transactions.status` vale `CONFIRMED` (el default) o `PENDING`. Hoy lo ponen el
+asistente de IA (FA-76) y el alta en otra moneda (FA-51), y el esquema no lo ata
+a ningún origen. Un pendiente no tiene efecto hasta que el usuario lo aprueba:
 
 - el trigger de saldos lo ignora;
 - aprobarlo es un `UPDATE` a `CONFIRMED`, y ahí el trigger aplica la fila;
@@ -223,6 +254,16 @@ Las vistas de gasto mensual, el reporte de movimientos y la consulta de saldo
 filtran `status = 'CONFIRMED'`. Un pendiente sí cuenta como referencia: la FK
 impide borrar la cuenta o la categoría que usa. El porqué está en el `design.md`
 de `openspec/changes/archive/2026-10-08-fa-76-movimientos-pendientes/`.
+
+**Un pendiente que no es transferencia puede no tener cuenta ni categoría**
+(FIN-16): quien lo aprueba las elige, y el `UPDATE` que lo confirma las pone.
+Lo garantizan dos `CHECK`. `ck_transactions_account` exige cuenta a todo
+`CONFIRMED`, y `ck_transactions_shape` exige categoría a todo gasto o ingreso
+confirmado y cuenta a toda transferencia. La transferencia nombra la cuenta de
+forma explícita porque, con la columna nullable, `destination_account_id <>
+account_id` daría `NULL`, y un `CHECK` con `NULL` pasa. Todo código que lea
+pendientes tiene que tolerar `account_id` y `category_id` nulos. La primera fila
+así la crea FIN-66, con las partes compartidas (ver *Finanzas compartidas*).
 
 ### Movimientos programados
 
@@ -271,6 +312,58 @@ programadas hasta su fecha como cualquier otro movimiento futuro.
   la vez no duplican nada.
 - Cancelar borra las ocurrencias futuras y marca `status = 'CANCELLED'`. La fila
   se conserva por las ocurrencias pasadas que la referencian.
+
+### Finanzas compartidas
+
+Dos personas registradas se afilian y comparten gastos y transferencias (FIN-16,
+epic FIN-9). Las decisiones de producto están en el epic, y el porqué del modelo
+en el `design.md` del change `fin-16-modelo-finanzas-compartidas`.
+
+**`affiliations`** guarda una fila por solicitud. Su `status` es `REQUESTED` o
+`ACCEPTED` mientras está abierta, y `REJECTED`, `CANCELLED` o `UNLINKED` al
+cerrarse. Después de cerrarse se puede enviar otra, que es otra fila.
+
+- `addressee_email` es el correo escrito, normalizado. `addressee_id` solo se
+  llena si ese correo tenía cuenta al enviarla. Una solicitud sin destinatario
+  no la recibe nadie, aunque la persona se registre después, y solo puede quedar
+  abierta o cancelada (`ck_affiliations_unknown`).
+- `ux_affiliations_open_pair` impide dos relaciones abiertas entre los mismos
+  dos usuarios, en cualquier sentido, sobre `LEAST`/`GREATEST` de los dos ids.
+  Filtra `addressee_id IS NOT NULL` porque `LEAST` y `GREATEST` ignoran los
+  `NULL`: sin el filtro, dos solicitudes a correos no registrados distintos
+  chocarían. `ux_affiliations_open_email` impide repetir una solicitud abierta
+  al mismo correo.
+
+**`expense_shares`** guarda las partes de un gasto compartido: quién pagó
+(`payer_id`), quién debe (`debtor_id`), el monto y la moneda del gasto de quien
+pagó, y el estado: `PENDING` es deuda abierta, y `PAID`, `REJECTED` y `VOIDED`
+la cierran, con `resolved_at`.
+
+- La deuda entre dos personas es la suma de sus partes `PENDING`, por moneda.
+- La parte copia la descripción y la fecha del gasto. Borrar el gasto deja
+  `source_transaction_id` en `NULL` y la parte pagada intacta. Anular las
+  pendientes (`VOIDED`) lo hace la aplicación en la misma transacción.
+
+Dos columnas de `transactions` conectan los movimientos de cada persona:
+
+| Movimiento | `user_id` | `shared_by_user_id` | `share_id` |
+|---|---|---|---|
+| Gasto de quien pagó (el total) | quien pagó | — | — |
+| Gasto pendiente de quien debe | quien debe | quien pagó | la parte |
+| Ingreso pendiente de quien pagó, al aprobarse la parte | quien pagó | quien debe | la parte |
+| Ingreso pendiente del destinatario de una transferencia compartida | destinatario | quien transfirió | — |
+
+Las dos FK son `ON DELETE SET NULL`, y no `CASCADE` ni `NO ACTION`: borrar a un
+usuario no se lleva los movimientos del otro, y borrar un gasto compartido está
+permitido. Las afiliaciones y las partes sí se van en cascada con el usuario.
+
+La base no hace cumplir las reglas que dependen de otras filas. Las hace cumplir
+la aplicación (FIN-65 y FIN-66), igual que el saldo no negativo del alta en lote:
+
+- que la suma de las partes no supere el total;
+- que solo se comparta con un afiliado vigente;
+- que un gasto con partes pendientes no se edite;
+- las transiciones de estado.
 
 ### El signo lo da el tipo, nunca el monto
 
@@ -709,5 +802,4 @@ en cada entorno. Los adapters siguen calificando `finance.` en el SQL.
 
 - Préstamos, dinero bloqueado y dinero de terceros: no son saldo líquido y
   necesitan su propia tabla, no una cuenta más.
-- Personas afiliadas y finanzas compartidas entre usuarios.
 - Carga automática de tasas de cambio (`exchange_rates.source = 'API'`).
