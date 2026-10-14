@@ -1,0 +1,24 @@
+info:
+  name: Listar al final
+  type: http
+  seq: 44
+
+http:
+  method: GET
+  url: "{{baseUrl}}/affiliations"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: length
+      value: "0"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

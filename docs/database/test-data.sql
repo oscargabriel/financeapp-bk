@@ -61,9 +61,10 @@ DELETE FROM finance.users
 -- Los requests de alta de bruno/ crean un usuario nuevo en cada corrida: auth/ con el correo
 -- registro-<timestamp>@bruno.local, monthly-spending/ con sin-datos-<timestamp>@bruno.local,
 -- categories/ con categorias-<timestamp>@bruno.local, accounts/ con cuentas-<timestamp>@bruno.local,
--- transactions/ con transacciones-<timestamp>@bruno.local y reports/ con reportes-<timestamp>@bruno.local
--- y usd-<timestamp>@bruno.local.
--- Sus cuentas y movimientos caen en cascada.
+-- transactions/ con transacciones-<timestamp>@bruno.local, reports/ con reportes-<timestamp>@bruno.local
+-- y usd-<timestamp>@bruno.local, y affiliations/ con afiliados-a-, afiliados-b- y
+-- afiliados-c-<timestamp>@bruno.local.
+-- Sus cuentas, movimientos y afiliaciones caen en cascada.
 -- Recargar este escenario es lo que los limpia.
 DELETE FROM finance.users WHERE email LIKE '%@bruno.local';
 

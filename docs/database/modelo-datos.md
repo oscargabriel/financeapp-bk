@@ -363,7 +363,9 @@ la aplicación (FIN-65 y FIN-66), igual que el saldo no negativo del alta en lot
 - que la suma de las partes no supere el total;
 - que solo se comparta con un afiliado vigente;
 - que un gasto con partes pendientes no se edite;
-- las transiciones de estado.
+- las transiciones de estado. Las de `affiliations` las hace `/api/affiliations`
+  (FIN-65): cada una con un `UPDATE` condicionado al estado leído, y sin
+  borrar nunca la fila.
 
 ### El signo lo da el tipo, nunca el monto
 

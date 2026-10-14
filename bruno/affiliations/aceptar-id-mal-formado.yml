@@ -1,0 +1,29 @@
+info:
+  name: Aceptar con id mal formado
+  type: http
+  seq: 26
+
+http:
+  method: POST
+  url: "{{baseUrl}}/affiliations/abc/accept"
+  auth:
+    type: bearer
+    token: "{{tokenAfiliadoB}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: id
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

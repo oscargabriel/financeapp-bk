@@ -1,0 +1,40 @@
+info:
+  name: B acepta
+  type: http
+  seq: 30
+
+http:
+  method: POST
+  url: "{{baseUrl}}/affiliations/{{idAfiliacion}}/accept"
+  auth:
+    type: bearer
+    token: "{{tokenAfiliadoB}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const r = res.getBody();
+
+        test("devuelve el contrato de la relacion", function() {
+          expect(r).to.have.all.keys("id", "status", "direction", "person", "createdAt", "updatedAt");
+          expect(r.person).to.have.all.keys("email", "firstName", "lastName");
+        });
+
+        test("aceptada, recibida, con los datos de A", function() {
+          expect(r.id).to.equal(bru.getVar("idAfiliacion"));
+          expect(r.status).to.equal("ACCEPTED");
+          expect(r.direction).to.equal("RECEIVED");
+          expect(r.person.email).to.equal(bru.getVar("emailAfiliadoA"));
+          expect(r.person.firstName).to.equal("Ana");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

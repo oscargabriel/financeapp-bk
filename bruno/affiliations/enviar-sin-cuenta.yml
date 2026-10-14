@@ -1,0 +1,49 @@
+info:
+  name: Enviar a un correo sin cuenta
+  type: http
+  seq: 9
+
+http:
+  method: POST
+  url: "{{baseUrl}}/affiliations"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailAfiliadoNadie}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        const r = res.getBody();
+
+        test("devuelve el contrato de la relacion", function() {
+          expect(r).to.have.all.keys("id", "status", "direction", "person", "createdAt", "updatedAt");
+          expect(r.person).to.have.all.keys("email", "firstName", "lastName");
+        });
+
+        test("enviada, abierta y sin el nombre de la otra persona", function() {
+          expect(r.status).to.equal("REQUESTED");
+          expect(r.direction).to.equal("SENT");
+          expect(r.person.email).to.equal(bru.getVar("emailAfiliadoNadie"));
+          expect(r.person.firstName).to.equal(null);
+          expect(r.person.lastName).to.equal(null);
+        });
+
+        bru.setVar("idSinCuenta", r.id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  Misma respuesta que a un correo registrado: el API no revela que correos tienen cuenta.
