@@ -48,6 +48,13 @@ a mano sin esa variable, esa carpeta falla. Lo mismo con `TASAS_PROVEEDOR=stub` 
 `bruno/exchange-rates/` recibe tasas fijas en vez de las de ExchangeRate-API. Ninguno de los dos
 stubs existe con el perfil `prod`.
 
+`bru` sale en 0 aunque descarte un archivo de la colección que no puede leer, y lo cuenta solo como
+«Skipped». Así dos requests de `bruno/assistant/` dejaron de correr sin aviso desde FIN-58. Por eso
+el script lee el reporte JSON de `bru` (`build/verificar-bruno/bru-resultados.json`, sin cabeceras ni
+cuerpos) y, si algún request quedó omitido, nombra cada archivo con su error y sale con **código 5**,
+aunque Bruno haya pasado (FIN-85). Pasa lo mismo si el reporte no aparece. `bru` carga la colección
+entera, así que un archivo roto en cualquier carpeta hace fallar también una corrida con `-Objetivo`.
+
 Después de la colección, el script corre `docs/database/check-saldos.sql` (FA-29). Ese script
 compara el `current_balance` de **todas** las cuentas con el que sale de sus movimientos
 confirmados: el trigger que lo mantiene no tiene cobertura en Gradle, y el alta en lote lo dispara N

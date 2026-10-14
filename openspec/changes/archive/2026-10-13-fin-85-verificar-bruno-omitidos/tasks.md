@@ -1,0 +1,14 @@
+## 1. `verificar-bruno.ps1` falla con requests omitidos
+
+Skills: `bruno-cli`. Ninguna de dominio Java: el change no toca código de `src/`.
+
+- [x] 1.1 RED: con un request inválido de prueba en `bruno/` (un `value:` sin comillas que empieza por `[`, como el de FIN-84), `verificar-bruno.ps1 -Objetivo system -RecargarDatos` sale con 0 y `bru` reporta el archivo como «Skipped». Se verifica con la salida de la corrida y `$LASTEXITCODE`. El archivo de prueba se borra al terminar 1.4 y no entra en el commit — con `-Puerto 8081` (el 8080 lo ocupaba otra app): `5 (4 Passed, 1 Skipped)`, «Status ✓ PASS», `EXIT=0`
+- [x] 1.2 El script pasa `--reporter-json build/verificar-bruno/bru-resultados.json` con `--reporter-skip-all-headers` y `--reporter-skip-body` (borra antes el reporte de la corrida anterior), lee los resultados con `skipped: true` de todas las iteraciones, imprime en rojo cada `path` con su `error`, y si `bru` salió en 0 asigna el código 5. Si `bru` salió en 0 y el reporte no existe o no trae `results`, también sale con 5. El 5 se asigna antes de los saldos, así que tiene prioridad sobre el 4. Se verifica con 1.4 — además, `Omitidos` probada aislada: `$null` sin archivo y con un JSON sin `results`, lista vacía (no `$null`) sin omitidos, y 1 omitido en el reporte real
+- [x] 1.3 El código 5 queda en el encabezado del script, en `AGENTS.md` (sección *Comandos*, junto al código 4) y en `.claude/skills/verificar/SKILL.md`, cuyo párrafo de códigos se corrige para listar también el 4. Se verifica con `git diff` de los tres archivos — encabezado del script, párrafo nuevo antes del de `check-saldos.sql` en `AGENTS.md`, párrafo de códigos de `verificar` con el 4 y el 5
+- [x] 1.4 GREEN: con el mismo request de prueba, `verificar-bruno.ps1 -Objetivo system -RecargarDatos` sale con 5 y nombra el archivo y su error. Sin el archivo, sale con 0. Se verifica con la salida de las dos corridas y `$LASTEXITCODE` — con el archivo: «bru omitio 1 request(s)… system\zz-invalido-fin85.yml: Unexpected scalar at node end at line 15, column 17», `EXIT=5`; sin él: `EXIT=0`
+- [x] 1.5 El reporte JSON no trae cabeceras ni cuerpos. Se verifica buscando en `build/verificar-bruno/bru-resultados.json` — 0 JWT (`eyJ`), 0 credenciales `Basic …`, todas las `headers` vacías o `null`; las únicas coincidencias de `Bearer` son el nombre del request `status-con-bearer`
+
+## 2. Verificación
+
+- [x] 2.1 `.\gradlew.bat build` en verde, con el conteo real de tests — con `--rerun-tasks`: 1431 tests, 0 fallos, 0 errores, 0 omitidos; cobertura de línea 98,5 %
+- [x] 2.2 `pwsh -NoProfile -File .claude/scripts/verificar-bruno.ps1 -RecargarDatos` en verde (código 0), con los requests, tests y assertions reales, sin ningún «Skipped», y las cuentas cuadradas — con `-Puerto 8081`: 882 requests (882 Passed, ninguno omitido), 629/629 tests, 1724/1724 assertions; las 68 cuentas cuadran; `EXIT=0`
