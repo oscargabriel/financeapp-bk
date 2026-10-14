@@ -13,8 +13,9 @@ param(
 # Corre bruno/ contra la app de esta rama y la base local de pruebas, nunca contra otra (FA-61).
 # Valida antes de tocar nada: puerto libre y conexion R2DBC del perfil local apuntando a localhost
 # y a financeapp, resuelta con las variables de la terminal. Levanta la app sin esas variables, corre
-# bru, comprueba que los saldos cuadren (FA-29) y la apaga siempre. Codigos: 0 verde, 2 validacion,
-# 3 arranque, 4 saldos descuadrados con bru en verde, otro = el de bru.
+# bru, comprueba que no haya omitido requests (FIN-85) y que los saldos cuadren (FA-29), y la apaga
+# siempre. Codigos: 0 verde, 2 validacion, 3 arranque, 4 saldos descuadrados con bru en verde,
+# 5 requests omitidos (o sin reporte de bru para saberlo) con bru en verde, otro = el de bru.
 $ErrorActionPreference = 'Stop'
 
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
@@ -135,6 +136,15 @@ function PsqlLocal([string]$script) {
     }
 }
 
+# Los resultados con skipped del reporte JSON de bru, o $null si no hay reporte que leer. bru sale en 0
+# aunque descarte un archivo que no puede leer, y asi dos requests dejaron de correr sin aviso (FIN-85).
+function Omitidos([string]$reporte) {
+    if (-not (Test-Path $reporte)) { return $null }
+    $iteraciones = @(Get-Content $reporte -Raw | ConvertFrom-Json)
+    if (-not ($iteraciones | Where-Object { $_.PSObject.Properties['results'] })) { return $null }
+    , @($iteraciones | ForEach-Object { $_.results } | Where-Object { $_.skipped })
+}
+
 # 3. Datos.
 if ($RecargarDatos) {
     if ((PsqlLocal 'test-data.sql') -ne 0) { Detener 3 'la recarga de test-data.sql fallo.' }
@@ -175,13 +185,33 @@ try {
     }
     Write-Host "App arriba (PID $app, log en $log)."
 
+    # Sin cabeceras ni cuerpos: el reporte solo sirve para contar omitidos, y asi no guarda los JWT.
+    $reporte = Join-Path $carpetaLog 'bru-resultados.json'
+    Remove-Item $reporte -Force -ErrorAction SilentlyContinue
     Push-Location (Join-Path $repo 'bruno')
     try {
         $extra = @(@($variablesPuerto) + @($Variables) | Where-Object { $_ } | ForEach-Object { '--env-var', $_ })
-        & $bru.Source run $Objetivo -r --env local @extra
+        & $bru.Source run $Objetivo -r --env local --reporter-json $reporte --reporter-skip-all-headers `
+            --reporter-skip-body @extra
         $codigo = $LASTEXITCODE
     } finally {
         Pop-Location
+    }
+
+    # Antes que los saldos: con omitidos bru no esta en verde, y el 4 es para saldos con bru en verde.
+    $omitidos = Omitidos $reporte
+    if ($null -eq $omitidos) {
+        if ($codigo -eq 0) {
+            Write-Host "No se pudo leer el reporte de bru ($reporte): no se sabe si omitio requests." -ForegroundColor Red
+            $codigo = 5
+        }
+    } elseif ($omitidos.Count -gt 0) {
+        Write-Host "bru omitio $($omitidos.Count) request(s), que no se verificaron:" -ForegroundColor Red
+        foreach ($omitido in $omitidos) {
+            $motivo = if ($omitido.error) { ($omitido.error -split '\r?\n')[0] } else { 'saltado por un script' }
+            Write-Host "  $($omitido.path): $motivo" -ForegroundColor Red
+        }
+        if ($codigo -eq 0) { $codigo = 5 }
     }
 
     # 5. Saldos (FA-29): el trigger que los mantiene no tiene cobertura en Gradle. Corre aunque bru haya

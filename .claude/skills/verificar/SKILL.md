@@ -53,9 +53,13 @@ escenario ya está recién cargado. `-Objetivo transactions` corre una sola carp
 `nombre=valor` llega a `bru` como `--env-var`.
 
 Código 3: la app no arrancó, arrancó en otro puerto que el validado o no se pudo apagar, y el
-script muestra el final del log o el puerto en que quedó. Cualquier
-otro código distinto de 0 es el de `bru`. Si `bru` no está en el PATH (FA-39) o la app no levanta,
-es un bloqueo que se reporta, no un paso que se omite.
+script muestra el final del log o el puerto en que quedó. Los códigos 4 y 5 solo salen con `bru` en
+verde: 4, cuentas con el saldo descuadrado (`check-saldos.sql`); 5, `bru` omitió requests, casi
+siempre un archivo de `bruno/` que no pudo leer, y el script los nombra con su error (FIN-85). El 5
+también sale si `bru` no dejó su reporte JSON. Un request omitido es un escenario sin verificar:
+se corrige el archivo, no se reporta como verde. Cualquier otro código distinto de 0 es el de
+`bru`. Si `bru` no está en el PATH (FA-39) o la app no levanta, es un bloqueo que se reporta, no un
+paso que se omite.
 
 ## 3. Reportar
 
