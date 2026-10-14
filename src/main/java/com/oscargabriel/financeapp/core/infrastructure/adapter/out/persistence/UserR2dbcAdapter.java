@@ -36,9 +36,41 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
      * token para una cuenta desactivada por haberse olvidado una condicion aguas arriba.
      */
     private static final String CREDENCIALES_ACTIVAS = """
-            SELECT id, password_hash, token_version
+            SELECT id, password_hash, token_version, google_sub
               FROM finance.users
              WHERE lower(email) = lower(:email)
+               AND deleted_at IS NULL
+               AND is_active
+            """;
+
+    /** Mismo filtro que CREDENCIALES_ACTIVAS, por la cuenta Google vinculada (FIN-52). */
+    private static final String CREDENCIALES_GOOGLE_ACTIVAS = """
+            SELECT id, password_hash, token_version, google_sub
+              FROM finance.users
+             WHERE google_sub = :googleSub
+               AND deleted_at IS NULL
+               AND is_active
+            """;
+
+    /** Mismo criterio que ux_users_google_sub: solo entre los no borrados. */
+    private static final String EXISTE_GOOGLE = """
+            SELECT EXISTS (
+                SELECT 1
+                  FROM finance.users
+                 WHERE google_sub = :googleSub
+                   AND deleted_at IS NULL
+            )
+            """;
+
+    /**
+     * google_sub IS NULL en el WHERE: si otra peticion vinculo entre la lectura y este UPDATE, no lo
+     * pisa y no actualiza ninguna fila.
+     */
+    private static final String VINCULAR_GOOGLE = """
+            UPDATE finance.users
+               SET google_sub = :googleSub
+             WHERE id = :id
+               AND google_sub IS NULL
                AND deleted_at IS NULL
                AND is_active
             """;
@@ -52,8 +84,12 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
                AND is_active
             """;
 
+    /**
+     * Un usuario registrado con Google no tiene hash: el texto vacio no coincide con ninguna contrasena
+     * y evita un nulo en el mapeo (design.md de FIN-52, decision 7, hasta FIN-53).
+     */
     private static final String HASH_ACTIVO = """
-            SELECT password_hash
+            SELECT coalesce(password_hash, '') AS password_hash
               FROM finance.users
              WHERE id = :id
                AND deleted_at IS NULL
@@ -101,8 +137,10 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
 
     private static final String INSERTAR_USUARIO = """
             INSERT INTO finance.users
-                   (id, email, password_hash, first_name, last_name, phone, base_currency_code, timezone)
-            VALUES (:id, :email, :passwordHash, :firstName, :lastName, :phone, :baseCurrencyCode, :timezone)
+                   (id, email, password_hash, first_name, last_name, phone, base_currency_code, timezone,
+                    google_sub)
+            VALUES (:id, :email, :passwordHash, :firstName, :lastName, :phone, :baseCurrencyCode, :timezone,
+                    :googleSub)
             """;
 
     /**
@@ -138,11 +176,47 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
     public Mono<UserCredentials> findActiveByEmail(String email) {
         return databaseClient.sql(CREDENCIALES_ACTIVAS)
                 .bind("email", email)
-                .map((row, metadata) -> new UserCredentials(
-                        row.get("id", UUID.class),
-                        row.get("password_hash", String.class),
-                        row.get("token_version", Integer.class)))
+                .map((row, metadata) -> credenciales(row))
                 .one();
+    }
+
+    @Override
+    public Mono<UserCredentials> findActiveByGoogleSub(String googleSub) {
+        return databaseClient.sql(CREDENCIALES_GOOGLE_ACTIVAS)
+                .bind("googleSub", googleSub)
+                .map((row, metadata) -> credenciales(row))
+                .one();
+    }
+
+    @Override
+    public Mono<Boolean> existsByGoogleSub(String googleSub) {
+        return databaseClient.sql(EXISTE_GOOGLE)
+                .bind("googleSub", googleSub)
+                .map((row, metadata) -> row.get(0, Boolean.class))
+                .one();
+    }
+
+    /**
+     * Un sub que otro usuario tomo entre la busqueda y el UPDATE choca con ux_users_google_sub: para
+     * el caso de uso es lo mismo que no haber podido vincular.
+     */
+    @Override
+    public Mono<Boolean> linkGoogle(UUID id, String googleSub) {
+        return databaseClient.sql(VINCULAR_GOOGLE)
+                .bind("id", id)
+                .bind("googleSub", googleSub)
+                .fetch()
+                .rowsUpdated()
+                .map(filas -> filas > 0)
+                .onErrorResume(DataIntegrityViolationException.class, e -> Mono.just(false));
+    }
+
+    private static UserCredentials credenciales(Row row) {
+        return new UserCredentials(
+                row.get("id", UUID.class),
+                row.get("password_hash", String.class),
+                row.get("token_version", Integer.class),
+                row.get("google_sub", String.class));
     }
 
     @Override
@@ -219,13 +293,14 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
         DatabaseClient.GenericExecuteSpec sentencia = databaseClient.sql(INSERTAR_USUARIO)
                 .bind("id", user.id())
                 .bind("email", user.email())
-                .bind("passwordHash", user.passwordHash())
                 .bind("firstName", user.firstName())
                 .bind("baseCurrencyCode", user.baseCurrencyCode())
                 .bind("timezone", user.timezone());
 
+        sentencia = bindOpcional(sentencia, "passwordHash", user.passwordHash());
         sentencia = bindOpcional(sentencia, "lastName", user.lastName());
         sentencia = bindOpcional(sentencia, "phone", user.phone());
+        sentencia = bindOpcional(sentencia, "googleSub", user.googleSub());
 
         return sentencia.fetch().rowsUpdated();
     }

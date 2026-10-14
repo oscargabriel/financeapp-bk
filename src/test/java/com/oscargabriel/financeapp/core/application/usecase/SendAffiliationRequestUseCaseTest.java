@@ -118,7 +118,7 @@ class SendAffiliationRequestUseCaseTest {
     }
 
     private void conCuenta(UUID id) {
-        when(usuarios.findActiveByEmail(CORREO_DESTINATARIO)).thenReturn(Mono.just(new UserCredentials(id, "hash", 0)));
+        when(usuarios.findActiveByEmail(CORREO_DESTINATARIO)).thenReturn(Mono.just(new UserCredentials(id, "hash", 0, null)));
     }
 
     private Affiliation guardada() {

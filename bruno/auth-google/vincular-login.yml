@@ -1,0 +1,42 @@
+info:
+  name: Login con Google que vincula la cuenta
+  type: http
+  seq: 29
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/google/login"
+  body:
+    type: json
+    data: |-
+      {
+        "idToken": "{{tokenVincular}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.tokenType
+      operator: eq
+      value: Bearer
+  scripts:
+    - type: tests
+      code: |-
+        test("guarda el access para cambiar el correo", function() {
+          bru.setVar("accessVincular", res.getBody().accessToken);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Vinculacion automatica
+
+  El usuario de `Alta con contrasena para vincular` no tiene Google: la primera entrada con un token
+  de su mismo correo le asocia el `sub`.

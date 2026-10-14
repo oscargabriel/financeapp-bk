@@ -1,0 +1,33 @@
+info:
+  name: Registro con Google sin zona
+  type: http
+  seq: 4
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/google/register"
+  body:
+    type: json
+    data: |-
+      {
+        "idToken": "stub|g-sin-zona-{{tsGoogle}}|sin-zona-{{tsGoogle}}@bruno.local|Bruno|Sin Zona"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        test("guarda el access para leer el perfil", function() {
+          bru.setVar("accessSinZona", res.getBody().accessToken);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

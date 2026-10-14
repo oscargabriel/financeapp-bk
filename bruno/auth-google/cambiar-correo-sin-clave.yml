@@ -1,0 +1,41 @@
+info:
+  name: Cambiar el correo sin tener contrasena
+  type: http
+  seq: 27
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/users/me"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "otro-{{tsGoogle}}@bruno.local",
+        "currentPassword": "cualquierClave1"
+      }
+  auth:
+    type: bearer
+    token: "{{accessGoogle}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: INVALID_CREDENTIALS
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: currentPassword
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Provisional hasta FIN-53
+
+  FIN-53 lo rechaza con un error propio.

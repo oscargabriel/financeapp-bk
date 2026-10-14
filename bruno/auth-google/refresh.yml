@@ -1,0 +1,38 @@
+info:
+  name: Refresco de la sesion de Google
+  type: http
+  seq: 22
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/refresh"
+  body:
+    type: json
+    data: |-
+      {
+        "refreshToken": "{{refreshGoogle}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.expiresIn
+      operator: eq
+      value: "3600"
+  scripts:
+    - type: tests
+      code: |-
+        test("entrega un par nuevo y lo guarda", function() {
+          expect(res.getBody().refreshToken).to.not.equal(bru.getVar("refreshGoogle"));
+          bru.setVar("accessGoogle", res.getBody().accessToken);
+          bru.setVar("refreshGoogle", res.getBody().refreshToken);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

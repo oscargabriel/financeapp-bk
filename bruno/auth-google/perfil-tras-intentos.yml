@@ -1,0 +1,34 @@
+info:
+  name: Perfil tras los cambios rechazados
+  type: http
+  seq: 28
+
+http:
+  method: GET
+  url: "{{baseUrl}}/users/me"
+  auth:
+    type: bearer
+    token: "{{accessGoogle}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("el correo no cambio", function() {
+          expect(res.getBody().email).to.equal(bru.getVar("emailGoogle"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Nada cambio y la sesion sigue abierta
+
+  Los dos rechazos anteriores no cambian el correo ni cierran sesiones.

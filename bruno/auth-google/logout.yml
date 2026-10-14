@@ -1,0 +1,27 @@
+info:
+  name: Logout de la sesion de Google
+  type: http
+  seq: 23
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/logout"
+  body:
+    type: json
+    data: |-
+      {
+        "refreshToken": "{{refreshGoogle}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

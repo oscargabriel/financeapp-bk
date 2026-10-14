@@ -14,8 +14,8 @@ docs:
 
     Ninguna ruta es publica, y no todas se autentican igual. Desde FA-43 el API tiene dos cadenas:
 
-    - `auth/` y `system/` van con **HTTP Basic**, la credencial compartida de `BASIC_USERNAME` y
-      `BASIC_PASSWORD`. Las dos carpetas la declaran en su `folder.yml`.
+    - `auth/`, `auth-google/` y `system/` van con **HTTP Basic**, la credencial compartida de
+      `BASIC_USERNAME` y `BASIC_PASSWORD`. Las tres carpetas la declaran en su `folder.yml`.
     - Todo lo demas va con **Bearer**, declarado aqui una sola vez; los requests usan
       `auth: inherit`.
 

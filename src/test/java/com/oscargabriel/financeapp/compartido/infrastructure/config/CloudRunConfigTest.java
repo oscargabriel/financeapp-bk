@@ -35,6 +35,7 @@ class CloudRunConfigTest {
         variables.put("CORS_ALLOWED_ORIGINS", "*");
         variables.put("GEMINI_API_KEY", "clave-de-gemini");
         variables.put("GEMINI_MODEL", "modelo-de-pruebas");
+        variables.put("GOOGLE_CLIENT_ID", "cliente.apps.googleusercontent.com");
         return variables;
     }
 
@@ -103,6 +104,18 @@ class CloudRunConfigTest {
                 .isEqualTo("https://generativelanguage.googleapis.com");
     }
 
+    /** El stub solo existe fuera de prod; el servicio verifica contra las llaves de Google (FIN-52). */
+    @Test
+    void elLoginConGoogleVerificaContraLasLlavesDeGoogle() throws IOException {
+        StandardEnvironment entorno = configuracion(variablesDelServicio());
+
+        assertThat(entorno.getRequiredProperty("google.proveedor")).isEqualTo("google");
+        assertThat(entorno.getRequiredProperty("google.client-id")).isEqualTo("cliente.apps.googleusercontent.com");
+        assertThat(entorno.getRequiredProperty("google.jwks-uri"))
+                .isEqualTo("https://www.googleapis.com/oauth2/v3/certs");
+        assertThat(entorno.getRequiredProperty("google.timeout")).isEqualTo("5s");
+    }
+
     /** Tras un fallo de ExchangeRate-API no se le vuelve a consultar en una hora (FA-121). */
     @Test
     void elReintentoDeLasTasasTrasUnFalloEsDeUnaHoraSinVariable() throws IOException {
@@ -161,7 +174,8 @@ class CloudRunConfigTest {
             "BASIC_PASSWORD, spring.security.basic.password",
             "CORS_ALLOWED_ORIGINS, cors.allowed-origins",
             "GEMINI_API_KEY, asistente.gemini.api-key",
-            "GEMINI_MODEL, asistente.gemini.model"
+            "GEMINI_MODEL, asistente.gemini.model",
+            "GOOGLE_CLIENT_ID, google.client-id"
     })
     void noResuelveUnSecretoSinSuVariable(String variable, String propiedad) throws IOException {
         Map<String, Object> variables = variablesDelServicio();

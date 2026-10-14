@@ -1,0 +1,36 @@
+info:
+  name: Login con Google de un usuario inactivo
+  type: http
+  seq: 18
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/google/login"
+  body:
+    type: json
+    data: |-
+      {
+        "idToken": "stub|g-inactivo-{{tsGoogle}}|inactivo@financeapp.local|Inactivo|"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "404"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: ACCOUNT_NOT_REGISTERED
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un usuario desactivado cuenta como inexistente
+
+  `inactivo@financeapp.local` lo siembra `test-data.sql` con `is_active` en falso. No entra ni se
+  vincula.

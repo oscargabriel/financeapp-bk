@@ -10,6 +10,8 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 |---|---|---|---|
 | `POST` | `/api/auth/register` | Basic | Crear un usuario |
 | `POST` | `/api/auth/login` | Basic | Abrir una sesión: access y refresh |
+| `POST` | `/api/auth/google/register` | Basic | Crear un usuario con su cuenta de Google y abrirle la sesión |
+| `POST` | `/api/auth/google/login` | Basic | Abrir una sesión con la cuenta de Google |
 | `POST` | `/api/auth/refresh` | Basic | Cambiar un refresh vigente por un access y un refresh nuevos |
 | `POST` | `/api/auth/logout` | Basic | Cerrar la sesión de un refresh |
 | `GET` | `/api/status` | Basic | Estado del servicio y de la base |
@@ -113,7 +115,7 @@ el cliente la convierte a la zona que quiera mostrar.
 **No hay rutas públicas.** El API tiene dos esquemas y cada ruta acepta exactamente uno. Si llega el
 otro, la respuesta es 401 aunque sea válido.
 
-### Basic — `register`, `login`, `refresh`, `logout`, `status`
+### Basic — `register`, `login`, `google/register`, `google/login`, `refresh`, `logout`, `status`
 
 Es una credencial **compartida de la aplicación**, no la del usuario. La entrega quien administra el
 servicio.
@@ -168,7 +170,8 @@ intentarlo: ante un 401 en una ruta Bearer, prueba una vez con
 Dos excepciones:
 
 - El login con credenciales del usuario incorrectas tiene su propio código (ver
-  [`POST /auth/login`](#post-apiauthlogin)).
+  [`POST /auth/login`](#post-apiauthlogin)), y también un ID token de Google que no sirve (ver
+  [`POST /auth/google/login`](#post-apiauthgooglelogin)).
 - El refresh que no sirve da el mismo `UNAUTHENTICATED`, pero con `field: "refreshToken"` y sin
   `WWW-Authenticate`: la credencial Basic de la cabecera era buena, lo que falló es el cuerpo.
 
@@ -196,17 +199,18 @@ Todos los errores salen con la misma forma:
 | 400 | `VALIDATION_ERROR` | Un campo o parámetro no cumple las reglas del endpoint |
 | 400 | `JSON_PARSING_ERROR` | El cuerpo no es JSON válido o un campo tiene un tipo incompatible (`"amount": "abc"`) |
 | 401 | `UNAUTHENTICATED` | Falta la credencial o no es válida para esa ruta, o el refresh de `POST /auth/refresh` no sirve |
-| 401 | `INVALID_CREDENTIALS` | Login con correo o contraseña incorrectos |
-| 403 | `REGISTRATION_NOT_ALLOWED` | Alta con un correo que no está en la lista de admitidos (`field`: `email`) |
+| 401 | `INVALID_CREDENTIALS` | Login con correo o contraseña incorrectos, o un ID token de Google que no sirve en el registro o el login con Google (`field`: `idToken`) |
+| 403 | `REGISTRATION_NOT_ALLOWED` | Alta, o registro con Google, con un correo que no está en la lista de admitidos (`field`: `email`) |
 | 404 | `NOT_FOUND` | La ruta no existe (con token válido), o el recurso de la ruta no existe o es de otro usuario (`field`: `id`) |
+| 404 | `ACCOUNT_NOT_REGISTERED` | Login con Google de una cuenta Google sin usuario (`field`: `idToken`). El cliente ofrece el registro |
 | 405 | `VALIDATION_ERROR` | Método no soportado en esa ruta (`description`: "La peticion no pudo ser procesada") |
-| 409 | `DUPLICATE_RESOURCE` | Ya existe: correo registrado, nombre de cuenta o de categoría repetido, o una solicitud de afiliación abierta o una afiliación con esa persona (`field`: `email`) |
+| 409 | `DUPLICATE_RESOURCE` | Ya existe: correo o cuenta de Google registrados, nombre de cuenta o de categoría repetido, una solicitud de afiliación abierta o una afiliación con esa persona, o un correo ya vinculado a otra cuenta de Google (`field`: `email`) |
 | 409 | `RESOURCE_IN_USE` | El cambio dejaría inconsistentes otros datos que usan el recurso: el alcance de una categoría con movimientos que no admitiría (`field`: `appliesTo`), la moneda de una cuenta con movimientos (`field`: `currencyCode`), o borrar una cuenta con saldo (`field`: `currentBalance`) |
 | 409 | `INVALID_STATE` | El recurso no está en el estado que la acción exige: aprobar o rechazar un movimiento o un grupo ya confirmado (`field`: `status`), o aprobar un pendiente con una cuenta desactivada o una categoría borrada (`field`: `accountId`, `destinationAccountId` o `categoryId`, con `[i].` delante si es un grupo), o una acción sobre una afiliación que no corresponde a su estado o al papel del usuario (`field`: `status`) |
 | 409 | `INSUFFICIENT_FUNDS` | La petición dejaría por debajo de cero el saldo de una cuenta que no es de crédito. Ver [Saldo no negativo](#saldo-no-negativo) |
 | 413 | `PAYLOAD_TOO_LARGE` | El cuerpo pasa de 1 MB |
 | 500 | `INTERNAL_SERVER_ERROR` | Error inesperado. Nunca trae detalle técnico |
-| 502 | `EXTERNAL_SERVICE_ERROR` | El modelo del asistente falló o no respondió a tiempo (`field`: `server`). Ver [`POST /api/assistant/messages`](#post-apiassistantmessages). También al registrar o modificar un movimiento, o al cambiar la moneda base en `PATCH /api/users/me`, cuando la moneda no tiene ninguna tasa de cambio guardada y el proveedor no respondió: no se guardó nada y se puede reintentar |
+| 502 | `EXTERNAL_SERVICE_ERROR` | El modelo del asistente falló o no respondió a tiempo (`field`: `server`). Ver [`POST /api/assistant/messages`](#post-apiassistantmessages). También al registrar o modificar un movimiento, o al cambiar la moneda base en `PATCH /api/users/me`, cuando la moneda no tiene ninguna tasa de cambio guardada y el proveedor no respondió: no se guardó nada y se puede reintentar. Y en el registro y el login con Google cuando no se pudieron obtener las llaves de Google (`field`: `idToken`) |
 | 503 | — | Solo en `/status`, cuando la base no responde (ver su sección) |
 
 ### Saldo no negativo
@@ -357,6 +361,97 @@ Cada login abre una sesión nueva e independiente: las de otros dispositivos sig
 
 El login **no consulta la lista de admitidos** del registro. Si un correo sale de la lista, el usuario
 que ya se registró con él sigue entrando; para cortarle el acceso se desactiva el usuario.
+
+Un usuario registrado con Google que no ha definido contraseña recibe el mismo 401
+`INVALID_CREDENTIALS` con cualquier contraseña: entra con [`POST /auth/google/login`](#post-apiauthgooglelogin).
+
+### Google Identity Services
+
+El registro y el login con Google reciben el **ID token** que entrega Google Identity Services en el
+navegador (`credential` en la respuesta del botón «Continuar con Google» o de One Tap), configurado
+con el **client ID** del servicio. Es un JWT que el API verifica con las llaves públicas de Google:
+
+- firma de Google y emisor `accounts.google.com`;
+- `aud` igual al client ID del servicio: un token pedido para otra aplicación no sirve;
+- sin vencer (Google los emite por una hora);
+- `email_verified` verdadero.
+
+Si falla cualquiera, la respuesta es 401 `INVALID_CREDENTIALS` en `idToken`, sin decir cuál, y no se
+crea ni se vincula nada. El cliente pide otro token a Google y vuelve a intentar.
+
+El API identifica la cuenta de Google por su identificador estable (`sub`), no por el correo: el
+correo del usuario puede cambiar después sin que el login con Google deje de funcionar.
+
+### `POST /api/auth/google/register`
+
+Crea un usuario **sin contraseña** con su cuenta de Google, le copia las categorías por defecto y le
+abre la sesión. **Basic.** Pasa por la misma lista de admitidos que
+[`POST /auth/register`](#post-apiauthregister).
+
+**Cuerpo**
+
+| Campo | Tipo | Obligatorio | Reglas |
+|---|---|---|---|
+| `idToken` | string | sí | El ID token de Google Identity Services |
+| `timezone` | string | no | Zona IANA. Por defecto `America/Bogota` |
+
+```json
+{ "idToken": "eyJhbGciOiJSUzI1NiIs...", "timezone": "America/Bogota" }
+```
+
+**201 Created**, con la misma forma que [`POST /auth/login`](#post-apiauthlogin): `accessToken`,
+`tokenType`, `expiresIn`, `refreshToken` y `refreshExpiresIn`. La sesión es como la del login: se
+refresca, se cierra y vence igual.
+
+El usuario queda con el correo de Google en minúsculas, el nombre de pila y el apellido de Google
+(sin nombre de pila, el nombre completo; sin ninguno, la parte del correo antes de la `@`), la
+zona enviada y la moneda `COP`. Sin celular. Todo se cambia luego con
+[`PATCH /users/me`](#patch-apiusersme), salvo el correo mientras no tenga contraseña (ver allí).
+
+**Errores**, en el orden en que se resuelven:
+
+1. 400 `VALIDATION_ERROR` en `idToken` si falta, o en `timezone` si no es una zona IANA.
+2. 401 `INVALID_CREDENTIALS` en `idToken` si el token no sirve.
+3. 502 `EXTERNAL_SERVICE_ERROR` en `idToken` si no se pudieron obtener las llaves de Google. Se puede
+   reintentar.
+4. 403 `REGISTRATION_NOT_ALLOWED` en `email` si el correo de Google no está admitido. Sale aunque ya
+   tenga cuenta, como en el alta.
+5. 409 `DUPLICATE_RESOURCE` en `email` si el correo ya es de un usuario, con contraseña o con Google,
+   o si esa cuenta de Google ya tiene usuario. **No vincula**: el cliente ofrece el login con Google,
+   que es el que vincula.
+
+### `POST /api/auth/google/login`
+
+Cambia el ID token de Google por una sesión. **Basic.** Como el login con contraseña, **no consulta
+la lista de admitidos**.
+
+**Cuerpo**
+
+| Campo | Tipo | Obligatorio |
+|---|---|---|
+| `idToken` | string | sí |
+
+```json
+{ "idToken": "eyJhbGciOiJSUzI1NiIs..." }
+```
+
+**200 OK**, con la misma forma que [`POST /auth/login`](#post-apiauthlogin).
+
+Busca al usuario por su cuenta de Google. Si no la encuentra pero hay un usuario activo con el
+correo del token **sin cuenta de Google**, se la vincula y entra: desde ahí ese usuario entra con su
+contraseña y con Google.
+
+**Errores**
+
+- 400 `VALIDATION_ERROR` en `idToken` si falta.
+- 401 `INVALID_CREDENTIALS` en `idToken` si el token no sirve.
+- 502 `EXTERNAL_SERVICE_ERROR` en `idToken` si no se pudieron obtener las llaves de Google.
+- 404 `ACCOUNT_NOT_REGISTERED` en `idToken` si no hay usuario para esa cuenta de Google ni para su
+  correo. Un usuario desactivado o borrado cuenta como inexistente. El cliente ofrece el registro.
+  Decirlo no revela qué correos están registrados: solo lo recibe quien presenta un ID token válido
+  de esa cuenta.
+- 409 `DUPLICATE_RESOURCE` en `email` si el usuario de ese correo ya está vinculado a **otra** cuenta
+  de Google. No se vincula nada.
 
 ### `POST /api/auth/refresh`
 
@@ -528,6 +623,10 @@ la tasa de la fecha de cada movimiento. Los saldos de las cuentas siguen en la m
 la sesión de alguien que solo se equivocó al escribir. Se verifica antes que el correo, así que con
 la contraseña mal nunca se sabe si el correo nuevo estaba libre.
 
+**Un usuario registrado con Google sin contraseña no puede cambiar el correo por ahora:** recibe el
+mismo 400 `INVALID_CREDENTIALS` en `currentPassword`, mande lo que mande. Es provisional: FIN-53 le
+da un error propio y una vía para definir la primera contraseña.
+
 ### `PUT /api/users/me/password`
 
 Cambia la contraseña del usuario del token. **Bearer.**
@@ -554,6 +653,10 @@ tokens nuevos: el cliente vuelve al login. Un cambio rechazado no cierra ninguna
 |---|---|---|---|
 | 400 | `VALIDATION_ERROR` | el campo | Falta una de las dos, o la nueva no cumple las reglas |
 | 400 | `INVALID_CREDENTIALS` | `currentPassword` | La contraseña actual no es correcta. 400 y no 401, por lo mismo que en el `PATCH` |
+
+Un usuario registrado con Google que no tiene contraseña recibe ese mismo 400, sin cerrar sesiones:
+no tiene una contraseña actual que probar. Es provisional hasta FIN-53, que agrega la vía para
+definir la primera confirmando la identidad con Google.
 
 ### `GET /api/accounts`
 

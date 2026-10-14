@@ -376,6 +376,10 @@ producción.
 | `SPRING_PROFILES_ACTIVE` | `prod` | La imagen ya lo trae; el servicio lo repite |
 | `CORS_ALLOWED_ORIGINS` | `*` | Provisional mientras no haya frontend (26-09-2026). Se reemplaza en FA-65 |
 | `GEMINI_MODEL` | `gemini-3.5-flash-lite` | Elegido en FA-100 (10-10-2026): el de la prueba contra Gemini real de FA-101. En local se usa `gemini-3.1-flash-lite`. El asistente solo elige una de tres funciones y extrae sus argumentos; `gemini-3.5-flash` quedó descartado por costo. Cambiarlo no requiere desplegar |
+| `GOOGLE_CLIENT_ID` | **pendiente de crear** | Client ID del OAuth Client de tipo Web de Google Cloud Console, el mismo que usa el front (FIN-52). Es público, pero va sin default: con uno ajeno la app aceptaría tokens de otro cliente. **Hay que crearlo en el servicio antes de llevar FIN-52 a `main`**, o la revisión no arranca |
+
+`GOOGLE_PROVEEDOR` no se define: vale `google` por defecto, y el stub de `bruno/auth-google/` no
+existe con el perfil `prod` aunque se pida (FIN-52).
 
 `ASISTENTE_PROVEEDOR` no se define: vale `gemini` por defecto, y el stub de `bruno/` no existe con el
 perfil `prod` aunque se pida (FA-77).
@@ -385,7 +389,7 @@ restringido a la lista de *Correos admitidos* (FA-103). Para abrirlo a cualquier
 `false` en el servicio, sin desplegar.
 
 El resto de propiedades (`DB_SSL_MODE`, `JWT_EXPIRATION`, `APP_TIMEZONE`, `STARTUP_DB_CHECK_*`,
-`GEMINI_BASE_URL`, `GEMINI_TIMEOUT`…)
+`GEMINI_BASE_URL`, `GEMINI_TIMEOUT`, `GOOGLE_JWKS_URI`, `GOOGLE_TIMEOUT`…)
 usa el default de `application.yaml`.
 
 ### Rotar un secreto

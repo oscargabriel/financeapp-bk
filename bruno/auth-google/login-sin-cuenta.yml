@@ -1,0 +1,39 @@
+info:
+  name: Login con Google sin cuenta
+  type: http
+  seq: 17
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/google/login"
+  body:
+    type: json
+    data: |-
+      {
+        "idToken": "stub|g-nadie-{{tsGoogle}}|nadie-{{tsGoogle}}@bruno.local|Nadie|"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "404"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: ACCOUNT_NOT_REGISTERED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: idToken
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # No tienes cuenta
+
+  El front ofrece el registro. Decirlo no es un oraculo de correos: para recibir este 404 hay que
+  presentar un ID token valido de esa cuenta Google.

@@ -108,6 +108,15 @@ tasas:
     url: ${TASAS_URL:https://open.er-api.com/v6/latest/USD}
     timeout: ${TASAS_TIMEOUT:5s}
 
+# Login con Google (FIN-52). El client ID es publico, pero no lleva default, como los secretos: con
+# uno ajeno la app aceptaria tokens de otro cliente. El JWKS es fijo de configuracion, nunca de la
+# peticion. El stub solo existe fuera de prod (design.md de FIN-52).
+google:
+  proveedor: ${GOOGLE_PROVEEDOR:google}
+  client-id: ${GOOGLE_CLIENT_ID}
+  jwks-uri: ${GOOGLE_JWKS_URI:https://www.googleapis.com/oauth2/v3/certs}
+  timeout: ${GOOGLE_TIMEOUT:5s}
+
 # Verificacion de conectividad con la base al arrancar: si no responde tras agotar los intentos,
 # el contexto no termina de levantar y la aplicacion no queda escuchando. Se apaga solo donde no
 # hay base que responder (la suite de tests).

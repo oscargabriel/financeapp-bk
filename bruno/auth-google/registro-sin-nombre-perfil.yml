@@ -1,0 +1,33 @@
+info:
+  name: Perfil del registrado sin nombre
+  type: http
+  seq: 7
+
+http:
+  method: GET
+  url: "{{baseUrl}}/users/me"
+  auth:
+    type: bearer
+    token: "{{accessSinNombre}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("el nombre es la parte del correo anterior a la @", function() {
+          expect(res.getBody().firstName).to.equal("sin-nombre-" + bru.getVar("tsGoogle"));
+        });
+
+        test("sin apellido", function() {
+          expect(res.getBody().lastName).to.equal(null);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

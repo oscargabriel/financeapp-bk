@@ -1,0 +1,50 @@
+info:
+  name: Perfil del registrado con Google
+  type: http
+  seq: 2
+
+http:
+  method: GET
+  url: "{{baseUrl}}/users/me"
+  auth:
+    type: bearer
+    token: "{{accessGoogle}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.firstName
+      operator: eq
+      value: Lucia
+    - expression: res.body.lastName
+      operator: eq
+      value: Fernandez
+    - expression: res.body.timezone
+      operator: eq
+      value: Europe/Madrid
+    - expression: res.body.baseCurrencyCode
+      operator: eq
+      value: COP
+  scripts:
+    - type: tests
+      code: |-
+        test("guarda el correo del token en minusculas", function() {
+          expect(res.getBody().email).to.equal(bru.getVar("emailGoogle"));
+        });
+
+        test("guarda el id del usuario para comparar el login", function() {
+          bru.setVar("idUsuarioGoogle", res.getBody().id);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El usuario tiene los datos de Google
+
+  Nombre y apellido salen del token, la zona es la que mando el registro y la moneda es `COP`.

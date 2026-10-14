@@ -1,0 +1,39 @@
+info:
+  name: Login con contrasena de un usuario sin contrasena
+  type: http
+  seq: 25
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/login"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailGoogle}}",
+        "password": "cualquierClave1"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: INVALID_CREDENTIALS
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: credentials
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Igual que una contrasena incorrecta
+
+  El usuario se registro con Google y no tiene contrasena. El login no dice por que no entra.

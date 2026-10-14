@@ -9,10 +9,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.oscargabriel.financeapp.core.domain.port.in.GoogleLoginPort;
+import com.oscargabriel.financeapp.core.domain.port.in.GoogleRegisterPort;
 import com.oscargabriel.financeapp.core.domain.port.in.LoginPort;
 import com.oscargabriel.financeapp.core.domain.port.in.LogoutPort;
 import com.oscargabriel.financeapp.core.domain.port.in.RefreshSessionPort;
 import com.oscargabriel.financeapp.core.domain.port.in.RegisterUserPort;
+import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.GoogleLoginRequest;
+import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.GoogleRegisterRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.LoginRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.RefreshTokenRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.RegisterUserRequest;
@@ -30,6 +34,8 @@ public class AuthController {
     private final LoginPort login;
     private final RefreshSessionPort refreshSession;
     private final LogoutPort logout;
+    private final GoogleRegisterPort googleRegister;
+    private final GoogleLoginPort googleLogin;
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
@@ -41,6 +47,20 @@ public class AuthController {
     @PostMapping("/login")
     public Mono<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
         return login.login(request.toCommand())
+                .map(TokenResponse::from);
+    }
+
+    /** 201 como el alta, porque crea el usuario, pero con la sesion del login (FIN-52). */
+    @PostMapping("/google/register")
+    @ResponseStatus(HttpStatus.CREATED)
+    public Mono<TokenResponse> googleRegister(@Valid @RequestBody GoogleRegisterRequest request) {
+        return googleRegister.register(request.toCommand())
+                .map(TokenResponse::from);
+    }
+
+    @PostMapping("/google/login")
+    public Mono<TokenResponse> googleLogin(@Valid @RequestBody GoogleLoginRequest request) {
+        return googleLogin.login(request.idToken())
                 .map(TokenResponse::from);
     }
 
