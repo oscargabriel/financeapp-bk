@@ -26,16 +26,17 @@ El tablero es compartido con el front, que vive en su propio repo, `financeapp-f
 | **Tarea** (`Historia`, `Error` o `Tarea`) | Un repo, un resultado | **Componente y `parent` obligatorios.** Nombra las decisiones del epic por su clave, no las copia |
 
 El componente de cada tarea dice dónde se resuelve: `Backend` es este repo, `Frontend` el otro.
-**Este skill solo toma y modifica tareas con componente `Backend`**, y toda tarea que cree lleva el
-componente y el epic puestos: sin componente no aparece en la consulta de ningún repo, y sin epic la
-raíz no la ve al refinar el tema.
+**Este skill solo toma y modifica tareas con componente `Backend`** —un enlace `Blocks` desde o
+hacia un issue que crea o tiene en curso no cuenta como modificar, ver *Dependencias y orden*—, y toda tarea que
+cree lleva el componente y el epic puestos: sin componente no aparece en la consulta de ningún
+repo, y sin epic la raíz no la ve al refinar el tema.
 
 | Concepto | En Jira |
 |---|---|
 | Tipo | `Historia` (feature), `Error` (bug), `Tarea` (el resto, con etiqueta `deuda-tecnica`, `infra`, `cobertura` o `documentacion`) |
 | Prioridad | `High`, `Medium`, `Low` |
 | Tema | Epic, como `parent` de la tarea |
-| Dependencia | Enlace `Blocks` |
+| Dependencia | Enlace `Blocks` y línea en `## Depende de`, también entre epics y entre repos |
 
 Estados, con el id de la transición que lleva a cada uno:
 
@@ -116,6 +117,12 @@ lo que tiene que estar cerrado antes con enlaces `is blocked by`, y lo repite co
 `Por revisar` o `Listo`, no lo tomes: dilo en chat y ofrece el que lo desbloquea. Una dependencia
 escrita como "FA-n (entregada, queda en Notion)" ya está cumplida.
 
+Las claves `FIN-n` de `## Depende de` y los `is blocked by` tienen que coincidir uno a uno. **Si no
+coinciden, dilo en chat antes de transicionar**: qué claves están solo en el texto y cuáles solo en
+los enlaces. Para decidir si el issue está bloqueado se usa la unión de los dos lados; si todos
+están cerrados, se sigue. No se corrige ninguno de los dos lados: no se sabe cuál está mal, y lo
+arregla la auditoría *Revisar dependencias* de `crear-tareas` desde la raíz.
+
 #### Un issue que no es de este repo
 
 El filtro de la consulta no protege cuando el usuario nombra el issue por su clave ("toma la
@@ -137,7 +144,8 @@ primero se registra como issue en `Por hacer`, con la etiqueta `sprint-actual`, 
 bajo `## Contexto`, después de la línea que nombra el epic, y los criterios que se puedan deducir van
 bajo `## Criterios de aceptación`. El epic se elige entre los vigentes. **Si ninguno encaja, se
 pregunta**: este repo no crea epics, así que un tema nuevo se abre desde la raíz con `crear-tareas`.
-Lo que no se pueda deducir también se pregunta antes de seguir. Después se toma como cualquier otro.
+Lo que no se pueda deducir también se pregunta antes de seguir. Sus dependencias se resuelven con
+*Dependencias y orden* antes de crearlo. Después se toma como cualquier otro.
 
 ### 2. Tomar
 
@@ -264,7 +272,12 @@ que nunca mergea. Los PRs contra `main` **no** se mergean nunca: el script los r
 
 ### 9. Cerrar
 
-Primero, `addCommentToJiraIssue` con las notas de implementación, que es donde la raíz lee qué se
+Si el PR del issue toca `docs/api/contrato-api.md` (`gh pr diff <número> --name-only`), aplicar
+primero *El contrato* de *Dependencias y orden*: el contrato se decide en el change, así
+que al crear el issue casi nunca se sabía qué parte iba a cambiar. Los enlaces y el issue `Frontend`
+que salgan se reportan en el comentario de cierre.
+
+Después, `addCommentToJiraIssue` con las notas de implementación, que es donde la raíz lee qué se
 hizo de verdad cuando refina el epic:
 
 ```markdown
@@ -309,11 +322,14 @@ El discriminador es una sola pregunta:
   tipo correspondiente, prioridad `Medium` salvo que sea un bug o una urgencia, y bajo
   `## Contexto` **por qué surgió y en qué issue apareció**. El epic es el de la tarea en curso,
   también cuando el issue es del otro repo o es un bug. Si de verdad es de otro tema, se usa el epic
-  de ese tema; si ninguno encaja, se pregunta, porque este repo no crea epics.
+  de ese tema; si ninguno encaja, se pregunta, porque este repo no crea epics. Sus dependencias
+  se resuelven con *Dependencias y orden* antes de crearlo: haber surgido del issue en curso no es
+  una dependencia.
 - **No** —el código no compila, la suite no pasa, el endpoint queda roto sin eso— es parte del issue
   actual, y se dice explícitamente en el comentario de cierre.
 
-Decir siempre en chat qué issues se crearon. Que un tema crezca mientras se implementa es la regla
+Decir siempre en chat qué issues se crearon, con el orden de ejecución que queda (paso 6 de
+*Crear un issue*). Que un tema crezca mientras se implementa es la regla
 funcionando, no un desvío.
 
 Esto cubre la regla del CLAUDE.md global sobre registrar mocks y stubs acordados: el issue en Jira
@@ -355,6 +371,7 @@ una vez no es un estado.
 La descripción va en ADF, no en markdown: con `contentFormat: "markdown"` Jira escapa `- [ ]` y los
 criterios quedan como texto en vez de casillas.
 
+0. Resolver sus dependencias con *Dependencias y orden*, más abajo.
 1. Escribir la descripción en un archivo temporal, precedida de una línea `=== <clave>` (por ejemplo
    `=== nuevo`):
 
@@ -371,9 +388,11 @@ criterios quedan como texto en vez de casillas.
 
    - El `## Contexto` **no copia** las decisiones ni los pedidos del epic: los nombra por su clave.
      Una decisión que solo afecta a esta tarea sí va, como criterio.
-   - `## Depende de` se omite si no hay dependencias.
-   - El último criterio es la verificación del repo: tests de la capa que toca, `gradlew build` y
-     `bru run` en verde, y si toca endpoints, `contrato-api.md` y `bruno/` al día.
+   - `## Depende de` lleva una línea por cada enlace `is blocked by` del paso 4, y se omite si no
+     hay dependencias.
+   - El último criterio es la verificación del repo. `Backend`: tests de la capa que toca,
+     `gradlew build` y `bru run` en verde, y si toca endpoints, `contrato-api.md` y `bruno/` al día.
+     `Frontend`: tests de componente o servicio, `ng test` y `ng build` en verde.
    - No lleva `## Notas de implementación`: este repo deja las notas en un comentario al cerrar
      (paso 9).
 2. `& .claude/skills/tareas-jira/md2adf.ps1 -Path <archivo> -OutDir <carpeta>` deja un
@@ -381,22 +400,82 @@ criterios quedan como texto en vez de casillas.
    URLs; nada más.
 3. `createJiraIssue`: `projectKey: "FIN"`, `issueTypeName`, `summary`, `parent` (clave del epic,
    **siempre**), `description` = contenido del `.json`, `contentFormat: "adf"`, `additional_fields` =
-   `{"components": [{"name": "Backend"}], "priority": {"name": "Medium"}, "labels": [...]}`. Sin
-   `transition` queda en `pendiente`; con `transition: {"id": "21"}` y la etiqueta `sprint-actual`,
-   en `Por hacer`.
-4. Si depende de otro, `createIssueLink` con `type: "Blocks"`, `inwardIssue` = el que bloquea,
-   `outwardIssue` = el nuevo.
+   `{"components": [{"name": "Backend"}], "priority": {"name": "Medium"}, "labels": [...]}`, con
+   el componente del repo donde se resuelve. Sin `transition` queda en `pendiente`; con
+   `transition: {"id": "21"}` y la etiqueta `sprint-actual`, en `Por hacer`.
+4. `createIssueLink` por cada dependencia, con `type: "Blocks"`, `inwardIssue` = el que bloquea y
+   `outwardIssue` = el que depende. Incluye los enlaces en los que el nuevo bloquea a uno
+   existente.
+5. Verificar con `getJiraIssue` (campos `description`, `issuelinks`, `components`, `parent`) cada
+   issue creado: las claves `FIN-n` de `## Depende de` y sus `is blocked by` coinciden uno a uno
+   —las `FA-n` de Notion solo van en texto—, y los criterios salen como `- [ ]`, no `\[ \]`. Si
+   algo sobra o falta, se corrige antes de seguir.
+6. Decir en chat el orden de ejecución que queda, sacado de los enlaces y con las bloqueadoras de
+   otros epics o del otro repo («en `financeapp-bk`: FIN-n; después, en `financeapp-fr`: FIN-m»).
+   **Avisar si un issue en `Por hacer` con `sprint-actual` quedó bloqueado por uno en
+   `pendiente`**: no se puede tomar en el sprint, y el usuario decide si sube la bloqueadora o baja
+   la otra.
 
 Los epics vigentes salen de `project = FIN AND issuetype = Epic AND statusCategory != Done` (campos
 `summary` y `labels`).
+
+### Dependencias y orden
+
+Antes de redactar un issue, se cruza con las tareas abiertas de su epic
+(`parent = FIN-x AND statusCategory != Done`) y con las de otros epics que toquen lo mismo
+(`project = FIN AND issuetype != Epic AND statusCategory != Done AND text ~ "<palabra clave>"`, una
+consulta por palabra clave: la ruta, la tabla, el archivo), con `summary`, `status`, `components`,
+`parent` e `issuelinks`. Las dos consultas incluyen los issues del otro repo.
+
+**Es dependencia** —enlace `Blocks` y línea en `## Depende de`— cuando el issue:
+
+- consume un endpoint, campo, código de error, tabla, función o script que otro crea o cambia;
+- usa una parte del contrato que otro reescribe, **aunque sea solo texto** (ver *El contrato*);
+- necesita algo que otro decide (una tarea de definición) o deja listo (despliegue, secreto,
+  variable, dominio);
+- cambia el mismo archivo o tabla que otro y supone el estado que ese deja.
+
+**No es dependencia** el origen («surgió en FIN-n»), una mención de contexto ni dos issues del
+mismo tema que se pueden cerrar en cualquier orden.
+
+- **Si no está claro si hay dependencia, se pregunta.** Nunca se escribe que un issue «no bloquea»
+  a otro ni se omite el enlace por suponerlo: así se perdió la dependencia de FIN-50 hacia FIN-49.
+- La dependencia va en los dos sentidos: un issue nuevo —o, al cerrar, el que está en curso—
+  puede bloquear a uno existente, también del otro repo. Se crea el enlace y se dice en chat. Enlazar no cuenta como modificar ese issue:
+  su descripción no se toca, así que su `## Depende de` queda sin la línea nueva. Se dice en chat
+  para que la raíz la agregue en *Revisar dependencias* de `crear-tareas`. Ver `design.md` de
+  `fin-81-tareas-jira-dependencias`.
+- Se revisa que los enlaces no formen un ciclo.
+
+#### El contrato
+
+Un issue que cambia `docs/api/contrato-api.md`, aunque sea solo texto, **bloquea a los issues
+`Frontend` abiertos que usan esa parte**: la copia `financeapp-fr/contrato-api.md` tiene que
+reflejarla. Para saber si el front la usa:
+
+1. `project = FIN AND component = Frontend AND statusCategory != Done AND text ~ "<ruta>"`.
+2. Si `../financeapp-fr` existe, buscar la ruta en su `src/` y en su `contrato-api.md`, solo
+   leyendo.
+3. Si con eso no se puede decidir, se pregunta.
+
+Si el front la usa y no hay ningún issue `Frontend` abierto que la cubra, se crea con este mismo
+procedimiento el issue `Frontend` que sincroniza en su copia de `contrato-api.md` la sección que
+cambió, en el epic del issue del back, en `pendiente` y bloqueado por él.
+
+Se aplica al crear, si el issue ya dice qué parte del contrato cambia, y otra vez al cerrar (paso
+9), si el change terminó tocando el contrato.
 
 ## Prohibiciones
 
 - **Nunca** pasar un issue a `Listo` salvo para descartarlo (paso 11). Cerrar es del usuario.
 - **Nunca** borrar un issue. Lo obsoleto se descarta con el paso 11, que es reversible y localizable.
-- **Nunca** modificar issues distintos del que está en curso. Dos excepciones: crear nuevos, y las
-  operaciones de tablero que el usuario pida explícitamente —repriorizar un conjunto, descartar lo
-  obsoleto, reordenar las tareas de un tema—, que se ejecutan y se reportan una por una.
+- **Nunca** modificar issues distintos del que está en curso. Tres excepciones: crear nuevos;
+  enlazar `Blocks` un issue nuevo, o el que está en curso, con uno existente, también del otro
+  repo (*Dependencias y orden*); y las operaciones de tablero que el usuario pida explícitamente —repriorizar un
+  conjunto, descartar lo obsoleto, reordenar las tareas de un tema—, que se ejecutan y se reportan
+  una por una.
+- **Nunca** escribir que un issue «no bloquea» a otro ni omitir un enlace por suponerlo: si no está
+  claro, se pregunta.
 - **Nunca** crear un epic ni editar su descripción: los mantiene `crear-tareas` desde la raíz.
 - **Nunca** crear una tarea sin componente o sin epic (`parent`).
 - **Nunca** escribir en Notion: es histórico de solo lectura.
