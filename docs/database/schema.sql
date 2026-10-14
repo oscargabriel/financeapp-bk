@@ -489,7 +489,7 @@ CREATE TABLE finance.transactions (
     -- NO ACTION diferido, no RESTRICT: impide igual borrar una cuenta o categoría
     -- con movimientos, pero se verifica al final de la transacción, de modo que
     -- el borrado en cascada de un usuario no choque con el orden de las cascadas.
-    account_id              UUID           NOT NULL REFERENCES finance.accounts (id)   ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
+    account_id              UUID                    REFERENCES finance.accounts (id)   ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
     destination_account_id  UUID                    REFERENCES finance.accounts (id)   ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
     category_id             UUID                    REFERENCES finance.categories (id) ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
     type                    VARCHAR(10)    NOT NULL,
@@ -511,6 +511,10 @@ CREATE TABLE finance.transactions (
     installment_principal   NUMERIC(18,4),
     original_amount         NUMERIC(18,4),
     original_currency_code  CHAR(3)                 REFERENCES finance.currencies (code) ON DELETE RESTRICT,
+    -- SET NULL y no CASCADE: borrar a un usuario no se lleva los movimientos de otro.
+    shared_by_user_id       UUID                    REFERENCES finance.users (id) ON DELETE SET NULL,
+    -- La FK se agrega después de crear expense_shares, que a su vez apunta aquí.
+    share_id                UUID,
     CONSTRAINT ck_transactions_type      CHECK (type IN ('EXPENSE', 'INCOME', 'TRANSFER')),
     CONSTRAINT ck_transactions_origin      CHECK (origin IN ('WEB', 'TELEGRAM', 'IMPORT')),
     CONSTRAINT ck_transactions_status      CHECK (status IN ('PENDING', 'CONFIRMED')),
@@ -518,17 +522,23 @@ CREATE TABLE finance.transactions (
     CONSTRAINT ck_transactions_amount_base CHECK (amount_base > 0),
     CONSTRAINT ck_transactions_rate        CHECK (exchange_rate > 0),
     -- Una transferencia mueve dinero entre dos cuentas propias y no se categoriza;
-    -- un gasto o ingreso siempre lleva categoría y no tiene cuenta destino.
+    -- un gasto o ingreso lleva categoría, salvo mientras está pendiente (FIN-16),
+    -- y no tiene cuenta destino. Con account_id nullable, destination_account_id
+    -- <> account_id daría NULL y el CHECK pasaría: la transferencia exige la
+    -- cuenta explícitamente.
     CONSTRAINT ck_transactions_shape CHECK (
         (type = 'TRANSFER'
+            AND account_id IS NOT NULL
             AND destination_account_id IS NOT NULL
             AND destination_account_id <> account_id
             AND category_id IS NULL)
         OR
         (type <> 'TRANSFER'
             AND destination_account_id IS NULL
-            AND category_id IS NOT NULL)
+            AND (category_id IS NOT NULL OR status = 'PENDING'))
     ),
+    -- Solo un pendiente puede no tener cuenta todavía: la elige quien lo aprueba.
+    CONSTRAINT ck_transactions_account CHECK (account_id IS NOT NULL OR status = 'PENDING'),
     CONSTRAINT ck_transactions_destination_amount CHECK (
         destination_amount IS NULL
         OR (type = 'TRANSFER' AND destination_amount > 0)
@@ -555,10 +565,12 @@ COMMENT ON COLUMN finance.transactions.original_currency_code IS 'Moneda en que 
 COMMENT ON COLUMN finance.transactions.exchange_rate IS 'Tasa USD→currency_code de la fecha del movimiento con la que se calculó amount_base (1 si es USD). La fija trg_transactions_usd_equivalent: la aplicación nunca la escribe.';
 COMMENT ON COLUMN finance.transactions.amount_base IS 'amount en USD, la moneda del servicio: amount / exchange_rate. Es la base común entre monedas; los reportes la convierten a la moneda de la persona con finance.in_currency. La fija trg_transactions_usd_equivalent.';
 COMMENT ON COLUMN finance.transactions.occurred_at IS 'Cuándo ocurrió el movimiento, no cuándo se registró (created_at). El bot de Telegram registra gastos de días anteriores.';
-COMMENT ON COLUMN finance.transactions.status IS 'PENDING: registrado por el asistente y sin efecto hasta aprobarse; no mueve current_balance ni cuenta en reportes. CONFIRMED: todo lo demás. Rechazar un pendiente lo borra.';
+COMMENT ON COLUMN finance.transactions.status IS 'PENDING: sin efecto hasta aprobarse; no mueve current_balance ni cuenta en reportes, y si no es transferencia puede no tener cuenta ni categoría todavía (FIN-16). CONFIRMED: todo lo demás. Rechazar un pendiente lo borra.';
 COMMENT ON COLUMN finance.transactions.recurrence_id IS 'Serie de la que el movimiento es ocurrencia (FA-107). Editarlo o borrarlo a mano no lo saca de ella.';
 COMMENT ON COLUMN finance.transactions.installment_purchase_id IS 'Compra en cuotas de la que el movimiento es cuota (FA-108). Editarlo o borrarlo a mano no lo saca de ella.';
 COMMENT ON COLUMN finance.transactions.installment_principal IS 'Capital de la cuota, sin interés. Mientras la cuota no llega, finance.committed_credit lo descuenta del cupo de la tarjeta.';
+COMMENT ON COLUMN finance.transactions.shared_by_user_id IS 'Quién compartió el movimiento con el usuario (FIN-16): quien pagó, en la parte de quien debe; quien debe, en el ingreso de quien pagó; quien transfirió, en una transferencia compartida.';
+COMMENT ON COLUMN finance.transactions.share_id IS 'Parte compartida de la que sale el movimiento: el gasto de quien debe y el ingreso de quien pagó al aprobarse.';
 
 CREATE INDEX ix_transactions_user_date
     ON finance.transactions (user_id, occurred_at DESC);
@@ -587,6 +599,10 @@ CREATE INDEX ix_transactions_recurrence
 -- Las cuotas de una compra: resumen del listado, edición en grupo, cancelación y cupo comprometido.
 CREATE INDEX ix_transactions_installment
     ON finance.transactions (installment_purchase_id, occurred_at) WHERE installment_purchase_id IS NOT NULL;
+
+-- Del pendiente compartido a su parte, al aprobarlo o rechazarlo.
+CREATE INDEX ix_transactions_share
+    ON finance.transactions (share_id) WHERE share_id IS NOT NULL;
 
 CREATE TRIGGER trg_transactions_updated_at
     BEFORE UPDATE ON finance.transactions
@@ -720,6 +736,94 @@ AS $$
        AND t.status = 'CONFIRMED'
        AND t.occurred_at > now();
 $$;
+
+
+-- =============================================================================
+-- AFFILIATIONS  (personas afiliadas, FIN-16)
+-- =============================================================================
+
+CREATE TABLE finance.affiliations (
+    id               UUID         PRIMARY KEY,
+    requester_id     UUID         NOT NULL REFERENCES finance.users (id) ON DELETE CASCADE,
+    addressee_email  VARCHAR(255) NOT NULL,
+    addressee_id     UUID                  REFERENCES finance.users (id) ON DELETE CASCADE,
+    status           VARCHAR(10)  NOT NULL DEFAULT 'REQUESTED',
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    CONSTRAINT ck_affiliations_status   CHECK (status IN ('REQUESTED', 'ACCEPTED', 'REJECTED', 'CANCELLED', 'UNLINKED')),
+    CONSTRAINT ck_affiliations_email    CHECK (addressee_email = lower(addressee_email)),
+    CONSTRAINT ck_affiliations_not_self CHECK (addressee_id <> requester_id),
+    -- Sin destinatario nadie la recibe: solo puede seguir abierta o cancelarse.
+    CONSTRAINT ck_affiliations_unknown  CHECK (addressee_id IS NOT NULL OR status IN ('REQUESTED', 'CANCELLED'))
+);
+
+COMMENT ON TABLE  finance.affiliations IS 'Solicitud de afiliación entre dos personas (FIN-16). Cada solicitud es una fila: tras un rechazo, una cancelación o una desvinculación, la siguiente es otra fila.';
+COMMENT ON COLUMN finance.affiliations.addressee_email IS 'Correo al que se envió, normalizado como en el registro. Se guarda aunque no tenga cuenta.';
+COMMENT ON COLUMN finance.affiliations.addressee_id IS 'Usuario de addressee_email al enviar la solicitud. NULL si no tenía cuenta: nadie la recibe, y no se resuelve aunque la persona se registre después.';
+COMMENT ON COLUMN finance.affiliations.status IS 'REQUESTED y ACCEPTED son las abiertas. REJECTED la decide el destinatario, CANCELLED el remitente y UNLINKED cualquiera de los dos sobre una aceptada.';
+
+-- Una sola relación abierta entre dos usuarios, en cualquier sentido. LEAST y
+-- GREATEST ignoran los NULL: sin el filtro de addressee_id, dos solicitudes de
+-- A a correos no registrados distintos chocarían como (A, A).
+CREATE UNIQUE INDEX ux_affiliations_open_pair
+    ON finance.affiliations (LEAST(requester_id, addressee_id), GREATEST(requester_id, addressee_id))
+ WHERE status IN ('REQUESTED', 'ACCEPTED') AND addressee_id IS NOT NULL;
+
+-- Y una sola solicitud abierta del mismo remitente al mismo correo, tenga cuenta o no.
+CREATE UNIQUE INDEX ux_affiliations_open_email
+    ON finance.affiliations (requester_id, addressee_email)
+ WHERE status = 'REQUESTED';
+
+CREATE INDEX ix_affiliations_requester ON finance.affiliations (requester_id);
+
+CREATE INDEX ix_affiliations_addressee
+    ON finance.affiliations (addressee_id) WHERE addressee_id IS NOT NULL;
+
+CREATE TRIGGER trg_affiliations_updated_at
+    BEFORE UPDATE ON finance.affiliations
+    FOR EACH ROW EXECUTE FUNCTION finance.set_updated_at();
+
+
+-- =============================================================================
+-- EXPENSE_SHARES  (partes de un gasto compartido, FIN-16)
+-- =============================================================================
+
+CREATE TABLE finance.expense_shares (
+    id                     UUID           PRIMARY KEY,
+    source_transaction_id  UUID                    REFERENCES finance.transactions (id) ON DELETE SET NULL,
+    payer_id               UUID           NOT NULL REFERENCES finance.users (id) ON DELETE CASCADE,
+    debtor_id              UUID           NOT NULL REFERENCES finance.users (id) ON DELETE CASCADE,
+    amount                 NUMERIC(18,4)  NOT NULL,
+    currency_code          CHAR(3)        NOT NULL REFERENCES finance.currencies (code) ON DELETE RESTRICT,
+    description            VARCHAR(255)   NOT NULL,
+    occurred_at            TIMESTAMPTZ    NOT NULL,
+    status                 VARCHAR(10)    NOT NULL DEFAULT 'PENDING',
+    resolved_at            TIMESTAMPTZ,
+    created_at             TIMESTAMPTZ    NOT NULL DEFAULT now(),
+    updated_at             TIMESTAMPTZ    NOT NULL DEFAULT now(),
+    CONSTRAINT ck_expense_shares_amount   CHECK (amount > 0),
+    CONSTRAINT ck_expense_shares_status   CHECK (status IN ('PENDING', 'PAID', 'REJECTED', 'VOIDED')),
+    CONSTRAINT ck_expense_shares_not_self CHECK (payer_id <> debtor_id),
+    CONSTRAINT ck_expense_shares_resolved CHECK ((status = 'PENDING') = (resolved_at IS NULL)),
+    CONSTRAINT ux_expense_shares_debtor   UNIQUE (source_transaction_id, debtor_id)
+);
+
+COMMENT ON TABLE  finance.expense_shares IS 'Parte de un gasto compartido que debe otra persona (FIN-16). La deuda abierta entre dos personas es la suma de sus partes PENDING, por moneda.';
+COMMENT ON COLUMN finance.expense_shares.source_transaction_id IS 'Gasto de quien pagó. NULL si se borró: la parte pagada se conserva, y anular las pendientes lo hace la aplicación al borrar.';
+COMMENT ON COLUMN finance.expense_shares.amount IS 'Lo que se debe, en currency_code, la moneda del gasto de quien pagó.';
+COMMENT ON COLUMN finance.expense_shares.description IS 'Copia de la descripción del gasto al compartirlo, para que la parte se pueda mostrar aunque el gasto ya no exista.';
+COMMENT ON COLUMN finance.expense_shares.occurred_at IS 'Copia de la fecha del gasto al compartirlo.';
+COMMENT ON COLUMN finance.expense_shares.status IS 'PENDING: deuda abierta. PAID: quien debe la aprobó. REJECTED: quien debe la rechazó. VOIDED: se anuló al borrar el gasto.';
+
+CREATE INDEX ix_expense_shares_payer  ON finance.expense_shares (payer_id, status);
+CREATE INDEX ix_expense_shares_debtor ON finance.expense_shares (debtor_id, status);
+
+CREATE TRIGGER trg_expense_shares_updated_at
+    BEFORE UPDATE ON finance.expense_shares
+    FOR EACH ROW EXECUTE FUNCTION finance.set_updated_at();
+
+ALTER TABLE finance.transactions
+    ADD FOREIGN KEY (share_id) REFERENCES finance.expense_shares (id) ON DELETE SET NULL;
 
 
 -- =============================================================================
