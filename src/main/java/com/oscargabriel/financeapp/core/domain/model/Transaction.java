@@ -10,7 +10,8 @@ import java.util.UUID;
  * dicen si es ocurrencia de una serie (FA-107) o cuota de una compra (FA-108); no los elige el cliente.
  * amount esta siempre en currencyCode, la moneda de la cuenta origen. destinationAmount, solo en una
  * transferencia entre monedas distintas, es lo que entra al destino en su moneda; original, lo que llego
- * antes de convertirse (FA-51).
+ * antes de convertirse (FA-51). groupId reune los que una misma peticion dejo pendientes, que se confirman o se
+ * descartan juntos (FIN-58); se conserva al confirmar y es null en lo que entro confirmado.
  */
 public record Transaction(
         UUID id,
@@ -29,7 +30,8 @@ public record Transaction(
         UUID recurrenceId,
         InstallmentRef installment,
         BigDecimal destinationAmount,
-        OriginalAmount original) {
+        OriginalAmount original,
+        UUID groupId) {
 
     /** Con fecha posterior al instante dado: no cuenta en saldos ni reportes hasta entonces (FA-106). */
     public boolean scheduledAt(Instant ahora) {

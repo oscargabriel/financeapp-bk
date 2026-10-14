@@ -34,10 +34,12 @@ import com.oscargabriel.financeapp.core.domain.model.TransactionOrigin;
 import com.oscargabriel.financeapp.core.domain.model.TransactionStatus;
 import com.oscargabriel.financeapp.core.domain.model.TransactionType;
 import com.oscargabriel.financeapp.core.domain.model.UpdateTransactionCommand;
+import com.oscargabriel.financeapp.core.domain.port.in.ApprovePendingGroupPort;
 import com.oscargabriel.financeapp.core.domain.port.in.ApprovePendingTransactionPort;
 import com.oscargabriel.financeapp.core.domain.port.in.CreateTransactionsPort;
 import com.oscargabriel.financeapp.core.domain.port.in.DeleteTransactionPort;
 import com.oscargabriel.financeapp.core.domain.port.in.ListPendingTransactionsPort;
+import com.oscargabriel.financeapp.core.domain.port.in.RejectPendingGroupPort;
 import com.oscargabriel.financeapp.core.domain.port.in.RejectPendingTransactionPort;
 import com.oscargabriel.financeapp.core.domain.port.in.UpdateTransactionPort;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
@@ -58,6 +60,8 @@ class TransactionControllerTest {
 
     private static final UUID GASTO_ID = UUID.fromString("50000000-0000-7000-8000-000000000001");
     private static final UUID TRANSFERENCIA_ID = UUID.fromString("50000000-0000-7000-8000-000000000002");
+
+    private static final UUID GRUPO_ID = UUID.fromString("71000000-0000-7000-8000-000000000001");
 
     private static final String LOTE = """
             [{"type": "EXPENSE", "accountId": "30000000-0000-7000-8000-000000000001",
@@ -90,6 +94,12 @@ class TransactionControllerTest {
     @MockitoBean
     private RejectPendingTransactionPort rejectPending;
 
+    @MockitoBean
+    private ApprovePendingGroupPort approvePendingGroup;
+
+    @MockitoBean
+    private RejectPendingGroupPort rejectPendingGroup;
+
     private static JwtMutator tokenDelUsuario() {
         return mockJwt().jwt(jwt -> jwt.subject(TransactionMother.USER_ID.toString()));
     }
@@ -107,7 +117,7 @@ class TransactionControllerTest {
 
     @Test
     void respondeCreadoConLosMovimientosEnElOrdenQueLosEntregaElCasoDeUso() {
-        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), anyList()))
+        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), eq(TransactionStatus.CONFIRMED), anyList()))
                 .thenReturn(Flux.just(gasto(), transferencia()));
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
@@ -143,7 +153,7 @@ class TransactionControllerTest {
                 new OriginalAmount(new BigDecimal("12.5"), "USD"));
         Transaction entreMonedas = TransactionMother.haciaOtraMoneda(transferencia(), TransactionMother.USD_ID,
                 new BigDecimal("24.39"));
-        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), anyList()))
+        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), eq(TransactionStatus.CONFIRMED), anyList()))
                 .thenReturn(Flux.just(convertido, entreMonedas, gasto()));
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
@@ -165,7 +175,7 @@ class TransactionControllerTest {
 
     @Test
     void marcaComoProgramadoElMovimientoConFechaPosteriorAlReloj() {
-        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), anyList()))
+        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), eq(TransactionStatus.CONFIRMED), anyList()))
                 .thenReturn(Flux.just(gasto(), TransactionMother.conFecha(transferencia(), RelojFijo.DESPUES)));
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
@@ -180,7 +190,7 @@ class TransactionControllerTest {
 
     @Test
     void laMarcaDeProgramadoEnElCuerpoSeIgnora() {
-        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), anyList()))
+        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), eq(TransactionStatus.CONFIRMED), anyList()))
                 .thenReturn(Flux.just(gasto()));
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
@@ -198,7 +208,7 @@ class TransactionControllerTest {
 
     @Test
     void pasaAlCasoDeUsoElUsuarioDelTokenYCadaElementoTalCualLlega() {
-        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), anyList()))
+        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), eq(TransactionStatus.CONFIRMED), anyList()))
                 .thenReturn(Flux.just(gasto(), transferencia()));
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
@@ -209,7 +219,7 @@ class TransactionControllerTest {
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<CreateTransactionCommand>> lote = ArgumentCaptor.forClass(List.class);
-        verify(createTransactions).create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), lote.capture());
+        verify(createTransactions).create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), eq(TransactionStatus.CONFIRMED), lote.capture());
         assertThat(lote.getValue()).containsExactly(
                 new CreateTransactionCommand("EXPENSE", "30000000-0000-7000-8000-000000000001", null,
                         "40000000-0000-7000-8000-000000000001", new BigDecimal("50000"), null, null,
@@ -222,7 +232,7 @@ class TransactionControllerTest {
     /** La fecha la pone el caso de uso: el controlador no la exige ni la inventa (FA-60). */
     @Test
     void unElementoSinFechaLlegaAlCasoDeUsoSinFecha() {
-        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), anyList())).thenReturn(Flux.just(gasto()));
+        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), eq(TransactionStatus.CONFIRMED), anyList())).thenReturn(Flux.just(gasto()));
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -236,7 +246,7 @@ class TransactionControllerTest {
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<CreateTransactionCommand>> lote = ArgumentCaptor.forClass(List.class);
-        verify(createTransactions).create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), lote.capture());
+        verify(createTransactions).create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), eq(TransactionStatus.CONFIRMED), lote.capture());
         assertThat(lote.getValue()).singleElement()
                 .extracting(CreateTransactionCommand::occurredAt).isNull();
     }
@@ -331,7 +341,7 @@ class TransactionControllerTest {
     /** Que las cuentas y categorias existan y sean del usuario lo sigue reportando el caso de uso. */
     @Test
     void devuelveLosErroresIndexadosDelCasoDeUso() {
-        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), anyList()))
+        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), eq(TransactionStatus.CONFIRMED), anyList()))
                 .thenReturn(Flux.error(new BadRequestException(HttpStatus.BAD_REQUEST,
                         ErrorCodes.VALIDATION_ERROR, "La cuenta no existe", "[1].accountId")));
 
@@ -351,7 +361,7 @@ class TransactionControllerTest {
      */
     @Test
     void noRespondeCreadoSiElLoteFallaDespuesDelPrimerMovimiento() {
-        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), anyList()))
+        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), eq(TransactionStatus.CONFIRMED), anyList()))
                 .thenReturn(Flux.concat(Flux.just(gasto()), Flux.error(new IllegalStateException("fallo el INSERT 2"))));
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
@@ -577,10 +587,11 @@ class TransactionControllerTest {
     }
 
     @Test
-    void listaLosPendientesDelUsuarioConSuEstado() {
+    void listaLosPendientesDelUsuarioConSuEstadoYSuGrupo() {
         when(listPending.listPending(TransactionMother.USER_ID)).thenReturn(Flux.just(
-                TransactionMother.conEstado(gasto(), TransactionStatus.PENDING),
-                TransactionMother.conEstado(transferencia(), TransactionStatus.PENDING)));
+                TransactionMother.enGrupo(TransactionMother.conEstado(gasto(), TransactionStatus.PENDING), GRUPO_ID),
+                TransactionMother.enGrupo(TransactionMother.conEstado(transferencia(), TransactionStatus.PENDING),
+                        GRUPO_ID)));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "/pending")
                 .exchange()
@@ -589,8 +600,26 @@ class TransactionControllerTest {
                 .jsonPath("$.length()").isEqualTo(2)
                 .jsonPath("$[0].id").isEqualTo(GASTO_ID.toString())
                 .jsonPath("$[0].status").isEqualTo("PENDING")
+                .jsonPath("$[0].groupId").isEqualTo(GRUPO_ID.toString())
                 .jsonPath("$[1].id").isEqualTo(TRANSFERENCIA_ID.toString())
-                .jsonPath("$[1].status").isEqualTo("PENDING");
+                .jsonPath("$[1].status").isEqualTo("PENDING")
+                .jsonPath("$[1].groupId").isEqualTo(GRUPO_ID.toString());
+    }
+
+    @Test
+    void elAltaDevuelveElGrupoDeLoQueQuedoPendienteYNullEnLoConfirmado() {
+        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), eq(TransactionStatus.CONFIRMED), anyList()))
+                .thenReturn(Flux.just(TransactionMother.enGrupo(TransactionMother.conEstado(gasto(),
+                        TransactionStatus.PENDING), GRUPO_ID), transferencia()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(LOTE)
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody()
+                .jsonPath("$[0].groupId").isEqualTo(GRUPO_ID.toString())
+                .jsonPath("$[1].groupId").isEmpty();
     }
 
     @Test
@@ -621,8 +650,9 @@ class TransactionControllerTest {
     }
 
     @Test
-    void apruebaYRespondeElMovimientoConfirmado() {
-        when(approvePending.approve(TransactionMother.USER_ID, GASTO_ID)).thenReturn(Mono.just(gasto()));
+    void apruebaYRespondeElMovimientoConfirmadoConSuGrupo() {
+        when(approvePending.approve(TransactionMother.USER_ID, GASTO_ID))
+                .thenReturn(Mono.just(TransactionMother.enGrupo(gasto(), GRUPO_ID)));
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE + "/" + GASTO_ID + "/approve")
                 .exchange()
@@ -631,7 +661,8 @@ class TransactionControllerTest {
                 .jsonPath("$.id").isEqualTo(GASTO_ID.toString())
                 .jsonPath("$.amount").isEqualTo(50000)
                 .jsonPath("$.status").isEqualTo("CONFIRMED")
-                .jsonPath("$.scheduled").isEqualTo(false);
+                .jsonPath("$.scheduled").isEqualTo(false)
+                .jsonPath("$.groupId").isEqualTo(GRUPO_ID.toString());
     }
 
     @Test
@@ -685,6 +716,72 @@ class TransactionControllerTest {
     }
 
     @Test
+    void confirmaElGrupoYRespondeLosMovimientosConfirmadosEnOrden() {
+        when(approvePendingGroup.approve(TransactionMother.USER_ID, GRUPO_ID)).thenReturn(Flux.just(
+                TransactionMother.enGrupo(gasto(), GRUPO_ID), TransactionMother.enGrupo(transferencia(), GRUPO_ID)));
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE + "/groups/" + GRUPO_ID + "/approve")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(2)
+                .jsonPath("$[0].id").isEqualTo(GASTO_ID.toString())
+                .jsonPath("$[0].status").isEqualTo("CONFIRMED")
+                .jsonPath("$[0].groupId").isEqualTo(GRUPO_ID.toString())
+                .jsonPath("$[1].id").isEqualTo(TRANSFERENCIA_ID.toString());
+    }
+
+    @Test
+    void descartaElGrupoYRespondeSinContenido() {
+        when(rejectPendingGroup.reject(TransactionMother.USER_ID, GRUPO_ID)).thenReturn(Mono.empty());
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE + "/groups/" + GRUPO_ID + "/reject")
+                .exchange()
+                .expectStatus().isNoContent()
+                .expectBody().isEmpty();
+
+        verify(rejectPendingGroup).reject(TransactionMother.USER_ID, GRUPO_ID);
+    }
+
+    @Test
+    void unGrupoMalFormadoAlConfirmarEsUn400SobreElGrupo() {
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE + "/groups/abc/approve")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("groupId");
+
+        verifyNoInteractions(approvePendingGroup);
+    }
+
+    @Test
+    void unGrupoMalFormadoAlDescartarEsUn400SobreElGrupo() {
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE + "/groups/abc/reject")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("groupId");
+
+        verifyNoInteractions(rejectPendingGroup);
+    }
+
+    @Test
+    void confirmarUnGrupoQueNoSePuedeAprobarPropagaLosErroresIndexados() {
+        when(approvePendingGroup.approve(TransactionMother.USER_ID, GRUPO_ID)).thenReturn(Flux.error(
+                new BadRequestException(HttpStatus.CONFLICT, ErrorCodes.INSUFFICIENT_FUNDS,
+                        "Saldo insuficiente en Efectivo", "[1].amount")));
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE + "/groups/" + GRUPO_ID + "/approve")
+                .exchange()
+                .expectStatus().isEqualTo(HttpStatus.CONFLICT)
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.INSUFFICIENT_FUNDS.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("[1].amount");
+    }
+
+    @Test
     void rechazarUnoAjenoPropagaElNoEncontradoDelCasoDeUso() {
         when(rejectPending.reject(TransactionMother.USER_ID, GASTO_ID)).thenReturn(Mono.error(noEncontrado()));
 
@@ -703,13 +800,13 @@ class TransactionControllerTest {
         return new Transaction(GASTO_ID, TransactionMother.USER_ID, TransactionType.EXPENSE,
                 TransactionMother.ORIGEN_ID, null, TransactionMother.MERCADO_ID, new BigDecimal("50000"),
                 "COP", "Mercado", "Pagado en efectivo", Instant.parse("2026-09-20T15:15:00Z"),
-                TransactionStatus.CONFIRMED, TransactionOrigin.WEB, null, null, null, null);
+                TransactionStatus.CONFIRMED, TransactionOrigin.WEB, null, null, null, null, null);
     }
 
     private static Transaction transferencia() {
         return new Transaction(TRANSFERENCIA_ID, TransactionMother.USER_ID, TransactionType.TRANSFER,
                 TransactionMother.ORIGEN_ID, TransactionMother.DESTINO_ID, null, new BigDecimal("100000"),
                 "COP", "Ahorro", null, Instant.parse("2026-09-20T16:00:00Z"),
-                TransactionStatus.CONFIRMED, TransactionOrigin.WEB, null, null, null, null);
+                TransactionStatus.CONFIRMED, TransactionOrigin.WEB, null, null, null, null, null);
     }
 }

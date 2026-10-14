@@ -1,0 +1,33 @@
+info:
+  name: Grupo parcial — confirmar lo que queda
+  type: http
+  seq: 41
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/groups/{{grupoParcial}}/approve"
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: length
+      value: "1"
+  scripts:
+    - type: tests
+      code: |-
+        test("confirma solo el que seguia pendiente", function() {
+          expect(res.getBody()[0].id).to.equal(bru.getVar("idParcial2"));
+          expect(res.getBody()[0].status).to.equal("CONFIRMED");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

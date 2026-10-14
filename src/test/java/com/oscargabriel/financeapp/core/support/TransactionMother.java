@@ -88,14 +88,14 @@ public final class TransactionMother {
     public static Transaction unGastoGuardado() {
         return new Transaction(GASTO_GUARDADO_ID, USER_ID, TransactionType.EXPENSE, ORIGEN_ID, null, MERCADO_ID,
                 new BigDecimal("30000.5000"), "COP", "Fruta", "En la plaza", INSTANTE, TransactionStatus.CONFIRMED,
-                TransactionOrigin.WEB, null, null, null, null);
+                TransactionOrigin.WEB, null, null, null, null, null);
     }
 
     public static Transaction unGastoGuardadoEn(UUID cuenta) {
         Transaction gasto = unGastoGuardado();
         return new Transaction(gasto.id(), gasto.userId(), gasto.type(), cuenta, null, gasto.categoryId(),
                 gasto.amount(), gasto.currencyCode(), gasto.description(), gasto.notes(), gasto.occurredAt(),
-                gasto.status(), gasto.origin(), gasto.recurrenceId(), gasto.installment(), gasto.destinationAmount(), gasto.original());
+                gasto.status(), gasto.origin(), gasto.recurrenceId(), gasto.installment(), gasto.destinationAmount(), gasto.original(), gasto.groupId());
     }
 
     /** El mismo gasto guardado, pero como lo deja el asistente: sin aprobar. */
@@ -103,34 +103,34 @@ public final class TransactionMother {
         Transaction t = unGastoGuardado();
         return new Transaction(t.id(), t.userId(), t.type(), t.accountId(), t.destinationAccountId(),
                 t.categoryId(), t.amount(), t.currencyCode(), t.description(), t.notes(), t.occurredAt(),
-                TransactionStatus.PENDING, TransactionOrigin.TELEGRAM, t.recurrenceId(), t.installment(), t.destinationAmount(), t.original());
+                TransactionStatus.PENDING, TransactionOrigin.TELEGRAM, t.recurrenceId(), t.installment(), t.destinationAmount(), t.original(), t.groupId());
     }
 
     /** El mismo movimiento con otra fecha: despues de RelojFijo.AHORA queda programado (FA-106). */
     public static Transaction conFecha(Transaction t, Instant fecha) {
         return new Transaction(t.id(), t.userId(), t.type(), t.accountId(), t.destinationAccountId(),
                 t.categoryId(), t.amount(), t.currencyCode(), t.description(), t.notes(), fecha, t.status(),
-                t.origin(), t.recurrenceId(), t.installment(), t.destinationAmount(), t.original());
+                t.origin(), t.recurrenceId(), t.installment(), t.destinationAmount(), t.original(), t.groupId());
     }
 
     /** El mismo movimiento como cuota 2 de 3 de una compra en cuotas (FA-108). */
     public static Transaction cuota(Transaction t, UUID compra) {
         return new Transaction(t.id(), t.userId(), t.type(), t.accountId(), t.destinationAccountId(),
                 t.categoryId(), t.amount(), t.currencyCode(), t.description(), t.notes(), t.occurredAt(), t.status(),
-                t.origin(), t.recurrenceId(), new InstallmentRef(compra, 2, 3, new BigDecimal("400000")), t.destinationAmount(), t.original());
+                t.origin(), t.recurrenceId(), new InstallmentRef(compra, 2, 3, new BigDecimal("400000")), t.destinationAmount(), t.original(), t.groupId());
     }
 
     /** El mismo movimiento como ocurrencia de una serie (FA-107). */    public static Transaction deLaSerie(Transaction t, UUID serie) {
         return new Transaction(t.id(), t.userId(), t.type(), t.accountId(), t.destinationAccountId(),
                 t.categoryId(), t.amount(), t.currencyCode(), t.description(), t.notes(), t.occurredAt(), t.status(),
-                t.origin(), serie, t.installment(), t.destinationAmount(), t.original());
+                t.origin(), serie, t.installment(), t.destinationAmount(), t.original(), t.groupId());
     }
 
     /** El mismo movimiento como transferencia hacia una cuenta de otra moneda, con lo que entra al destino (FA-51). */
     public static Transaction haciaOtraMoneda(Transaction t, UUID destino, BigDecimal montoDestino) {
         return new Transaction(t.id(), t.userId(), TransactionType.TRANSFER, t.accountId(), destino, null,
                 t.amount(), t.currencyCode(), t.description(), t.notes(), t.occurredAt(), t.status(), t.origin(),
-                t.recurrenceId(), t.installment(), montoDestino, null);
+                t.recurrenceId(), t.installment(), montoDestino, null, t.groupId());
     }
 
     /** El mismo movimiento como convertido desde otra moneda (FA-51). */
@@ -138,7 +138,7 @@ public final class TransactionMother {
         return new Transaction(t.id(), t.userId(), t.type(), t.accountId(), t.destinationAccountId(),
                 t.categoryId(), t.amount(), t.currencyCode(), t.description(), t.notes(), t.occurredAt(),
                 TransactionStatus.PENDING, t.origin(), t.recurrenceId(), t.installment(), t.destinationAmount(),
-                original);
+                original, t.groupId());
     }
 
     public static final UUID INGRESO_GUARDADO_ID = UUID.fromString("50000000-0000-7000-8000-000000000003");
@@ -146,33 +146,46 @@ public final class TransactionMother {
     public static Transaction unIngresoGuardado() {
         return new Transaction(INGRESO_GUARDADO_ID, USER_ID, TransactionType.INCOME, ORIGEN_ID, null, SALARIO_ID,
                 new BigDecimal("200000.0000"), "COP", "Pago quincena", null, INSTANTE, TransactionStatus.CONFIRMED,
-                TransactionOrigin.WEB, null, null, null, null);
+                TransactionOrigin.WEB, null, null, null, null, null);
     }
 
     /** El mismo movimiento con otro monto, sobre otra cuenta origen y otro destino si es transferencia. */
     public static Transaction en(Transaction t, UUID cuenta, UUID destino, String monto) {
         return new Transaction(t.id(), t.userId(), t.type(), cuenta, destino, t.categoryId(), new BigDecimal(monto),
                 t.currencyCode(), t.description(), t.notes(), t.occurredAt(), t.status(), t.origin(),
-                t.recurrenceId(), t.installment(), t.destinationAmount(), t.original());
+                t.recurrenceId(), t.installment(), t.destinationAmount(), t.original(), t.groupId());
     }
 
     public static Transaction conEstado(Transaction t, TransactionStatus estado) {
         return new Transaction(t.id(), t.userId(), t.type(), t.accountId(), t.destinationAccountId(),
                 t.categoryId(), t.amount(), t.currencyCode(), t.description(), t.notes(), t.occurredAt(), estado,
-                t.origin(), t.recurrenceId(), t.installment(), t.destinationAmount(), t.original());
+                t.origin(), t.recurrenceId(), t.installment(), t.destinationAmount(), t.original(), t.groupId());
+    }
+
+    public static Transaction conCategoria(Transaction t, UUID categoria) {
+        return new Transaction(t.id(), t.userId(), t.type(), t.accountId(), t.destinationAccountId(), categoria,
+                t.amount(), t.currencyCode(), t.description(), t.notes(), t.occurredAt(), t.status(), t.origin(),
+                t.recurrenceId(), t.installment(), t.destinationAmount(), t.original(), t.groupId());
+    }
+
+    /** El mismo movimiento en un grupo de pendientes (FIN-58). */
+    public static Transaction enGrupo(Transaction t, UUID grupo) {
+        return new Transaction(t.id(), t.userId(), t.type(), t.accountId(), t.destinationAccountId(),
+                t.categoryId(), t.amount(), t.currencyCode(), t.description(), t.notes(), t.occurredAt(), t.status(),
+                t.origin(), t.recurrenceId(), t.installment(), t.destinationAmount(), t.original(), grupo);
     }
 
     public static Transaction unaTransferenciaGuardada() {
         return new Transaction(TRANSFERENCIA_GUARDADA_ID, USER_ID, TransactionType.TRANSFER, ORIGEN_ID, DESTINO_ID,
                 null, new BigDecimal("100000.0000"), "COP", "Ahorro del mes", null, INSTANTE,
-                TransactionStatus.CONFIRMED, TransactionOrigin.WEB, null, null, null, null);
+                TransactionStatus.CONFIRMED, TransactionOrigin.WEB, null, null, null, null, null);
     }
 
     public static Transaction unaTransferenciaPendienteEntre(UUID origen, UUID destino) {
         Transaction t = unaTransferenciaGuardada();
         return new Transaction(t.id(), t.userId(), t.type(), origen, destino, t.categoryId(), t.amount(),
                 t.currencyCode(), t.description(), t.notes(), t.occurredAt(), TransactionStatus.PENDING,
-                TransactionOrigin.TELEGRAM, t.recurrenceId(), t.installment(), t.destinationAmount(), t.original());
+                TransactionOrigin.TELEGRAM, t.recurrenceId(), t.installment(), t.destinationAmount(), t.original(), t.groupId());
     }
 
     public static Parche unParche() {

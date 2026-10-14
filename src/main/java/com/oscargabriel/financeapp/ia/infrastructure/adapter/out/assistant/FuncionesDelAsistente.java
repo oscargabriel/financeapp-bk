@@ -1,35 +1,63 @@
 package com.oscargabriel.financeapp.ia.infrastructure.adapter.out.assistant;
 
+import java.util.List;
+
 import com.oscargabriel.financeapp.ia.domain.model.AssistantDecision;
 
 import tools.jackson.databind.JsonNode;
 
 /**
- * Traduce una llamada de funcion a la decision del dominio. La comparten Gemini y el stub, para que
+ * Traduce las llamadas de funcion de una respuesta a la decision del dominio. La comparten Gemini y el stub, para que
  * Bruno ejerza la misma traduccion que produccion. Una funcion que no sea de las tres no hace nada.
  */
 final class FuncionesDelAsistente {
 
+    private static final String CREAR = "crear_movimiento";
+
     private FuncionesDelAsistente() {
+    }
+
+    /** Una llamada tal como la devolvio el modelo. */
+    record Llamada(String nombre, JsonNode args) {
     }
 
     static boolean existe(String nombre) {
         return switch (nombre) {
-            case "crear_movimiento", "consultar_movimientos", "consultar_saldo" -> true;
+            case CREAR, "consultar_movimientos", "consultar_saldo" -> true;
             default -> false;
         };
     }
 
-    static AssistantDecision decision(String nombre, JsonNode args) {
+    /**
+     * Si el modelo llamo crear_movimiento, todas esas llamadas en orden y nada mas (FIN-58); si no, la primera llamada.
+     * Sin llamadas, no hay funcion.
+     */
+    static AssistantDecision decision(List<Llamada> llamadas) {
+        List<AssistantDecision.CrearMovimiento> movimientos = llamadas.stream()
+                .filter(llamada -> CREAR.equals(llamada.nombre()))
+                .map(llamada -> movimiento(llamada.args()))
+                .toList();
+        if (!movimientos.isEmpty()) {
+            return new AssistantDecision.CrearMovimientos(movimientos);
+        }
+        return llamadas.isEmpty()
+                ? new AssistantDecision.SinFuncion()
+                : decision(llamadas.getFirst().nombre(), llamadas.getFirst().args());
+    }
+
+    private static AssistantDecision decision(String nombre, JsonNode args) {
         return switch (nombre) {
-            case "crear_movimiento" -> new AssistantDecision.CrearMovimiento(texto(args, "tipo"),
-                    texto(args, "monto"), texto(args, "cuenta"), texto(args, "cuenta_destino"),
-                    texto(args, "categoria"), texto(args, "descripcion"), texto(args, "fecha"));
             case "consultar_movimientos" -> new AssistantDecision.ConsultarMovimientos(texto(args, "desde"),
                     texto(args, "hasta"), texto(args, "tipo"), texto(args, "categoria"), texto(args, "cuenta"));
             case "consultar_saldo" -> new AssistantDecision.ConsultarSaldo(texto(args, "desde"), texto(args, "hasta"));
             default -> new AssistantDecision.SinFuncion();
         };
+    }
+
+    private static AssistantDecision.CrearMovimiento movimiento(JsonNode args) {
+        return new AssistantDecision.CrearMovimiento(texto(args, "tipo"), texto(args, "monto"), texto(args, "cuenta"),
+                texto(args, "cuenta_destino"), texto(args, "categoria"), texto(args, "descripcion"),
+                texto(args, "fecha"));
     }
 
     /** Un numero sale en notacion plana: el modelo manda 20000 y el caso de uso lo parsea igual que un texto. */

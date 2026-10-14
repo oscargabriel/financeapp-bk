@@ -122,12 +122,14 @@ class TransactionsIT {
                 .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED");
     }
 
-    /** Los tres endpoints de pendientes caen en la cadena del JWT, sin regla propia. */
+    /** Los endpoints de pendientes y de grupos (FIN-58) caen en la cadena del JWT, sin regla propia. */
     @ParameterizedTest
     @CsvSource({
             "GET,  /api/transactions/pending",
             "POST, /api/transactions/50000000-0000-7000-8000-000000000001/approve",
-            "POST, /api/transactions/50000000-0000-7000-8000-000000000001/reject"})
+            "POST, /api/transactions/50000000-0000-7000-8000-000000000001/reject",
+            "POST, /api/transactions/groups/71000000-0000-7000-8000-000000000001/approve",
+            "POST, /api/transactions/groups/71000000-0000-7000-8000-000000000001/reject"})
     void losPendientesSinCredencialesSonUn401ConElRetoDelJwt(HttpMethod metodo, String ruta) {
         webTestClient.method(metodo).uri(ruta)
                 .exchange()
@@ -142,7 +144,9 @@ class TransactionsIT {
     @CsvSource({
             "GET,  /api/transactions/pending",
             "POST, /api/transactions/50000000-0000-7000-8000-000000000001/approve",
-            "POST, /api/transactions/50000000-0000-7000-8000-000000000001/reject"})
+            "POST, /api/transactions/50000000-0000-7000-8000-000000000001/reject",
+            "POST, /api/transactions/groups/71000000-0000-7000-8000-000000000001/approve",
+            "POST, /api/transactions/groups/71000000-0000-7000-8000-000000000001/reject"})
     void losPendientesConElBasicCompartidoSonUn401(HttpMethod metodo, String ruta) {
         webTestClient.method(metodo).uri(ruta)
                 .headers(BasicMother.cabecera())

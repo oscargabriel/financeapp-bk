@@ -6,12 +6,14 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -26,8 +28,10 @@ import com.oscargabriel.financeapp.ia.domain.model.AssistantDecision;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantReply;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantReport;
 import com.oscargabriel.financeapp.ia.domain.model.CategoryScope;
+import com.oscargabriel.financeapp.ia.domain.model.CreatedGroup;
 import com.oscargabriel.financeapp.ia.domain.model.CreatedMovement;
 import com.oscargabriel.financeapp.ia.domain.model.NewMovement;
+import com.oscargabriel.financeapp.ia.domain.model.RegisteredMovement;
 import com.oscargabriel.financeapp.ia.domain.model.ReportFilter;
 import com.oscargabriel.financeapp.ia.domain.model.TransactionType;
 import com.oscargabriel.financeapp.ia.domain.model.UserAccount;
@@ -89,37 +93,50 @@ public class AssistantUseCase implements AssistantPort {
 
     private Mono<AssistantReply> ejecutar(UUID userId, AssistantDecision decision, DelUsuario suyo) {
         return switch (decision) {
-            case AssistantDecision.CrearMovimiento c -> Mono.defer(() -> crear(userId, c, suyo));
+            case AssistantDecision.CrearMovimientos c -> Mono.defer(() -> crear(userId, c.movimientos(), suyo));
             case AssistantDecision.ConsultarMovimientos q -> Mono.defer(() -> consultarMovimientos(userId, q, suyo));
             case AssistantDecision.ConsultarSaldo s -> Mono.defer(() -> consultarSaldo(userId, s));
             case AssistantDecision.SinFuncion ignorada -> Mono.just(AssistantReply.noSoportado(NO_SOPORTADO));
         };
     }
 
-    private Mono<AssistantReply> crear(UUID userId, AssistantDecision.CrearMovimiento c, DelUsuario suyo) {
+    /**
+     * Todo o nada (FIN-58): se resuelven todos antes de registrar, y el primero que no se pueda pide aclarar sin crear
+     * ninguno. Con varios, la aclaracion dice cual por su posicion en el mensaje. Se registran en un solo grupo.
+     */
+    private Mono<AssistantReply> crear(UUID userId, List<AssistantDecision.CrearMovimiento> llamadas, DelUsuario suyo) {
+        List<Resuelto> resueltos = new ArrayList<>(llamadas.size());
+        for (int i = 0; i < llamadas.size(); i++) {
+            try {
+                resueltos.add(resolver(llamadas.get(i), suyo));
+            } catch (Aclaracion a) {
+                throw llamadas.size() == 1 ? a : new Aclaracion("Movimiento " + (i + 1) + ": " + a.getMessage());
+            }
+        }
+        return pendientes.register(userId, resueltos.stream().map(Resuelto::nuevo).toList())
+                .map(registrado -> AssistantReply.creado(mensaje(resueltos), new CreatedGroup(registrado.groupId(),
+                        IntStream.range(0, resueltos.size())
+                                .mapToObj(i -> resueltos.get(i).creado(registrado.movements().get(i)))
+                                .toList())));
+    }
+
+    private Resuelto resolver(AssistantDecision.CrearMovimiento c, DelUsuario suyo) {
         TransactionType tipo = tipo(c.tipo(), true);
         BigDecimal monto = monto(c.monto());
         String descripcion = descripcion(c.descripcion());
         UserAccount cuenta = suyo.cuenta(c.cuenta(), "la cuenta");
         UserAccount destino = tipo == TransactionType.TRANSFER ? suyo.cuenta(c.cuentaDestino(), "la cuenta destino") : null;
         UserCategory categoria = tipo == TransactionType.TRANSFER ? null : suyo.categoriaPara(tipo, c.categoria());
-        String fecha = instante(c.fecha());
+        return new Resuelto(tipo, monto, descripcion, cuenta, destino, categoria, instante(c.fecha()));
+    }
 
-        NewMovement nuevo = new NewMovement(tipo, cuenta.id(), destino == null ? null : destino.id(),
-                categoria == null ? null : categoria.id(), monto, cuenta.currencyCode(), descripcion, fecha);
-        String mensaje = switch (tipo) {
-            case EXPENSE -> "Registre un gasto de " + dinero(monto, cuenta.currencyCode()) + " en " + cuenta.name()
-                    + " (" + categoria.name() + ").";
-            case INCOME -> "Registre un ingreso de " + dinero(monto, cuenta.currencyCode()) + " en " + cuenta.name()
-                    + " (" + categoria.name() + ").";
-            case TRANSFER -> "Registre una transferencia de " + dinero(monto, cuenta.currencyCode()) + " de "
-                    + cuenta.name() + " a " + destino.name() + ".";
-        };
-        return pendientes.register(userId, nuevo)
-                .map(r -> AssistantReply.creado(mensaje + " Queda pendiente de tu aprobacion.",
-                        new CreatedMovement(r.id(), tipo, r.status(), monto, cuenta.currencyCode(), descripcion,
-                                r.occurredAt(), cuenta.name(), destino == null ? null : destino.name(),
-                                categoria == null ? null : categoria.name())));
+    private static String mensaje(List<Resuelto> resueltos) {
+        if (resueltos.size() == 1) {
+            return "Registre " + resueltos.getFirst().frase() + ". Confirmalo o descartalo.";
+        }
+        return "Registre " + resueltos.size() + " movimientos: "
+                + resueltos.stream().map(Resuelto::frase).collect(Collectors.joining("; "))
+                + ". Confirmalos o descartalos.";
     }
 
     /** Las series se ponen al dia despues de validar: una consulta que pide aclaracion no escribe nada. */
@@ -250,6 +267,31 @@ public class AssistantUseCase implements AssistantPort {
     }
 
     private record Rango(LocalDate desde, LocalDate hasta) {
+    }
+
+    /** Un movimiento con los nombres ya resueltos a los del usuario; fecha es la de NewMovement. */
+    private record Resuelto(TransactionType tipo, BigDecimal monto, String descripcion, UserAccount cuenta,
+            UserAccount destino, UserCategory categoria, String fecha) {
+
+        NewMovement nuevo() {
+            return new NewMovement(tipo, cuenta.id(), destino == null ? null : destino.id(),
+                    categoria == null ? null : categoria.id(), monto, cuenta.currencyCode(), descripcion, fecha);
+        }
+
+        CreatedMovement creado(RegisteredMovement r) {
+            return new CreatedMovement(r.id(), tipo, r.status(), monto, cuenta.currencyCode(), descripcion,
+                    r.occurredAt(), cuenta.name(), destino == null ? null : destino.name(),
+                    categoria == null ? null : categoria.name());
+        }
+
+        String frase() {
+            String cuanto = dinero(monto, cuenta.currencyCode());
+            return switch (tipo) {
+                case EXPENSE -> "un gasto de " + cuanto + " en " + cuenta.name() + " (" + categoria.name() + ")";
+                case INCOME -> "un ingreso de " + cuanto + " en " + cuenta.name() + " (" + categoria.name() + ")";
+                case TRANSFER -> "una transferencia de " + cuanto + " de " + cuenta.name() + " a " + destino.name();
+            };
+        }
     }
 
     /** Lo que el asistente no pudo resolver; sale como NEEDS_CLARIFICATION con el mensaje. */

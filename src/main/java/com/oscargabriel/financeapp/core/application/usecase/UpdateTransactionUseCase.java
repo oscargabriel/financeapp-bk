@@ -121,7 +121,7 @@ public class UpdateTransactionUseCase implements UpdateTransactionPort {
                     parche.occurredAt() == null
                             ? guardado.occurredAt()
                             : OffsetDateTime.parse(parche.occurredAt().trim()).toInstant(),
-                    guardado.status(), guardado.origin(), guardado.recurrenceId(), guardado.installment(), montoDestino, guardado.original());
+                    guardado.status(), guardado.origin(), guardado.recurrenceId(), guardado.installment(), montoDestino, guardado.original(), guardado.groupId());
         }
 
         /**

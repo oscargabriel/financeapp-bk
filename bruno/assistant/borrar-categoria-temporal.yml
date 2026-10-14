@@ -1,0 +1,23 @@
+info:
+  name: Borrar la categoria temporal
+  type: http
+  seq: 50
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/categories/{{idTemporal}}"
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

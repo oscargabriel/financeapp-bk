@@ -515,6 +515,7 @@ CREATE TABLE finance.transactions (
     shared_by_user_id       UUID                    REFERENCES finance.users (id) ON DELETE SET NULL,
     -- La FK se agrega después de crear expense_shares, que a su vez apunta aquí.
     share_id                UUID,
+    group_id                UUID,
     CONSTRAINT ck_transactions_type      CHECK (type IN ('EXPENSE', 'INCOME', 'TRANSFER')),
     CONSTRAINT ck_transactions_origin      CHECK (origin IN ('WEB', 'TELEGRAM', 'IMPORT')),
     CONSTRAINT ck_transactions_status      CHECK (status IN ('PENDING', 'CONFIRMED')),
@@ -539,6 +540,8 @@ CREATE TABLE finance.transactions (
     ),
     -- Solo un pendiente puede no tener cuenta todavía: la elige quien lo aprueba.
     CONSTRAINT ck_transactions_account CHECK (account_id IS NOT NULL OR status = 'PENDING'),
+    -- Todo pendiente se confirma o se descarta con su grupo, sea cual sea su origen (FIN-58).
+    CONSTRAINT ck_transactions_group CHECK (status = 'CONFIRMED' OR group_id IS NOT NULL),
     CONSTRAINT ck_transactions_destination_amount CHECK (
         destination_amount IS NULL
         OR (type = 'TRANSFER' AND destination_amount > 0)
@@ -571,6 +574,7 @@ COMMENT ON COLUMN finance.transactions.installment_purchase_id IS 'Compra en cuo
 COMMENT ON COLUMN finance.transactions.installment_principal IS 'Capital de la cuota, sin interés. Mientras la cuota no llega, finance.committed_credit lo descuenta del cupo de la tarjeta.';
 COMMENT ON COLUMN finance.transactions.shared_by_user_id IS 'Quién compartió el movimiento con el usuario (FIN-16): quien pagó, en la parte de quien debe; quien debe, en el ingreso de quien pagó; quien transfirió, en una transferencia compartida.';
 COMMENT ON COLUMN finance.transactions.share_id IS 'Parte compartida de la que sale el movimiento: el gasto de quien debe y el ingreso de quien pagó al aprobarse.';
+COMMENT ON COLUMN finance.transactions.group_id IS 'Grupo de pendientes con que entró (FIN-58): los movimientos que una misma petición dejó sin confirmar, que se confirman o se descartan juntos. Se conserva al confirmar. NULL si entró confirmado.';
 
 CREATE INDEX ix_transactions_user_date
     ON finance.transactions (user_id, occurred_at DESC);
@@ -603,6 +607,10 @@ CREATE INDEX ix_transactions_installment
 -- Del pendiente compartido a su parte, al aprobarlo o rechazarlo.
 CREATE INDEX ix_transactions_share
     ON finance.transactions (share_id) WHERE share_id IS NOT NULL;
+
+-- Confirmar o descartar un grupo lee todos sus movimientos del usuario.
+CREATE INDEX ix_transactions_user_group
+    ON finance.transactions (user_id, group_id) WHERE group_id IS NOT NULL;
 
 CREATE TRIGGER trg_transactions_updated_at
     BEFORE UPDATE ON finance.transactions

@@ -18,6 +18,7 @@ import com.oscargabriel.financeapp.core.domain.model.CreateTransactionCommand;
 import com.oscargabriel.financeapp.core.domain.model.Currency;
 import com.oscargabriel.financeapp.core.domain.model.Transaction;
 import com.oscargabriel.financeapp.core.domain.model.TransactionOrigin;
+import com.oscargabriel.financeapp.core.domain.model.TransactionStatus;
 import com.oscargabriel.financeapp.core.domain.model.TransactionType;
 
 /**
@@ -40,14 +41,19 @@ final class TransactionBatchValidator {
 
     private final TransactionOrigin origen;
 
+    /** El que pide quien registra; lo convertido queda pendiente igual (Borrador). */
+    private final TransactionStatus estado;
+
     TransactionBatchValidator(UUID userId, Map<UUID, Account> cuentas, Map<UUID, Category> categorias,
-            Map<String, Currency> monedas, Supplier<UUID> ids, Instant ahora, TransactionOrigin origen) {
+            Map<String, Currency> monedas, Supplier<UUID> ids, Instant ahora, TransactionOrigin origen,
+            TransactionStatus estado) {
         this.userId = userId;
         this.referencias = new ReferenciasDelUsuario(cuentas, categorias);
         this.monedas = monedas;
         this.ids = ids;
         this.ahora = ahora;
         this.origen = origen;
+        this.estado = estado;
     }
 
     List<Borrador> aBorradores(List<CreateTransactionCommand> lote) {
@@ -99,8 +105,8 @@ final class TransactionBatchValidator {
         String monedaDeLaCuenta = referencias.moneda(cuenta);
         Transaction movimiento = new Transaction(ids.get(), userId, tipo, cuenta, destino, categoria,
                 elemento.amount(), monedaDeLaCuenta, elemento.description().trim(), elemento.notes(),
-                instante(elemento.occurredAt()), origen.estadoInicial(), origen, null, null,
-                elemento.destinationAmount(), null);
+                instante(elemento.occurredAt()), estado, origen, null, null,
+                elemento.destinationAmount(), null, null);
         return new Borrador(movimiento,
                 recibida == null || recibida.equals(monedaDeLaCuenta) ? null : recibida,
                 entreMonedas && elemento.destinationAmount() == null ? referencias.moneda(destino) : null);

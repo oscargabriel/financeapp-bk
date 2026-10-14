@@ -31,8 +31,23 @@ class StubAssistantAdapterTest {
         StepVerifier.create(stub.interpretar("""
                         crear_movimiento {"tipo":"EXPENSE","monto":20000,"cuenta":"nequi","categoria":"mercado",
                         "descripcion":"Mercado"}""", CONTEXTO))
-                .expectNext(new AssistantDecision.CrearMovimiento("EXPENSE", "20000", "nequi", null, "mercado",
-                        "Mercado", null))
+                .expectNext(new AssistantDecision.CrearMovimientos(List.of(new AssistantDecision.CrearMovimiento(
+                        "EXPENSE", "20000", "nequi", null, "mercado", "Mercado", null))))
+                .verifyComplete();
+    }
+
+    /** FIN-58: una llamada por linea, como Gemini devuelve varias partes functionCall. */
+    @Test
+    void entiendeVariasLlamadasUnaPorLinea() {
+        StepVerifier.create(stub.interpretar("""
+                        crear_movimiento {"tipo":"EXPENSE","monto":20000,"cuenta":"nequi","categoria":"mercado",
+                        "descripcion":"Almuerzo"}
+                        crear_movimiento {"tipo":"EXPENSE","monto":15000,"cuenta":"nequi","descripcion":"Taxi"}
+                        consultar_saldo""", CONTEXTO))
+                .expectNext(new AssistantDecision.CrearMovimientos(List.of(
+                        new AssistantDecision.CrearMovimiento("EXPENSE", "20000", "nequi", null, "mercado", "Almuerzo",
+                                null),
+                        new AssistantDecision.CrearMovimiento("EXPENSE", "15000", "nequi", null, null, "Taxi", null))))
                 .verifyComplete();
     }
 

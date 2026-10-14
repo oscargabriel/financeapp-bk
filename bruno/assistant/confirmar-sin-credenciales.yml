@@ -1,0 +1,40 @@
+info:
+  name: Confirmar sin credenciales
+  type: http
+  seq: 63
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/groups/{{grupoAsistente}}/approve"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: authorization
+  scripts:
+    - type: tests
+      code: |-
+        test("el reto es el de la cadena del JWT", function() {
+          expect(res.getHeader("www-authenticate")).to.equal("Bearer");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Sin Authorization
+
+  Sin la clave `http.auth` a proposito, para romper la herencia del Bearer de la coleccion.

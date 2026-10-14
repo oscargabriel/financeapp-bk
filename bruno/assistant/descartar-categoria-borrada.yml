@@ -1,0 +1,23 @@
+info:
+  name: Descartar el grupo con la categoria borrada
+  type: http
+  seq: 53
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/groups/{{grupoTemporal}}/reject"
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

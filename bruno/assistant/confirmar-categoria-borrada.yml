@@ -1,0 +1,32 @@
+info:
+  name: Confirmar el grupo con la categoria borrada
+  type: http
+  seq: 52
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/groups/{{grupoTemporal}}/approve"
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: INVALID_STATE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: [0].categoryId
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -1,0 +1,32 @@
+info:
+  name: Confirmar un grupo que no existe
+  type: http
+  seq: 60
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/groups/00000000-0000-7000-8000-000000000000/approve"
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "404"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: NOT_FOUND
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: groupId
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

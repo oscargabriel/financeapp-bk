@@ -33,6 +33,7 @@ import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantBalance;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantReply;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantReport;
+import com.oscargabriel.financeapp.ia.domain.model.CreatedGroup;
 import com.oscargabriel.financeapp.ia.domain.model.CreatedMovement;
 import com.oscargabriel.financeapp.ia.domain.model.TransactionType;
 import com.oscargabriel.financeapp.ia.domain.port.in.AssistantPort;
@@ -124,27 +125,31 @@ class AssistantControllerTest {
     }
 
     @Test
-    void unMovimientoCreadoSaleLivianoConLosNombresYSinReporteNiSaldo() {
+    void elGrupoCreadoSaleConSuIdYSusMovimientosLivianosSinReporteNiSaldo() {
         UUID id = UUID.fromString("30000000-0000-7000-8000-000000000001");
-        responde(AssistantReply.creado("Registre un gasto. Queda pendiente de tu aprobacion.",
+        UUID grupo = UUID.fromString("71000000-0000-7000-8000-000000000001");
+        responde(AssistantReply.creado("Registre un gasto. Confirmalo o descartalo.", new CreatedGroup(grupo, List.of(
                 new CreatedMovement(id, TransactionType.EXPENSE, "PENDING", new BigDecimal("20000"), "COP",
-                        "Almuerzo", Instant.parse("2026-10-08T15:00:00Z"), "Efectivo", null, "Mercado")));
+                        "Almuerzo", Instant.parse("2026-10-08T15:00:00Z"), "Efectivo", null, "Mercado")))));
 
         envia(Map.of("data", TEXTO))
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.intent").isEqualTo("CREATE_TRANSACTION")
-                .jsonPath("$.message").isEqualTo("Registre un gasto. Queda pendiente de tu aprobacion.")
-                .jsonPath("$.transaction.id").isEqualTo(id.toString())
-                .jsonPath("$.transaction.type").isEqualTo("EXPENSE")
-                .jsonPath("$.transaction.status").isEqualTo("PENDING")
-                .jsonPath("$.transaction.amount").isEqualTo(20000)
-                .jsonPath("$.transaction.occurredAt").isEqualTo("2026-10-08T15:00:00Z")
-                .jsonPath("$.transaction.account").isEqualTo("Efectivo")
-                .jsonPath("$.transaction.destinationAccount").isEqualTo(null)
-                .jsonPath("$.transaction.category").isEqualTo("Mercado")
-                .jsonPath("$.transaction.accountId").doesNotExist()
-                .jsonPath("$.transaction.origin").doesNotExist()
+                .jsonPath("$.message").isEqualTo("Registre un gasto. Confirmalo o descartalo.")
+                .jsonPath("$.transaction").doesNotExist()
+                .jsonPath("$.group.id").isEqualTo(grupo.toString())
+                .jsonPath("$.group.transactions.length()").isEqualTo(1)
+                .jsonPath("$.group.transactions[0].id").isEqualTo(id.toString())
+                .jsonPath("$.group.transactions[0].type").isEqualTo("EXPENSE")
+                .jsonPath("$.group.transactions[0].status").isEqualTo("PENDING")
+                .jsonPath("$.group.transactions[0].amount").isEqualTo(20000)
+                .jsonPath("$.group.transactions[0].occurredAt").isEqualTo("2026-10-08T15:00:00Z")
+                .jsonPath("$.group.transactions[0].account").isEqualTo("Efectivo")
+                .jsonPath("$.group.transactions[0].destinationAccount").isEqualTo(null)
+                .jsonPath("$.group.transactions[0].category").isEqualTo("Mercado")
+                .jsonPath("$.group.transactions[0].accountId").doesNotExist()
+                .jsonPath("$.group.transactions[0].origin").doesNotExist()
                 .jsonPath("$.report").isEqualTo(null)
                 .jsonPath("$.balance").isEqualTo(null);
     }
@@ -172,7 +177,7 @@ class AssistantControllerTest {
                 .jsonPath("$.report.transactions[0].category").isEqualTo("Mercado")
                 .jsonPath("$.report.transactions[0].amountBase").doesNotExist()
                 .jsonPath("$.report.totalsByType").doesNotExist()
-                .jsonPath("$.transaction").isEqualTo(null)
+                .jsonPath("$.group").isEqualTo(null)
                 .jsonPath("$.balance").isEqualTo(null);
     }
 
@@ -196,7 +201,7 @@ class AssistantControllerTest {
                 .jsonPath("$.balance.accounts[0].id").doesNotExist()
                 .jsonPath("$.balance.accounts[0].availableCredit").doesNotExist()
                 .jsonPath("$.balance.period").doesNotExist()
-                .jsonPath("$.transaction").isEqualTo(null)
+                .jsonPath("$.group").isEqualTo(null)
                 .jsonPath("$.report").isEqualTo(null);
     }
 
@@ -209,7 +214,7 @@ class AssistantControllerTest {
                 .expectBody()
                 .jsonPath("$.intent").isEqualTo("NEEDS_CLARIFICATION")
                 .jsonPath("$.message").isEqualTo("No encontre la cuenta «Bancolombia».")
-                .jsonPath("$.transaction").isEqualTo(null)
+                .jsonPath("$.group").isEqualTo(null)
                 .jsonPath("$.report").isEqualTo(null)
                 .jsonPath("$.balance").isEqualTo(null);
     }

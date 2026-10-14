@@ -171,6 +171,12 @@ diferencia, hay un update aplicado que no está en el registro, o uno del regist
      juntos: `20261010_02_monto_original.sql` (FA-51, aditivo) **antes** del merge a `main`, y
      `20261010_01_moneda_del_servicio.sql` después del despliegue, con su paso previo. El orden de los
      nombres no es el de aplicación: `_02` no depende de `_01`.
+   - Un cambio que no cabe en un solo momento va en dos updates. FIN-58:
+     `20261013_02_grupo_de_pendientes.sql` (la columna `group_id`) **antes** del merge a `main`, porque
+     la app nueva la escribe; `20261013_03_grupo_de_pendientes_check.sql` (el `CHECK` que exige grupo
+     a todo pendiente) **después** del despliegue, porque la app vieja crea pendientes sin grupo.
+     Entre los dos, los pendientes viejos salen con `groupId` `null` y solo se aprueban uno a uno; el
+     `_03` les da un grupo a cada uno.
 2. **Snapshot.** En la consola de Neon, en el branch de producción, **Backup & Restore → Create
    snapshot**. Reemplaza al anterior (ver *Respaldo*).
 3. **Conectarse** como arriba y quitar la solo lectura: `Remove-Item env:PGOPTIONS`.

@@ -1,0 +1,32 @@
+info:
+  name: Grupo sin saldo — confirmar
+  type: http
+  seq: 44
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/groups/{{grupoSinSaldo}}/approve"
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: INSUFFICIENT_FUNDS
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: [1].amount
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -242,9 +242,10 @@ trigger `trg_accounts_seed_balance` al crear la cuenta.
 
 ### Movimientos pendientes
 
-`transactions.status` vale `CONFIRMED` (el default) o `PENDING`. Hoy lo ponen el
-asistente de IA (FA-76) y el alta en otra moneda (FA-51), y el esquema no lo ata
-a ningún origen. Un pendiente no tiene efecto hasta que el usuario lo aprueba:
+`transactions.status` vale `CONFIRMED` (el default) o `PENDING`. Un movimiento
+queda pendiente porque necesita que el usuario lo confirme, no por su origen
+(FIN-58): hoy lo ponen el asistente de IA y el alta en otra moneda (FA-51). Un
+pendiente no tiene efecto hasta que el usuario lo aprueba:
 
 - el trigger de saldos lo ignora;
 - aprobarlo es un `UPDATE` a `CONFIRMED`, y ahí el trigger aplica la fila;
@@ -264,6 +265,14 @@ forma explícita porque, con la columna nullable, `destination_account_id <>
 account_id` daría `NULL`, y un `CHECK` con `NULL` pasa. Todo código que lea
 pendientes tiene que tolerar `account_id` y `category_id` nulos. La primera fila
 así la crea FIN-66, con las partes compartidas (ver *Finanzas compartidas*).
+
+**Todo pendiente tiene grupo** (FIN-58): `group_id` reúne los movimientos que una
+misma petición dejó sin confirmar, que se confirman o se descartan juntos. Lo
+genera la aplicación, se conserva al confirmar y es `NULL` en lo que entró
+confirmado. `ck_transactions_group` lo exige a todo `PENDING`, así que quien cree
+pendientes por otra vía (el correo, las partes compartidas) tiene que darles
+grupo. El índice `ix_transactions_user_group` sirve la lectura del grupo entero.
+El porqué está en el `design.md` del change `fin-58-pendiente-sin-confirmar`.
 
 ### Movimientos programados
 

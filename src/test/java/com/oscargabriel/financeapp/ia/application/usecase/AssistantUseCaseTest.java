@@ -7,6 +7,7 @@ import static com.oscargabriel.financeapp.ia.support.AsistenteMother.SALARIO_ID;
 import static com.oscargabriel.financeapp.ia.support.AsistenteMother.USER_ID;
 import static com.oscargabriel.financeapp.ia.support.AsistenteMother.unMovimiento;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -24,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -51,8 +53,10 @@ import com.oscargabriel.financeapp.ia.domain.model.AssistantReply;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantReply.AssistantIntent;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantReport;
 import com.oscargabriel.financeapp.ia.domain.model.CategoryScope;
+import com.oscargabriel.financeapp.ia.domain.model.CreatedGroup;
 import com.oscargabriel.financeapp.ia.domain.model.CreatedMovement;
 import com.oscargabriel.financeapp.ia.domain.model.NewMovement;
+import com.oscargabriel.financeapp.ia.domain.model.RegisteredGroup;
 import com.oscargabriel.financeapp.ia.domain.model.RegisteredMovement;
 import com.oscargabriel.financeapp.ia.domain.model.ReportFilter;
 import com.oscargabriel.financeapp.ia.domain.model.TransactionType;
@@ -77,6 +81,7 @@ class AssistantUseCaseTest {
     private static final Instant AHORA = Instant.parse("2026-10-08T15:00:00Z");
     private static final Clock RELOJ = Clock.fixed(AHORA, ZoneId.of("America/Bogota"));
     private static final UUID REGISTRADO_ID = UUID.fromString("30000000-0000-7000-8000-000000000001");
+    private static final UUID GRUPO_ID = UUID.fromString("71000000-0000-7000-8000-000000000001");
 
     @Mock
     private AssistantModelPort modelo;
@@ -97,7 +102,7 @@ class AssistantUseCaseTest {
     private BalanceQueryPort saldos;
 
     @Captor
-    private ArgumentCaptor<NewMovement> nuevo;
+    private ArgumentCaptor<List<NewMovement>> nuevos;
 
     @Captor
     private ArgumentCaptor<AssistantContext> contexto;
@@ -108,9 +113,16 @@ class AssistantUseCaseTest {
     void escenario() {
         when(nombres.findActiveAccounts(USER_ID)).thenReturn(Flux.fromIterable(AsistenteMother.cuentas()));
         when(nombres.findLiveCategories(USER_ID)).thenAnswer(invocacion -> Flux.fromIterable(categoriasDelUsuario));
-        when(pendientes.register(eq(USER_ID), any()))
-                .thenReturn(Mono.just(new RegisteredMovement(REGISTRADO_ID, "PENDING", AHORA)));
+        when(pendientes.register(eq(USER_ID), any())).thenAnswer(invocacion -> Mono.just(registrados(
+                invocacion.<List<NewMovement>>getArgument(1).size())));
         when(series.catchUp(USER_ID)).thenReturn(Mono.empty());
+    }
+
+    /** El primero con REGISTRADO_ID, los demas con ids que siguen; todos en GRUPO_ID. */
+    private static RegisteredGroup registrados(int cuantos) {
+        return new RegisteredGroup(GRUPO_ID, IntStream.range(0, cuantos)
+                .mapToObj(i -> new RegisteredMovement(i == 0 ? REGISTRADO_ID : UUID.randomUUID(), "PENDING", AHORA))
+                .toList());
     }
 
     private AssistantUseCase useCase() {
@@ -121,6 +133,11 @@ class AssistantUseCaseTest {
         when(modelo.interpretar(eq(TEXTO), any())).thenReturn(Mono.just(decision));
     }
 
+    /** Una llamada a crear_movimiento por movimiento, en ese orden. */
+    private void elModeloDecide(AssistantDecision.CrearMovimiento... movimientos) {
+        elModeloDecide(new AssistantDecision.CrearMovimientos(List.of(movimientos)));
+    }
+
     private static AssistantDecision.CrearMovimiento gasto(String monto, String cuenta, String categoria,
             String descripcion, String fecha) {
         return new AssistantDecision.CrearMovimiento("EXPENSE", monto, cuenta, null, categoria, descripcion, fecha);
@@ -129,7 +146,7 @@ class AssistantUseCaseTest {
     private void esAclaracion(AssistantReply respuesta, String... contiene) {
         assertThat(respuesta.intent()).isEqualTo(AssistantIntent.NEEDS_CLARIFICATION);
         assertThat(respuesta.message()).contains(contiene);
-        assertThat(respuesta.transaction()).isNull();
+        assertThat(respuesta.group()).isNull();
         assertThat(respuesta.report()).isNull();
         assertThat(respuesta.balance()).isNull();
     }
@@ -159,17 +176,19 @@ class AssistantUseCaseTest {
             StepVerifier.create(useCase().atender(USER_ID, TEXTO))
                     .assertNext(respuesta -> {
                         assertThat(respuesta.intent()).isEqualTo(AssistantIntent.CREATE_TRANSACTION);
-                        assertThat(respuesta.transaction()).isEqualTo(new CreatedMovement(REGISTRADO_ID,
-                                TransactionType.EXPENSE, "PENDING", new BigDecimal("20000"), "COP", "Almuerzo", AHORA,
-                                "Efectivo", null, "Mercado"));
-                        assertThat(respuesta.message()).contains("pendiente");
+                        assertThat(respuesta.group()).isEqualTo(new CreatedGroup(GRUPO_ID, List.of(
+                                new CreatedMovement(REGISTRADO_ID, TransactionType.EXPENSE, "PENDING",
+                                        new BigDecimal("20000"), "COP", "Almuerzo", AHORA, "Efectivo", null,
+                                        "Mercado"))));
+                        assertThat(respuesta.message()).isEqualTo(
+                                "Registre un gasto de 20.000 COP en Efectivo (Mercado). Confirmalo o descartalo.");
                         assertThat(respuesta.report()).isNull();
                         assertThat(respuesta.balance()).isNull();
                     })
                     .verifyComplete();
 
-            verify(pendientes).register(eq(USER_ID), nuevo.capture());
-            assertThat(nuevo.getValue()).isEqualTo(new NewMovement(TransactionType.EXPENSE, EFECTIVO_ID, null,
+            verify(pendientes).register(eq(USER_ID), nuevos.capture());
+            assertThat(nuevos.getValue().getFirst()).isEqualTo(new NewMovement(TransactionType.EXPENSE, EFECTIVO_ID, null,
                     MERCADO_ID, new BigDecimal("20000"), "COP", "Almuerzo", null));
         }
 
@@ -180,8 +199,8 @@ class AssistantUseCaseTest {
 
             StepVerifier.create(useCase().atender(USER_ID, TEXTO)).expectNextCount(1).verifyComplete();
 
-            verify(pendientes).register(eq(USER_ID), nuevo.capture());
-            assertThat(nuevo.getValue()).extracting(NewMovement::type, NewMovement::accountId, NewMovement::categoryId)
+            verify(pendientes).register(eq(USER_ID), nuevos.capture());
+            assertThat(nuevos.getValue().getFirst()).extracting(NewMovement::type, NewMovement::accountId, NewMovement::categoryId)
                     .containsExactly(TransactionType.INCOME, AHORROS_ID, SALARIO_ID);
         }
 
@@ -192,14 +211,14 @@ class AssistantUseCaseTest {
                     "Mercado", "Ahorro", null));
 
             StepVerifier.create(useCase().atender(USER_ID, TEXTO))
-                    .assertNext(r -> assertThat(r.transaction())
+                    .assertNext(r -> assertThat(r.group().transactions().getFirst())
                             .extracting(CreatedMovement::account, CreatedMovement::destinationAccount,
                                     CreatedMovement::category)
                             .containsExactly("Efectivo", "Ahorros", null))
                     .verifyComplete();
 
-            verify(pendientes).register(eq(USER_ID), nuevo.capture());
-            assertThat(nuevo.getValue()).extracting(NewMovement::accountId, NewMovement::destinationAccountId,
+            verify(pendientes).register(eq(USER_ID), nuevos.capture());
+            assertThat(nuevos.getValue().getFirst()).extracting(NewMovement::accountId, NewMovement::destinationAccountId,
                     NewMovement::categoryId).containsExactly(EFECTIVO_ID, AHORROS_ID, null);
         }
 
@@ -295,8 +314,8 @@ class AssistantUseCaseTest {
 
             StepVerifier.create(useCase().atender(USER_ID, TEXTO)).expectNextCount(1).verifyComplete();
 
-            verify(pendientes).register(eq(USER_ID), nuevo.capture());
-            assertThat(nuevo.getValue().occurredAt()).isNull();
+            verify(pendientes).register(eq(USER_ID), nuevos.capture());
+            assertThat(nuevos.getValue().getFirst().occurredAt()).isNull();
         }
 
         @Test
@@ -305,8 +324,8 @@ class AssistantUseCaseTest {
 
             StepVerifier.create(useCase().atender(USER_ID, TEXTO)).expectNextCount(1).verifyComplete();
 
-            verify(pendientes).register(eq(USER_ID), nuevo.capture());
-            assertThat(nuevo.getValue().occurredAt()).isEqualTo("2026-10-05T12:00-05:00");
+            verify(pendientes).register(eq(USER_ID), nuevos.capture());
+            assertThat(nuevos.getValue().getFirst().occurredAt()).isEqualTo("2026-10-05T12:00-05:00");
         }
 
         @Test
@@ -329,6 +348,48 @@ class AssistantUseCaseTest {
 
             StepVerifier.create(useCase().atender(USER_ID, TEXTO))
                     .assertNext(r -> esAclaracion(r, "La cuenta esta desactivada"))
+                    .verifyComplete();
+        }
+
+        /** FIN-58: un mensaje con dos movimientos los registra juntos, en un grupo y en el orden del mensaje. */
+        @Test
+        void registraVariosMovimientosEnUnSoloGrupoYEnOrden() {
+            elModeloDecide(gasto("20000", "Efectivo", "Mercado", "Almuerzo", null),
+                    new AssistantDecision.CrearMovimiento("INCOME", "50000", "Ahorros", null, "Salario", "Bono", null));
+
+            StepVerifier.create(useCase().atender(USER_ID, TEXTO))
+                    .assertNext(r -> {
+                        assertThat(r.intent()).isEqualTo(AssistantIntent.CREATE_TRANSACTION);
+                        assertThat(r.group().id()).isEqualTo(GRUPO_ID);
+                        assertThat(r.group().transactions()).extracting(CreatedMovement::description)
+                                .containsExactly("Almuerzo", "Bono");
+                        assertThat(r.message()).isEqualTo("Registre 2 movimientos: un gasto de 20.000 COP en Efectivo "
+                                + "(Mercado); un ingreso de 50.000 COP en Ahorros (Salario). Confirmalos o descartalos.");
+                    })
+                    .verifyComplete();
+
+            verify(pendientes).register(eq(USER_ID), nuevos.capture());
+            assertThat(nuevos.getValue()).extracting(NewMovement::type, NewMovement::accountId)
+                    .containsExactly(tuple(TransactionType.EXPENSE, EFECTIVO_ID), tuple(TransactionType.INCOME, AHORROS_ID));
+        }
+
+        @Test
+        void siUnoNoSeResuelveNoRegistraNingunoYDiceCual() {
+            elModeloDecide(gasto("20000", "Efectivo", "Mercado", "Almuerzo", null),
+                    gasto("15000", "Bancolombia", "Mercado", "Taxi", null));
+
+            StepVerifier.create(useCase().atender(USER_ID, TEXTO))
+                    .assertNext(r -> esAclaracion(r, "Movimiento 2:", "Bancolombia"))
+                    .verifyComplete();
+            verifyNoInteractions(pendientes);
+        }
+
+        @Test
+        void conUnSoloMovimientoLaAclaracionNoLoNumera() {
+            elModeloDecide(gasto("20000", "Bancolombia", "Mercado", "Almuerzo", null));
+
+            StepVerifier.create(useCase().atender(USER_ID, TEXTO))
+                    .assertNext(r -> assertThat(r.message()).doesNotContain("Movimiento 1"))
                     .verifyComplete();
         }
 
@@ -367,7 +428,7 @@ class AssistantUseCaseTest {
                                 LocalDate.of(2026, 10, 8), "COP", new BigDecimal("400000"), new BigDecimal("40000"),
                                 new BigDecimal("360000"), List.of(ingreso, gasto, transferencia)));
                         assertThat(r.message()).contains("3 movimientos", "neto");
-                        assertThat(r.transaction()).isNull();
+                        assertThat(r.group()).isNull();
                         assertThat(r.balance()).isNull();
                     })
                     .verifyComplete();
@@ -521,7 +582,7 @@ class AssistantUseCaseTest {
                 .assertNext(r -> {
                     assertThat(r.intent()).isEqualTo(AssistantIntent.UNSUPPORTED);
                     assertThat(r.message()).contains("movimiento", "saldo");
-                    assertThat(r.transaction()).isNull();
+                    assertThat(r.group()).isNull();
                     assertThat(r.report()).isNull();
                     assertThat(r.balance()).isNull();
                 })

@@ -1,7 +1,7 @@
 [
   {
     "name": "crear_movimiento",
-    "description": "Registra un gasto, un ingreso o una transferencia entre cuentas del usuario.",
+    "description": "Registra un gasto, un ingreso o una transferencia entre cuentas del usuario. Una llamada por movimiento.",
     "parameters": {
       "type": "object",
       "properties": {

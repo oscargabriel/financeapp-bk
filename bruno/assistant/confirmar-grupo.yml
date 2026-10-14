@@ -1,0 +1,45 @@
+info:
+  name: Confirmar el grupo
+  type: http
+  seq: 31
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/groups/{{grupoAsistente}}/approve"
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: length
+      value: "2"
+  scripts:
+    - type: tests
+      code: |-
+        const lista = res.getBody();
+
+        test("confirma los dos en el orden en que entraron, con su grupo y su origen", function() {
+          expect(lista.map(function (t) { return t.amount; })).to.eql([20000, 15000]);
+          lista.forEach(function (t) {
+            expect(t.status).to.equal("CONFIRMED");
+            expect(t.origin).to.equal("TELEGRAM");
+            expect(t.groupId).to.equal(bru.getVar("grupoAsistente"));
+          });
+        });
+
+        test("cada uno trae el contrato completo del movimiento", function() {
+          expect(lista[0]).to.have.all.keys("id", "type", "accountId", "destinationAccountId", "categoryId", "amount",
+              "currencyCode", "description", "notes", "occurredAt", "status", "origin", "scheduled", "recurrenceId",
+              "installment", "destinationAmount", "originalAmount", "originalCurrencyCode", "groupId");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

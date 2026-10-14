@@ -1,0 +1,81 @@
+info:
+  name: Multimoneda — lote con dos convertidos
+  type: http
+  seq: 71
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idUsd}}",
+          "categoryId": "{{idMercado}}",
+          "amount": 41000,
+          "currencyCode": "COP",
+          "description": "Convertido 1"
+        },
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idOrigen}}",
+          "categoryId": "{{idMercado}}",
+          "amount": 1000,
+          "description": "Sin convertir"
+        },
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idUsd}}",
+          "categoryId": "{{idMercado}}",
+          "amount": 82000,
+          "currencyCode": "COP",
+          "description": "Convertido 2"
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body
+      operator: length
+      value: "3"
+  scripts:
+    - type: tests
+      code: |-
+        const lote = res.getBody();
+        bru.setVar("grupoConvertidos", lote[0].groupId);
+
+        test("los dos convertidos quedan pendientes en un mismo grupo", function() {
+          expect(lote[0].status).to.equal("PENDING");
+          expect(lote[2].status).to.equal("PENDING");
+          expect(lote[0].groupId).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+          expect(lote[2].groupId).to.equal(lote[0].groupId);
+        });
+
+        test("el de la moneda de su cuenta entra confirmado y sin grupo", function() {
+          expect(lote[1].status).to.equal("CONFIRMED");
+          expect(lote[1].groupId).to.equal(null);
+        });
+
+        test("el grupo es distinto del de otro lote", function() {
+          expect(lote[0].groupId).to.not.equal(bru.getVar("grupoGastoConvertido"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un grupo por peticion (FIN-58)
+
+  Lo que el alta convierte de otra moneda queda pendiente, y los pendientes de un mismo lote comparten grupo.
+  El siguiente request lo descarta.

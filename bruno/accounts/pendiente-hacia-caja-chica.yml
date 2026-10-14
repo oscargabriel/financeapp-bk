@@ -27,7 +27,7 @@ runtime:
   scripts:
     - type: tests
       code: |-
-        const t = res.getBody().transaction;
+        const t = res.getBody().group.transactions[0];
         bru.setVar("idPendienteHaciaCajaChica", t.id);
 
         test("queda pendiente", function() {

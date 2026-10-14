@@ -1,0 +1,56 @@
+info:
+  name: Dos gastos en un mensaje
+  type: http
+  seq: 28
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: json
+    data: |-
+      {
+        "data": "crear_movimiento {\"tipo\":\"EXPENSE\",\"monto\":20000,\"cuenta\":\"Efectivo\",\"categoria\":\"Mercado\",\"descripcion\":\"Almuerzo en grupo\"}\ncrear_movimiento {\"tipo\":\"EXPENSE\",\"monto\":15000,\"cuenta\":\"Efectivo\",\"categoria\":\"Mercado\",\"descripcion\":\"Taxi en grupo\"}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.intent
+      operator: eq
+      value: CREATE_TRANSACTION
+  scripts:
+    - type: tests
+      code: |-
+        const grupo = res.getBody().group;
+        bru.setVar("grupoAsistente", grupo.id);
+
+        test("los dos quedan en un mismo grupo, pendientes y en el orden del mensaje", function() {
+          expect(grupo.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+          expect(grupo.transactions.map(function (t) { return t.amount; })).to.eql([20000, 15000]);
+          expect(grupo.transactions.map(function (t) { return t.description; })).to.eql(["Almuerzo en grupo", "Taxi en grupo"]);
+          grupo.transactions.forEach(function (t) { expect(t.status).to.equal("PENDING"); });
+        });
+
+        test("el mensaje los cuenta y pide confirmarlos o descartarlos, y solo viene el grupo", function() {
+          expect(res.getBody().message).to.contain("2 movimientos");
+          expect(res.getBody().message).to.contain("Confirmalos o descartalos");
+          expect(res.getBody().report).to.equal(null);
+          expect(res.getBody().balance).to.equal(null);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un mensaje con dos movimientos (FIN-58)
+
+  El stub entiende una llamada por linea, como Gemini devuelve varias partes `functionCall`.

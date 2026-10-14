@@ -25,10 +25,13 @@ import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestExcept
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.compartido.infrastructure.adapter.in.web.UsuarioDelToken;
 import com.oscargabriel.financeapp.core.domain.model.TransactionOrigin;
+import com.oscargabriel.financeapp.core.domain.model.TransactionStatus;
+import com.oscargabriel.financeapp.core.domain.port.in.ApprovePendingGroupPort;
 import com.oscargabriel.financeapp.core.domain.port.in.ApprovePendingTransactionPort;
 import com.oscargabriel.financeapp.core.domain.port.in.CreateTransactionsPort;
 import com.oscargabriel.financeapp.core.domain.port.in.DeleteTransactionPort;
 import com.oscargabriel.financeapp.core.domain.port.in.ListPendingTransactionsPort;
+import com.oscargabriel.financeapp.core.domain.port.in.RejectPendingGroupPort;
 import com.oscargabriel.financeapp.core.domain.port.in.RejectPendingTransactionPort;
 import com.oscargabriel.financeapp.core.domain.port.in.UpdateTransactionPort;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.CreateTransactionRequest;
@@ -55,6 +58,8 @@ public class TransactionController {
     private final ListPendingTransactionsPort listPending;
     private final ApprovePendingTransactionPort approvePending;
     private final RejectPendingTransactionPort rejectPending;
+    private final ApprovePendingGroupPort approvePendingGroup;
+    private final RejectPendingGroupPort rejectPendingGroup;
     private final Clock clock;
 
     /**
@@ -72,7 +77,7 @@ public class TransactionController {
             @Size(min = 1, max = TOPE_LOTE, message = "El lote debe tener entre 1 y " + TOPE_LOTE + " movimientos")
             List<@NotNull(message = "El elemento no puede ser nulo") @Valid CreateTransactionRequest> lote) {
         return Flux.defer(() -> createTransactions.create(UsuarioDelToken.de(jwt), TransactionOrigin.WEB,
-                        lote.stream().map(CreateTransactionRequest::toCommand).toList()))
+                        TransactionStatus.CONFIRMED, lote.stream().map(CreateTransactionRequest::toCommand).toList()))
                 .map(t -> TransactionResponse.from(t, clock.instant()))
                 .collectList();
     }
@@ -119,13 +124,37 @@ public class TransactionController {
         return Mono.defer(() -> rejectPending.reject(UsuarioDelToken.de(jwt), parseId(id)));
     }
 
+    /**
+     * Confirma todo lo que sigue pendiente del grupo, o nada (FIN-58). Mono de la lista, como el alta: el 200 sale
+     * solo si se confirmaron todos.
+     */
+    @PostMapping("/groups/{groupId}/approve")
+    public Mono<List<TransactionResponse>> approveGroup(@AuthenticationPrincipal Jwt jwt, @PathVariable String groupId) {
+        return Flux.defer(() -> approvePendingGroup.approve(UsuarioDelToken.de(jwt), parseGroupId(groupId)))
+                .map(t -> TransactionResponse.from(t, clock.instant()))
+                .collectList();
+    }
+
+    @PostMapping("/groups/{groupId}/reject")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public Mono<Void> rejectGroup(@AuthenticationPrincipal Jwt jwt, @PathVariable String groupId) {
+        return Mono.defer(() -> rejectPendingGroup.reject(UsuarioDelToken.de(jwt), parseGroupId(groupId)));
+    }
+
     /** A mano y no como UUID de Spring: su conversion fallida saldria como JSON_PARSING_ERROR del cuerpo. */
     private static UUID parseId(String valor) {
+        return uuid(valor, "El id del movimiento debe ser un UUID", "id");
+    }
+
+    private static UUID parseGroupId(String valor) {
+        return uuid(valor, "El id del grupo debe ser un UUID", "groupId");
+    }
+
+    private static UUID uuid(String valor, String descripcion, String campo) {
         try {
             return UUID.fromString(valor);
         } catch (IllegalArgumentException e) {
-            throw new BadRequestException(HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR,
-                    "El id del movimiento debe ser un UUID", "id", e);
+            throw new BadRequestException(HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR, descripcion, campo, e);
         }
     }
 }

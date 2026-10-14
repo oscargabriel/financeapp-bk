@@ -31,7 +31,7 @@ runtime:
           expect(res.getBody().message).to.contain("Bancolombia");
           expect(res.getBody().message).to.contain("Efectivo");
           expect(res.getBody().message).to.contain("Ahorros");
-          expect(res.getBody().transaction).to.equal(null);
+          expect(res.getBody().group).to.equal(null);
           expect(res.getBody().report).to.equal(null);
           expect(res.getBody().balance).to.equal(null);
         });

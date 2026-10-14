@@ -1,0 +1,37 @@
+info:
+  name: Dos gastos para descartar
+  type: http
+  seq: 35
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: json
+    data: |-
+      {
+        "data": "crear_movimiento {\"tipo\":\"EXPENSE\",\"monto\":5000,\"cuenta\":\"Efectivo\",\"categoria\":\"Mercado\",\"descripcion\":\"Para descartar 1\"}\ncrear_movimiento {\"tipo\":\"EXPENSE\",\"monto\":6000,\"cuenta\":\"Efectivo\",\"categoria\":\"Mercado\",\"descripcion\":\"Para descartar 2\"}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.intent
+      operator: eq
+      value: CREATE_TRANSACTION
+  scripts:
+    - type: tests
+      code: |-
+        const grupo = res.getBody().group;
+        bru.setVar("grupoDescarte", grupo.id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
