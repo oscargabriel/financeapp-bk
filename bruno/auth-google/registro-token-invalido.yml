@@ -1,0 +1,33 @@
+info:
+  name: Registro con Google con un token invalido
+  type: http
+  seq: 12
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/google/register"
+  body:
+    type: json
+    data: |-
+      {
+        "idToken": "esto-no-es-un-id-token"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: INVALID_CREDENTIALS
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: idToken
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

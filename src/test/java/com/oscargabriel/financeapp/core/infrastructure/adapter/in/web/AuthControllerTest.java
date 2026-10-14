@@ -24,12 +24,15 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.core.domain.model.AccessToken;
+import com.oscargabriel.financeapp.core.domain.model.GoogleRegistrationCommand;
 import com.oscargabriel.financeapp.core.domain.model.LoginCommand;
 import com.oscargabriel.financeapp.core.domain.model.RefreshToken;
 import com.oscargabriel.financeapp.core.domain.model.RegisteredUser;
 import com.oscargabriel.financeapp.core.domain.model.SessionTokens;
 import com.oscargabriel.financeapp.core.domain.model.RegistrationCommand;
 import com.oscargabriel.financeapp.core.domain.model.User;
+import com.oscargabriel.financeapp.core.domain.port.in.GoogleLoginPort;
+import com.oscargabriel.financeapp.core.domain.port.in.GoogleRegisterPort;
 import com.oscargabriel.financeapp.core.domain.port.in.LoginPort;
 import com.oscargabriel.financeapp.core.domain.port.in.LogoutPort;
 import com.oscargabriel.financeapp.core.domain.port.in.RefreshSessionPort;
@@ -59,6 +62,10 @@ class AuthControllerTest {
 
     private static final String URI_LOGOUT = "/auth/logout";
 
+    private static final String URI_GOOGLE_REGISTRO = "/auth/google/register";
+
+    private static final String URI_GOOGLE_LOGIN = "/auth/google/login";
+
     private static final UUID ID = UUID.fromString("01994f00-0000-7000-8000-000000000001");
 
     private static final SessionTokens SESION = new SessionTokens(
@@ -79,6 +86,12 @@ class AuthControllerTest {
 
     @MockitoBean
     private LogoutPort logout;
+
+    @MockitoBean
+    private GoogleRegisterPort googleRegister;
+
+    @MockitoBean
+    private GoogleLoginPort googleLogin;
 
     /**
      * FA-43 cerro el alta detras del Basic: ya no hay ninguna ruta publica, asi que un cliente sin
@@ -123,7 +136,7 @@ class AuthControllerTest {
     void devuelveElCelularDelAltaYLoTrasladaAlCasoDeUso() {
         when(registerUser.register(any())).thenReturn(Mono.just(new RegisteredUser(
                 new User(ID, UserMother.EMAIL, UserMother.HASH, "Ana", "Gomez", "USD", "America/Lima",
-                        "+573001234567"),
+                        "+573001234567", null),
                 22L)));
 
         webTestClient.post().uri(URI_REGISTRO)
@@ -522,6 +535,138 @@ class AuthControllerTest {
         verifyNoInteractions(registerUser);
     }
 
+    /** FIN-52: el registro con Google crea un recurso, como el alta, pero responde con la sesion. */
+    @Test
+    void elRegistroConGoogleDevuelve201ConLaFormaDelLogin() {
+        when(googleRegister.register(any())).thenReturn(Mono.just(SESION));
+
+        webTestClient.post().uri(URI_GOOGLE_REGISTRO)
+                .headers(BasicMother.cabecera())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("idToken", "un.id-token", "timezone", "Europe/Madrid"))
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody()
+                .jsonPath("$.accessToken").isEqualTo("un.jwt.firmado")
+                .jsonPath("$.tokenType").isEqualTo("Bearer")
+                .jsonPath("$.expiresIn").isEqualTo(3600)
+                .jsonPath("$.refreshToken").isEqualTo("un-refresh-opaco")
+                .jsonPath("$.refreshExpiresIn").isEqualTo(86400);
+
+        verify(googleRegister).register(new GoogleRegistrationCommand("un.id-token", "Europe/Madrid"));
+    }
+
+    @Test
+    void elLoginConGoogleDevuelve200ConLaFormaDelLogin() {
+        when(googleLogin.login("un.id-token")).thenReturn(Mono.just(SESION));
+
+        webTestClient.post().uri(URI_GOOGLE_LOGIN)
+                .headers(BasicMother.cabecera())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("idToken", "un.id-token"))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.accessToken").isEqualTo("un.jwt.firmado")
+                .jsonPath("$.refreshToken").isEqualTo("un-refresh-opaco");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {URI_GOOGLE_REGISTRO, URI_GOOGLE_LOGIN})
+    void sinIdTokenDevuelve400SinLlamarAlCasoDeUso(String ruta) {
+        webTestClient.post().uri(ruta)
+                .headers(BasicMother.cabecera())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("idToken", "  "))
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors.length()").isEqualTo(1)
+                .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.errors[0].field").isEqualTo("idToken");
+
+        verifyNoInteractions(googleRegister, googleLogin);
+    }
+
+    @Test
+    void elRegistroConGoogleRechazaUnaZonaQueNoEsIana() {
+        webTestClient.post().uri(URI_GOOGLE_REGISTRO)
+                .headers(BasicMother.cabecera())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("idToken", "un.id-token", "timezone", "Marte/Olympus"))
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.errors[0].field").isEqualTo("timezone");
+
+        verifyNoInteractions(googleRegister);
+    }
+
+    @Test
+    void elRegistroConGoogleDevuelveLosErroresDelCasoDeUsoConSuStatus() {
+        when(googleRegister.register(any())).thenReturn(Mono.error(new BadRequestException(
+                HttpStatus.FORBIDDEN, ErrorCodes.REGISTRATION_NOT_ALLOWED,
+                "El correo no esta admitido para registrarse", "email")));
+
+        webTestClient.post().uri(URI_GOOGLE_REGISTRO)
+                .headers(BasicMother.cabecera())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("idToken", "un.id-token"))
+                .exchange()
+                .expectStatus().isForbidden()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("REGISTRATION_NOT_ALLOWED")
+                .jsonPath("$.errors[0].field").isEqualTo("email");
+    }
+
+    /** El front ofrece el registro solo con este codigo: tiene que llegar tal cual. */
+    @Test
+    void elLoginConGoogleDevuelve404SiNoHayCuenta() {
+        when(googleLogin.login(any())).thenReturn(Mono.error(new BadRequestException(
+                HttpStatus.NOT_FOUND, ErrorCodes.ACCOUNT_NOT_REGISTERED,
+                "No hay una cuenta registrada con esta cuenta de Google", "idToken")));
+
+        webTestClient.post().uri(URI_GOOGLE_LOGIN)
+                .headers(BasicMother.cabecera())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("idToken", "un.id-token"))
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("ACCOUNT_NOT_REGISTERED")
+                .jsonPath("$.errors[0].field").isEqualTo("idToken");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {URI_GOOGLE_REGISTRO, URI_GOOGLE_LOGIN})
+    void lasRutasDeGoogleExigenLaCredencialCompartida(String ruta) {
+        webTestClient.post().uri(ruta)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("idToken", "un.id-token"))
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().valueEquals("WWW-Authenticate", "Basic")
+                .expectBody()
+                .jsonPath("$.errors[0].field").isEqualTo("authorization");
+
+        verifyNoInteractions(googleRegister, googleLogin);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {URI_GOOGLE_REGISTRO, URI_GOOGLE_LOGIN})
+    void unTokenValidoNoSirveEnLasRutasDeGoogle(String ruta) {
+        webTestClient.post().uri(ruta)
+                .headers(headers -> headers.setBearerAuth(TokenMother.valido()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("idToken", "un.id-token"))
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().valueEquals("WWW-Authenticate", "Basic");
+
+        verifyNoInteractions(googleRegister, googleLogin);
+    }
+
     private static Map<String, String> unasCredenciales() {
         return Map.of("email", UserMother.EMAIL, "password", UserMother.PASSWORD);
     }
@@ -538,7 +683,7 @@ class AuthControllerTest {
 
     private static RegisteredUser unRegistro() {
         return new RegisteredUser(
-                new User(ID, UserMother.EMAIL, UserMother.HASH, "Ana", "Gomez", "USD", "America/Lima", null),
+                new User(ID, UserMother.EMAIL, UserMother.HASH, "Ana", "Gomez", "USD", "America/Lima", null, null),
                 22L);
     }
 }

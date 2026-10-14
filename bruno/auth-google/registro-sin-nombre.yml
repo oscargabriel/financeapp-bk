@@ -1,0 +1,39 @@
+info:
+  name: Registro con Google sin nombre
+  type: http
+  seq: 6
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/google/register"
+  body:
+    type: json
+    data: |-
+      {
+        "idToken": "stub|g-sin-nombre-{{tsGoogle}}|sin-nombre-{{tsGoogle}}@bruno.local||"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        test("guarda el access para leer el perfil", function() {
+          bru.setVar("accessSinNombre", res.getBody().accessToken);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Google sin nombre
+
+  Una cuenta Google puede no traer nombre de pila ni nombre completo. El nombre es obligatorio en
+  `users`, asi que se usa la parte del correo anterior a la `@`.

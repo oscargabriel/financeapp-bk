@@ -1,0 +1,42 @@
+info:
+  name: Cambiar la contrasena sin tener una
+  type: http
+  seq: 26
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/users/me/password"
+  body:
+    type: json
+    data: |-
+      {
+        "currentPassword": "cualquierClave1",
+        "newPassword": "otraClaveLarga"
+      }
+  auth:
+    type: bearer
+    token: "{{accessGoogle}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: INVALID_CREDENTIALS
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: currentPassword
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Provisional hasta FIN-53
+
+  Un usuario sin contrasena recibe lo mismo que una contrasena actual equivocada. FIN-53 lo cambia
+  por la via de definir la primera.

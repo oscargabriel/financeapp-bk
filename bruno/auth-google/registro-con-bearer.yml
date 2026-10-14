@@ -1,0 +1,41 @@
+info:
+  name: Registro con Google con Bearer
+  type: http
+  seq: 15
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/google/register"
+  body:
+    type: json
+    data: |-
+      {
+        "idToken": "stub|g-bearer-{{tsGoogle}}|bearer-{{tsGoogle}}@bruno.local|Bearer|"
+      }
+  auth:
+    type: bearer
+    token: "{{accessGoogle}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: authorization
+  scripts:
+    - type: tests
+      code: |-
+        test("el reto es el de la cadena del Basic", function() {
+          expect(res.getHeader("www-authenticate")).to.equal("Basic");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

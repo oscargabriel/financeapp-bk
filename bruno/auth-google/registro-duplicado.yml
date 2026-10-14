@@ -1,0 +1,38 @@
+info:
+  name: Registro con Google repetido
+  type: http
+  seq: 8
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/google/register"
+  body:
+    type: json
+    data: |-
+      {
+        "idToken": "{{tokenGoogle}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: DUPLICATE_RESOURCE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: email
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Ya tiene cuenta
+
+  El mismo token que `Registro con Google`: el front ofrece el login.

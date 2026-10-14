@@ -116,6 +116,8 @@ $env:SPRING_PROFILES_ACTIVE = 'local'
 $env:ASISTENTE_PROVEEDOR = 'stub'
 # bruno/exchange-rates/ usa las tasas fijas del stub, nunca ExchangeRate-API (FA-120).
 $env:TASAS_PROVEEDOR = 'stub'
+# bruno/auth-google/ presenta tokens del stub, nunca ID tokens reales de Google (FIN-52).
+$env:GOOGLE_PROVEEDOR = 'stub'
 # El perfil local lee el puerto de SERVER_PORT (PORT solo lo usa Cloud Run): uno heredado de la
 # terminal sacaria a la app del puerto validado.
 $env:SERVER_PORT = $puerto

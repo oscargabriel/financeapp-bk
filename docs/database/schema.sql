@@ -160,7 +160,7 @@ $$;
 CREATE TABLE finance.users (
     id                  UUID         PRIMARY KEY,
     email               VARCHAR(255) NOT NULL,
-    password_hash       VARCHAR(255) NOT NULL,
+    password_hash       VARCHAR(255),
     first_name          VARCHAR(100) NOT NULL,
     last_name           VARCHAR(100),
     phone               VARCHAR(20),
@@ -173,21 +173,28 @@ CREATE TABLE finance.users (
     created_at          TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at          TIMESTAMPTZ  NOT NULL DEFAULT now(),
     token_version       INTEGER      NOT NULL DEFAULT 0,
+    google_sub          VARCHAR(255),
     CONSTRAINT ck_users_email    CHECK (email ~ '^[^@[:space:]]+@[^@[:space:]]+\.[A-Za-z]{2,}$'),
     -- Postgres exige funciones IMMUTABLE en un CHECK, así que aquí solo cabe un
     -- límite fijo; que la fecha no sea futura lo valida la aplicación.
-    CONSTRAINT ck_users_birthdate CHECK (birth_date IS NULL OR birth_date > DATE '1900-01-01')
+    CONSTRAINT ck_users_birthdate CHECK (birth_date IS NULL OR birth_date > DATE '1900-01-01'),
+    -- Al menos una forma de entrar: contraseña, cuenta Google o las dos (FIN-52).
+    CONSTRAINT ck_users_metodo   CHECK (password_hash IS NOT NULL OR google_sub IS NOT NULL)
 );
 
-COMMENT ON TABLE  finance.users IS 'Persona que registra finanzas. La autenticación es propia (email + hash); Telegram es un canal adicional que se vincula después.';
-COMMENT ON COLUMN finance.users.password_hash IS 'Hash BCrypt/Argon2 calculado en la aplicación. Jamás la contraseña en claro.';
+COMMENT ON TABLE  finance.users IS 'Persona que registra finanzas. Entra con email + hash, con su cuenta Google o con los dos (FIN-52); Telegram es un canal adicional que se vincula después.';
+COMMENT ON COLUMN finance.users.password_hash IS 'Hash BCrypt/Argon2 calculado en la aplicación. Jamás la contraseña en claro. Nulo si el usuario se registró con Google y no ha definido una.';
 COMMENT ON COLUMN finance.users.base_currency_code IS 'Moneda en la que la persona ve sus totales y reportes. Solo es de presentación: lo guardado está en la moneda de cada cuenta y en USD (amount_base), y cambiarla no reescribe nada (FA-122).';
 COMMENT ON COLUMN finance.users.timezone IS 'Zona IANA. Determina dónde corta el mes en las vistas de gasto: un gasto del 30 a las 21:00 en Bogotá no puede caer en el mes siguiente.';
 COMMENT ON COLUMN finance.users.token_version IS 'Versión de sesión (FIN-47). Sube con cada cambio de contraseña; un access o un refresh con otra versión ya no sirve.';
+COMMENT ON COLUMN finance.users.google_sub IS 'Claim sub del ID token de Google (FIN-52): identificador estable de la cuenta Google vinculada. El login con Google busca por él, no por el correo.';
 
--- Únicos parciales: una fila borrada lógicamente libera el email y el chat de Telegram.
+-- Únicos parciales: una fila borrada lógicamente libera el email, la cuenta Google y el chat de Telegram.
 CREATE UNIQUE INDEX ux_users_email
     ON finance.users (lower(email)) WHERE deleted_at IS NULL;
+
+CREATE UNIQUE INDEX ux_users_google_sub
+    ON finance.users (google_sub) WHERE google_sub IS NOT NULL AND deleted_at IS NULL;
 
 CREATE UNIQUE INDEX ux_users_telegram_chat_id
     ON finance.users (telegram_chat_id) WHERE telegram_chat_id IS NOT NULL AND deleted_at IS NULL;

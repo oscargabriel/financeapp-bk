@@ -1,0 +1,52 @@
+info:
+  name: Login con Google
+  type: http
+  seq: 16
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/google/login"
+  body:
+    type: json
+    data: |-
+      {
+        "idToken": "{{tokenGoogle}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.tokenType
+      operator: eq
+      value: Bearer
+    - expression: res.body.expiresIn
+      operator: eq
+      value: "3600"
+    - expression: res.body.refreshExpiresIn
+      operator: eq
+      value: "86400"
+  scripts:
+    - type: tests
+      code: |-
+        function payload(token) {
+          const parte = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+          return JSON.parse(Buffer.from(parte, "base64").toString("utf8"));
+        }
+
+        test("el access es del usuario que se registro con Google", function() {
+          expect(payload(res.getBody().accessToken).sub).to.equal(bru.getVar("idUsuarioGoogle"));
+        });
+
+        test("guarda la sesion para el refresco y el logout", function() {
+          bru.setVar("accessGoogle", res.getBody().accessToken);
+          bru.setVar("refreshGoogle", res.getBody().refreshToken);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -54,6 +54,7 @@ erDiagram
         boolean is_active
         timestamptz deleted_at
         int token_version
+        varchar google_sub UK
     }
 
     accounts {
@@ -542,6 +543,16 @@ usuario, así que subirla invalida en el acto todo lo emitido antes (FIN-47).
 sesión; cada refresco marca `used_at` en su fila e inserta la siguiente en la
 misma sentencia, con el mismo `expires_at`. Las filas vencidas no se borran
 todavía. El porqué está en el `design.md` del change `fin-47-refresh-token`.
+
+### Cuenta Google
+
+`users.google_sub` guarda el `sub` del ID token de Google de la cuenta vinculada
+(FIN-52). El login con Google busca por él, no por el correo, así que el correo
+de la cuenta y el de Google pueden diferir. Es único entre los no borrados, como
+el correo. `password_hash` admite nulo para quien se registró con Google, y
+`ck_users_metodo` exige al menos uno de los dos. Se descartó una tabla de
+identidades aparte mientras haya un solo proveedor; el porqué está en el
+`design.md` del change `fin-52-login-google`.
 
 ### El mes se corta en la zona del usuario
 

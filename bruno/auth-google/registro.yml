@@ -1,0 +1,60 @@
+info:
+  name: Registro con Google
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/google/register"
+  body:
+    type: json
+    data: |-
+      {
+        "idToken": "{{tokenGoogle}}",
+        "timezone": "Europe/Madrid"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.tokenType
+      operator: eq
+      value: Bearer
+    - expression: res.body.expiresIn
+      operator: eq
+      value: "3600"
+    - expression: res.body.refreshExpiresIn
+      operator: eq
+      value: "86400"
+  scripts:
+    - type: before-request
+      code: |-
+        // Un sello por corrida para toda la carpeta: el registro no es idempotente.
+        const ts = Date.now();
+        bru.setVar("tsGoogle", ts);
+        bru.setVar("emailGoogle", "google-" + ts + "@bruno.local");
+        // El correo va en mayusculas a proposito: el perfil tiene que guardarlo en minusculas.
+        bru.setVar("tokenGoogle", "stub|g-" + ts + "|Google-" + ts + "@Bruno.local|Lucia|Fernandez");
+    - type: tests
+      code: |-
+        test("entrega un access y un refresh, y los guarda", function() {
+          expect(res.getBody().accessToken).to.be.a("string").and.not.be.empty;
+          expect(res.getBody().refreshToken).to.be.a("string").and.not.be.empty;
+          bru.setVar("accessGoogle", res.getBody().accessToken);
+          bru.setVar("refreshGoogle", res.getBody().refreshToken);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Registro con Google
+
+  Crea un usuario sin contrasena, asociado al `sub` del token, y deja la sesion iniciada: responde
+  201 con la forma del login. Los requests siguientes leen el perfil y las categorias con ese access.

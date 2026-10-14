@@ -1,0 +1,34 @@
+info:
+  name: Registro con Google con zona invalida
+  type: http
+  seq: 14
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/google/register"
+  body:
+    type: json
+    data: |-
+      {
+        "idToken": "stub|g-zona-{{tsGoogle}}|zona-{{tsGoogle}}@bruno.local|Zona|",
+        "timezone": "Marte/Olympus"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: timezone
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

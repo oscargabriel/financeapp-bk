@@ -45,8 +45,9 @@ la variable que lee el perfil `local`, y falla si no termina escuchando en el pu
 El script también arranca la app con `ASISTENTE_PROVEEDOR=stub` (FA-77): `bruno/assistant/` habla
 con un modelo de mentira que entiende `<funcion> <json>`, nunca con Gemini. Contra una app levantada
 a mano sin esa variable, esa carpeta falla. Lo mismo con `TASAS_PROVEEDOR=stub` (FA-120):
-`bruno/exchange-rates/` recibe tasas fijas en vez de las de ExchangeRate-API. Ninguno de los dos
-stubs existe con el perfil `prod`.
+`bruno/exchange-rates/` recibe tasas fijas en vez de las de ExchangeRate-API. Y con
+`GOOGLE_PROVEEDOR=stub` (FIN-52): `bruno/auth-google/` presenta tokens `stub|<sub>|<email>|…` en vez
+de ID tokens de Google. Ninguno de los tres stubs existe con el perfil `prod`.
 
 `bru` sale en 0 aunque descarte un archivo de la colección que no puede leer, y lo cuenta solo como
 «Skipped». Así dos requests de `bruno/assistant/` dejaron de correr sin aviso desde FIN-58. Por eso
@@ -221,7 +222,7 @@ pasen por `boundedElastic`.
   en los que Neon suspende. Si sube el máximo de instancias, rehacer esa cuenta.
 - Lee sin **default** los secretos y `CORS_ALLOWED_ORIGINS`: un despliegue sin `DB_USERNAME` /
   `DB_PASSWORD` / `JWT_SECRET` / `BASIC_USERNAME` / `BASIC_PASSWORD` / `CORS_ALLOWED_ORIGINS` /
-  `GEMINI_API_KEY` / `GEMINI_MODEL` falla
+  `GEMINI_API_KEY` / `GEMINI_MODEL` / `GOOGLE_CLIENT_ID` falla
   al arrancar en vez de levantar con valores implícitos. `DB_USERNAME` y `DB_PASSWORD` los enlaza el
   binder de Boot, que deja pasar el placeholder sin resolver como texto literal. Lo que los hace
   fallar en el acto, como a los demás, es `R2dbcCredentialsCheck`, que los vuelve a pedir con
@@ -247,7 +248,8 @@ pasen por `boundedElastic`.
   de «hoy» se puedan probar con fecha fija. Inyéctalo en vez de llamar a `YearMonth.now()`.
 - **Dos cadenas y ninguna ruta pública**: `SecurityConfig` expone dos
   `SecurityWebFilterChain`. La de `@Order(0)` lleva un `securityMatcher` con `POST /auth/register`,
-  `/auth/login`, `/auth/refresh` y `/auth/logout` (FIN-47) y `GET /status`, y las autentica con `httpBasic` contra el único usuario del
+  `/auth/login`, `/auth/refresh` y `/auth/logout` (FIN-47), `/auth/google/register` y
+  `/auth/google/login` (FIN-52) y `GET /status`, y las autentica con `httpBasic` contra el único usuario del
   `MapReactiveUserDetailsService`; la de `@Order(1)` recoge todo lo demás con
   `oauth2ResourceServer().jwt()` y el Basic deshabilitado. CSRF, CORS y `formLogin` salen del método
   `comun(...)`, para que las dos no se separen con el tiempo. Las reglas se escriben **sin** el
@@ -295,6 +297,9 @@ asistente:
   gemini:
     api-key: ...         # sin default; con el stub de verificar-bruno.ps1 vale cualquier texto
     model: ...           # sin default; local usa gemini-3.1-flash-lite y el servicio gemini-3.5-flash-lite (FA-100)
+google:
+  client-id: ...         # sin default (FIN-52); con el stub de verificar-bruno.ps1 vale cualquier texto,
+                         # con Google real, el client ID del OAuth Client de Google Cloud Console
 ```
 
 ## Tests

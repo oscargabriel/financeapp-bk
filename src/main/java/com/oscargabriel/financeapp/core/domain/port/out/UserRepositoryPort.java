@@ -19,6 +19,18 @@ public interface UserRepositoryPort {
      */
     Mono<UserCredentials> findActiveByEmail(String email);
 
+    /** Credenciales del usuario activo vinculado a esa cuenta Google, o vacio: el mismo filtro (FIN-52). */
+    Mono<UserCredentials> findActiveByGoogleSub(String googleSub);
+
+    /** Si la cuenta Google ya es de un usuario no borrado, activo o no. */
+    Mono<Boolean> existsByGoogleSub(String googleSub);
+
+    /**
+     * Vincula la cuenta Google al usuario activo si todavia no tiene ninguna. FALSE si no vinculo:
+     * otra peticion lo vinculo entre medio, o esa cuenta Google ya es de otro usuario.
+     */
+    Mono<Boolean> linkGoogle(UUID id, String googleSub);
+
     /**
      * Inserta el usuario y le copia default_categories en la misma transaccion, y emite cuantas
      * categorias copio. Un usuario sin categorias no es un alta a medias que se pueda arreglar
@@ -29,7 +41,10 @@ public interface UserRepositoryPort {
     /** El perfil del usuario, o vacio si no existe, esta inactivo o esta borrado: el mismo filtro que el login. */
     Mono<UserProfile> findActiveProfile(UUID id);
 
-    /** El hash del usuario activo, para verificar la contrasena actual. Vacio si no esta activo. */
+    /**
+     * El hash del usuario activo, para verificar la contrasena actual. Vacio si no esta activo. Texto
+     * vacio si no tiene contrasena: no coincide con ninguna (design.md de FIN-52, decision 7).
+     */
     Mono<String> findActivePasswordHash(UUID id);
 
     /** Si el correo, sin distinguir mayusculas, ya es de otro usuario no borrado. */

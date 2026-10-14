@@ -1,0 +1,40 @@
+info:
+  name: Alta con contrasena para vincular
+  type: http
+  seq: 9
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/register"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailVincular}}",
+        "password": "unaClaveLarga",
+        "firstName": "Vera"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: before-request
+      code: |-
+        const ts = bru.getVar("tsGoogle");
+        bru.setVar("emailVincular", "vincular-" + ts + "@bruno.local");
+        bru.setVar("tokenVincular", "stub|g-vincular-" + ts + "|vincular-" + ts + "@bruno.local|Vera|");
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un usuario con contrasena
+
+  Lo usan `Registro con Google de un correo con contrasena` y los requests de vinculacion.

@@ -1,0 +1,34 @@
+info:
+  name: El vinculado cambia su correo
+  type: http
+  seq: 32
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/users/me"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailVincularNuevo}}",
+        "currentPassword": "unaClaveLarga"
+      }
+  auth:
+    type: bearer
+    token: "{{accessVincular}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: before-request
+      code: |-
+        bru.setVar("emailVincularNuevo", "vincular-nuevo-" + bru.getVar("tsGoogle") + "@bruno.local");
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

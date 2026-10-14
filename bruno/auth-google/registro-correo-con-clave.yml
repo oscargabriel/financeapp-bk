@@ -1,0 +1,39 @@
+info:
+  name: Registro con Google de un correo con contrasena
+  type: http
+  seq: 10
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/google/register"
+  body:
+    type: json
+    data: |-
+      {
+        "idToken": "{{tokenVincular}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: DUPLICATE_RESOURCE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: email
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El correo ya tiene cuenta con contrasena
+
+  El registro no vincula: responde como el alta normal. La vinculacion la hace el login, mas abajo y
+  con este mismo token.

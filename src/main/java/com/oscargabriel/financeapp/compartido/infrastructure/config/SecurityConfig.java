@@ -46,11 +46,13 @@ public class SecurityConfig {
      * criterio: un GET a /auth/register no entra por aqui, cae en la cadena del JWT.
      *
      * El refresco y el logout van aqui y no con el Bearer (FIN-47): el refresh viaja en el cuerpo,
-     * como la contrasena en el login, y el access puede estar vencido justo cuando hacen falta.
+     * como la contrasena en el login, y el access puede estar vencido justo cuando hacen falta. El
+     * registro y el login con Google (FIN-52), por lo mismo que el alta y el login.
      */
     private static final ServerWebExchangeMatcher RUTAS_BASIC = ServerWebExchangeMatchers.matchers(
             ServerWebExchangeMatchers.pathMatchers(HttpMethod.POST,
-                    "/auth/register", "/auth/login", "/auth/refresh", "/auth/logout"),
+                    "/auth/register", "/auth/login", "/auth/refresh", "/auth/logout",
+                    "/auth/google/register", "/auth/google/login"),
             ServerWebExchangeMatchers.pathMatchers(HttpMethod.GET, "/status"));
 
     private final String allowedOrigins;

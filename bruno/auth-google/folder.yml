@@ -1,0 +1,28 @@
+info:
+  name: Auth con Google
+  type: folder
+  seq: 20
+
+# Como auth/: estas rutas viven en la cadena del Basic. Los requests que leen el perfil con la
+# sesion de Google declaran su propio bearer.
+request:
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+docs: |
+  # Registro y login con Google (FIN-52)
+
+  **Corre contra el stub, nunca contra Google.** `verificar-bruno.ps1` levanta la app con
+  `GOOGLE_PROVEEDOR=stub`, que solo existe fuera del perfil `prod`. Contra una app levantada a mano
+  sin esa variable, esta carpeta falla con 401 en cada token.
+
+  El stub acepta `stub|<sub>|<email>|<nombre>|<apellido>`, con nombre y apellido opcionales, y
+  rechaza cualquier otro texto como un token invalido. Lo que el stub no puede probar (la firma, el
+  `aud`, el vencimiento, `email_verified` y la caida de Google) lo cubre
+  `GoogleIdTokenVerifierAdapterTest` en la suite.
+
+  `Registro con Google` fija un `Date.now()` para toda la corrida: los `sub` y los correos
+  `@bruno.local` cambian en cada una, asi que la carpeta se repite sin recargar `test-data.sql`, que
+  borra esos usuarios al recargarse.

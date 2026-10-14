@@ -254,10 +254,12 @@ class RegisterUserUseCaseTest {
     }
 
     private RegisterUserUseCase useCase() {
-        return new RegisterUserUseCase(usuarios, monedas, hasher, admitidos, RELOJ, true);
+        return new RegisterUserUseCase(usuarios, monedas, hasher,
+                new ReglasDelAlta(usuarios, admitidos, true), RELOJ);
     }
 
     private RegisterUserUseCase useCaseSinRestriccion() {
-        return new RegisterUserUseCase(usuarios, monedas, hasher, admitidos, RELOJ, false);
+        return new RegisterUserUseCase(usuarios, monedas, hasher,
+                new ReglasDelAlta(usuarios, admitidos, false), RELOJ);
     }
 }

@@ -233,6 +233,47 @@ class JwtSecurityIT {
         assertThat(reto).isEqualTo("Basic");
     }
 
+    /** FIN-52: el registro y el login con Google viven en la cadena del Basic, con el base-path delante. */
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/auth/google/register", "/api/auth/google/login"})
+    void lasRutasDeGoogleSonAlcanzablesConBasic(String ruta) {
+        webTestClient.post().uri(ruta)
+                .headers(BasicMother.cabecera())
+                .header(HttpHeaders.CONTENT_TYPE, "application/json")
+                .bodyValue("{}")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].field").isEqualTo("idToken");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/auth/google/register", "/api/auth/google/login"})
+    void lasRutasDeGoogleNoAceptanUnTokenValido(String ruta) {
+        String reto = webTestClient.post().uri(ruta)
+                .headers(headers -> headers.setBearerAuth(TokenMother.valido()))
+                .header(HttpHeaders.CONTENT_TYPE, "application/json")
+                .bodyValue("{\"idToken\":\"un-id-token\"}")
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .returnResult(String.class)
+                .getResponseHeaders()
+                .getFirst(HttpHeaders.WWW_AUTHENTICATE);
+
+        assertThat(reto).isEqualTo("Basic");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/auth/google/register", "/api/auth/google/login"})
+    void lasRutasDeGoogleNoSonAlcanzablesSinCredenciales(String ruta) {
+        webTestClient.post().uri(ruta)
+                .header(HttpHeaders.CONTENT_TYPE, "application/json")
+                .bodyValue("{\"idToken\":\"un-id-token\"}")
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().valueEquals(HttpHeaders.WWW_AUTHENTICATE, "Basic");
+    }
+
     @Test
     void elRegistroEsAlcanzableConBasic() {
         webTestClient.post().uri("/api/auth/register")

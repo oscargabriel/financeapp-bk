@@ -4,7 +4,8 @@ import java.util.UUID;
 
 /**
  * Usuario ya listo para persistir: la contrasena solo viaja hasta aqui como hash. Ningun punto del
- * flujo posterior al caso de uso conoce la clave en claro.
+ * flujo posterior al caso de uso conoce la clave en claro. Un registro con Google llega sin hash y con
+ * el sub de su cuenta (FIN-52); el alta normal, al reves.
  */
 public record User(
         UUID id,
@@ -14,5 +15,6 @@ public record User(
         String lastName,
         String baseCurrencyCode,
         String timezone,
-        String phone) {
+        String phone,
+        String googleSub) {
 }

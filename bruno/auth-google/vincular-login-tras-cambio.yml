@@ -1,0 +1,39 @@
+info:
+  name: Login con Google tras cambiar el correo
+  type: http
+  seq: 33
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/google/login"
+  body:
+    type: json
+    data: |-
+      {
+        "idToken": "{{tokenVincular}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("guarda el access para leer el perfil", function() {
+          bru.setVar("accessTrasCambio", res.getBody().accessToken);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El login busca por el sub, no por el correo
+
+  El token trae el correo anterior, que ya no es de nadie. Entra igual porque el `sub` sigue
+  vinculado.

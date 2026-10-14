@@ -78,9 +78,9 @@ class LoginUseCaseTest {
     @Mock
     private SesionRepositoryPort sesiones;
 
-    /** FIN-47: el login abre una sesion de 24 horas y en la base deja solo el hash del refresh. */
+    /** Lo que guarda la sesion lo prueba AperturaDeSesionTest; aqui, que el login la abre. */
     @Test
-    void abreLaSesionGuardandoSoloElHashDelRefresh() {
+    void abreUnaSesionDelUsuario() {
         loginPosible();
 
         StepVerifier.create(login().login(new LoginCommand(UserMother.EMAIL, UserMother.PASSWORD)))
@@ -90,22 +90,22 @@ class LoginUseCaseTest {
         ArgumentCaptor<NewRefreshToken> abierta = ArgumentCaptor.forClass(NewRefreshToken.class);
         verify(sesiones).abrir(abierta.capture());
         assertThat(abierta.getValue().userId()).isEqualTo(ID);
-        assertThat(abierta.getValue().tokenHash()).isEqualTo(HASH_DEL_REFRESH);
         assertThat(abierta.getValue().tokenVersion()).isEqualTo(VERSION);
-        assertThat(abierta.getValue().createdAt()).isEqualTo(AHORA);
-        assertThat(abierta.getValue().expiresAt()).isEqualTo(AHORA.plus(DURACION_DE_LA_SESION));
-        assertThat(abierta.getValue().id()).isNotNull();
-        assertThat(abierta.getValue().familyId()).isNotNull().isNotEqualTo(abierta.getValue().id());
     }
 
-    /** Un refresh que no quedo guardado no serviria: mejor que el login falle a entregarlo. */
+    /**
+     * FIN-52: un usuario registrado con Google no tiene hash. Sale el mismo 401 que una clave
+     * incorrecta, sin pasarle un nulo al verificador.
+     */
     @Test
-    void noEntregaTokensSiLaSesionNoSePudoAbrir() {
-        loginPosible();
-        when(sesiones.abrir(any())).thenReturn(Mono.error(new IllegalStateException("base caida")));
+    void devuelve401AUnUsuarioSinContrasena() {
+        when(usuarios.findActiveByEmail(anyString()))
+                .thenReturn(Mono.just(new UserCredentials(ID, null, VERSION, "sub-de-google")));
 
         StepVerifier.create(login().login(new LoginCommand(UserMother.EMAIL, UserMother.PASSWORD)))
-                .verifyError(IllegalStateException.class);
+                .verifyErrorSatisfies(error -> assertThat(unaCredencialInvalida(error)).isTrue());
+
+        verifyNoInteractions(hasher, emisor, generador, sesiones);
     }
 
     @Test
@@ -188,8 +188,8 @@ class LoginUseCaseTest {
     }
 
     private LoginUseCase login() {
-        return new LoginUseCase(usuarios, hasher, emisor, generador, sesiones,
-                Clock.fixed(AHORA, ZoneOffset.UTC), DURACION_DE_LA_SESION);
+        return new LoginUseCase(usuarios, hasher, new AperturaDeSesion(emisor, generador, sesiones,
+                Clock.fixed(AHORA, ZoneOffset.UTC), DURACION_DE_LA_SESION));
     }
 
     private void loginPosible() {
@@ -202,7 +202,7 @@ class LoginUseCaseTest {
     }
 
     private static UserCredentials credenciales() {
-        return new UserCredentials(ID, UserMother.HASH, VERSION);
+        return new UserCredentials(ID, UserMother.HASH, VERSION, null);
     }
 
     private static boolean unaCredencialInvalida(Throwable error) {
