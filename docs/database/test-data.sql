@@ -66,7 +66,8 @@ DELETE FROM finance.users
 -- transactions/ con transacciones-<timestamp>@bruno.local, reports/ con reportes-<timestamp>@bruno.local
 -- y usd-<timestamp>@bruno.local, affiliations/ con afiliados-a-, afiliados-b- y
 -- afiliados-c-<timestamp>@bruno.local, shares/ con compartidos-a-, -b-, -c- y
--- -nadie-<timestamp>@bruno.local, y affiliate-balances/ con saldos-a-, -b-, -c- y
+-- -nadie-<timestamp>@bruno.local, affiliate-balances/ con saldos-a-, -b-, -c- y
+-- -nadie-<timestamp>@bruno.local, y pending-batch/ con lote-a-, -b-, -c- y
 -- -nadie-<timestamp>@bruno.local.
 -- Sus cuentas, movimientos y afiliaciones caen en cascada.
 -- Recargar este escenario es lo que los limpia.

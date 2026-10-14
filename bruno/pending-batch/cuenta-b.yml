@@ -1,0 +1,36 @@
+info:
+  name: Cuenta de B
+  type: http
+  seq: 8
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Ahorros B",
+        "type": "SAVINGS",
+        "currencyCode": "COP",
+        "initialBalance": 500000
+      }
+  auth:
+    type: bearer
+    token: "{{tokenLoteB}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idCuentaLoteB", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

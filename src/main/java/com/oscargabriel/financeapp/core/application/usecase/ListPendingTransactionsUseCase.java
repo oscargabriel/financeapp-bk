@@ -1,5 +1,6 @@
 package com.oscargabriel.financeapp.core.application.usecase;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import lombok.AllArgsConstructor;
@@ -17,8 +18,11 @@ public class ListPendingTransactionsUseCase implements ListPendingTransactionsPo
 
     private final TransactionRepositoryPort repositorio;
 
+    /** El correo se normaliza como en el registro, que es como se guarda (FIN-68). */
     @Override
-    public Flux<Transaction> listPending(UUID userId) {
-        return repositorio.findPendingByUser(userId);
+    public Flux<Transaction> listPending(UUID userId, Optional<String> sharedBy) {
+        return sharedBy
+                .map(correo -> repositorio.findPendingSharedBy(userId, correo.trim().toLowerCase()))
+                .orElseGet(() -> repositorio.findPendingByUser(userId));
     }
 }

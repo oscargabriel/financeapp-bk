@@ -1,0 +1,36 @@
+info:
+  name: La cena rechazada deja de ser deuda
+  type: http
+  seq: 46
+
+http:
+  method: GET
+  url: "{{baseUrl}}/affiliations/balances"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const lista = res.getBody();
+        const de = function (letra) {
+          return lista.find(function (e) { return e.person.email === bru.getVar("emailLote" + letra); });
+        };
+
+        test("con B solo queda el almuerzo, que B le debe a A", function() {
+          expect(de("B").balances).to.eql([{ currencyCode: "COP", owedToMe: 10000, iOwe: 0, net: 10000 }]);
+        });
+
+        test("con C sigue el mercado y el taxi ya no", function() {
+          expect(de("C").balances).to.eql([{ currencyCode: "COP", owedToMe: 0, iOwe: 15000, net: -15000 }]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

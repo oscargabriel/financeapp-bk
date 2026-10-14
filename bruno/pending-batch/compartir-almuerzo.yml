@@ -1,0 +1,39 @@
+info:
+  name: A comparte el almuerzo con B
+  type: http
+  seq: 19
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCuentaLoteA}}",
+          "categoryId": "{{idMercadoLoteA}}",
+          "amount": 40000,
+          "description": "{{descAlmuerzo}}",
+          "shares": [
+            {
+              "affiliationId": "{{idLoteAB}}",
+              "amount": 10000
+            }
+          ]
+        }
+      ]
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

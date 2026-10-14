@@ -1,0 +1,56 @@
+info:
+  name: C comparte el taxi y el mercado con A
+  type: http
+  seq: 18
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCuentaLoteC}}",
+          "categoryId": "{{idMercadoLoteC}}",
+          "amount": 30000,
+          "description": "{{descTaxi}}",
+          "occurredAt": "{{fechaAyer}}",
+          "shares": [
+            {
+              "affiliationId": "{{idLoteAC}}",
+              "amount": 10000
+            }
+          ]
+        },
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCuentaLoteC}}",
+          "categoryId": "{{idMercadoLoteC}}",
+          "amount": 45000,
+          "description": "{{descMercado}}",
+          "occurredAt": "{{fechaAntier}}",
+          "shares": [
+            {
+              "affiliationId": "{{idLoteAC}}",
+              "amount": 15000
+            }
+          ]
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenLoteC}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

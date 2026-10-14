@@ -1,0 +1,35 @@
+info:
+  name: B ve rechazada su parte de la cena
+  type: http
+  seq: 47
+
+http:
+  method: GET
+  url: "{{baseUrl}}/affiliations/{{idLoteAB}}/shares"
+  auth:
+    type: bearer
+    token: "{{tokenLoteB}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const parte = function (desc) {
+          return res.getBody().find(function (s) { return s.description === bru.getVar(desc); });
+        };
+
+        test("la cena queda REJECTED y el almuerzo sigue PENDING", function() {
+          expect(parte("descCena").status).to.equal("REJECTED");
+          expect(parte("descCena").direction).to.equal("OWED_TO_ME");
+          expect(parte("descAlmuerzo").status).to.equal("PENDING");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -1,0 +1,28 @@
+info:
+  name: Pending batch
+  type: folder
+  seq: 19
+
+request:
+  auth:
+    type: bearer
+    token: "{{tokenLoteA}}"
+
+docs: |
+  # Pendientes por persona y rechazo en lote (FIN-68)
+
+  Corre con tres usuarios que registra en cada corrida: `lote-a-`, `-b-` y
+  `-c-<timestamp>@bruno.local`, con sus tokens en `tokenLoteA`, `tokenLoteB` y `tokenLoteC`, y un
+  correo sin cuenta (`lote-nadie-`). La carpeta autentica con A; los requests de B y C declaran su
+  token. A se afilia con B y con C.
+
+  El recorrido: B comparte una cena con A, C un taxi y un mercado, y A un almuerzo con B (el
+  pendiente ajeno). A deja pendiente un gasto propio en dolares y confirma otro en pesos. El filtro
+  por correo devuelve solo lo de cada persona, sin distinguir mayusculas ni espacios, y `[]` para un
+  correo sin cuenta. Los errores del cuerpo y los lotes con un id ajeno, inexistente o confirmado no
+  rechazan nada. El lote con la cena, el taxi y el propio los rechaza juntos: la parte de la cena
+  queda `REJECTED` para B y deja de ser deuda, y repetirlo da 404 en cada posicion. Desvinculada C,
+  su mercado se sigue filtrando por su correo. Termina con los 401.
+
+  Necesita `TASAS_PROVEEDOR=stub`, como `shares/`: el gasto en dolares se convierte con la tasa fija.
+  Se repite sin recargar datos: cada corrida usa usuarios nuevos.

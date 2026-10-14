@@ -1,0 +1,40 @@
+info:
+  name: A confirma un gasto en pesos
+  type: http
+  seq: 22
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCuentaLoteA}}",
+          "categoryId": "{{idMercadoLoteA}}",
+          "amount": 5000,
+          "description": "{{descConfirmado}}"
+        }
+      ]
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body[0].status
+      operator: eq
+      value: CONFIRMED
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idConfirmadoA", res.getBody()[0].id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

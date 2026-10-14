@@ -37,6 +37,12 @@ public interface TransactionRepositoryPort {
     /** Los pendientes del usuario, del mas reciente al mas antiguo. */
     Flux<Transaction> findPendingByUser(UUID userId);
 
+    /** Como findPendingByUser, solo los que compartio la persona con ese correo, ya normalizado (FIN-68). */
+    Flux<Transaction> findPendingSharedBy(UUID userId, String email);
+
+    /** Los movimientos del usuario con esos ids, pendientes o no, en cualquier orden; los ajenos no salen. */
+    Flux<Transaction> findByIdsAndUser(List<UUID> ids, UUID userId);
+
     /** Pasa a CONFIRMED un pendiente del usuario; false si no habia un pendiente que confirmar. */
     Mono<Boolean> confirm(UUID id, UUID userId);
 
@@ -70,4 +76,10 @@ public interface TransactionRepositoryPort {
 
     /** Borra los que sigan pendientes de esos; cuantos borro. */
     Mono<Long> deletePendingIn(List<UUID> ids, UUID userId);
+
+    /**
+     * Borra todos esos pendientes del usuario en una transaccion de base, arrastrando las partes como deletePendingIn
+     * (FIN-68); false, sin borrar ninguno, si alguno ya no era un pendiente que borrar.
+     */
+    Mono<Boolean> deleteAllPending(List<UUID> ids, UUID userId);
 }

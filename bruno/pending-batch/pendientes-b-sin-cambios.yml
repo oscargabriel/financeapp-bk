@@ -1,0 +1,29 @@
+info:
+  name: El almuerzo de B sigue pendiente
+  type: http
+  seq: 42
+
+http:
+  method: GET
+  url: "{{baseUrl}}/transactions/pending"
+  auth:
+    type: bearer
+    token: "{{tokenLoteB}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("el pendiente de B que A intento rechazar sigue", function() {
+          expect(res.getBody().map(function (t) { return t.id; })).to.include(bru.getVar("idPendienteDeB"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

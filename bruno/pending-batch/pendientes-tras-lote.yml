@@ -1,0 +1,27 @@
+info:
+  name: Solo queda el mercado
+  type: http
+  seq: 44
+
+http:
+  method: GET
+  url: "{{baseUrl}}/transactions/pending"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("lo que no se selecciono sigue pendiente", function() {
+          expect(res.getBody().map(function (t) { return t.id; })).to.eql([bru.getVar("idMercadoA")]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

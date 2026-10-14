@@ -10,7 +10,11 @@ public final class Formatos {
     /** El mismo patron que el CHECK ck_users_email, para no aceptar aqui lo que la base rechaza. */
     public static final String EMAIL = "^\\s*$|^\\s*[^@\\s]+@[^@\\s]+\\.[A-Za-z]{2,}\\s*$";
 
-    public static final String CODIGO_MONEDA = "^\\s*([A-Za-z]{3})?\\s*$";
+    /** En cualquier caja, como lo acepta UUID.fromString. */
+    public static final String UUID =
+            "^\\s*([0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})?\\s*$";
+
+    public static final String CODIGO_MONEDA ="^\\s*([A-Za-z]{3})?\\s*$";
 
     /** El mismo patron que los CHECK de color de categories y default_categories, en cualquier caja. */
     public static final String COLOR_HEX = "^\\s*(#[0-9A-Fa-f]{6})?\\s*$";

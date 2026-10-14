@@ -79,6 +79,29 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
             """.formatted(COLUMNAS, CuotaDeLaFila.JOIN);
 
     /**
+     * Los pendientes que compartio la persona de ese correo (FIN-68), en el orden de PENDIENTES. Compara con su correo
+     * actual, el que la respuesta muestra en sharedBy; users.email ya se guarda normalizado.
+     */
+    private static final String PENDIENTES_DE = """
+            SELECT %s
+              FROM finance.transactions t
+              JOIN finance.users quien ON quien.id = t.shared_by_user_id
+              %s
+             WHERE t.user_id = :userId
+               AND t.status = 'PENDING'
+               AND quien.email = :email
+             ORDER BY t.occurred_at DESC, t.id DESC
+            """.formatted(COLUMNAS, CuotaDeLaFila.JOIN);
+
+    private static final String POR_IDS = """
+            SELECT %s
+              FROM finance.transactions t
+              %s
+             WHERE t.id = ANY(:ids)
+               AND t.user_id = :userId
+            """.formatted(COLUMNAS, CuotaDeLaFila.JOIN);
+
+    /**
      * notes, currency_code y el monto original no se tocan: no son modificables. destination_amount si: el PATCH
      * lo ajusta, o lo limpia al dejar de ser una transferencia entre monedas (FA-51). Tampoco la serie ni la cuota: un movimiento
      * editado sigue en su grupo. El trigger revierte la fila vieja y aplica la nueva, asi que un cambio de
@@ -298,6 +321,24 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
     }
 
     @Override
+    public Flux<Transaction> findPendingSharedBy(UUID userId, String email) {
+        return databaseClient.sql(PENDIENTES_DE)
+                .bind("userId", userId)
+                .bind("email", email)
+                .map((row, metadata) -> toDomain(row))
+                .all();
+    }
+
+    @Override
+    public Flux<Transaction> findByIdsAndUser(List<UUID> ids, UUID userId) {
+        return databaseClient.sql(POR_IDS)
+                .bind("ids", ids.toArray(UUID[]::new))
+                .bind("userId", userId)
+                .map((row, metadata) -> toDomain(row))
+                .all();
+    }
+
+    @Override
     public Mono<Boolean> confirm(UUID id, UUID userId) {
         return porIdYUsuario(CONFIRMAR, id, userId);
     }
@@ -388,12 +429,19 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
 
     @Override
     public Mono<Long> deletePendingIn(List<UUID> ids, UUID userId) {
-        UUID[] arreglo = ids.toArray(UUID[]::new);
-        return conPartes(arreglo, userId, databaseClient.sql(BORRAR_PENDIENTES)
-                        .bind("ids", arreglo)
-                        .bind("userId", userId)
-                        .fetch().rowsUpdated())
-                .as(transaccion::transactional);
+        return borrarPendientesConPartes(ids, userId).as(transaccion::transactional);
+    }
+
+    /**
+     * El borrado de deletePendingIn, todo o nada (FIN-68): si borra menos filas que ids, porque otro request aprobo o
+     * rechazo alguno en medio, el error deshace tambien lo que se hizo con las partes.
+     */
+    @Override
+    public Mono<Boolean> deleteAllPending(List<UUID> ids, UUID userId) {
+        return borrarPendientesConPartes(ids, userId)
+                .flatMap(filas -> filas == ids.size() ? Mono.just(true) : Mono.<Boolean>error(new GrupoCambiado()))
+                .as(transaccion::transactional)
+                .onErrorResume(GrupoCambiado.class, e -> Mono.just(false));
     }
 
     /**
@@ -408,6 +456,14 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
                 .flatMap(filas -> filas > 0 ? Mono.just(true) : Mono.<Boolean>error(new GrupoCambiado()))
                 .as(transaccion::transactional)
                 .onErrorResume(GrupoCambiado.class, e -> Mono.just(false));
+    }
+
+    private Mono<Long> borrarPendientesConPartes(List<UUID> ids, UUID userId) {
+        UUID[] arreglo = ids.toArray(UUID[]::new);
+        return conPartes(arreglo, userId, databaseClient.sql(BORRAR_PENDIENTES)
+                .bind("ids", arreglo)
+                .bind("userId", userId)
+                .fetch().rowsUpdated());
     }
 
     /** Rechaza la parte de los pendientes de quien debe y anula las de los gastos de quien pago, y luego borra. */

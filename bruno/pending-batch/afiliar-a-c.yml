@@ -1,0 +1,31 @@
+info:
+  name: A envia solicitud a C
+  type: http
+  seq: 15
+
+http:
+  method: POST
+  url: "{{baseUrl}}/affiliations"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailLoteC}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idLoteAC", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

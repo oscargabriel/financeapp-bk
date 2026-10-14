@@ -32,9 +32,10 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | `POST` | `/api/transactions` | Bearer | Registrar un lote de movimientos, compartidos o no con afiliados |
 | `PATCH` | `/api/transactions/{id}` | Bearer | Modificar un movimiento |
 | `DELETE` | `/api/transactions/{id}` | Bearer | Eliminar un movimiento |
-| `GET` | `/api/transactions/pending` | Bearer | Movimientos pendientes de aprobación |
+| `GET` | `/api/transactions/pending` | Bearer | Movimientos pendientes de aprobación, o solo los que compartió una persona |
 | `POST` | `/api/transactions/{id}/approve` | Bearer | Aprobar un pendiente; con cuenta y categoría si llegó compartido |
 | `POST` | `/api/transactions/{id}/reject` | Bearer | Rechazar un pendiente |
+| `POST` | `/api/transactions/pending/reject` | Bearer | Rechazar varios pendientes, de cualquier grupo, en una petición |
 | `POST` | `/api/transactions/groups/{groupId}/approve` | Bearer | Confirmar juntos los pendientes de un grupo |
 | `POST` | `/api/transactions/groups/{groupId}/reject` | Bearer | Descartar juntos los pendientes de un grupo |
 | `POST` | `/api/recurrences` | Bearer | Crear una serie de gastos o ingresos que se repiten |
@@ -1292,11 +1293,17 @@ un mensaje al asistente, los convertidos de un lote) comparten grupo, y se confi
 juntos con las dos rutas de grupo. También se pueden aprobar o rechazar uno a uno: las rutas de grupo
 actúan sobre lo que siga pendiente. Cada pendiente compartido tiene un grupo propio.
 
-Los cinco endpoints son **Bearer**.
+Los seis endpoints son **Bearer**.
 
 **`GET /api/transactions/pending`** — **200 OK** con los pendientes del usuario, del más reciente al
 más antiguo por `occurredAt`, con la misma forma que un elemento de la respuesta del alta. Sin
 pendientes, `[]`.
+
+Con `?sharedBy=<correo>` devuelve solo los que compartió la persona de ese correo (FIN-68), en el
+mismo orden: el correo es el que sale en `sharedBy.email`, el actual de esa persona, y se compara sin
+espacios alrededor y sin distinguir mayúsculas. Sirve también para una persona desvinculada. Un correo
+con el que no hay pendientes da `[]`, tenga o no cuenta. Si el correo está vacío, pasa de 255
+caracteres o no tiene formato de correo: **400** `VALIDATION_ERROR` en `sharedBy`.
 
 **`POST /api/transactions/{id}/approve`** — **200 OK** con el movimiento completo y
 `"status": "CONFIRMED"`. Desde ese momento mueve los saldos como en el alta y cuenta en los reportes.
@@ -1351,6 +1358,31 @@ siga pendiente del grupo; lo ya aprobado no cambia.
 | 409 | `INSUFFICIENT_FUNDS` | `[i].amount` | Solo al confirmar, sin errores `INVALID_STATE`: el grupo entero dejaría en negativo una cuenta que no es de crédito; `i` es el primer pendiente que la cruza. No se confirma ninguno |
 | 409 | `INVALID_STATE` | `[i].accountId` | Solo al confirmar: el pendiente no tiene cuenta (es compartido). Se aprueba uno a uno, con cuenta y categoría. No se confirma ninguno |
 
+**`POST /api/transactions/pending/reject`** — rechaza en una petición varios pendientes elegidos,
+de cualquier grupo (FIN-68). **204 No Content.** Cada uno se rechaza como con
+`POST /api/transactions/{id}/reject`: se borra, y si es la parte de un gasto compartido la parte
+queda `REJECTED` (ver [Gasto compartido](#gasto-compartido)). Es **todo o nada**: si alguno no se
+puede rechazar, no se rechaza ninguno.
+
+```json
+{ "ids": ["0199b2d0-...", "0199b2e4-..."] }
+```
+
+| Campo | Tipo | Reglas |
+|---|---|---|
+| `ids` | array de string (UUID) | Obligatorio, de 1 a 100 elementos, sin repetir ninguno |
+
+| HTTP | `code` | `field` | Cuándo |
+|---|---|---|---|
+| 400 | `VALIDATION_ERROR` | `ids` | Falta, está vacío, trae más de 100, o repite un id (en cualquier combinación de mayúsculas) |
+| 400 | `VALIDATION_ERROR` | `ids[i]` | El elemento `i` es `null`, está en blanco o no es un UUID |
+| 400 | `JSON_PARSING_ERROR` | `body` | El cuerpo no es JSON válido |
+| 404 | `NOT_FOUND` | `ids[i]` | El id `i` no existe, ya se rechazó o es de otro usuario: la respuesta es la misma. Uno por id. Si también hay confirmados, sale solo este error |
+| 409 | `INVALID_STATE` | `ids[i]` | El movimiento `i` es del usuario pero ya está confirmado. Uno por id |
+| 404 | `NOT_FOUND` | `ids` | Otra petición aprobó o rechazó alguno mientras se rechazaba el lote |
+
+Ninguno de esos errores rechaza nada.
+
 Un pendiente también se corrige con `PATCH` y se borra con `DELETE`, igual que uno confirmado, y
 conserva su `groupId`. La excepción es un pendiente compartido: solo se aprueba o se rechaza, y
 `PATCH` o `DELETE` responden 409 `INVALID_STATE` en `status`.
@@ -1400,8 +1432,9 @@ sin cuenta ni categoría, con la descripción y la fecha del gasto y `sharedBy` 
   por el monto de la parte, sin cuenta ni categoría, con la fecha de la aprobación y `sharedBy` con
   quien le pagó. Quien pagó lo aprueba igual, con una cuenta y una categoría de ingreso, o lo
   rechaza: la parte sigue `PAID`.
-- **Rechazar la parte** (`POST /api/transactions/{id}/reject`, o descartar su grupo) la deja
-  `REJECTED`: deja de ser deuda, quien pagó la ve rechazada y su gasto no cambia.
+- **Rechazar la parte** (`POST /api/transactions/{id}/reject`, descartar su grupo o incluirla en un
+  rechazo en lote) la deja `REJECTED`: deja de ser deuda, quien pagó la ve rechazada y su gasto no
+  cambia.
 - Mientras el gasto tenga partes pendientes, **su monto y su tipo no cambian** (`PATCH` responde 409
   `INVALID_STATE` en ese campo). La descripción, la fecha, la cuenta y la categoría sí, pero la parte
   conserva la descripción y la fecha con que se compartió.
@@ -2348,8 +2381,8 @@ Para que el frontend no lo busque:
 - Recuperar o listar las cuentas borradas.
 - Recuperar o listar las categorías borradas.
 - Consultar un movimiento por su id. Para listarlos está `GET /api/reports/transactions`.
-- Aprobar o rechazar en una sola petición pendientes elegidos de grupos distintos: hoy se confirma o
-  se descarta un grupo entero, o un pendiente a la vez.
+- Aprobar en una sola petición pendientes elegidos de grupos distintos: hoy se confirma un grupo
+  entero, o un pendiente a la vez. Rechazarlos sí se puede (`POST /api/transactions/pending/reject`).
 - Crear metas de gasto.
 - Listar las sesiones abiertas, o cerrarlas todas sin cambiar la contraseña.
 - Revocar el access en el logout: sigue sirviendo hasta vencer, como mucho una hora.
