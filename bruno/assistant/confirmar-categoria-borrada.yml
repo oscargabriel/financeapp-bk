@@ -23,7 +23,7 @@ runtime:
       value: INVALID_STATE
     - expression: res.body.errors[0].field
       operator: eq
-      value: [0].categoryId
+      value: "[0].categoryId"
 
 settings:
   encodeUrl: true
