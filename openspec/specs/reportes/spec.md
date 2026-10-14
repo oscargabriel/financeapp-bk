@@ -40,14 +40,16 @@ UTC.
 ### Requirement: Cada movimiento del reporte
 Cada elemento de `transactions` SHALL traer `id`, `type`, `accountId`, `destinationAccountId`,
 `categoryId`, `categoryName`, `amount`, `currencyCode`, `amountBase`, `destinationAmount`,
-`description`, `notes`, `occurredAt` en UTC, `scheduled`, `recurrenceId` e `installment`. `categoryId` y
+`description`, `notes`, `occurredAt` en UTC, `scheduled`, `recurrenceId`, `installment`, `sharedBy`,
+`sharedFrom` y `shares`. `categoryId` y
 `categoryName` SHALL ir en null en las transferencias, y `destinationAccountId` en null en gastos e
 ingresos. `destinationAmount` SHALL ser lo que entró a la cuenta destino, en la moneda de esa cuenta, en
 una `TRANSFER` entre cuentas de monedas distintas, y null en todo otro movimiento. `scheduled` SHALL
 ser `true` si `occurredAt` es posterior al momento en que se atiende la petición. `recurrenceId` SHALL
 ser el id de la serie de la que el movimiento es ocurrencia, o null si no pertenece a ninguna.
 `installment` SHALL ser `{purchaseId, number, count}` si el movimiento es una cuota de una compra en
-cuotas, o null si no lo es.
+cuotas, o null si no lo es. `sharedBy`, `sharedFrom` y `shares` SHALL tener la forma y el sentido que
+tienen en la respuesta de un movimiento (ver `compartidos`).
 
 #### Scenario: Gasto y transferencia en el mismo reporte
 - **WHEN** el reporte incluye un gasto de Mercado y una transferencia
@@ -76,6 +78,14 @@ cuotas, o null si no lo es.
 #### Scenario: Cuotas de una compra en la lista
 - **WHEN** el rango incluye las cuotas 1 y 2 de una compra a 3 cuotas y un gasto suelto
 - **THEN** las cuotas traen `installment` con el `purchaseId` de la compra, `number` 1 y 2 y `count` 3, y el gasto suelto `"installment": null`
+
+#### Scenario: Un gasto compartido en la lista
+- **WHEN** el rango incluye un gasto de A compartido con B, con la parte de B pendiente, y un gasto sin compartir
+- **THEN** el gasto compartido trae `shares` con la parte de B y `"status": "PENDING"`, y el otro trae `"shares": null`, `"sharedBy": null` y `"sharedFrom": null`
+
+#### Scenario: Una parte pagada en la lista de quien debe
+- **WHEN** B aprobó su parte del gasto de A y pide un reporte que la incluye
+- **THEN** su gasto trae `sharedBy` con el correo de A y `sharedFrom` con la descripción y el total del gasto de A
 
 ### Requirement: Totales del reporte
 `totalsByType` SHALL traer una entrada por cada tipo consultado —los tres sin filtro de tipo, en el

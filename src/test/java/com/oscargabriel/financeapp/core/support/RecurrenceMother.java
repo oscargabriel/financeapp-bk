@@ -3,6 +3,7 @@ package com.oscargabriel.financeapp.core.support;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 import com.oscargabriel.financeapp.core.domain.model.CreateRecurrenceCommand;
@@ -14,6 +15,7 @@ import com.oscargabriel.financeapp.core.domain.model.RecurrenceStatus;
 import com.oscargabriel.financeapp.core.domain.model.TransactionType;
 import com.oscargabriel.financeapp.core.domain.model.UpdateRecurrenceCommand;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.CreateRecurrenceRequest;
+import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.ShareRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.UpdateRecurrenceRequest;
 
 /** Series de prueba. HOY es un viernes; los ids de cuenta y categoria son los de TransactionMother. */
@@ -333,9 +335,16 @@ public final class RecurrenceMother {
             return this;
         }
 
+        private List<ShareRequest> shares;
+
+        public Cuerpo shares(ShareRequest... partes) {
+            this.shares = List.of(partes);
+            return this;
+        }
+
         public CreateRecurrenceRequest request() {
             return new CreateRecurrenceRequest(type, accountId, categoryId, amount, description, frequency, interval,
-                    dayOfWeek, dayOfMonth, startDate, endDate, occurrences);
+                    dayOfWeek, dayOfMonth, startDate, endDate, occurrences, shares);
         }
     }
 

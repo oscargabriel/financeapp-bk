@@ -18,18 +18,22 @@ import static com.oscargabriel.financeapp.core.support.AccountMother.efectivo;
 import static com.oscargabriel.financeapp.core.support.AccountMother.visa;
 import static com.oscargabriel.financeapp.core.support.BalanceMother.sumasDelEscenario;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockJwt;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -42,8 +46,12 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import com.oscargabriel.financeapp.core.domain.model.Balance;
+import com.oscargabriel.financeapp.core.domain.model.ReportedTransaction;
+import com.oscargabriel.financeapp.core.domain.model.ShareStatus;
+import com.oscargabriel.financeapp.core.domain.model.Sharing;
 import com.oscargabriel.financeapp.core.domain.model.TransactionReport;
 import com.oscargabriel.financeapp.core.domain.model.TransactionType;
+import com.oscargabriel.financeapp.core.domain.port.in.DescribeSharingPort;
 import com.oscargabriel.financeapp.core.domain.port.in.GetBalancePort;
 import com.oscargabriel.financeapp.core.domain.port.in.GetTransactionReportPort;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
@@ -68,6 +76,40 @@ class TransactionReportControllerTest {
 
     @MockitoBean
     private GetBalancePort getBalance;
+
+    @MockitoBean
+    private DescribeSharingPort describeSharing;
+
+    @BeforeEach
+    void sinCompartir() {
+        when(describeSharing.describe(any(), anyList())).thenReturn(Mono.just(Map.of()));
+    }
+
+    /** Lo compartido de cada fila sale igual que en la respuesta de un movimiento (FIN-66). */
+    @Test
+    void cadaMovimientoTraeLoCompartido() {
+        TransactionReport reporte = TransactionReport.of("COP", sinFiltros(), List.of(
+                unGasto(MERCADO_ID, "Mercado", "90000.0000", "2026-09-02T15:00:00Z"),
+                unGasto(MERCADO_ID, "Mercado", "15000.0000", "2026-09-03T15:00:00Z")), AHORA);
+        UUID compartido = reporte.transactions().getLast().id();
+        UUID parte = UUID.fromString("72000000-0000-7000-8000-000000000001");
+        when(getTransactionReport.get(eq(USER_ID), any(), any(), any(), any(), any())).thenReturn(Mono.just(reporte));
+        when(describeSharing.describe(eq(USER_ID), anyList())).thenReturn(Mono.just(Map.of(compartido, new Sharing(
+                null, null, List.of(new Sharing.Share(parte, new Sharing.Person("beto@correo.com", "Beto", null),
+                        new BigDecimal("30000"), "COP", ShareStatus.REJECTED))))));
+
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(RANGO)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.transactions[0].sharedBy").isEqualTo(null)
+                .jsonPath("$.transactions[0].sharedFrom").isEqualTo(null)
+                .jsonPath("$.transactions[0].shares").isEqualTo(null)
+                .jsonPath("$.transactions[1].shares[0].id").isEqualTo(parte.toString())
+                .jsonPath("$.transactions[1].shares[0].person.email").isEqualTo("beto@correo.com")
+                .jsonPath("$.transactions[1].shares[0].status").isEqualTo("REJECTED");
+        verify(describeSharing).describe(USER_ID, reporte.transactions().stream().map(ReportedTransaction::id).toList());
+    }
 
     private static JwtMutator tokenDelUsuario() {
         return mockJwt().jwt(jwt -> jwt.subject(USER_ID.toString()));

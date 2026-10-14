@@ -124,4 +124,13 @@ class CreateRecurrenceRequestTest {
     void unFinEnBlancoEsSinFin() {
         assertThat(unCuerpo().occurrences(null).endDate(" ").request().toCommand().endDate()).isNull();
     }
+
+    /** Compartir junto con Repetir esta fuera de alcance del epic FIN-9 (FIN-66). */
+    @Test
+    void unaSerieConPartesSeRechazaYConLaListaVaciaNo() {
+        assertThat(Violaciones.de(unCuerpo().shares(new ShareRequest("60000000-0000-7000-8000-000000000001",
+                new BigDecimal("10000"))).request()))
+                .containsExactly(Map.entry("shares", List.of("Una serie no se comparte")));
+        assertThat(Violaciones.de(unCuerpo().shares().request())).isEmpty();
+    }
 }

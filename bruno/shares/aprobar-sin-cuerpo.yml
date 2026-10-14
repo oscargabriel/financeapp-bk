@@ -1,0 +1,34 @@
+info:
+  name: B aprueba su parte sin cuerpo
+  type: http
+  seq: 41
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/{{idParteB}}/approve"
+  auth:
+    type: bearer
+    token: "{{tokenCompB}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors
+      operator: length
+      value: "2"
+  scripts:
+    - type: tests
+      code: |-
+        test("faltan la cuenta y la categoria", function() {
+          const e = res.getBody().errors;
+          expect(e.map(function (x) { return x.field; }).sort()).to.eql(["accountId", "categoryId"]);
+          e.forEach(function (x) { expect(x.code).to.equal("VALIDATION_ERROR"); });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

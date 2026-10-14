@@ -1,0 +1,38 @@
+info:
+  name: C intenta modificar su parte
+  type: http
+  seq: 52
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/transactions/{{idParteC}}"
+  body:
+    type: json
+    data: |-
+      {
+        "amount": 1000
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCompC}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: INVALID_STATE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: status
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -1,7 +1,9 @@
 package com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto;
 
 import java.math.BigDecimal;
+import java.util.List;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -12,6 +14,7 @@ import com.oscargabriel.financeapp.core.domain.model.CreateTransactionCommand;
 import com.oscargabriel.financeapp.core.domain.model.TransactionType;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.validation.FechaConOffset;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.validation.MontoNumeric;
+import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.validation.ReglasDePartes;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.validation.ReglasDeTransferencia;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.validation.ValorDeEnum;
 
@@ -24,6 +27,7 @@ import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.valida
  * que currencyCode sea una moneda activa y que destinationAmount una cuentas de monedas distintas (FA-51).
  */
 @ReglasDeTransferencia
+@ReglasDePartes
 public record CreateTransactionRequest(
 
         @NotBlank(message = "El tipo es obligatorio")
@@ -61,10 +65,14 @@ public record CreateTransactionRequest(
 
         /** Opcional: sin fecha, el caso de uso pone el instante de la peticion (FA-60). */
         @FechaConOffset
-        String occurredAt) {
+        String occurredAt,
+
+        /** Opcional: las personas con quienes se comparte un gasto o una transferencia (FIN-66). */
+        List<@NotNull(message = "La parte no puede ser nula") @Valid ShareRequest> shares) {
 
     public CreateTransactionCommand toCommand() {
         return new CreateTransactionCommand(type, accountId, destinationAccountId, categoryId, amount,
-                destinationAmount, currencyCode, description, notes, occurredAt);
+                destinationAmount, currencyCode, description, notes, occurredAt,
+                shares == null ? null : shares.stream().map(ShareRequest::toCommand).toList());
     }
 }

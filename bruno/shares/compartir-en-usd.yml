@@ -1,0 +1,56 @@
+info:
+  name: A comparte un gasto en dolares desde su cuenta en pesos
+  type: http
+  seq: 69
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCuentaA}}",
+          "categoryId": "{{idMercadoA}}",
+          "amount": 90,
+          "currencyCode": "USD",
+          "description": "{{descUsd}}",
+          "shares": [
+            {
+              "affiliationId": "{{idAfAB}}",
+              "amount": 30
+            }
+          ]
+        }
+      ]
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        const t = res.getBody()[0];
+
+        test("el gasto de A entra convertido y pendiente", function() {
+          expect(t.status).to.equal("PENDING");
+          expect(t.currencyCode).to.equal("COP");
+          expect(t.originalAmount).to.equal(90);
+          expect(t.originalCurrencyCode).to.equal("USD");
+        });
+
+        test("la parte queda en dolares", function() {
+          expect(t.shares[0].amount).to.equal(30);
+          expect(t.shares[0].currencyCode).to.equal("USD");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

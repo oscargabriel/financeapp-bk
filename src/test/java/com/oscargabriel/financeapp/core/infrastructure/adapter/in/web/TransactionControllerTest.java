@@ -12,8 +12,10 @@ import static org.springframework.security.test.web.reactive.server.SecurityMock
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,8 +29,11 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 
 import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
+import com.oscargabriel.financeapp.core.domain.model.ApprovalChoice;
 import com.oscargabriel.financeapp.core.domain.model.CreateTransactionCommand;
 import com.oscargabriel.financeapp.core.domain.model.OriginalAmount;
+import com.oscargabriel.financeapp.core.domain.model.ShareStatus;
+import com.oscargabriel.financeapp.core.domain.model.Sharing;
 import com.oscargabriel.financeapp.core.domain.model.Transaction;
 import com.oscargabriel.financeapp.core.domain.model.TransactionOrigin;
 import com.oscargabriel.financeapp.core.domain.model.TransactionStatus;
@@ -38,6 +43,7 @@ import com.oscargabriel.financeapp.core.domain.port.in.ApprovePendingGroupPort;
 import com.oscargabriel.financeapp.core.domain.port.in.ApprovePendingTransactionPort;
 import com.oscargabriel.financeapp.core.domain.port.in.CreateTransactionsPort;
 import com.oscargabriel.financeapp.core.domain.port.in.DeleteTransactionPort;
+import com.oscargabriel.financeapp.core.domain.port.in.DescribeSharingPort;
 import com.oscargabriel.financeapp.core.domain.port.in.ListPendingTransactionsPort;
 import com.oscargabriel.financeapp.core.domain.port.in.RejectPendingGroupPort;
 import com.oscargabriel.financeapp.core.domain.port.in.RejectPendingTransactionPort;
@@ -62,6 +68,8 @@ class TransactionControllerTest {
     private static final UUID TRANSFERENCIA_ID = UUID.fromString("50000000-0000-7000-8000-000000000002");
 
     private static final UUID GRUPO_ID = UUID.fromString("71000000-0000-7000-8000-000000000001");
+
+    private static final UUID PARTE_ID = UUID.fromString("72000000-0000-7000-8000-000000000001");
 
     private static final String LOTE = """
             [{"type": "EXPENSE", "accountId": "30000000-0000-7000-8000-000000000001",
@@ -99,6 +107,15 @@ class TransactionControllerTest {
 
     @MockitoBean
     private RejectPendingGroupPort rejectPendingGroup;
+
+    @MockitoBean
+    private DescribeSharingPort describeSharing;
+
+    /** Sin nada compartido, salvo que el test diga otra cosa. */
+    @BeforeEach
+    void sinCompartir() {
+        when(describeSharing.describe(any(), anyList())).thenReturn(Mono.just(Map.of()));
+    }
 
     private static JwtMutator tokenDelUsuario() {
         return mockJwt().jwt(jwt -> jwt.subject(TransactionMother.USER_ID.toString()));
@@ -223,10 +240,10 @@ class TransactionControllerTest {
         assertThat(lote.getValue()).containsExactly(
                 new CreateTransactionCommand("EXPENSE", "30000000-0000-7000-8000-000000000001", null,
                         "40000000-0000-7000-8000-000000000001", new BigDecimal("50000"), null, null,
-                        "Mercado", "Pagado en efectivo", "2026-09-20T10:15:00-05:00"),
+                        "Mercado", "Pagado en efectivo", "2026-09-20T10:15:00-05:00", null),
                 new CreateTransactionCommand("TRANSFER", "30000000-0000-7000-8000-000000000001",
                         "30000000-0000-7000-8000-000000000002", null, new BigDecimal("100000"),
-                        null, "COP", "Ahorro", null, "2026-09-20T11:00:00-05:00"));
+                        null, "COP", "Ahorro", null, "2026-09-20T11:00:00-05:00", null));
     }
 
     /** La fecha la pone el caso de uso: el controlador no la exige ni la inventa (FA-60). */
@@ -607,6 +624,75 @@ class TransactionControllerTest {
     }
 
     @Test
+    void unMovimientoSinCompartirTraeLosTresCamposEnNull() {
+        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), eq(TransactionStatus.CONFIRMED), anyList()))
+                .thenReturn(Flux.just(gasto()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(LOTE)
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody()
+                .jsonPath("$[0].sharedBy").isEmpty()
+                .jsonPath("$[0].sharedFrom").isEmpty()
+                .jsonPath("$[0].shares").isEmpty();
+        verify(describeSharing).describe(TransactionMother.USER_ID, List.of(GASTO_ID));
+    }
+
+    @Test
+    void elGastoDeQuienPagoTraeSusPartesConLaPersonaYElEstado() {
+        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), eq(TransactionStatus.CONFIRMED), anyList()))
+                .thenReturn(Flux.just(gasto()));
+        when(describeSharing.describe(TransactionMother.USER_ID, List.of(GASTO_ID))).thenReturn(Mono.just(Map.of(
+                GASTO_ID, new Sharing(null, null, List.of(new Sharing.Share(PARTE_ID,
+                        new Sharing.Person("beto@correo.com", "Beto", "Debe"), new BigDecimal("30000"), "COP",
+                        ShareStatus.PENDING))))));
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(LOTE)
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody()
+                .jsonPath("$[0].sharedBy").isEmpty()
+                .jsonPath("$[0].shares.length()").isEqualTo(1)
+                .jsonPath("$[0].shares[0].id").isEqualTo(PARTE_ID.toString())
+                .jsonPath("$[0].shares[0].person.email").isEqualTo("beto@correo.com")
+                .jsonPath("$[0].shares[0].person.firstName").isEqualTo("Beto")
+                .jsonPath("$[0].shares[0].person.lastName").isEqualTo("Debe")
+                .jsonPath("$[0].shares[0].amount").isEqualTo(30000)
+                .jsonPath("$[0].shares[0].currencyCode").isEqualTo("COP")
+                .jsonPath("$[0].shares[0].status").isEqualTo("PENDING");
+    }
+
+    /** Llega sin cuenta ni categoria hasta que quien la recibe la apruebe (FIN-66). */
+    @Test
+    void unPendienteCompartidoSaleSinCuentaYConQuienLoCompartioYDeQueGasto() {
+        Transaction pendiente = new Transaction(GASTO_ID, TransactionMother.USER_ID, TransactionType.EXPENSE, null,
+                null, null, new BigDecimal("30000"), "COP", "Cena", null, Instant.parse("2026-09-20T15:15:00Z"),
+                TransactionStatus.PENDING, TransactionOrigin.WEB, null, null, null, null, GRUPO_ID,
+                TransactionMother.USUARIO_B, PARTE_ID);
+        when(listPending.listPending(TransactionMother.USER_ID)).thenReturn(Flux.just(pendiente));
+        when(describeSharing.describe(TransactionMother.USER_ID, List.of(GASTO_ID))).thenReturn(Mono.just(Map.of(
+                GASTO_ID, new Sharing(new Sharing.Person("ana@correo.com", "Ana", null),
+                        new Sharing.Source("Cena", new BigDecimal("90000"), "COP"), null))));
+
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "/pending")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$[0].accountId").isEmpty()
+                .jsonPath("$[0].categoryId").isEmpty()
+                .jsonPath("$[0].sharedBy.email").isEqualTo("ana@correo.com")
+                .jsonPath("$[0].sharedBy.firstName").isEqualTo("Ana")
+                .jsonPath("$[0].sharedFrom.description").isEqualTo("Cena")
+                .jsonPath("$[0].sharedFrom.amount").isEqualTo(90000)
+                .jsonPath("$[0].sharedFrom.currencyCode").isEqualTo("COP")
+                .jsonPath("$[0].shares").isEmpty();
+    }
+
+    @Test
     void elAltaDevuelveElGrupoDeLoQueQuedoPendienteYNullEnLoConfirmado() {
         when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), eq(TransactionStatus.CONFIRMED), anyList()))
                 .thenReturn(Flux.just(TransactionMother.enGrupo(TransactionMother.conEstado(gasto(),
@@ -651,7 +737,7 @@ class TransactionControllerTest {
 
     @Test
     void apruebaYRespondeElMovimientoConfirmadoConSuGrupo() {
-        when(approvePending.approve(TransactionMother.USER_ID, GASTO_ID))
+        when(approvePending.approve(TransactionMother.USER_ID, GASTO_ID, ApprovalChoice.NONE))
                 .thenReturn(Mono.just(TransactionMother.enGrupo(gasto(), GRUPO_ID)));
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE + "/" + GASTO_ID + "/approve")
@@ -703,7 +789,7 @@ class TransactionControllerTest {
 
     @Test
     void aprobarUnConfirmadoPropagaElConflictoDelCasoDeUso() {
-        when(approvePending.approve(TransactionMother.USER_ID, GASTO_ID)).thenReturn(Mono.error(
+        when(approvePending.approve(TransactionMother.USER_ID, GASTO_ID, ApprovalChoice.NONE)).thenReturn(Mono.error(
                 new BadRequestException(HttpStatus.CONFLICT, ErrorCodes.INVALID_STATE,
                         "El movimiento ya esta confirmado", "status")));
 
@@ -729,6 +815,37 @@ class TransactionControllerTest {
                 .jsonPath("$[0].status").isEqualTo("CONFIRMED")
                 .jsonPath("$[0].groupId").isEqualTo(GRUPO_ID.toString())
                 .jsonPath("$[1].id").isEqualTo(TRANSFERENCIA_ID.toString());
+    }
+
+    /** Un pendiente compartido se aprueba con la cuenta y la categoria en el cuerpo (FIN-66). */
+    @Test
+    void apruebaConLaCuentaYLaCategoriaDelCuerpo() {
+        ApprovalChoice eleccion = new ApprovalChoice(TransactionMother.ORIGEN_ID.toString(),
+                TransactionMother.MERCADO_ID.toString());
+        when(approvePending.approve(TransactionMother.USER_ID, GASTO_ID, eleccion)).thenReturn(Mono.just(gasto()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE + "/" + GASTO_ID + "/approve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"accountId": "30000000-0000-7000-8000-000000000001",
+                         "categoryId": "40000000-0000-7000-8000-000000000001"}
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.accountId").isEqualTo(TransactionMother.ORIGEN_ID.toString());
+    }
+
+    @Test
+    void unCuerpoQueNoEsJsonAlAprobarEsUn400() {
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE + "/" + GASTO_ID + "/approve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{no es json")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("JSON_PARSING_ERROR");
+        verifyNoInteractions(approvePending);
     }
 
     @Test
@@ -800,13 +917,13 @@ class TransactionControllerTest {
         return new Transaction(GASTO_ID, TransactionMother.USER_ID, TransactionType.EXPENSE,
                 TransactionMother.ORIGEN_ID, null, TransactionMother.MERCADO_ID, new BigDecimal("50000"),
                 "COP", "Mercado", "Pagado en efectivo", Instant.parse("2026-09-20T15:15:00Z"),
-                TransactionStatus.CONFIRMED, TransactionOrigin.WEB, null, null, null, null, null);
+                TransactionStatus.CONFIRMED, TransactionOrigin.WEB, null, null, null, null, null, null, null);
     }
 
     private static Transaction transferencia() {
         return new Transaction(TRANSFERENCIA_ID, TransactionMother.USER_ID, TransactionType.TRANSFER,
                 TransactionMother.ORIGEN_ID, TransactionMother.DESTINO_ID, null, new BigDecimal("100000"),
                 "COP", "Ahorro", null, Instant.parse("2026-09-20T16:00:00Z"),
-                TransactionStatus.CONFIRMED, TransactionOrigin.WEB, null, null, null, null, null);
+                TransactionStatus.CONFIRMED, TransactionOrigin.WEB, null, null, null, null, null, null, null);
     }
 }

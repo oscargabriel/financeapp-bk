@@ -20,6 +20,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.ZoneOffset;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,10 +34,13 @@ import org.springframework.http.HttpStatus;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.responses.ErrorDetail;
+import com.oscargabriel.financeapp.core.domain.model.Transaction;
+import com.oscargabriel.financeapp.core.domain.model.TransactionStatus;
 import com.oscargabriel.financeapp.core.domain.port.out.AccountQueryPort;
 import com.oscargabriel.financeapp.core.domain.port.out.TransactionRepositoryPort;
 import com.oscargabriel.financeapp.core.support.AccountMother;
 import com.oscargabriel.financeapp.compartido.support.RelojFijo;
+import com.oscargabriel.financeapp.core.support.TransactionMother;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -84,6 +88,27 @@ class DeleteTransactionUseCaseTest {
                 .verifyComplete();
 
         verify(repositorio).deleteByIdAndUser(GASTO_GUARDADO_ID, USER_ID);
+    }
+
+    /** Un pendiente compartido solo se aprueba o se rechaza: borrarlo no puede saltarse el rechazo (FIN-66). */
+    @Test
+    void unPendienteQueCompartioOtraPersonaNoSeBorra() {
+        Transaction g = unGastoGuardado();
+        when(repositorio.findByIdAndUser(GASTO_GUARDADO_ID, USER_ID)).thenReturn(Mono.just(new Transaction(g.id(),
+                g.userId(), g.type(), null, null, null, g.amount(), g.currencyCode(), g.description(), null,
+                g.occurredAt(), TransactionStatus.PENDING, g.origin(), null, null, null, null, UUID.randomUUID(),
+                TransactionMother.USUARIO_B, UUID.randomUUID())));
+
+        StepVerifier.create(casoDeUso.delete(USER_ID, GASTO_GUARDADO_ID))
+                .expectErrorSatisfies(error -> {
+                    BadRequestException bre = (BadRequestException) error;
+                    assertThat(bre.getHttpStatus()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(bre.getErrorResponse().getErrors())
+                            .extracting(ErrorDetail::getField, ErrorDetail::getCode)
+                            .containsExactly(tuple("status", ErrorCodes.INVALID_STATE.getCode()));
+                })
+                .verify();
+        verify(repositorio, never()).deleteByIdAndUser(any(), any());
     }
 
     @Test

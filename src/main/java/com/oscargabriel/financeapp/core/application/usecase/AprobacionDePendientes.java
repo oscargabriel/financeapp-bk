@@ -80,11 +80,17 @@ final class AprobacionDePendientes {
         return new Transaction(t.id(), t.userId(), t.type(), t.accountId(), t.destinationAccountId(),
                 t.categoryId(), t.amount(), t.currencyCode(), t.description(), t.notes(), t.occurredAt(),
                 TransactionStatus.CONFIRMED, t.origin(), t.recurrenceId(), t.installment(), t.destinationAmount(),
-                t.original(), t.groupId());
+                t.original(), t.groupId(), t.sharedByUserId(), t.shareId());
     }
 
     private List<ErrorDetail> deEstado(Transaction t, String prefijo) {
         List<ErrorDetail> errores = new ArrayList<>();
+        // Un pendiente compartido llega sin cuenta ni categoria: se aprueba uno a uno, eligiendolas (FIN-66).
+        if (t.accountId() == null) {
+            errores.add(invalido("El pendiente no tiene cuenta: se aprueba uno a uno, con la cuenta y la categoria",
+                    prefijo + "accountId"));
+            return errores;
+        }
         if (desactivada(t.accountId())) {
             errores.add(invalido("La cuenta esta desactivada", prefijo + "accountId"));
         }

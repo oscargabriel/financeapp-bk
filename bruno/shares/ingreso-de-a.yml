@@ -1,0 +1,36 @@
+info:
+  name: A recibe el ingreso de B
+  type: http
+  seq: 49
+
+http:
+  method: GET
+  url: "{{baseUrl}}/transactions/pending"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const p = res.getBody().find(function (t) { return t.type === "INCOME" && t.sharedBy && t.sharedBy.email === bru.getVar("emailCompB"); });
+
+        test("es un ingreso pendiente por la parte, sin cuenta ni categoria", function() {
+          expect(p.status).to.equal("PENDING");
+          expect(p.amount).to.equal(30000);
+          expect(p.accountId).to.equal(null);
+          expect(p.categoryId).to.equal(null);
+          expect(p.description).to.equal(bru.getVar("descCena"));
+          expect(p.sharedFrom.amount).to.equal(90000);
+        });
+
+        bru.setVar("idIngresoA", p.id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

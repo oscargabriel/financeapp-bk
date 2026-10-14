@@ -1,0 +1,33 @@
+info:
+  name: C recibe la parte del gasto a borrar
+  type: http
+  seq: 63
+
+http:
+  method: GET
+  url: "{{baseUrl}}/transactions/pending"
+  auth:
+    type: bearer
+    token: "{{tokenCompC}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const p = res.getBody().find(function (t) { return t.description === bru.getVar("descBorrar"); });
+
+        test("C tiene el pendiente", function() {
+          expect(p).to.not.equal(undefined);
+        });
+
+        bru.setVar("idParteBorrarC", p.id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -22,7 +23,9 @@ import com.oscargabriel.financeapp.compartido.support.RelojFijo;
 import com.oscargabriel.financeapp.core.domain.model.Account;
 import com.oscargabriel.financeapp.core.domain.model.Category;
 import com.oscargabriel.financeapp.core.domain.model.Transaction;
+import com.oscargabriel.financeapp.core.domain.model.TransactionOrigin;
 import com.oscargabriel.financeapp.core.domain.model.TransactionStatus;
+import com.oscargabriel.financeapp.core.domain.model.TransactionType;
 import com.oscargabriel.financeapp.core.support.TransactionMother;
 
 class AprobacionDePendientesTest {
@@ -61,6 +64,19 @@ class AprobacionDePendientesTest {
 
         assertThatThrownBy(() -> aprobacion.exigir(pendiente))
                 .satisfies(e -> errores(e, HttpStatus.CONFLICT, tuple("categoryId", ErrorCodes.INVALID_STATE.getCode())));
+    }
+
+    /** Un pendiente compartido se aprueba uno a uno, con la cuenta y la categoria que elija quien lo recibe (FIN-66). */
+    @Test
+    void enUnGrupoUnPendienteSinCuentaEsUnConflictoSobreLaCuentaYNadaMas() {
+        Transaction sinCuenta = new Transaction(UUID.randomUUID(), TransactionMother.USER_ID,
+                TransactionType.EXPENSE, null, null, null, new BigDecimal("30000"), "COP", "Cena", null,
+                TransactionMother.INSTANTE, TransactionStatus.PENDING, TransactionOrigin.WEB, null, null, null, null,
+                UUID.randomUUID(), TransactionMother.USUARIO_B, UUID.randomUUID());
+
+        assertThatThrownBy(() -> aprobacion.exigirGrupo(List.of(gasto(TransactionMother.ORIGEN_ID, "1000"), sinCuenta)))
+                .satisfies(e -> errores(e, HttpStatus.CONFLICT,
+                        tuple("[1].accountId", ErrorCodes.INVALID_STATE.getCode())));
     }
 
     @Test

@@ -1,0 +1,21 @@
+info:
+  name: A rechaza su gasto convertido compartido
+  type: http
+  seq: 74
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/{{idGastoUsdRechazo}}/reject"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

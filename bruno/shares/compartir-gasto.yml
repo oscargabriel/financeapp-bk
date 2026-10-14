@@ -1,0 +1,69 @@
+info:
+  name: A comparte un gasto con B y C
+  type: http
+  seq: 22
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCuentaA}}",
+          "categoryId": "{{idMercadoA}}",
+          "amount": 90000,
+          "description": "{{descCena}}",
+          "shares": [
+            {
+              "affiliationId": "{{idAfAB}}",
+              "amount": 30000
+            },
+            {
+              "affiliationId": "{{idAfAC}}",
+              "amount": 30000
+            }
+          ]
+        }
+      ]
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        const t = res.getBody()[0];
+        bru.setVar("idGastoCompartido", t.id);
+
+        test("el gasto entra confirmado por el total", function() {
+          expect(t.type).to.equal("EXPENSE");
+          expect(t.status).to.equal("CONFIRMED");
+          expect(t.amount).to.equal(90000);
+          expect(t.sharedBy).to.equal(null);
+          expect(t.sharedFrom).to.equal(null);
+        });
+
+        test("trae sus dos partes pendientes, con la persona", function() {
+          expect(t.shares).to.have.lengthOf(2);
+          t.shares.forEach(function (s) {
+            expect(s).to.have.all.keys("id", "person", "amount", "currencyCode", "status");
+            expect(s.person).to.have.all.keys("email", "firstName", "lastName");
+            expect(s.amount).to.equal(30000);
+            expect(s.currencyCode).to.equal("COP");
+            expect(s.status).to.equal("PENDING");
+          });
+          expect(t.shares.map(function (s) { return s.person.email; }).sort())
+            .to.eql([bru.getVar("emailCompB"), bru.getVar("emailCompC")].sort());
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

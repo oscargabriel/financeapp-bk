@@ -1,0 +1,31 @@
+info:
+  name: El saldo de B baja su parte
+  type: http
+  seq: 48
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts"
+  auth:
+    type: bearer
+    token: "{{tokenCompB}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const c = res.getBody().find(function (x) { return x.id === bru.getVar("idCuentaB"); });
+
+        test("baja 30000", function() {
+          expect(c.currentBalance).to.equal(170000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

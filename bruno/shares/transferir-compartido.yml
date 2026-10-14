@@ -1,0 +1,55 @@
+info:
+  name: A transfiere a B y a C
+  type: http
+  seq: 76
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "TRANSFER",
+          "accountId": "{{idCuentaA}}",
+          "categoryId": "{{idMercadoA}}",
+          "amount": 100000,
+          "description": "{{descTransferencia}}",
+          "shares": [
+            {
+              "affiliationId": "{{idAfAB}}",
+              "amount": 60000
+            },
+            {
+              "affiliationId": "{{idAfAC}}",
+              "amount": 40000
+            }
+          ]
+        }
+      ]
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        const t = res.getBody()[0];
+
+        test("en los libros de A queda como gasto, sin partes", function() {
+          expect(t.type).to.equal("EXPENSE");
+          expect(t.status).to.equal("CONFIRMED");
+          expect(t.categoryId).to.equal(bru.getVar("idMercadoA"));
+          expect(t.destinationAccountId).to.equal(null);
+          expect(t.shares).to.equal(null);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

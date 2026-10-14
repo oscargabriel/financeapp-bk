@@ -1,0 +1,48 @@
+info:
+  name: Una serie no se comparte
+  type: http
+  seq: 91
+
+http:
+  method: POST
+  url: "{{baseUrl}}/recurrences"
+  body:
+    type: json
+    data: |-
+      {
+        "type": "EXPENSE",
+        "accountId": "{{idCuentaSeriesUsd}}",
+        "categoryId": "{{idSuscripcionesSeries}}",
+        "amount": 12.5,
+        "description": "Spotify compartido",
+        "frequency": "MONTHLY",
+        "dayOfMonth": 15,
+        "startDate": "{{primeroMes4}}",
+        "occurrences": 2,
+        "shares": [{ "affiliationId": "00000000-0000-7000-8000-000000000001", "amount": 5 }]
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: shares
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  Compartir junto con «Repetir» esta fuera de alcance del epic FIN-9 (FIN-66).

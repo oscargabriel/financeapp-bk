@@ -97,6 +97,7 @@ class UpdateTransactionUseCaseTest {
         when(repositorio.findByIdAndUser(TRANSFERENCIA_GUARDADA_ID, USER_ID))
                 .thenReturn(Mono.just(unaTransferenciaGuardada()));
         when(repositorio.update(any())).thenReturn(Mono.just(true));
+        when(repositorio.hasPendingShares(any())).thenReturn(Mono.just(false));
     }
 
     private Mono<Transaction> modificarGasto(UpdateTransactionCommand parche) {
@@ -474,6 +475,58 @@ class UpdateTransactionUseCaseTest {
 
         StepVerifier.create(modificarGasto(unParche().amount(new BigDecimal("5000000")).build()))
                 .expectNextCount(1)
+                .verifyComplete();
+    }
+
+    // ---- Compartidos (FIN-66) ----------------------------------------------------------------------------
+
+    /** Un 409 INVALID_STATE con un solo error en el campo dado, y la fila sin tocar. */
+    private void enConflictoEn(Mono<Transaction> resultado, String campo) {
+        StepVerifier.create(resultado)
+                .expectErrorSatisfies(error -> {
+                    BadRequestException bre = (BadRequestException) error;
+                    assertThat(bre.getHttpStatus()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(bre.getErrorResponse().getErrors())
+                            .extracting(ErrorDetail::getField, ErrorDetail::getCode)
+                            .containsExactly(tuple(campo, ErrorCodes.INVALID_STATE.getCode()));
+                })
+                .verify();
+        verify(repositorio, never()).update(any());
+    }
+
+    @Test
+    void unPendienteQueCompartioOtraPersonaNoSeModifica() {
+        Transaction g = unGastoGuardado();
+        when(repositorio.findByIdAndUser(GASTO_GUARDADO_ID, USER_ID)).thenReturn(Mono.just(new Transaction(g.id(),
+                g.userId(), g.type(), null, null, null, g.amount(), g.currencyCode(), g.description(), null,
+                g.occurredAt(), TransactionStatus.PENDING, g.origin(), null, null, null, null, UUID.randomUUID(),
+                TransactionMother.USUARIO_B, UUID.randomUUID())));
+
+        enConflictoEn(modificarGasto(unParche().description("Otra").build()), "status");
+    }
+
+    @Test
+    void elMontoDeUnGastoConPartesPendientesNoCambia() {
+        when(repositorio.hasPendingShares(GASTO_GUARDADO_ID)).thenReturn(Mono.just(true));
+
+        enConflictoEn(modificarGasto(unParche().amount(new BigDecimal("1000")).build()), "amount");
+    }
+
+    @Test
+    void elTipoDeUnGastoConPartesPendientesNoCambia() {
+        when(repositorio.hasPendingShares(GASTO_GUARDADO_ID)).thenReturn(Mono.just(true));
+
+        enConflictoEn(modificarGasto(unParche().type("INCOME").categoryId(TransactionMother.SALARIO_ID.toString())
+                .build()), "type");
+    }
+
+    @Test
+    void laDescripcionDeUnGastoConPartesPendientesSiCambia() {
+        when(repositorio.hasPendingShares(GASTO_GUARDADO_ID)).thenReturn(Mono.just(true));
+
+        StepVerifier.create(modificarGasto(unParche().description("Cena de cumpleanos").amount(
+                        unGastoGuardado().amount()).build()))
+                .assertNext(t -> assertThat(t.description()).isEqualTo("Cena de cumpleanos"))
                 .verifyComplete();
     }
 }

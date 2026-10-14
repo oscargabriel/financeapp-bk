@@ -244,7 +244,8 @@ trigger `trg_accounts_seed_balance` al crear la cuenta.
 
 `transactions.status` vale `CONFIRMED` (el default) o `PENDING`. Un movimiento
 queda pendiente porque necesita que el usuario lo confirme, no por su origen
-(FIN-58): hoy lo ponen el asistente de IA y el alta en otra moneda (FA-51). Un
+(FIN-58): hoy lo ponen el asistente de IA, el alta en otra moneda (FA-51) y lo
+que otra persona comparte con el usuario (FIN-66). Un
 pendiente no tiene efecto hasta que el usuario lo aprueba:
 
 - el trigger de saldos lo ignora;
@@ -263,8 +264,9 @@ Lo garantizan dos `CHECK`. `ck_transactions_account` exige cuenta a todo
 confirmado y cuenta a toda transferencia. La transferencia nombra la cuenta de
 forma explícita porque, con la columna nullable, `destination_account_id <>
 account_id` daría `NULL`, y un `CHECK` con `NULL` pasa. Todo código que lea
-pendientes tiene que tolerar `account_id` y `category_id` nulos. La primera fila
-así la crea FIN-66, con las partes compartidas (ver *Finanzas compartidas*).
+pendientes tiene que tolerar `account_id` y `category_id` nulos. Hoy así llegan
+solo los compartidos (FIN-66, ver *Finanzas compartidas*), y la aprobación
+uno a uno los confirma con la cuenta y la categoría del cuerpo.
 
 **Todo pendiente tiene grupo** (FIN-58): `group_id` reúne los movimientos que una
 misma petición dejó sin confirmar, que se confirman o se descartan juntos. Lo
@@ -352,6 +354,8 @@ la cierran, con `resolved_at`.
 - La parte copia la descripción y la fecha del gasto. Borrar el gasto deja
   `source_transaction_id` en `NULL` y la parte pagada intacta. Anular las
   pendientes (`VOIDED`) lo hace la aplicación en la misma transacción.
+- `amount` y `currency_code` están en la moneda en que se registró el gasto,
+  que puede no ser la de su cuenta: cada persona convierte al aprobar.
 
 Dos columnas de `transactions` conectan los movimientos de cada persona:
 
@@ -371,10 +375,27 @@ la aplicación (FIN-65 y FIN-66), igual que el saldo no negativo del alta en lot
 
 - que la suma de las partes no supere el total;
 - que solo se comparta con un afiliado vigente;
-- que un gasto con partes pendientes no se edite;
+- que un gasto con partes pendientes no cambie de monto ni de tipo (el resto
+  sí: la copia en la parte no lo sigue);
 - las transiciones de estado. Las de `affiliations` las hace `/api/affiliations`
   (FIN-65): cada una con un `UPDATE` condicionado al estado leído, y sin
-  borrar nunca la fila.
+  borrar nunca la fila. Las de `expense_shares`, el contrato de
+  `/api/transactions` (FIN-66).
+
+Qué escribe cada acción sobre una parte, siempre en una transacción de base
+(FIN-66, `design.md` del change `fin-66-compartir-gasto`):
+
+| Acción | Escrituras |
+|---|---|
+| Compartir (alta) | El gasto de quien paga, una parte `PENDING` por persona y el gasto pendiente de cada una, sin cuenta ni categoría |
+| Pagar (aprobar el pendiente de quien debe) | El pendiente a `CONFIRMED` con cuenta, categoría y monto, la parte a `PAID`, y el ingreso pendiente de quien pagó |
+| Rechazar (rechazo o descarte de grupo) | La parte a `REJECTED` y el `DELETE` del pendiente |
+| Borrar el gasto (`DELETE`, rechazo o descarte de grupo) | Sus partes `PENDING` a `VOIDED`, el `DELETE` de sus pendientes y el del gasto |
+
+Rechazar y anular viven en las escrituras de borrado del adapter de
+movimientos, para que ningún camino que borre se las salte. La transferencia
+compartida no escribe partes: el gasto de quien transfiere no queda unido a los
+ingresos de quienes reciben.
 
 ### El signo lo da el tipo, nunca el monto
 

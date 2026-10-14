@@ -1,0 +1,29 @@
+info:
+  name: El saldo de A sube el pago
+  type: http
+  seq: 51
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const c = res.getBody().find(function (x) { return x.id === bru.getVar("idCuentaA"); });
+
+        test("sube 30000", function() {
+          expect(c.currentBalance).to.equal(500000 - 15000 - 90000 + 30000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

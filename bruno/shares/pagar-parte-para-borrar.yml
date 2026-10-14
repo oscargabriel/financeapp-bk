@@ -1,0 +1,33 @@
+info:
+  name: B paga su parte del gasto a borrar
+  type: http
+  seq: 64
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/{{idParteBorrarB}}/approve"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idCuentaB}}",
+        "categoryId": "{{idMercadoB}}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCompB}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: eq
+      value: CONFIRMED
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -29,11 +29,11 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | `GET` | `/api/catalogs/currencies` | Bearer | Monedas activas |
 | `GET` | `/api/catalogs/categories` | Bearer | Categorías del usuario para elegir `categoryId` |
 | `GET` | `/api/exchange-rates` | Bearer | Tasa de cambio de un par de monedas en una fecha |
-| `POST` | `/api/transactions` | Bearer | Registrar un lote de movimientos |
+| `POST` | `/api/transactions` | Bearer | Registrar un lote de movimientos, compartidos o no con afiliados |
 | `PATCH` | `/api/transactions/{id}` | Bearer | Modificar un movimiento |
 | `DELETE` | `/api/transactions/{id}` | Bearer | Eliminar un movimiento |
 | `GET` | `/api/transactions/pending` | Bearer | Movimientos pendientes de aprobación |
-| `POST` | `/api/transactions/{id}/approve` | Bearer | Aprobar un pendiente |
+| `POST` | `/api/transactions/{id}/approve` | Bearer | Aprobar un pendiente; con cuenta y categoría si llegó compartido |
 | `POST` | `/api/transactions/{id}/reject` | Bearer | Rechazar un pendiente |
 | `POST` | `/api/transactions/groups/{groupId}/approve` | Bearer | Confirmar juntos los pendientes de un grupo |
 | `POST` | `/api/transactions/groups/{groupId}/reject` | Bearer | Descartar juntos los pendientes de un grupo |
@@ -1051,9 +1051,14 @@ arreglo de un elemento.
 | `notes` | string | no | Hasta 1000 caracteres |
 | `occurredAt` | string | no | ISO-8601 con offset. Sin fecha (ausente, `null` o vacío), el instante en que el servidor atiende la petición, el mismo para todo el lote |
 | `destinationAmount` | number | no | Solo en una `TRANSFER` entre cuentas de monedas distintas: lo que entra al destino, en su moneda. Mayor que cero, hasta 4 decimales |
+| `shares` | array | no | Solo en `EXPENSE` y `TRANSFER`: las personas afiliadas con quienes se comparte, cada una `{affiliationId, amount}`. Ausente, `null` o `[]` es un movimiento sin compartir. Ver [Movimientos compartidos](#movimientos-compartidos) |
 
 Una cuenta que no existe y una de otro usuario responden lo mismo ("La cuenta no existe"). El API
 no confirma que un id exista fuera de tus datos.
+
+Una `TRANSFER` con `shares` no va a una cuenta propia: no lleva `destinationAccountId` ni
+`destinationAmount`, y sí `categoryId` de una categoría de gasto. Se registra como `EXPENSE` (ver
+[Transferencia compartida](#transferencia-compartida)).
 
 **Monedas** (FA-51). El movimiento se registra siempre en la moneda de su cuenta (`currencyCode` de
 la respuesta), que es lo que cobra el banco.
@@ -1112,15 +1117,23 @@ la respuesta), que es lo que cobra el banco.
     "destinationAmount": null,
     "originalAmount": null,
     "originalCurrencyCode": null,
-    "groupId": null
+    "groupId": null,
+    "sharedBy": null,
+    "sharedFrom": null,
+    "shares": null
   }
 ]
 ```
 
 `status` es `CONFIRMED` en todo lo que entra por aquí, salvo lo que se convierte de otra moneda; si el
 cuerpo trae un `status`, se ignora. Un movimiento queda `PENDING` porque necesita que el usuario lo
-confirme, sea cual sea su origen: aquí, lo convertido; desde el asistente, todo lo que registra (ver
-[Movimientos pendientes](#movimientos-pendientes)).
+confirme, sea cual sea su origen: aquí, lo convertido; desde el asistente, todo lo que registra; y lo
+que otra persona comparte con el usuario (ver [Movimientos pendientes](#movimientos-pendientes)).
+
+`sharedBy`, `sharedFrom` y `shares` dicen qué tiene de compartido el movimiento (ver
+[Lo compartido en la respuesta](#lo-compartido-en-la-respuesta)). Van en toda respuesta de un
+movimiento y en cada fila de `reports/transactions`, en `null` cuando no aplican. Los pone el
+servidor: si llegan en el cuerpo, se ignoran.
 
 `groupId` es el grupo de pendientes con que entró el movimiento: los que una misma petición deja
 pendientes comparten uno (aquí, los convertidos de un mismo lote), y se confirman o se descartan juntos.
@@ -1239,18 +1252,23 @@ aplica el movimiento, y al revés lo retira hasta que llegue; `scheduled` sale s
 | 400 | el campo | Formato inválido, o una regla del tipo resultante, sin índice (`amount`, `categoryId`) |
 | 404 | `id` | El movimiento no existe o es de otro usuario: la respuesta es la misma |
 | 409 | `amount` | `INSUFFICIENT_FUNDS`: el movimiento resultante bajaría por debajo de cero una cuenta que no es de crédito, un error por cuenta. Pasa al subir un gasto, cambiar de cuenta o de tipo, reducir un ingreso o una transferencia entrante, o pasar un ingreso a fecha futura. No cambia nada |
+| 409 | `amount` / `type` | `INVALID_STATE`: el gasto tiene partes compartidas pendientes y el parche cambia su monto o su tipo. Lo demás sí se modifica (ver [Movimientos compartidos](#movimientos-compartidos)) |
+| 409 | `status` | `INVALID_STATE`: es un pendiente que otra persona compartió con el usuario; solo se aprueba o se rechaza |
 
 ### `DELETE /api/transactions/{id}`
 
 Borra un movimiento del usuario del token. **Bearer.** El borrado es físico: no hay papelera.
 
-**204 No Content**, sin cuerpo. La base revierte su efecto en los saldos.
+**204 No Content**, sin cuerpo. La base revierte su efecto en los saldos. Borrar un gasto compartido
+anula sus partes pendientes, y los pendientes de esas partes desaparecen; las pagadas y las
+rechazadas quedan como estaban.
 
 | HTTP | `field` | Cuándo |
 |---|---|---|
 | 400 | `id` | El id de la ruta no es un UUID |
 | 404 | `id` | El movimiento no existe, ya se borró, o es de otro usuario |
 | 409 | `id` | `INSUFFICIENT_FUNDS`: borrar un ingreso o una transferencia ya gastados dejaría una cuenta que no es de crédito en negativo. Un gasto, un pendiente o un programado siempre se pueden borrar |
+| 409 | `status` | `INVALID_STATE`: es un pendiente que otra persona compartió con el usuario; se rechaza con `POST /api/transactions/{id}/reject` |
 
 ### Movimientos pendientes
 
@@ -1261,12 +1279,16 @@ sea cual sea su origen (FIN-58). Mientras tanto no mueve saldos ni cuenta en `mo
 - todo lo que registra [`POST /api/assistant/messages`](#post-apiassistantmessages), con
   `"origin": "TELEGRAM"`;
 - lo que [`POST /api/transactions`](#post-apitransactions) convierte de otra moneda (FA-51), con
-  `"origin": "WEB"`.
+  `"origin": "WEB"`;
+- lo que otra persona comparte con el usuario: su parte de un gasto, el ingreso de una transferencia o
+  el pago de una parte (ver [Movimientos compartidos](#movimientos-compartidos)), con
+  `"origin": "WEB"`, `sharedBy` con quien lo compartió, y **sin cuenta ni categoría**
+  (`accountId` y `categoryId` en `null`).
 
 **Todo pendiente tiene un `groupId`**: los que una misma petición dejó pendientes (los movimientos de
 un mensaje al asistente, los convertidos de un lote) comparten grupo, y se confirman o se descartan
 juntos con las dos rutas de grupo. También se pueden aprobar o rechazar uno a uno: las rutas de grupo
-actúan sobre lo que siga pendiente.
+actúan sobre lo que siga pendiente. Cada pendiente compartido tiene un grupo propio.
 
 Los cinco endpoints son **Bearer**.
 
@@ -1274,8 +1296,24 @@ Los cinco endpoints son **Bearer**.
 más antiguo por `occurredAt`, con la misma forma que un elemento de la respuesta del alta. Sin
 pendientes, `[]`.
 
-**`POST /api/transactions/{id}/approve`** — sin cuerpo. **200 OK** con el movimiento completo y
+**`POST /api/transactions/{id}/approve`** — **200 OK** con el movimiento completo y
 `"status": "CONFIRMED"`. Desde ese momento mueve los saldos como en el alta y cuenta en los reportes.
+Un pendiente con cuenta se aprueba **sin cuerpo**. Uno sin cuenta (un pendiente compartido) exige la
+cuenta y la categoría con que se registra:
+
+```json
+{ "accountId": "0199a1b3-...", "categoryId": "0199a1c0-..." }
+```
+
+| Campo | Tipo | Reglas |
+|---|---|---|
+| `accountId` | string (UUID) | Obligatorio si el pendiente no tiene cuenta, prohibido si la tiene. Cuenta del usuario y activa, en cualquier moneda |
+| `categoryId` | string (UUID) | Obligatorio si el pendiente no tiene cuenta, prohibido si la tiene. Categoría activa del usuario y del tipo del pendiente: de gasto para un gasto, de ingreso para un ingreso |
+
+Si la cuenta está en otra moneda que el pendiente, el monto se convierte a la moneda de la cuenta con
+la tasa de la fecha del pendiente, redondeado a los decimales de esa moneda, y la respuesta trae
+`originalAmount` y `originalCurrencyCode` con lo que llegó. A diferencia del alta, queda
+`CONFIRMED`: si el banco cobró otra cosa, se corrige con `PATCH`.
 
 **`POST /api/transactions/{id}/reject`** — sin cuerpo. **204 No Content.** El pendiente se borra y no
 deja rastro.
@@ -1288,6 +1326,9 @@ deja rastro.
 | 409 | `INVALID_STATE` | `accountId` / `destinationAccountId` | Solo al aprobar: la cuenta de ese campo está desactivada, un error por cuenta. Sigue pendiente y ningún saldo cambia; se aprueba después de reactivarla |
 | 409 | `INVALID_STATE` | `categoryId` | Solo al aprobar un gasto o un ingreso: su categoría se borró. Sale junto con los de las cuentas. Sigue pendiente; se aprueba después de cambiarle la categoría con `PATCH` |
 | 409 | `INSUFFICIENT_FUNDS` | `amount` | Solo al aprobar, sin errores `INVALID_STATE`: aprobarlo dejaría por debajo de cero una cuenta que no es de crédito. Sigue pendiente y ningún saldo cambia. Un pendiente con fecha futura se aprueba sin este chequeo |
+| 400 | `VALIDATION_ERROR` | `accountId` / `categoryId` | Solo al aprobar con cuerpo: falta en un pendiente sin cuenta, sobra en uno con cuenta, la cuenta no existe, es ajena o está desactivada, o la categoría no existe o no es del tipo. Un error por campo. Nada cambia |
+| 400 | `JSON_PARSING_ERROR` | `body` | Solo al aprobar: el cuerpo no es JSON válido |
+| 502 | `EXTERNAL_SERVICE_ERROR` | `server` | Solo al aprobar con una cuenta en otra moneda: no hay ninguna tasa del par y el proveedor no responde. Nada cambia |
 
 **`POST /api/transactions/groups/{groupId}/approve`** — sin cuerpo. Confirma **todo lo que siga
 pendiente del grupo, o nada**. **200 OK** con un arreglo de esos movimientos, completos y
@@ -1306,9 +1347,120 @@ siga pendiente del grupo; lo ya aprobado no cambia.
 | 409 | `INVALID_STATE` | `status` | El grupo ya no tiene pendientes porque se confirmó |
 | 409 | `INVALID_STATE` | `[i].accountId` / `[i].destinationAccountId` / `[i].categoryId` | Solo al confirmar: los mismos de aprobar uno a uno, con `i`, la posición del pendiente entre los que siguen pendientes del grupo, en el orden en que entraron. No se confirma ninguno |
 | 409 | `INSUFFICIENT_FUNDS` | `[i].amount` | Solo al confirmar, sin errores `INVALID_STATE`: el grupo entero dejaría en negativo una cuenta que no es de crédito; `i` es el primer pendiente que la cruza. No se confirma ninguno |
+| 409 | `INVALID_STATE` | `[i].accountId` | Solo al confirmar: el pendiente no tiene cuenta (es compartido). Se aprueba uno a uno, con cuenta y categoría. No se confirma ninguno |
 
 Un pendiente también se corrige con `PATCH` y se borra con `DELETE`, igual que uno confirmado, y
-conserva su `groupId`.
+conserva su `groupId`. La excepción es un pendiente compartido: solo se aprueba o se rechaza, y
+`PATCH` o `DELETE` responden 409 `INVALID_STATE` en `status`.
+
+### Movimientos compartidos
+
+Un gasto o una transferencia se comparte con personas **afiliadas** (ver [Afiliaciones](#afiliaciones))
+indicando en el alta `shares`, una entrada por persona (FIN-66, epic FIN-9):
+
+```json
+[
+  {
+    "type": "EXPENSE",
+    "accountId": "0199a1b3-...",
+    "categoryId": "0199a1c0-...",
+    "amount": 90000,
+    "description": "Cena",
+    "shares": [
+      { "affiliationId": "0199e1a2-...", "amount": 30000 },
+      { "affiliationId": "0199e1a3-...", "amount": 30000 }
+    ]
+  }
+]
+```
+
+| Campo | Tipo | Reglas |
+|---|---|---|
+| `affiliationId` | string (UUID) | El `id` de una afiliación `ACCEPTED` del usuario, de [`GET /api/affiliations`](#get-apiaffiliations). Una inexistente, ajena, mal formada o en otro estado (solicitada, rechazada, cancelada, desvinculada) da el mismo error |
+| `amount` | number | Mayor que cero, hasta 4 decimales. En la moneda en que llega el `amount` del elemento: su `currencyCode`, o la de la cuenta |
+
+- Cualquier número de personas, **sin repetir ninguna**.
+- En un gasto, las partes **suman como mucho el total**: lo que sobra es lo que pone quien paga. En
+  una transferencia, **suman exactamente el total**.
+- Un `INCOME` con partes es un error.
+- Todo error de una parte rechaza **el lote entero**, como cualquier error del alta.
+
+#### Gasto compartido
+
+Quien paga registra el total en su cuenta y su categoría: su saldo baja como en cualquier gasto, y el
+gasto sale en su respuesta con `shares`. Cada persona recibe un **gasto pendiente** por su parte,
+sin cuenta ni categoría, con la descripción y la fecha del gasto y `sharedBy` con quien pagó.
+**Mientras esa parte esté pendiente, es deuda** de esa persona con quien pagó.
+
+- **Pagar la parte** es aprobar ese pendiente con su cuenta y su categoría de gasto
+  ([`POST /api/transactions/{id}/approve`](#movimientos-pendientes) con cuerpo). Su gasto queda
+  confirmado y mueve su saldo, la parte queda `PAID`, y a quien pagó le llega un **ingreso pendiente**
+  por el monto de la parte, sin cuenta ni categoría, con la fecha de la aprobación y `sharedBy` con
+  quien le pagó. Quien pagó lo aprueba igual, con una cuenta y una categoría de ingreso, o lo
+  rechaza: la parte sigue `PAID`.
+- **Rechazar la parte** (`POST /api/transactions/{id}/reject`, o descartar su grupo) la deja
+  `REJECTED`: deja de ser deuda, quien pagó la ve rechazada y su gasto no cambia.
+- Mientras el gasto tenga partes pendientes, **su monto y su tipo no cambian** (`PATCH` responde 409
+  `INVALID_STATE` en ese campo). La descripción, la fecha, la cuenta y la categoría sí, pero la parte
+  conserva la descripción y la fecha con que se compartió.
+- **Borrarlo** (`DELETE`, o rechazarlo si quedó pendiente por venir en otra moneda) anula sus partes
+  pendientes (`VOIDED`) y sus pendientes desaparecen; las pagadas y las rechazadas no cambian.
+- Las partes no se cambian después del alta.
+
+Un gasto compartido en otra moneda que su cuenta se convierte y entra pendiente para quien paga,
+como todo lo convertido. Las partes quedan en la moneda en que se registró, y cada persona la
+convierte a la de su cuenta al aprobar.
+
+#### Transferencia compartida
+
+Una `TRANSFER` con `shares` manda dinero a otras personas, no a una cuenta propia. No lleva
+`destinationAccountId` ni `destinationAmount`, y sí `categoryId` de una categoría de gasto: **en los
+libros de quien la hace queda como un `EXPENSE`** de esa categoría, por el total, con `shares` en
+`null`. Cada persona recibe un **ingreso pendiente** por su monto, sin cuenta ni categoría, con
+`sharedBy` con quien transfirió. **No genera deuda.**
+
+Nada une el gasto de quien transfirió con esos ingresos: borrarlo o modificarlo no los retira ni los
+cambia. Si el dinero no llegó, quien lo recibe rechaza el ingreso. A quién se transfirió queda en la
+descripción.
+
+#### Lo compartido en la respuesta
+
+| Campo | En qué movimiento | Forma |
+|---|---|---|
+| `sharedBy` | Lo que otra persona compartió con el usuario: su parte de un gasto, el ingreso de una transferencia o el de una parte pagada | `{email, firstName, lastName}` de esa persona, con sus datos actuales |
+| `sharedFrom` | La parte de un gasto y el ingreso de una parte pagada, mientras el gasto exista | `{description, amount, currencyCode}`: la descripción con que se compartió y el total del gasto, en la moneda de la parte |
+| `shares` | El gasto de quien pagó | Lista de `{id, person: {email, firstName, lastName}, amount, currencyCode, status}`, una por parte, con `status` `PENDING`, `PAID`, `REJECTED` o `VOIDED` |
+
+```json
+{
+  "id": "0199b2d0-...",
+  "type": "EXPENSE",
+  "accountId": null,
+  "categoryId": null,
+  "amount": 30000,
+  "currencyCode": "COP",
+  "description": "Cena",
+  "status": "PENDING",
+  "groupId": "0199b2d1-...",
+  "sharedBy": { "email": "ana@correo.com", "firstName": "Ana", "lastName": "Paga" },
+  "sharedFrom": { "description": "Cena", "amount": 90000, "currencyCode": "COP" },
+  "shares": null
+}
+```
+
+Desvincular a una persona no cambia nada de lo que ya existía entre las dos: sus pendientes se
+aprueban o se rechazan igual, y el ingreso del pago sigue llegando. Desde ese momento no se comparte
+nada nuevo con esa afiliación. Un pendiente compartido es solo de quien lo recibe: para quien lo
+compartió es un movimiento ajeno (404).
+
+| HTTP | `code` | `field` | Cuándo |
+|---|---|---|---|
+| 400 | `VALIDATION_ERROR` | `[i].shares[j].amount` | La parte no trae monto, es cero o negativa, o tiene más de 4 decimales |
+| 400 | `VALIDATION_ERROR` | `[i].shares[j].affiliationId` | Falta, o no es una afiliación `ACCEPTED` del usuario |
+| 400 | `VALIDATION_ERROR` | `[i].shares[j]` | La parte es `null` |
+| 400 | `VALIDATION_ERROR` | `[i].shares` | Una persona repetida, partes que superan el total del gasto o no suman el de la transferencia, o partes en un `INCOME` |
+| 400 | `VALIDATION_ERROR` | `[i].destinationAccountId` / `[i].destinationAmount` | Una transferencia compartida los trae |
+| 400 | `VALIDATION_ERROR` | `[i].categoryId` | Una transferencia compartida no trae categoría, o trae una que no es de gasto |
 
 ### Movimientos programados
 
@@ -1397,6 +1549,7 @@ dos rutas sí validan el [saldo](#saldo-no-negativo).
 | `startDate` | Sí | `YYYY-MM-DD`. Puede ser pasada: las ocurrencias hasta hoy cuentan de una vez |
 | `endDate` | No | `YYYY-MM-DD`, incluida, no anterior a `startDate` |
 | `occurrences` | No | Total de ocurrencias, de 1 a 500. No va junto con `endDate` |
+| `shares` | No | Solo para rechazarlo: una serie no se comparte. Ausente, `null` o `[]`; con alguna parte es 400 en `shares` |
 
 Una serie no crea más de 500 ocurrencias de una vez: con fin, el error va en `endDate`; sin fin y con
 un inicio muy atrás, en `startDate`. Una serie que no tendría ninguna ocurrencia antes de su
@@ -1540,6 +1693,7 @@ Los dos reciben el mismo cuerpo y aplican las mismas reglas:
 | `description` | Sí | Hasta 255 caracteres; se recorta. Es la de cada cuota |
 | `purchaseDate` | Sí | `YYYY-MM-DD`, hoy o antes en la zona del usuario. Si es pasada, las cuotas vencidas cuentan de una vez |
 | `installmentCount` | Sí | De 1 a 48 |
+| `shares` | No | Solo para rechazarlo: una compra en cuotas no se comparte. Ausente, `null` o `[]`; con alguna parte es 400 en `shares` |
 
 `preview` responde **200 OK** sin guardar nada:
 
@@ -1807,6 +1961,7 @@ dos extremos. Errores 400 `VALIDATION_ERROR`, en el campo del parámetro:
 | `scheduled` | `true` si el movimiento está programado: sale en la lista, pero no en los totales ni en `net` |
 | `recurrenceId` | La serie de la que el movimiento es ocurrencia, o `null`. Sirve para mostrar juntas las ocurrencias de una serie |
 | `installment` | `{purchaseId, number, count}` si el movimiento es una cuota de una [compra en cuotas](#compras-en-cuotas) ("3 de 12"), o `null` |
+| `sharedBy`, `sharedFrom`, `shares` | Lo compartido del movimiento, con la forma de la respuesta de un movimiento (ver [Lo compartido en la respuesta](#lo-compartido-en-la-respuesta)). `shares` dice a quien pagó el estado de cada parte |
 | `totalsByType` | Una entrada por tipo consultado (los tres sin filtro de tipo), aunque sea en cero. Sin los programados |
 | `totalsByCategory` | Solo las categorías con movimientos ya ocurridos, de mayor a menor total |
 | `net` | Total de `INCOME` menos total de `EXPENSE`. Puede ser negativo |
@@ -2041,7 +2196,7 @@ persona se registre después, y quien la envió la puede cancelar. Por lo mismo,
 que no está aceptada nunca trae el nombre de la otra persona.
 
 **Desvincular** solo cierra la afiliación: no cambia movimientos ni partes compartidas entre los dos.
-Compartir con una persona exige una afiliación `ACCEPTED`.
+Compartir con una persona exige una afiliación `ACCEPTED` (ver [Movimientos compartidos](#movimientos-compartidos)).
 
 #### `GET /api/affiliations`
 
@@ -2116,7 +2271,6 @@ Para que el frontend no lo busque:
 - Recuperar o listar las cuentas borradas.
 - Recuperar o listar las categorías borradas.
 - Consultar un movimiento por su id. Para listarlos está `GET /api/reports/transactions`.
-- Crear movimientos pendientes por otra vía que el asistente.
 - Aprobar o rechazar en una sola petición pendientes elegidos de grupos distintos: hoy se confirma o
   se descarta un grupo entero, o un pendiente a la vez.
 - Crear metas de gasto.
@@ -2130,3 +2284,8 @@ Para que el frontend no lo busque:
   sus cuotas si cambian los datos de la tarjeta. Tampoco valida que la compra quepa en el cupo.
 - Listar las cuotas de una compra: se filtran por `installment.purchaseId` en `reports/transactions`.
 - Listar las solicitudes de afiliación rechazadas, canceladas o desvinculadas.
+- Cambiar las partes de un gasto compartido después del alta.
+- Retirar una transferencia compartida: borrarla en los libros de quien la hizo no quita el ingreso
+  pendiente de quien la recibe, que lo rechaza.
+- El saldo y el detalle de lo que se deben dos afiliados: el estado de cada parte sale en `shares`.
+- Compartir una serie recurrente o una compra en cuotas.

@@ -2,6 +2,7 @@ package com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -44,7 +45,11 @@ public record CreateInstallmentPurchaseRequest(
         @NotNull(message = "El numero de cuotas es obligatorio")
         @Min(value = 1, message = "Las cuotas van de 1 a " + InstallmentPlan.MAXIMO)
         @Max(value = InstallmentPlan.MAXIMO, message = "Las cuotas van de 1 a " + InstallmentPlan.MAXIMO)
-        Integer installmentCount) {
+        Integer installmentCount,
+
+        /** Solo para rechazarlo: compartir junto con una compra en cuotas esta fuera de alcance (FIN-66). Sin el, Jackson lo ignoraria. */
+        @Size(max = 0, message = "Una compra en cuotas no se comparte")
+        List<ShareRequest> shares) {
 
     /** Solo se llama con el cuerpo ya validado. */
     public CreateInstallmentPurchaseCommand toCommand() {

@@ -1,0 +1,25 @@
+info:
+  name: Shares
+  type: folder
+  seq: 17
+
+request:
+  auth:
+    type: bearer
+    token: "{{tokenCompA}}"
+
+docs: |
+  # Gastos y transferencias compartidos (FIN-66)
+
+  Corre con tres usuarios que registra en cada corrida: `compartidos-a-`, `-b-` y
+  `-c-<timestamp>@bruno.local`, con sus tokens en `tokenCompA`, `tokenCompB` y `tokenCompC`. La
+  carpeta autentica con A, que paga; los requests de B y C declaran su token. A se afilia con B y con
+  C, B con C (la afiliacion ajena para A), y A deja una solicitud sin aceptar a un correo sin cuenta.
+
+  El recorrido: A comparte un gasto con B y C; los errores del alta no guardan nada; B paga su parte
+  (con las validaciones de la aprobacion con cuerpo) y A aprueba el ingreso; C no puede modificar ni
+  borrar su parte y la rechaza; A no cambia el monto mientras hay partes pendientes; borrar un gasto
+  anula lo pendiente; las partes en dolares se convierten al aprobar con la tasa fija del stub; la
+  transferencia compartida queda como gasto de A; desvincular no impide pagar lo que ya existia.
+
+  Se repite sin recargar datos: cada corrida usa usuarios nuevos.

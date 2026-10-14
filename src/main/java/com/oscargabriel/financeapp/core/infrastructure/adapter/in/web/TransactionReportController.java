@@ -23,7 +23,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.compartido.infrastructure.adapter.in.web.UsuarioDelToken;
+import com.oscargabriel.financeapp.core.domain.model.ReportedTransaction;
 import com.oscargabriel.financeapp.core.domain.model.TransactionType;
+import com.oscargabriel.financeapp.core.domain.port.in.DescribeSharingPort;
 import com.oscargabriel.financeapp.core.domain.port.in.GetBalancePort;
 import com.oscargabriel.financeapp.core.domain.port.in.GetTransactionReportPort;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.BalanceResponse;
@@ -40,6 +42,7 @@ public class TransactionReportController {
 
     private final GetTransactionReportPort getTransactionReport;
     private final GetBalancePort getBalance;
+    private final DescribeSharingPort compartido;
 
     /**
      * Los filtros llegan repetidos (?type=EXPENSE&type=INCOME) o separados por coma (?type=EXPENSE,INCOME):
@@ -61,7 +64,9 @@ public class TransactionReportController {
                         parseAll(accountIds, "accountId", "Cada accountId debe ser un UUID", UUID::fromString),
                         parseAll(types, "type", "El tipo debe ser EXPENSE, INCOME o TRANSFER",
                                 v -> TransactionType.valueOf(v.toUpperCase(Locale.ROOT)))))
-                .map(TransactionReportResponse::from);
+                .flatMap(reporte -> compartido.describe(UsuarioDelToken.de(jwt),
+                                reporte.transactions().stream().map(ReportedTransaction::id).toList())
+                        .map(porId -> TransactionReportResponse.from(reporte, porId)));
     }
 
     /** Aqui las fechas son opcionales: la que falta llega en null y el caso de uso decide si eso vale. */

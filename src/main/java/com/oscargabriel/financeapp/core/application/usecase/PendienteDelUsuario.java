@@ -34,6 +34,15 @@ final class PendienteDelUsuario {
         return escrito ? Mono.empty() : Mono.error(UpdateTransactionUseCase.noEncontrado());
     }
 
+    /** Lo que otra persona compartio con el usuario solo se aprueba o se rechaza (FIN-66). */
+    static Mono<Transaction> noCompartido(Transaction t) {
+        return t.pendingShared()
+                ? Mono.error(new BadRequestException(HttpStatus.CONFLICT, List.of(ErrorDetail.of(
+                        ErrorCodes.INVALID_STATE.getCode(),
+                        "Un pendiente compartido solo se aprueba o se rechaza", "status"))))
+                : Mono.just(t);
+    }
+
     private static BadRequestException yaConfirmado() {
         return new BadRequestException(HttpStatus.CONFLICT, List.of(ErrorDetail.of(
                 ErrorCodes.INVALID_STATE.getCode(), "El movimiento ya esta confirmado", "status")));

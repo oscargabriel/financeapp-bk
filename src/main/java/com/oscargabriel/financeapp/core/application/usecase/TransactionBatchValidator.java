@@ -16,6 +16,7 @@ import com.oscargabriel.financeapp.core.domain.model.Account;
 import com.oscargabriel.financeapp.core.domain.model.Category;
 import com.oscargabriel.financeapp.core.domain.model.CreateTransactionCommand;
 import com.oscargabriel.financeapp.core.domain.model.Currency;
+import com.oscargabriel.financeapp.core.domain.model.ShareCommand;
 import com.oscargabriel.financeapp.core.domain.model.Transaction;
 import com.oscargabriel.financeapp.core.domain.model.TransactionOrigin;
 import com.oscargabriel.financeapp.core.domain.model.TransactionStatus;
@@ -44,12 +45,16 @@ final class TransactionBatchValidator {
     /** El que pide quien registra; lo convertido queda pendiente igual (Borrador). */
     private final TransactionStatus estado;
 
+    /** Las afiliaciones aceptadas del usuario, cada una con la otra persona (FIN-66). */
+    private final Map<UUID, UUID> afiliadas;
+
     TransactionBatchValidator(UUID userId, Map<UUID, Account> cuentas, Map<UUID, Category> categorias,
-            Map<String, Currency> monedas, Supplier<UUID> ids, Instant ahora, TransactionOrigin origen,
-            TransactionStatus estado) {
+            Map<String, Currency> monedas, Map<UUID, UUID> afiliadas, Supplier<UUID> ids, Instant ahora,
+            TransactionOrigin origen, TransactionStatus estado) {
         this.userId = userId;
         this.referencias = new ReferenciasDelUsuario(cuentas, categorias);
         this.monedas = monedas;
+        this.afiliadas = afiliadas;
         this.ids = ids;
         this.ahora = ahora;
         this.origen = origen;
@@ -81,7 +86,10 @@ final class TransactionBatchValidator {
     private Borrador aBorrador(CreateTransactionCommand elemento, String indice, List<ErrorDetail> errores) {
         int erroresPrevios = errores.size();
 
-        TransactionType tipo = TransactionType.valueOf(elemento.type().trim().toUpperCase());
+        TransactionType pedido = TransactionType.valueOf(elemento.type().trim().toUpperCase());
+        // Una transferencia compartida va a otras personas, no a una cuenta propia: queda como gasto (FIN-66).
+        boolean transferenciaCompartida = pedido == TransactionType.TRANSFER && !elemento.shares().isEmpty();
+        TransactionType tipo = transferenciaCompartida ? TransactionType.EXPENSE : pedido;
         UUID cuenta = referencias.cuentaPropia(elemento.accountId(), indice + ".accountId", "La cuenta", errores);
         UUID destino = tipo == TransactionType.TRANSFER
                 ? referencias.cuentaPropia(elemento.destinationAccountId(), indice + ".destinationAccountId",
@@ -90,6 +98,7 @@ final class TransactionBatchValidator {
         UUID categoria = tipo == TransactionType.TRANSFER
                 ? null
                 : referencias.categoria(elemento.categoryId(), tipo, indice + ".categoryId", errores);
+        List<Borrador.Destinatario> partes = destinatarios(elemento.shares(), indice, errores);
 
         String recibida = monedaRecibida(elemento.currencyCode(), indice + ".currencyCode", errores);
         boolean entreMonedas = cuenta != null && destino != null
@@ -106,10 +115,43 @@ final class TransactionBatchValidator {
         Transaction movimiento = new Transaction(ids.get(), userId, tipo, cuenta, destino, categoria,
                 elemento.amount(), monedaDeLaCuenta, elemento.description().trim(), elemento.notes(),
                 instante(elemento.occurredAt()), estado, origen, null, null,
-                elemento.destinationAmount(), null, null);
+                elemento.destinationAmount(), null, null, null, null);
         return new Borrador(movimiento,
                 recibida == null || recibida.equals(monedaDeLaCuenta) ? null : recibida,
-                entreMonedas && elemento.destinationAmount() == null ? referencias.moneda(destino) : null);
+                entreMonedas && elemento.destinationAmount() == null ? referencias.moneda(destino) : null,
+                partes, transferenciaCompartida);
+    }
+
+    /**
+     * Cada parte, con la persona de su afiliacion aceptada. Una inexistente, ajena, no aceptada o mal formada da el
+     * mismo error: distinguirlas diria algo de relaciones que el usuario no ve.
+     */
+    private List<Borrador.Destinatario> destinatarios(List<ShareCommand> partes, String indice,
+            List<ErrorDetail> errores) {
+        List<Borrador.Destinatario> destinatarios = new ArrayList<>(partes.size());
+        for (int j = 0; j < partes.size(); j++) {
+            ShareCommand parte = partes.get(j);
+            UUID afiliacion = uuid(parte.affiliationId());
+            UUID persona = afiliacion == null ? null : afiliadas.get(afiliacion);
+            if (persona == null) {
+                errores.add(ReferenciasDelUsuario.detalle("La afiliacion no existe o no esta aceptada",
+                        indice + ".shares[" + j + "].affiliationId"));
+            } else {
+                destinatarios.add(new Borrador.Destinatario(persona, parte.amount()));
+            }
+        }
+        return destinatarios;
+    }
+
+    private static UUID uuid(String valor) {
+        if (valor == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(valor.trim());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /** Ausente es la moneda de la cuenta. El formato de 3 letras ya lo valido CreateTransactionRequest. */

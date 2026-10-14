@@ -89,4 +89,13 @@ class CreateInstallmentPurchaseRequestTest {
         assertThat(compra.purchaseDate()).isEqualTo(LocalDate.of(2026, 10, 9));
         assertThat(compra.installmentCount()).isEqualTo(3);
     }
+
+    /** Compartir junto con una compra en cuotas esta fuera de alcance del epic FIN-9 (FIN-66). */
+    @Test
+    void unaCompraConPartesSeRechazaYConLaListaVaciaNo() {
+        assertThat(Violaciones.de(unCuerpo().shares(new ShareRequest("60000000-0000-7000-8000-000000000001",
+                new BigDecimal("10000"))).request()))
+                .containsExactly(Map.entry("shares", List.of("Una compra en cuotas no se comparte")));
+        assertThat(Violaciones.de(unCuerpo().shares().request())).isEmpty();
+    }
 }

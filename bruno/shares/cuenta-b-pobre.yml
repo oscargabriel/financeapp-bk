@@ -1,0 +1,36 @@
+info:
+  name: Cuenta Bolsillo B de B
+  type: http
+  seq: 9
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Bolsillo B",
+        "type": "SAVINGS",
+        "currencyCode": "COP",
+        "initialBalance": 10000
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCompB}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idCuentaBPobre", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

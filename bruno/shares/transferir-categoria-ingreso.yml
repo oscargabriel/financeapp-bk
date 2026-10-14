@@ -1,0 +1,52 @@
+info:
+  name: Transferencia compartida con una categoria de ingreso
+  type: http
+  seq: 83
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "TRANSFER",
+          "accountId": "{{idCuentaA}}",
+          "categoryId": "{{idSalarioA}}",
+          "amount": 100000,
+          "description": "{{descTransferencia}}",
+          "shares": [
+            {
+              "affiliationId": "{{idAfAB}}",
+              "amount": 60000
+            },
+            {
+              "affiliationId": "{{idAfAC}}",
+              "amount": 40000
+            }
+          ]
+        }
+      ]
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: "[0].categoryId"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

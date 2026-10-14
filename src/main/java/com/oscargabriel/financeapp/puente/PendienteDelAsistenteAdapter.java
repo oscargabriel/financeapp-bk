@@ -38,7 +38,7 @@ public class PendienteDelAsistenteAdapter implements PendingMovementPort {
     private static CreateTransactionCommand comando(NewMovement movement) {
         return new CreateTransactionCommand(movement.type().name(), movement.accountId().toString(),
                 texto(movement.destinationAccountId()), texto(movement.categoryId()), movement.amount(), null,
-                movement.currencyCode(), movement.description(), null, movement.occurredAt());
+                movement.currencyCode(), movement.description(), null, movement.occurredAt(), null);
     }
 
     private static String texto(UUID id) {

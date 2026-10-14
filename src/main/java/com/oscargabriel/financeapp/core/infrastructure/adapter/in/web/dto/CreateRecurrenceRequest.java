@@ -3,6 +3,7 @@ package com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Locale;
 
 import jakarta.validation.constraints.Max;
@@ -68,7 +69,11 @@ public record CreateRecurrenceRequest(
 
         @Min(value = 1, message = "Las repeticiones van de 1 a 500")
         @Max(value = 500, message = "Las repeticiones van de 1 a 500")
-        Integer occurrences) {
+        Integer occurrences,
+
+        /** Solo para rechazarlo: compartir junto con Repetir esta fuera de alcance (FIN-66). Sin el, Jackson lo ignoraria. */
+        @Size(max = 0, message = "Una serie no se comparte")
+        List<ShareRequest> shares) {
 
     /** Sin interval, cada semana o cada mes. */
     public int intervalOrDefault() {

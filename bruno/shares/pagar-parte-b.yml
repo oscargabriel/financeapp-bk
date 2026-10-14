@@ -1,0 +1,43 @@
+info:
+  name: B paga su parte
+  type: http
+  seq: 47
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/{{idParteB}}/approve"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idCuentaB}}",
+        "categoryId": "{{idMercadoB}}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCompB}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const t = res.getBody();
+
+        test("queda confirmado con la cuenta y la categoria elegidas", function() {
+          expect(t.status).to.equal("CONFIRMED");
+          expect(t.accountId).to.equal(bru.getVar("idCuentaB"));
+          expect(t.categoryId).to.equal(bru.getVar("idMercadoB"));
+          expect(t.amount).to.equal(30000);
+          expect(t.originalAmount).to.equal(null);
+          expect(t.sharedBy.email).to.equal(bru.getVar("emailCompA"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

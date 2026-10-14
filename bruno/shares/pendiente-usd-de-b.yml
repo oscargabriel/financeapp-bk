@@ -1,0 +1,35 @@
+info:
+  name: B recibe la parte en dolares
+  type: http
+  seq: 70
+
+http:
+  method: GET
+  url: "{{baseUrl}}/transactions/pending"
+  auth:
+    type: bearer
+    token: "{{tokenCompB}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const p = res.getBody().find(function (t) { return t.description === bru.getVar("descUsd"); });
+
+        test("en la moneda en que se registro", function() {
+          expect(p.amount).to.equal(30);
+          expect(p.currencyCode).to.equal("USD");
+          expect(p.sharedFrom).to.eql({ description: bru.getVar("descUsd"), amount: 90, currencyCode: "USD" });
+        });
+
+        bru.setVar("idParteUsdB", p.id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
