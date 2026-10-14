@@ -2354,7 +2354,6 @@ Para que el frontend no lo busque:
 - Listar las sesiones abiertas, o cerrarlas todas sin cambiar la contraseña.
 - Revocar el access en el logout: sigue sirviendo hasta vencer, como mucho una hora.
 - Recuperar la contraseña olvidada (FA-90).
-- Series y compras en cuotas en monedas distintas de COP.
 - Transferencias recurrentes, y cambiar el fin (`endDate`, `occurrences`) o el tipo de una serie.
 - Listar las ocurrencias de una serie: se filtran por `recurrenceId` en `reports/transactions`.
 - Cambiar el monto, el número de cuotas, la tarjeta o la fecha de una compra en cuotas, o recalcular
