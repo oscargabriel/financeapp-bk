@@ -1,0 +1,33 @@
+info:
+  name: Pendientes de C con el correo en mayusculas y con espacios
+  type: http
+  seq: 25
+
+http:
+  method: GET
+  url: "{{baseUrl}}/transactions/pending?sharedBy={{correoCRaro}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: before-request
+      code: |-
+        bru.setVar("correoCRaro", encodeURIComponent("  " + bru.getVar("emailLoteC").toUpperCase() + " "));
+    - type: tests
+      code: |-
+        const lista = res.getBody();
+
+        test("el taxi y el mercado, del mas reciente al mas antiguo", function() {
+          expect(lista.map(function (t) { return t.id; }))
+            .to.eql([bru.getVar("idTaxiA"), bru.getVar("idMercadoA")]);
+        });
+
+settings:
+  encodeUrl: false
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

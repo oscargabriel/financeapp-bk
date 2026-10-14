@@ -13,10 +13,14 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webflux.test.autoconfigure.WebFluxTest;
@@ -45,6 +49,7 @@ import com.oscargabriel.financeapp.core.domain.port.in.CreateTransactionsPort;
 import com.oscargabriel.financeapp.core.domain.port.in.DeleteTransactionPort;
 import com.oscargabriel.financeapp.core.domain.port.in.DescribeSharingPort;
 import com.oscargabriel.financeapp.core.domain.port.in.ListPendingTransactionsPort;
+import com.oscargabriel.financeapp.core.domain.port.in.RejectPendingBatchPort;
 import com.oscargabriel.financeapp.core.domain.port.in.RejectPendingGroupPort;
 import com.oscargabriel.financeapp.core.domain.port.in.RejectPendingTransactionPort;
 import com.oscargabriel.financeapp.core.domain.port.in.UpdateTransactionPort;
@@ -107,6 +112,9 @@ class TransactionControllerTest {
 
     @MockitoBean
     private RejectPendingGroupPort rejectPendingGroup;
+
+    @MockitoBean
+    private RejectPendingBatchPort rejectPendingBatch;
 
     @MockitoBean
     private DescribeSharingPort describeSharing;
@@ -605,7 +613,7 @@ class TransactionControllerTest {
 
     @Test
     void listaLosPendientesDelUsuarioConSuEstadoYSuGrupo() {
-        when(listPending.listPending(TransactionMother.USER_ID)).thenReturn(Flux.just(
+        when(listPending.listPending(TransactionMother.USER_ID, Optional.empty())).thenReturn(Flux.just(
                 TransactionMother.enGrupo(TransactionMother.conEstado(gasto(), TransactionStatus.PENDING), GRUPO_ID),
                 TransactionMother.enGrupo(TransactionMother.conEstado(transferencia(), TransactionStatus.PENDING),
                         GRUPO_ID)));
@@ -673,7 +681,7 @@ class TransactionControllerTest {
                 null, null, new BigDecimal("30000"), "COP", "Cena", null, Instant.parse("2026-09-20T15:15:00Z"),
                 TransactionStatus.PENDING, TransactionOrigin.WEB, null, null, null, null, GRUPO_ID,
                 TransactionMother.USUARIO_B, PARTE_ID);
-        when(listPending.listPending(TransactionMother.USER_ID)).thenReturn(Flux.just(pendiente));
+        when(listPending.listPending(TransactionMother.USER_ID, Optional.empty())).thenReturn(Flux.just(pendiente));
         when(describeSharing.describe(TransactionMother.USER_ID, List.of(GASTO_ID))).thenReturn(Mono.just(Map.of(
                 GASTO_ID, new Sharing(new Sharing.Person("ana@correo.com", "Ana", null),
                         new Sharing.Source("Cena", new BigDecimal("90000"), "COP"), null))));
@@ -710,7 +718,7 @@ class TransactionControllerTest {
 
     @Test
     void laListaDePendientesMarcaLosProgramados() {
-        when(listPending.listPending(TransactionMother.USER_ID)).thenReturn(Flux.just(
+        when(listPending.listPending(TransactionMother.USER_ID, Optional.empty())).thenReturn(Flux.just(
                 TransactionMother.conFecha(TransactionMother.conEstado(gasto(), TransactionStatus.PENDING),
                         RelojFijo.DESPUES),
                 TransactionMother.conEstado(transferencia(), TransactionStatus.PENDING)));
@@ -725,7 +733,7 @@ class TransactionControllerTest {
 
     @Test
     void sinPendientesLaListaSaleVacia() {
-        when(listPending.listPending(TransactionMother.USER_ID)).thenReturn(Flux.empty());
+        when(listPending.listPending(TransactionMother.USER_ID, Optional.empty())).thenReturn(Flux.empty());
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "/pending")
                 .exchange()
@@ -907,6 +915,134 @@ class TransactionControllerTest {
                 .expectStatus().isNotFound()
                 .expectBody()
                 .jsonPath("$.errors[0].field").isEqualTo("id");
+    }
+
+    @Test
+    void elFiltroPasaElCorreoTalCualAlCasoDeUso() {
+        when(listPending.listPending(TransactionMother.USER_ID, Optional.of(" Laura@correo.com ")))
+                .thenReturn(Flux.just(gasto()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).get()
+                .uri(b -> b.path(URI_BASE + "/pending").queryParam("sharedBy", " Laura@correo.com ").build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(1)
+                .jsonPath("$[0].id").isEqualTo(GASTO_ID.toString());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "   ", "laura", "laura@correo"})
+    void unFiltroSinFormatoDeCorreoEsUn400SobreElFiltro(String filtro) {
+        webTestClient.mutateWith(tokenDelUsuario()).get()
+                .uri(b -> b.path(URI_BASE + "/pending").queryParam("sharedBy", filtro).build())
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors.length()").isEqualTo(1)
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("sharedBy");
+
+        verifyNoInteractions(listPending);
+    }
+
+    @Test
+    void unFiltroDeMasDe255CaracteresEsUn400SobreElFiltro() {
+        String largo = "a".repeat(245) + "@correo.com";
+
+        webTestClient.mutateWith(tokenDelUsuario()).get()
+                .uri(b -> b.path(URI_BASE + "/pending").queryParam("sharedBy", largo).build())
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].field").isEqualTo("sharedBy");
+
+        verifyNoInteractions(listPending);
+    }
+
+    @Test
+    void rechazaElLoteYRespondeSinContenido() {
+        when(rejectPendingBatch.reject(TransactionMother.USER_ID, List.of(GASTO_ID, TRANSFERENCIA_ID)))
+                .thenReturn(Mono.empty());
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE + "/pending/reject")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"ids": ["%s", "%s"]}""".formatted(GASTO_ID, TRANSFERENCIA_ID.toString().toUpperCase()))
+                .exchange()
+                .expectStatus().isNoContent()
+                .expectBody().isEmpty();
+
+        verify(rejectPendingBatch).reject(TransactionMother.USER_ID, List.of(GASTO_ID, TRANSFERENCIA_ID));
+        verifyNoInteractions(rejectPending);
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "{}                                                  | ids",
+            "{\"ids\": []}                                       | ids",
+            "{\"ids\": [\"50000000-0000-7000-8000-000000000001\", \"abc\"]} | ids[1]",
+            "{\"ids\": [null]}                                   | ids[0]"})
+    void unLoteMalFormadoEsUn400SobreSuCampo(String cuerpo, String campo) {
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE + "/pending/reject")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(cuerpo)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors.length()").isEqualTo(1)
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo(campo);
+
+        verifyNoInteractions(rejectPendingBatch);
+    }
+
+    @Test
+    void unLoteQueNoEsJsonEsUn400SobreElCuerpo() {
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE + "/pending/reject")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{ids:")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("JSON_PARSING_ERROR")
+                .jsonPath("$.errors[0].field").isEqualTo("body");
+
+        verifyNoInteractions(rejectPendingBatch);
+    }
+
+    @Test
+    void unLoteConUnIdAjenoPropagaElNoEncontradoIndexado() {
+        when(rejectPendingBatch.reject(TransactionMother.USER_ID, List.of(GASTO_ID, TRANSFERENCIA_ID)))
+                .thenReturn(Mono.error(new BadRequestException(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND,
+                        "El movimiento no existe", "ids[1]")));
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE + "/pending/reject")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"ids": ["%s", "%s"]}""".formatted(GASTO_ID, TRANSFERENCIA_ID))
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.NOT_FOUND.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("ids[1]");
+    }
+
+    @Test
+    void unLoteConUnConfirmadoPropagaElConflictoIndexado() {
+        when(rejectPendingBatch.reject(TransactionMother.USER_ID, List.of(GASTO_ID)))
+                .thenReturn(Mono.error(new BadRequestException(HttpStatus.CONFLICT, ErrorCodes.INVALID_STATE,
+                        "El movimiento ya esta confirmado", "ids[0]")));
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE + "/pending/reject")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"ids": ["%s"]}""".formatted(GASTO_ID))
+                .exchange()
+                .expectStatus().isEqualTo(HttpStatus.CONFLICT)
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.INVALID_STATE.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo("ids[0]");
     }
 
     private static BadRequestException noEncontrado() {

@@ -1,0 +1,34 @@
+info:
+  name: Lote con un movimiento confirmado
+  type: http
+  seq: 39
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/pending/reject"
+  body:
+    type: json
+    data: |-
+      { "ids": ["{{idCenaA}}", "{{idConfirmadoA}}"] }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: INVALID_STATE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: ids[1]
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

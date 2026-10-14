@@ -1,0 +1,27 @@
+info:
+  name: El mercado de C se filtra aunque este desvinculada
+  type: http
+  seq: 50
+
+http:
+  method: GET
+  url: "{{baseUrl}}/transactions/pending?sharedBy={{emailLoteC}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("sigue el mercado", function() {
+          expect(res.getBody().map(function (t) { return t.id; })).to.eql([bru.getVar("idMercadoA")]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

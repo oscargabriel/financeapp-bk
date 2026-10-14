@@ -1,7 +1,12 @@
 package com.oscargabriel.financeapp.core.application.usecase;
 
 import static com.oscargabriel.financeapp.core.support.TransactionMother.USER_ID;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,8 +37,22 @@ class ListPendingTransactionsUseCaseTest {
                 primero.status());
         when(repositorio.findPendingByUser(USER_ID)).thenReturn(Flux.just(primero, segundo));
 
-        StepVerifier.create(casoDeUso.listPending(USER_ID))
+        StepVerifier.create(casoDeUso.listPending(USER_ID, Optional.empty()))
                 .expectNext(primero, segundo)
                 .verifyComplete();
+
+        verify(repositorio, never()).findPendingSharedBy(any(), any());
+    }
+
+    @Test
+    void conFiltroPideSoloLosDeEsaPersonaConElCorreoNormalizado() {
+        Transaction compartido = TransactionMother.unGastoPendiente();
+        when(repositorio.findPendingSharedBy(USER_ID, "laura@correo.com")).thenReturn(Flux.just(compartido));
+
+        StepVerifier.create(casoDeUso.listPending(USER_ID, Optional.of("  Laura@Correo.COM ")))
+                .expectNext(compartido)
+                .verifyComplete();
+
+        verify(repositorio, never()).findPendingByUser(any());
     }
 }

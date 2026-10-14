@@ -1,0 +1,33 @@
+info:
+  name: Repetir el lote ya rechazado
+  type: http
+  seq: 48
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/pending/reject"
+  body:
+    type: json
+    data: |-
+      { "ids": ["{{idCenaA}}", "{{idTaxiA}}", "{{idPropioUsd}}"] }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "404"
+  scripts:
+    - type: tests
+      code: |-
+        test("un NOT_FOUND por posicion", function() {
+          const errores = res.getBody().errors;
+          expect(errores.map(function (e) { return e.code; })).to.eql(["NOT_FOUND", "NOT_FOUND", "NOT_FOUND"]);
+          expect(errores.map(function (e) { return e.field; }).sort()).to.eql(["ids[0]", "ids[1]", "ids[2]"]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

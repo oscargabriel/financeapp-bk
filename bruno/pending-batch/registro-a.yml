@@ -1,0 +1,48 @@
+info:
+  name: Usuario A — alta
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/register"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailLoteA}}",
+        "password": "unaClaveLarga",
+        "firstName": "Ana",
+        "lastName": "Lote"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: before-request
+      code: |-
+        const ts = Date.now();
+        ["A", "B", "C", "Nadie"].forEach(function (l) {
+          bru.setVar("emailLote" + l, "lote-" + l.toLowerCase() + "-" + ts + "@bruno.local");
+        });
+        bru.setVar("descCena", "Cena " + ts);
+        bru.setVar("descTaxi", "Taxi " + ts);
+        bru.setVar("descMercado", "Mercado " + ts);
+        bru.setVar("descAlmuerzo", "Almuerzo " + ts);
+        bru.setVar("descUsd", "Libro " + ts);
+        bru.setVar("descConfirmado", "Cafe " + ts);
+        bru.setVar("fechaAyer", new Date(Date.now() - 86400000).toISOString());
+        bru.setVar("fechaAntier", new Date(Date.now() - 2 * 86400000).toISOString());
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

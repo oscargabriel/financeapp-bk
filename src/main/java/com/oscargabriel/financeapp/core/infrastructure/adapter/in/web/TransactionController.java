@@ -3,7 +3,9 @@ package com.oscargabriel.financeapp.core.infrastructure.adapter.in.web;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -35,13 +38,16 @@ import com.oscargabriel.financeapp.core.domain.port.in.CreateTransactionsPort;
 import com.oscargabriel.financeapp.core.domain.port.in.DeleteTransactionPort;
 import com.oscargabriel.financeapp.core.domain.port.in.DescribeSharingPort;
 import com.oscargabriel.financeapp.core.domain.port.in.ListPendingTransactionsPort;
+import com.oscargabriel.financeapp.core.domain.port.in.RejectPendingBatchPort;
 import com.oscargabriel.financeapp.core.domain.port.in.RejectPendingGroupPort;
 import com.oscargabriel.financeapp.core.domain.port.in.RejectPendingTransactionPort;
 import com.oscargabriel.financeapp.core.domain.port.in.UpdateTransactionPort;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.ApprovePendingRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.CreateTransactionRequest;
+import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.RejectPendingBatchRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.TransactionResponse;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.UpdateTransactionRequest;
+import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.validation.Formatos;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -57,6 +63,8 @@ public class TransactionController {
      */
     static final int TOPE_LOTE = 500;
 
+    private static final Pattern CORREO = Pattern.compile(Formatos.EMAIL);
+
     private final CreateTransactionsPort createTransactions;
     private final UpdateTransactionPort updateTransaction;
     private final DeleteTransactionPort deleteTransaction;
@@ -65,6 +73,7 @@ public class TransactionController {
     private final RejectPendingTransactionPort rejectPending;
     private final ApprovePendingGroupPort approvePendingGroup;
     private final RejectPendingGroupPort rejectPendingGroup;
+    private final RejectPendingBatchPort rejectPendingBatch;
     private final DescribeSharingPort compartido;
     private final Clock clock;
 
@@ -109,10 +118,14 @@ public class TransactionController {
         return Mono.defer(() -> deleteTransaction.delete(UsuarioDelToken.de(jwt), parseId(id)));
     }
 
-    /** No choca con /{id}: no hay GET sobre un movimiento. */
+    /**
+     * No choca con /{id}: no hay GET sobre un movimiento. sharedBy filtra por quien compartio (FIN-68); su formato se
+     * valida aqui, como el de los demas query params, y el caso de uso lo normaliza.
+     */
     @GetMapping("/pending")
-    public Flux<TransactionResponse> pending(@AuthenticationPrincipal Jwt jwt) {
-        return Flux.defer(() -> listPending.listPending(UsuarioDelToken.de(jwt)))
+    public Flux<TransactionResponse> pending(@AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) String sharedBy) {
+        return Flux.defer(() -> listPending.listPending(UsuarioDelToken.de(jwt), parseSharedBy(sharedBy)))
                 .as(movimientos -> responder(jwt, movimientos))
                 .flatMapIterable(respuestas -> respuestas);
     }
@@ -123,6 +136,16 @@ public class TransactionController {
         return Mono.defer(() -> approvePending.approve(UsuarioDelToken.de(jwt), parseId(id),
                         ApprovePendingRequest.toChoice(cuerpo)))
                 .flatMap(t -> responder(jwt, t));
+    }
+
+    /**
+     * Varios pendientes, de cualquier grupo, todos o ninguno (FIN-68). No choca con /{id}/reject: Spring prefiere el
+     * segmento literal.
+     */
+    @PostMapping("/pending/reject")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public Mono<Void> rejectBatch(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody RejectPendingBatchRequest lote) {
+        return Mono.defer(() -> rejectPendingBatch.reject(UsuarioDelToken.de(jwt), lote.toIds()));
     }
 
     /** Solo un pendiente: sobre un confirmado es 409, para no borrarlo creyendo rechazar. */
@@ -170,6 +193,17 @@ public class TransactionController {
     /** A mano y no como UUID de Spring: su conversion fallida saldria como JSON_PARSING_ERROR del cuerpo. */
     private static UUID parseId(String valor) {
         return uuid(valor, "El id del movimiento debe ser un UUID", "id");
+    }
+
+    private static Optional<String> parseSharedBy(String valor) {
+        if (valor == null) {
+            return Optional.empty();
+        }
+        if (valor.isBlank() || valor.length() > 255 || !CORREO.matcher(valor).matches()) {
+            throw new BadRequestException(HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR,
+                    "El filtro debe ser un correo", "sharedBy");
+        }
+        return Optional.of(valor);
     }
 
     private static UUID parseGroupId(String valor) {
