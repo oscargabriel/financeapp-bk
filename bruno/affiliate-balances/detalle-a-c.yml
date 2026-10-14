@@ -1,0 +1,35 @@
+info:
+  name: Detalle de A con C
+  type: http
+  seq: 37
+
+http:
+  method: GET
+  url: "{{baseUrl}}/affiliations/{{idSaldoAC}}/shares"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const partes = res.getBody();
+        const parte = function (desc) {
+          return partes.find(function (s) { return s.description === bru.getVar(desc); });
+        };
+
+        test("solo la cena, rechazada, vista por quien pago", function() {
+          expect(partes).to.have.lengthOf(1);
+          expect(parte("descCena").status).to.equal("REJECTED");
+          expect(parte("descCena").direction).to.equal("OWED_TO_ME");
+          expect(parte("descCena").amount).to.equal(20000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

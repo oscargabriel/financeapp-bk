@@ -1,0 +1,30 @@
+info:
+  name: Detalle con una solicitud sin aceptar
+  type: http
+  seq: 51
+
+http:
+  method: GET
+  url: "{{baseUrl}}/affiliations/{{idSaldoSinAceptar}}/shares"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: INVALID_STATE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: status
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

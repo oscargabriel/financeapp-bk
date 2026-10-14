@@ -1,0 +1,43 @@
+info:
+  name: A comparte un almuerzo con B
+  type: http
+  seq: 33
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCuentaSaldoA}}",
+          "categoryId": "{{idMercadoSaldoA}}",
+          "amount": 30000,
+          "description": "{{descAlmuerzo}}",
+          "shares": [
+            {
+              "affiliationId": "{{idSaldoAB}}",
+              "amount": 12000
+            }
+          ]
+        }
+      ]
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idGastoAlmuerzo", res.getBody()[0].id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

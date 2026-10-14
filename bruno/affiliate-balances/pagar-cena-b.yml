@@ -1,0 +1,30 @@
+info:
+  name: B paga su parte de la cena
+  type: http
+  seq: 31
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/{{idCenaB}}/approve"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idCuentaSaldoB}}",
+        "categoryId": "{{idMercadoSaldoB}}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenSaldoB}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

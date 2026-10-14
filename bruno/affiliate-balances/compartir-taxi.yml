@@ -1,0 +1,45 @@
+info:
+  name: B comparte el taxi con A y C
+  type: http
+  seq: 23
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCuentaSaldoB}}",
+          "categoryId": "{{idMercadoSaldoB}}",
+          "amount": 40000,
+          "description": "{{descTaxi}}",
+          "shares": [
+            {
+              "affiliationId": "{{idSaldoAB}}",
+              "amount": 10000
+            },
+            {
+              "affiliationId": "{{idSaldoBC}}",
+              "amount": 5000
+            }
+          ]
+        }
+      ]
+  auth:
+    type: bearer
+    token: "{{tokenSaldoB}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

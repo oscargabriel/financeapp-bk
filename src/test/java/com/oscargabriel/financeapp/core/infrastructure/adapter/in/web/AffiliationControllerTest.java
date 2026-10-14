@@ -1,5 +1,8 @@
 package com.oscargabriel.financeapp.core.infrastructure.adapter.in.web;
 
+import static com.oscargabriel.financeapp.core.support.AffiliateBalanceMother.PARTE_ID;
+import static com.oscargabriel.financeapp.core.support.AffiliateBalanceMother.unSaldo;
+import static com.oscargabriel.financeapp.core.support.AffiliateBalanceMother.unaParte;
 import static com.oscargabriel.financeapp.core.support.AffiliationMother.AFILIACION_ID;
 import static com.oscargabriel.financeapp.core.support.AffiliationMother.CORREO_DESTINATARIO;
 import static com.oscargabriel.financeapp.core.support.AffiliationMother.unaSolicitud;
@@ -29,7 +32,9 @@ import com.oscargabriel.financeapp.core.domain.model.AffiliationAction;
 import com.oscargabriel.financeapp.core.domain.model.AffiliationStatus;
 import com.oscargabriel.financeapp.core.domain.model.AffiliationView;
 import com.oscargabriel.financeapp.core.domain.port.in.ChangeAffiliationPort;
+import com.oscargabriel.financeapp.core.domain.port.in.ListAffiliateBalancesPort;
 import com.oscargabriel.financeapp.core.domain.port.in.ListAffiliationsPort;
+import com.oscargabriel.financeapp.core.domain.port.in.ListSharesWithAffiliatePort;
 import com.oscargabriel.financeapp.core.domain.port.in.SendAffiliationRequestPort;
 import com.oscargabriel.financeapp.core.support.UserMother;
 
@@ -54,6 +59,12 @@ class AffiliationControllerTest {
 
     @MockitoBean
     private ChangeAffiliationPort changeAffiliation;
+
+    @MockitoBean
+    private ListAffiliateBalancesPort listBalances;
+
+    @MockitoBean
+    private ListSharesWithAffiliatePort listShares;
 
     private static JwtMutator tokenDelUsuario() {
         return mockJwt().jwt(jwt -> jwt.subject(UserMother.ID.toString()));
@@ -147,5 +158,82 @@ class AffiliationControllerTest {
                 .jsonPath("$.errors[0].field").isEqualTo("id");
 
         verify(changeAffiliation, never()).change(any(), any(), any());
+    }
+
+    @Test
+    void elSaldoTraeCadaPersonaConSusMonedasYElNeto() {
+        when(listBalances.list(UserMother.ID)).thenReturn(Flux.just(unSaldo().build()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "/balances")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(1)
+                .jsonPath("$[0].affiliationId").isEqualTo(AFILIACION_ID.toString())
+                .jsonPath("$[0].status").isEqualTo("ACCEPTED")
+                .jsonPath("$[0].person.email").isEqualTo(CORREO_DESTINATARIO)
+                .jsonPath("$[0].person.firstName").isEqualTo("Beto")
+                .jsonPath("$[0].person.lastName").isEqualTo("Debe")
+                .jsonPath("$[0].balances.length()").isEqualTo(1)
+                .jsonPath("$[0].balances[0].currencyCode").isEqualTo("COP")
+                .jsonPath("$[0].balances[0].owedToMe").isEqualTo(30000)
+                .jsonPath("$[0].balances[0].iOwe").isEqualTo(10000)
+                .jsonPath("$[0].balances[0].net").isEqualTo(20000);
+    }
+
+    @Test
+    void unaPersonaAPazYSalvoSaleConLaListaDeMonedasVacia() {
+        when(listBalances.list(UserMother.ID)).thenReturn(Flux.just(unSaldo().aPazYSalvo().build()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "/balances")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$[0].balances").isEmpty();
+    }
+
+    @Test
+    void sinPersonasElSaldoEsUnaListaVacia() {
+        when(listBalances.list(UserMother.ID)).thenReturn(Flux.empty());
+
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "/balances")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody().json("[]");
+    }
+
+    @Test
+    void elDetalleTraeCadaParteConSuSentido() {
+        when(listShares.list(UserMother.ID, AFILIACION_ID))
+                .thenReturn(Flux.just(unaParte().pagada().build(), unaParte().queDebo().build()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "/" + AFILIACION_ID + "/shares")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(2)
+                .jsonPath("$[0].id").isEqualTo(PARTE_ID.toString())
+                .jsonPath("$[0].description").isEqualTo("Cena")
+                .jsonPath("$[0].occurredAt").isEqualTo("2026-10-13T17:30:00Z")
+                .jsonPath("$[0].amount").isEqualTo(30000)
+                .jsonPath("$[0].currencyCode").isEqualTo("COP")
+                .jsonPath("$[0].status").isEqualTo("PAID")
+                .jsonPath("$[0].resolvedAt").isEqualTo("2026-10-14T09:00:00Z")
+                .jsonPath("$[0].direction").isEqualTo("OWED_TO_ME")
+                .jsonPath("$[1].status").isEqualTo("PENDING")
+                .jsonPath("$[1].resolvedAt").isEqualTo(null)
+                .jsonPath("$[1].direction").isEqualTo("I_OWE");
+    }
+
+    @Test
+    void elDetalleConUnIdQueNoEsUuidEs400SobreId() {
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "/abc/shares")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.errors[0].field").isEqualTo("id");
+
+        verifyNoInteractions(listShares);
     }
 }

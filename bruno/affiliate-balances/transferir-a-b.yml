@@ -1,0 +1,39 @@
+info:
+  name: A transfiere a B
+  type: http
+  seq: 24
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "TRANSFER",
+          "accountId": "{{idCuentaSaldoA}}",
+          "categoryId": "{{idMercadoSaldoA}}",
+          "amount": 7000,
+          "description": "{{descRegalo}}",
+          "shares": [
+            {
+              "affiliationId": "{{idSaldoAB}}",
+              "amount": 7000
+            }
+          ]
+        }
+      ]
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

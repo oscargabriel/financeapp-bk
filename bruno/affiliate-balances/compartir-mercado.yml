@@ -1,0 +1,39 @@
+info:
+  name: A comparte el mercado con C
+  type: http
+  seq: 38
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCuentaSaldoA}}",
+          "categoryId": "{{idMercadoSaldoA}}",
+          "amount": 30000,
+          "description": "{{descMercado}}",
+          "shares": [
+            {
+              "affiliationId": "{{idSaldoAC}}",
+              "amount": 15000
+            }
+          ]
+        }
+      ]
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

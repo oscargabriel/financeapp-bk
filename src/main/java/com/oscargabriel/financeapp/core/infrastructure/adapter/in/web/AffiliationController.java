@@ -21,15 +21,19 @@ import com.oscargabriel.financeapp.compartido.infrastructure.adapter.in.web.Usua
 import com.oscargabriel.financeapp.core.domain.model.AffiliationAction;
 import com.oscargabriel.financeapp.core.domain.model.AffiliationView;
 import com.oscargabriel.financeapp.core.domain.port.in.ChangeAffiliationPort;
+import com.oscargabriel.financeapp.core.domain.port.in.ListAffiliateBalancesPort;
 import com.oscargabriel.financeapp.core.domain.port.in.ListAffiliationsPort;
+import com.oscargabriel.financeapp.core.domain.port.in.ListSharesWithAffiliatePort;
 import com.oscargabriel.financeapp.core.domain.port.in.SendAffiliationRequestPort;
+import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.AffiliateBalanceResponse;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.AffiliationResponse;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.SendAffiliationRequest;
+import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.ShareWithAffiliateResponse;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-/** Solicitudes de afiliacion entre usuarios por correo (FIN-65). */
+/** Solicitudes de afiliacion entre usuarios por correo (FIN-65), y lo que cada persona y el usuario se deben (FIN-67). */
 @RestController
 @RequestMapping("/affiliations")
 @AllArgsConstructor
@@ -38,11 +42,25 @@ public class AffiliationController {
     private final SendAffiliationRequestPort sendRequest;
     private final ListAffiliationsPort listAffiliations;
     private final ChangeAffiliationPort changeAffiliation;
+    private final ListAffiliateBalancesPort listBalances;
+    private final ListSharesWithAffiliatePort listShares;
 
     @GetMapping
     public Flux<AffiliationResponse> list(@AuthenticationPrincipal Jwt jwt) {
         return Flux.defer(() -> listAffiliations.list(UsuarioDelToken.de(jwt)))
                 .map(AffiliationResponse::from);
+    }
+
+    @GetMapping("/balances")
+    public Flux<AffiliateBalanceResponse> balances(@AuthenticationPrincipal Jwt jwt) {
+        return Flux.defer(() -> listBalances.list(UsuarioDelToken.de(jwt)))
+                .map(AffiliateBalanceResponse::from);
+    }
+
+    @GetMapping("/{id}/shares")
+    public Flux<ShareWithAffiliateResponse> shares(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
+        return Flux.defer(() -> listShares.list(UsuarioDelToken.de(jwt), parseId(id)))
+                .map(ShareWithAffiliateResponse::from);
     }
 
     @PostMapping

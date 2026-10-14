@@ -1,0 +1,42 @@
+info:
+  name: Detalle de B con A
+  type: http
+  seq: 36
+
+http:
+  method: GET
+  url: "{{baseUrl}}/affiliations/{{idSaldoAB}}/shares"
+  auth:
+    type: bearer
+    token: "{{tokenSaldoB}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const partes = res.getBody();
+        const parte = function (desc) {
+          return partes.find(function (s) { return s.description === bru.getVar(desc); });
+        };
+
+        test("las mismas cuatro partes, con el sentido al reves", function() {
+          expect(partes).to.have.lengthOf(4);
+          expect(parte("descCena").direction).to.equal("I_OWE");
+          expect(parte("descHotel").direction).to.equal("I_OWE");
+          expect(parte("descTaxi").direction).to.equal("OWED_TO_ME");
+        });
+
+        test("B ve anulada la parte del almuerzo", function() {
+          expect(parte("descAlmuerzo").status).to.equal("VOIDED");
+          expect(parte("descAlmuerzo").direction).to.equal("I_OWE");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

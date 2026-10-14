@@ -1,0 +1,30 @@
+info:
+  name: C paga el mercado
+  type: http
+  seq: 49
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/{{idMercadoC}}/approve"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idCuentaSaldoC}}",
+        "categoryId": "{{idMercadoSaldoC}}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenSaldoC}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

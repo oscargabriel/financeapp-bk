@@ -1,0 +1,35 @@
+info:
+  name: Saldo de A tras el pago de B
+  type: http
+  seq: 32
+
+http:
+  method: GET
+  url: "{{baseUrl}}/affiliations/balances"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const lista = res.getBody();
+        const de = function (letra) {
+          return lista.find(function (e) { return e.person.email === bru.getVar("emailSaldo" + letra); });
+        };
+        const saldo = function (codigo, aFavor, enContra, neto) {
+          return { currencyCode: codigo, owedToMe: aFavor, iOwe: enContra, net: neto };
+        };
+
+        test("la parte pagada deja de contar", function() {
+          expect(de("B").balances).to.eql([saldo("COP", 0, 10000, -10000), saldo("USD", 20, 0, 20)]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

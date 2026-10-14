@@ -64,8 +64,10 @@ DELETE FROM finance.users
 -- registro-<timestamp>@bruno.local, monthly-spending/ con sin-datos-<timestamp>@bruno.local,
 -- categories/ con categorias-<timestamp>@bruno.local, accounts/ con cuentas-<timestamp>@bruno.local,
 -- transactions/ con transacciones-<timestamp>@bruno.local, reports/ con reportes-<timestamp>@bruno.local
--- y usd-<timestamp>@bruno.local, y affiliations/ con afiliados-a-, afiliados-b- y
--- afiliados-c-<timestamp>@bruno.local.
+-- y usd-<timestamp>@bruno.local, affiliations/ con afiliados-a-, afiliados-b- y
+-- afiliados-c-<timestamp>@bruno.local, shares/ con compartidos-a-, -b-, -c- y
+-- -nadie-<timestamp>@bruno.local, y affiliate-balances/ con saldos-a-, -b-, -c- y
+-- -nadie-<timestamp>@bruno.local.
 -- Sus cuentas, movimientos y afiliaciones caen en cascada.
 -- Recargar este escenario es lo que los limpia.
 DELETE FROM finance.users WHERE email LIKE '%@bruno.local';

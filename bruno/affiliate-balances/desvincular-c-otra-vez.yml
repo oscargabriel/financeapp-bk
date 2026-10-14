@@ -1,0 +1,21 @@
+info:
+  name: A desvincula a C otra vez
+  type: http
+  seq: 47
+
+http:
+  method: POST
+  url: "{{baseUrl}}/affiliations/{{idSaldoAC2}}/unlink"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

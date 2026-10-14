@@ -1,0 +1,32 @@
+info:
+  name: Detalle de A con C usando la afiliacion vieja
+  type: http
+  seq: 46
+
+http:
+  method: GET
+  url: "{{baseUrl}}/affiliations/{{idSaldoAC}}/shares"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const partes = res.getBody();
+        const parte = function (desc) {
+          return partes.find(function (s) { return s.description === bru.getVar(desc); });
+        };
+
+        test("las mismas partes que con la nueva", function() {
+          expect(partes).to.have.lengthOf(2);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
