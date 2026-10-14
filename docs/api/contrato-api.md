@@ -423,8 +423,9 @@ una hora; el cliente lo descarta. Las sesiones de otros dispositivos siguen abie
 
 ### `GET /api/status`
 
-Estado del servicio y de sus dependencias. **Basic.** Está pensado para monitoreo, no para el
-frontend.
+Estado del servicio y de sus dependencias. **Basic.** Sirve para monitoreo y para despertar el
+servicio: el front lo llama al abrir el login para que la instancia de Cloud Run y la base arranquen
+en frío antes de que el usuario envíe sus credenciales. Ese uso ignora la respuesta, sea 200 o 503.
 
 **200 OK** — todo arriba:
 
