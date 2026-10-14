@@ -1,0 +1,45 @@
+info:
+  name: Una compra en cuotas no se comparte
+  type: http
+  seq: 79
+
+http:
+  method: POST
+  url: "{{baseUrl}}/installment-purchases"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idVisaUsd}}",
+        "categoryId": "{{idTecnologia}}",
+        "amount": 100,
+        "description": "Audifonos compartidos",
+        "purchaseDate": "{{hoyCuotas}}",
+        "installmentCount": 3,
+        "shares": [{ "affiliationId": "00000000-0000-7000-8000-000000000001", "amount": 50 }]
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: shares
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  Compartir junto con una compra en cuotas esta fuera de alcance del epic FIN-9 (FIN-66).

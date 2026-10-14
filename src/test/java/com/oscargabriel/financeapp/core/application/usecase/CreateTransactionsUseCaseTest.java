@@ -20,7 +20,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -47,6 +49,8 @@ import com.oscargabriel.financeapp.compartido.domain.exceptions.responses.ErrorD
 import com.oscargabriel.financeapp.core.domain.model.CategoryScope;
 import com.oscargabriel.financeapp.core.domain.model.CreateTransactionCommand;
 import com.oscargabriel.financeapp.core.domain.model.ExchangeRate;
+import com.oscargabriel.financeapp.core.domain.model.ExpenseShare;
+import com.oscargabriel.financeapp.core.domain.model.ShareStatus;
 import com.oscargabriel.financeapp.core.domain.model.OriginalAmount;
 import com.oscargabriel.financeapp.core.domain.model.Transaction;
 import com.oscargabriel.financeapp.core.domain.model.TransactionOrigin;
@@ -54,6 +58,7 @@ import com.oscargabriel.financeapp.core.domain.model.TransactionStatus;
 import com.oscargabriel.financeapp.core.domain.model.TransactionType;
 import com.oscargabriel.financeapp.core.domain.port.in.ResolveExchangeRatePort;
 import com.oscargabriel.financeapp.core.domain.port.out.AccountQueryPort;
+import com.oscargabriel.financeapp.core.domain.port.out.AffiliationRepositoryPort;
 import com.oscargabriel.financeapp.core.domain.port.out.CategoryQueryPort;
 import com.oscargabriel.financeapp.core.domain.port.out.CurrencyQueryPort;
 import com.oscargabriel.financeapp.core.domain.port.out.TransactionRepositoryPort;
@@ -86,8 +91,17 @@ class CreateTransactionsUseCaseTest {
     @Mock
     private ResolveExchangeRatePort tasas;
 
+    @Mock
+    private AffiliationRepositoryPort afiliaciones;
+
     @Captor
     private ArgumentCaptor<List<Transaction>> guardadas;
+
+    @Captor
+    private ArgumentCaptor<List<ExpenseShare>> partes;
+
+    @Captor
+    private ArgumentCaptor<List<Transaction>> deOtros;
 
     @BeforeEach
     void escenario() {
@@ -95,10 +109,159 @@ class CreateTransactionsUseCaseTest {
                 .thenReturn(Flux.fromIterable(TransactionMother.cuentasDelUsuario()));
         when(categorias.findActiveByUser(eq(TransactionMother.USER_ID), any()))
                 .thenReturn(Flux.fromIterable(TransactionMother.categoriasDelUsuario()));
-        when(repositorio.saveAll(anyList()))
+        when(repositorio.saveAll(anyList(), anyList(), anyList()))
                 .thenAnswer(invocacion -> Flux.fromIterable(invocacion.<List<Transaction>>getArgument(0)));
         when(tasas.refreshToday(any())).thenReturn(Mono.empty());
         when(monedas.findActive()).thenReturn(Flux.just(CurrencyMother.cop(), CurrencyMother.usd()));
+        when(afiliaciones.findAcceptedByUser(TransactionMother.USER_ID)).thenReturn(Mono.just(Map.of(
+                UUID.fromString(TransactionMother.AFILIACION_B), TransactionMother.USUARIO_B,
+                UUID.fromString(TransactionMother.AFILIACION_C), TransactionMother.USUARIO_C)));
+    }
+
+    @Test
+    void unGastoConPartesCreaUnaParteYUnPendienteSinCuentaParaCadaPersona() {
+        CreateTransactionCommand gasto = TransactionMother.unGasto().amount(new BigDecimal("90000"))
+                .shares(TransactionMother.parte(TransactionMother.AFILIACION_B, "30000"),
+                        TransactionMother.parte(TransactionMother.AFILIACION_C, "25000"))
+                .build();
+
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB,
+                        TransactionStatus.CONFIRMED, List.of(gasto)))
+                .assertNext(t -> {
+                    assertThat(t.amount()).isEqualByComparingTo("90000");
+                    assertThat(t.status()).isEqualTo(TransactionStatus.CONFIRMED);
+                    assertThat(t.sharedByUserId()).isNull();
+                })
+                .verifyComplete();
+
+        verify(repositorio).saveAll(guardadas.capture(), partes.capture(), deOtros.capture());
+        Transaction propio = guardadas.getValue().getFirst();
+        assertThat(partes.getValue())
+                .extracting(ExpenseShare::sourceTransactionId, ExpenseShare::payerId, ExpenseShare::debtorId,
+                        ExpenseShare::amount, ExpenseShare::currencyCode, ExpenseShare::description,
+                        ExpenseShare::occurredAt, ExpenseShare::status)
+                .containsExactly(
+                        Tuple.tuple(propio.id(), TransactionMother.USER_ID, TransactionMother.USUARIO_B,
+                                new BigDecimal("30000"), "COP", "Mercado de la semana", propio.occurredAt(),
+                                ShareStatus.PENDING),
+                        Tuple.tuple(propio.id(), TransactionMother.USER_ID, TransactionMother.USUARIO_C,
+                                new BigDecimal("25000"), "COP", "Mercado de la semana", propio.occurredAt(),
+                                ShareStatus.PENDING));
+        assertThat(deOtros.getValue())
+                .extracting(Transaction::userId, Transaction::type, Transaction::accountId, Transaction::categoryId,
+                        Transaction::amount, Transaction::currencyCode, Transaction::status,
+                        Transaction::sharedByUserId, Transaction::shareId)
+                .containsExactly(
+                        Tuple.tuple(TransactionMother.USUARIO_B, TransactionType.EXPENSE, null, null,
+                                new BigDecimal("30000"), "COP", TransactionStatus.PENDING, TransactionMother.USER_ID,
+                                partes.getValue().get(0).id()),
+                        Tuple.tuple(TransactionMother.USUARIO_C, TransactionType.EXPENSE, null, null,
+                                new BigDecimal("25000"), "COP", TransactionStatus.PENDING, TransactionMother.USER_ID,
+                                partes.getValue().get(1).id()));
+        assertThat(deOtros.getValue()).allSatisfy(p -> {
+            assertThat(p.description()).isEqualTo("Mercado de la semana");
+            assertThat(p.occurredAt()).isEqualTo(propio.occurredAt());
+            assertThat(p.notes()).isNull();
+            assertThat(p.origin()).isEqualTo(TransactionOrigin.WEB);
+        });
+        assertThat(deOtros.getValue()).extracting(Transaction::groupId).doesNotContainNull().doesNotHaveDuplicates();
+    }
+
+    @Test
+    void unGastoSinPartesNoCreaPartesNiPendientesAjenos() {
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB,
+                        TransactionStatus.CONFIRMED, List.of(TransactionMother.unGasto().shares().build())))
+                .expectNextCount(1)
+                .verifyComplete();
+
+        verify(repositorio).saveAll(anyList(), partes.capture(), deOtros.capture());
+        assertThat(partes.getValue()).isEmpty();
+        assertThat(deOtros.getValue()).isEmpty();
+    }
+
+    /** Las partes quedan en la moneda en que llego el gasto; cada quien convierte al aprobar (FIN-66). */
+    @Test
+    void lasPartesDeUnGastoEnOtraMonedaQuedanEnEsaMoneda() {
+        when(tasas.resolve("USD", "COP", DIA)).thenReturn(Mono.just(tasa("USD", "COP", "4100")));
+        CreateTransactionCommand gasto = TransactionMother.unGasto().amount(new BigDecimal("90")).currencyCode("usd")
+                .shares(TransactionMother.parte(TransactionMother.AFILIACION_B, "30")).build();
+
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB,
+                        TransactionStatus.CONFIRMED, List.of(gasto)))
+                .assertNext(t -> {
+                    assertThat(t.status()).isEqualTo(TransactionStatus.PENDING);
+                    assertThat(t.amount()).isEqualByComparingTo("369000");
+                })
+                .verifyComplete();
+
+        verify(repositorio).saveAll(anyList(), partes.capture(), deOtros.capture());
+        assertThat(partes.getValue()).singleElement()
+                .satisfies(p -> {
+                    assertThat(p.amount()).isEqualByComparingTo("30");
+                    assertThat(p.currencyCode()).isEqualTo("USD");
+                });
+        assertThat(deOtros.getValue()).singleElement()
+                .satisfies(p -> assertThat(p.currencyCode()).isEqualTo("USD"));
+    }
+
+    @Test
+    void unaTransferenciaCompartidaQuedaComoGastoYCadaPersonaRecibeUnIngresoSinParte() {
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB,
+                        TransactionStatus.CONFIRMED, List.of(TransactionMother.unaTransferenciaCompartida().build())))
+                .assertNext(t -> {
+                    assertThat(t.type()).isEqualTo(TransactionType.EXPENSE);
+                    assertThat(t.categoryId()).isEqualTo(TransactionMother.MERCADO_ID);
+                    assertThat(t.destinationAccountId()).isNull();
+                    assertThat(t.amount()).isEqualByComparingTo("100000");
+                })
+                .verifyComplete();
+
+        verify(repositorio).saveAll(anyList(), partes.capture(), deOtros.capture());
+        assertThat(partes.getValue()).isEmpty();
+        assertThat(deOtros.getValue())
+                .extracting(Transaction::userId, Transaction::type, Transaction::amount, Transaction::accountId,
+                        Transaction::categoryId, Transaction::sharedByUserId, Transaction::shareId)
+                .containsExactly(
+                        Tuple.tuple(TransactionMother.USUARIO_B, TransactionType.INCOME, new BigDecimal("60000"), null,
+                                null, TransactionMother.USER_ID, null),
+                        Tuple.tuple(TransactionMother.USUARIO_C, TransactionType.INCOME, new BigDecimal("40000"), null,
+                                null, TransactionMother.USER_ID, null));
+    }
+
+    @Test
+    void unaTransferenciaCompartidaConUnaCategoriaDeIngresoSeRechaza() {
+        CreateTransactionCommand transferencia = TransactionMother.unaTransferenciaCompartida()
+                .categoryId(TransactionMother.SALARIO_ID.toString()).build();
+
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB,
+                        TransactionStatus.CONFIRMED, List.of(transferencia)))
+                .expectErrorSatisfies(e -> assertThat(((BadRequestException) e).getErrorResponse().getErrors())
+                        .extracting(ErrorDetail::getField).containsExactly("[0].categoryId"))
+                .verify();
+        verify(repositorio, never()).saveAll(any(), any(), any());
+    }
+
+    static Stream<Arguments> unaAfiliacionQueNoSirve() {
+        return Stream.of(
+                Arguments.of("inexistente o no aceptada", "60000000-0000-7000-8000-0000000000ff"),
+                Arguments.of("mal formada", "abc"));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("unaAfiliacionQueNoSirve")
+    void unaAfiliacionQueNoEstaAceptadaRechazaElLoteSinGuardarNada(String caso, String afiliacion) {
+        List<CreateTransactionCommand> lote = List.of(
+                TransactionMother.unGasto().build(),
+                TransactionMother.unGasto().shares(TransactionMother.parte(TransactionMother.AFILIACION_B, "100"),
+                        TransactionMother.parte(afiliacion, "100")).build());
+
+        StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB,
+                        TransactionStatus.CONFIRMED, lote))
+                .expectErrorSatisfies(e -> assertThat(((BadRequestException) e).getErrorResponse().getErrors())
+                        .extracting(ErrorDetail::getCode, ErrorDetail::getField)
+                        .containsExactly(Tuple.tuple("VALIDATION_ERROR", "[1].shares[1].affiliationId")))
+                .verify();
+        verify(repositorio, never()).saveAll(any(), any(), any());
     }
 
     @Test
@@ -114,7 +277,7 @@ class CreateTransactionsUseCaseTest {
                 .assertNext(t -> assertThat(t.type()).isEqualTo(TransactionType.EXPENSE))
                 .verifyComplete();
 
-        verify(repositorio).saveAll(guardadas.capture());
+        verify(repositorio).saveAll(guardadas.capture(), anyList(), anyList());
         assertThat(guardadas.getValue()).extracting(Transaction::description)
                 .containsExactly("Pago quincena", "Ahorro del mes", "Mercado de la semana");
     }
@@ -273,7 +436,7 @@ class CreateTransactionsUseCaseTest {
                 TransactionMother.unIngreso().occurredAt(null).build(),
                 TransactionMother.unGasto().occurredAt(null).build());
 
-        StepVerifier.create(new CreateTransactionsUseCase(cuentas, categorias, monedas, repositorio, tasas, queAvanza)
+        StepVerifier.create(new CreateTransactionsUseCase(cuentas, categorias, monedas, repositorio, tasas, afiliaciones, queAvanza)
                         .create(TransactionMother.USER_ID, TransactionOrigin.WEB, TransactionStatus.CONFIRMED, lote).map(Transaction::occurredAt).distinct())
                 .expectNextCount(1)
                 .verifyComplete();
@@ -381,7 +544,7 @@ class CreateTransactionsUseCaseTest {
                 })
                 .verify();
 
-        verify(repositorio, never()).saveAll(any());
+        verify(repositorio, never()).saveAll(any(), any(), any());
     }
 
     @Test
@@ -399,7 +562,7 @@ class CreateTransactionsUseCaseTest {
                         .containsExactly("[1].accountId", "[2].destinationAccountId", "[3].categoryId"))
                 .verify();
 
-        verify(repositorio, never()).saveAll(any());
+        verify(repositorio, never()).saveAll(any(), any(), any());
     }
 
     /** La descripcion se guarda recortada: los espacios del borde no son parte de ella. */
@@ -413,7 +576,7 @@ class CreateTransactionsUseCaseTest {
 
     @Test
     void propagaElFalloDelRepositorio() {
-        when(repositorio.saveAll(anyList())).thenReturn(Flux.error(new IllegalStateException("se cayo la base")));
+        when(repositorio.saveAll(anyList(), anyList(), anyList())).thenReturn(Flux.error(new IllegalStateException("se cayo la base")));
 
         StepVerifier.create(useCase().create(TransactionMother.USER_ID, TransactionOrigin.WEB, TransactionStatus.CONFIRMED,
                         List.of(TransactionMother.unGasto().build())))
@@ -438,7 +601,7 @@ class CreateTransactionsUseCaseTest {
 
         InOrder orden = inOrder(tasas, repositorio);
         orden.verify(tasas).refreshToday(Set.of("COP"));
-        orden.verify(repositorio).saveAll(anyList());
+        orden.verify(repositorio).saveAll(anyList(), anyList(), anyList());
     }
 
     @Test
@@ -603,7 +766,7 @@ class CreateTransactionsUseCaseTest {
                 })
                 .verify();
 
-        verify(repositorio, never()).saveAll(any());
+        verify(repositorio, never()).saveAll(any(), any(), any());
     }
 
     private static final LocalDate DIA = LocalDate.of(2026, 9, 20);
@@ -627,7 +790,7 @@ class CreateTransactionsUseCaseTest {
                                     "Saldo insuficiente en Efectivo: quedaría en -100000 COP"));
                 })
                 .verify();
-        verify(repositorio, never()).saveAll(anyList());
+        verify(repositorio, never()).saveAll(anyList(), anyList(), anyList());
     }
 
     @Test
@@ -661,7 +824,7 @@ class CreateTransactionsUseCaseTest {
     }
 
     private CreateTransactionsUseCase useCase() {
-        return new CreateTransactionsUseCase(cuentas, categorias, monedas, repositorio, tasas, RELOJ);
+        return new CreateTransactionsUseCase(cuentas, categorias, monedas, repositorio, tasas, afiliaciones, RELOJ);
     }
 
     /** Avanza un milisegundo en cada lectura. */

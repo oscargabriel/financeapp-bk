@@ -1,0 +1,45 @@
+info:
+  name: Gasto con la lista de partes vacia
+  type: http
+  seq: 21
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCuentaA}}",
+          "categoryId": "{{idMercadoA}}",
+          "amount": 15000,
+          "description": "Cafe solo",
+          "shares": []
+        }
+      ]
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        const t = res.getBody()[0];
+        bru.setVar("idGastoSolo", t.id);
+
+        test("un gasto sin compartir trae los tres campos en null", function() {
+          expect(t.shares).to.equal(null);
+          expect(t.sharedBy).to.equal(null);
+          expect(t.sharedFrom).to.equal(null);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

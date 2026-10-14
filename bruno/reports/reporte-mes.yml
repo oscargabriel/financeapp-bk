@@ -32,7 +32,8 @@ runtime:
           expect(r.currencyCode).to.equal("COP");
           expect(r.transactions[0]).to.have.all.keys("id", "type", "accountId", "destinationAccountId",
               "categoryId", "categoryName", "amount", "currencyCode", "amountBase", "destinationAmount",
-              "description", "notes", "occurredAt", "scheduled", "recurrenceId", "installment");
+              "description", "notes", "occurredAt", "scheduled", "recurrenceId", "installment", "sharedBy", "sharedFrom",
+              "shares");
           r.transactions.forEach(function (t) {
             expect(t.scheduled).to.equal(false);
             expect(t.recurrenceId).to.equal(null);

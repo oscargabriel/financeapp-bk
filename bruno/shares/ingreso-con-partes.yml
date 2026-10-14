@@ -1,0 +1,48 @@
+info:
+  name: Un ingreso con partes
+  type: http
+  seq: 32
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "INCOME",
+          "accountId": "{{idCuentaA}}",
+          "categoryId": "{{idSalarioA}}",
+          "amount": 50000,
+          "description": "Ingreso compartido",
+          "shares": [
+            {
+              "affiliationId": "{{idAfAB}}",
+              "amount": 10000
+            }
+          ]
+        }
+      ]
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: "[0].shares"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

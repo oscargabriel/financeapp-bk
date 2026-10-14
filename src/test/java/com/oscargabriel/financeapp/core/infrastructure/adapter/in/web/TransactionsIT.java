@@ -74,6 +74,28 @@ class TransactionsIT {
                 .jsonPath("$.errors[0].field").isEqualTo("body");
     }
 
+    /** Las partes se validan antes de consultar la base, cada error con el indice del elemento y el de la parte. */
+    @Test
+    void losErroresDeUnaParteLlevanElIndiceDelElementoYElDeLaParte() {
+        webTestClient.post().uri("/api/transactions")
+                .headers(headers -> headers.setBearerAuth(TokenMother.valido()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        [{"type": "EXPENSE", "accountId": "30000000-0000-7000-8000-000000000001",
+                          "categoryId": "40000000-0000-7000-8000-000000000001", "amount": 50000,
+                          "description": "Cena",
+                          "shares": [{"affiliationId": "60000000-0000-7000-8000-000000000001", "amount": 100},
+                                     {"affiliationId": "60000000-0000-7000-8000-000000000002", "amount": 0},
+                                     null]}]
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors.length()").isEqualTo(2)
+                .jsonPath("$.errors[?(@.field == '[0].shares[1].amount')].code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.errors[?(@.field == '[0].shares[2]')].description").isEqualTo("La parte no puede ser nula");
+    }
+
     private static final String MOVIMIENTO = "/api/transactions/50000000-0000-7000-8000-000000000001";
 
     @Test

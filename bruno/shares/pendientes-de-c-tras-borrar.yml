@@ -1,0 +1,29 @@
+info:
+  name: C ya no tiene la parte anulada
+  type: http
+  seq: 66
+
+http:
+  method: GET
+  url: "{{baseUrl}}/transactions/pending"
+  auth:
+    type: bearer
+    token: "{{tokenCompC}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("la parte pendiente desaparecio", function() {
+          expect(res.getBody().map(function (t) { return t.id; })).to.not.include(bru.getVar("idParteBorrarC"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -1,0 +1,21 @@
+info:
+  name: A desvincula a C
+  type: http
+  seq: 86
+
+http:
+  method: POST
+  url: "{{baseUrl}}/affiliations/{{idAfAC}}/unlink"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

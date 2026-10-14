@@ -1,0 +1,36 @@
+info:
+  name: Cuenta Ahorros C de C
+  type: http
+  seq: 10
+
+http:
+  method: POST
+  url: "{{baseUrl}}/accounts"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Ahorros C",
+        "type": "SAVINGS",
+        "currencyCode": "COP",
+        "initialBalance": 200000
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCompC}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idCuentaC", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

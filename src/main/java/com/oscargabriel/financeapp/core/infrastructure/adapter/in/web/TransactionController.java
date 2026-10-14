@@ -1,6 +1,7 @@
 package com.oscargabriel.financeapp.core.infrastructure.adapter.in.web;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -24,16 +25,20 @@ import org.springframework.web.bind.annotation.RestController;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.compartido.infrastructure.adapter.in.web.UsuarioDelToken;
+import com.oscargabriel.financeapp.core.domain.model.Sharing;
+import com.oscargabriel.financeapp.core.domain.model.Transaction;
 import com.oscargabriel.financeapp.core.domain.model.TransactionOrigin;
 import com.oscargabriel.financeapp.core.domain.model.TransactionStatus;
 import com.oscargabriel.financeapp.core.domain.port.in.ApprovePendingGroupPort;
 import com.oscargabriel.financeapp.core.domain.port.in.ApprovePendingTransactionPort;
 import com.oscargabriel.financeapp.core.domain.port.in.CreateTransactionsPort;
 import com.oscargabriel.financeapp.core.domain.port.in.DeleteTransactionPort;
+import com.oscargabriel.financeapp.core.domain.port.in.DescribeSharingPort;
 import com.oscargabriel.financeapp.core.domain.port.in.ListPendingTransactionsPort;
 import com.oscargabriel.financeapp.core.domain.port.in.RejectPendingGroupPort;
 import com.oscargabriel.financeapp.core.domain.port.in.RejectPendingTransactionPort;
 import com.oscargabriel.financeapp.core.domain.port.in.UpdateTransactionPort;
+import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.ApprovePendingRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.CreateTransactionRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.TransactionResponse;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.UpdateTransactionRequest;
@@ -60,6 +65,7 @@ public class TransactionController {
     private final RejectPendingTransactionPort rejectPending;
     private final ApprovePendingGroupPort approvePendingGroup;
     private final RejectPendingGroupPort rejectPendingGroup;
+    private final DescribeSharingPort compartido;
     private final Clock clock;
 
     /**
@@ -78,8 +84,7 @@ public class TransactionController {
             List<@NotNull(message = "El elemento no puede ser nulo") @Valid CreateTransactionRequest> lote) {
         return Flux.defer(() -> createTransactions.create(UsuarioDelToken.de(jwt), TransactionOrigin.WEB,
                         TransactionStatus.CONFIRMED, lote.stream().map(CreateTransactionRequest::toCommand).toList()))
-                .map(t -> TransactionResponse.from(t, clock.instant()))
-                .collectList();
+                .as(movimientos -> responder(jwt, movimientos));
     }
 
     @PatchMapping("/{id}")
@@ -95,7 +100,7 @@ public class TransactionController {
                     }
                     return updateTransaction.update(UsuarioDelToken.de(jwt), movimiento, parche.toCommand());
                 })
-                .map(t -> TransactionResponse.from(t, clock.instant()));
+                .flatMap(t -> responder(jwt, t));
     }
 
     @DeleteMapping("/{id}")
@@ -108,13 +113,16 @@ public class TransactionController {
     @GetMapping("/pending")
     public Flux<TransactionResponse> pending(@AuthenticationPrincipal Jwt jwt) {
         return Flux.defer(() -> listPending.listPending(UsuarioDelToken.de(jwt)))
-                .map(t -> TransactionResponse.from(t, clock.instant()));
+                .as(movimientos -> responder(jwt, movimientos))
+                .flatMapIterable(respuestas -> respuestas);
     }
 
     @PostMapping("/{id}/approve")
-    public Mono<TransactionResponse> approve(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
-        return Mono.defer(() -> approvePending.approve(UsuarioDelToken.de(jwt), parseId(id)))
-                .map(t -> TransactionResponse.from(t, clock.instant()));
+    public Mono<TransactionResponse> approve(@AuthenticationPrincipal Jwt jwt, @PathVariable String id,
+            @RequestBody(required = false) ApprovePendingRequest cuerpo) {
+        return Mono.defer(() -> approvePending.approve(UsuarioDelToken.de(jwt), parseId(id),
+                        ApprovePendingRequest.toChoice(cuerpo)))
+                .flatMap(t -> responder(jwt, t));
     }
 
     /** Solo un pendiente: sobre un confirmado es 409, para no borrarlo creyendo rechazar. */
@@ -131,14 +139,32 @@ public class TransactionController {
     @PostMapping("/groups/{groupId}/approve")
     public Mono<List<TransactionResponse>> approveGroup(@AuthenticationPrincipal Jwt jwt, @PathVariable String groupId) {
         return Flux.defer(() -> approvePendingGroup.approve(UsuarioDelToken.de(jwt), parseGroupId(groupId)))
-                .map(t -> TransactionResponse.from(t, clock.instant()))
-                .collectList();
+                .as(movimientos -> responder(jwt, movimientos));
     }
 
     @PostMapping("/groups/{groupId}/reject")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public Mono<Void> rejectGroup(@AuthenticationPrincipal Jwt jwt, @PathVariable String groupId) {
         return Mono.defer(() -> rejectPendingGroup.reject(UsuarioDelToken.de(jwt), parseGroupId(groupId)));
+    }
+
+    /**
+     * Cada movimiento con lo compartido (FIN-66), leido con una sola consulta para toda la lista. Mono de la lista:
+     * el alta y la confirmacion de grupo responden solo si se guardo todo.
+     */
+    private Mono<List<TransactionResponse>> responder(Jwt jwt, Flux<Transaction> movimientos) {
+        return movimientos.collectList()
+                .flatMap(lista -> compartido.describe(UsuarioDelToken.de(jwt), lista.stream().map(Transaction::id).toList())
+                        .map(porId -> {
+                            Instant ahora = clock.instant();
+                            return lista.stream()
+                                    .map(t -> TransactionResponse.from(t, ahora, porId.getOrDefault(t.id(), Sharing.NONE)))
+                                    .toList();
+                        }));
+    }
+
+    private Mono<TransactionResponse> responder(Jwt jwt, Transaction movimiento) {
+        return responder(jwt, Flux.just(movimiento)).map(List::getFirst);
     }
 
     /** A mano y no como UUID de Spring: su conversion fallida saldria como JSON_PARSING_ERROR del cuerpo. */

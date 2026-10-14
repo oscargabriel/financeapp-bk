@@ -1,0 +1,44 @@
+info:
+  name: A comparte otro gasto en dolares
+  type: http
+  seq: 72
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCuentaA}}",
+          "categoryId": "{{idMercadoA}}",
+          "amount": 20,
+          "currencyCode": "USD",
+          "description": "{{descUsdRechazo}}",
+          "shares": [
+            {
+              "affiliationId": "{{idAfAB}}",
+              "amount": 10
+            }
+          ]
+        }
+      ]
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idGastoUsdRechazo", res.getBody()[0].id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

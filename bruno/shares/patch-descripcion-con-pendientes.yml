@@ -1,0 +1,33 @@
+info:
+  name: A cambia la descripcion con una parte pendiente
+  type: http
+  seq: 57
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/transactions/{{idGastoCompartido}}"
+  body:
+    type: json
+    data: |-
+      {
+        "description": "Cena de cumpleanos"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.description
+      operator: eq
+      value: "Cena de cumpleanos"
+    - expression: res.body.shares
+      operator: length
+      value: "2"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -3,6 +3,7 @@ package com.oscargabriel.financeapp.core.infrastructure.adapter.out.persistence;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Map;
 import java.util.UUID;
 
 import lombok.AllArgsConstructor;
@@ -104,6 +105,13 @@ public class AffiliationR2dbcAdapter implements AffiliationRepositoryPort {
                AND status = :from
             """;
 
+    private static final String ACEPTADAS = """
+            SELECT id, CASE WHEN requester_id = :userId THEN addressee_id ELSE requester_id END AS otro
+              FROM finance.affiliations
+             WHERE status = 'ACCEPTED'
+               AND (requester_id = :userId OR addressee_id = :userId)
+            """;
+
     private final DatabaseClient databaseClient;
 
     /**
@@ -182,6 +190,15 @@ public class AffiliationR2dbcAdapter implements AffiliationRepositoryPort {
                 .bind("to", to.name())
                 .fetch().rowsUpdated()
                 .map(filas -> filas > 0);
+    }
+
+    @Override
+    public Mono<Map<UUID, UUID>> findAcceptedByUser(UUID userId) {
+        return databaseClient.sql(ACEPTADAS)
+                .bind("userId", userId)
+                .map((row, metadata) -> Map.entry(row.get("id", UUID.class), row.get("otro", UUID.class)))
+                .all()
+                .collectMap(Map.Entry::getKey, Map.Entry::getValue);
     }
 
     private static AffiliationView toView(Row row) {

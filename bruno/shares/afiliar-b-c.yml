@@ -1,0 +1,33 @@
+info:
+  name: B envia solicitud a C
+  type: http
+  seq: 18
+
+http:
+  method: POST
+  url: "{{baseUrl}}/affiliations"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailCompC}}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCompB}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idAfBC", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -1,0 +1,30 @@
+info:
+  name: Sin partes pendientes, A cambia el monto
+  type: http
+  seq: 60
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/transactions/{{idGastoCompartido}}"
+  body:
+    type: json
+    data: |-
+      {
+        "amount": 95000
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.amount
+      operator: eq
+      value: "95000"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

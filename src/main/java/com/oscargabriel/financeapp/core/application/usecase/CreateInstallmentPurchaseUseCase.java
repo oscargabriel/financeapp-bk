@@ -67,7 +67,7 @@ public class CreateInstallmentPurchaseUseCase implements CreateInstallmentPurcha
         return new Transaction(cuota.transactionId(), compra.userId(), TransactionType.EXPENSE, compra.accountId(),
                 null, compra.categoryId(), cuota.amount(), compra.currencyCode(), compra.description(), null,
                 cuota.dueAt(), TransactionStatus.CONFIRMED, TransactionOrigin.WEB, null,
-                new InstallmentRef(compra.id(), cuota.number(), compra.installmentCount(), cuota.principal()), null, null, null);
+                new InstallmentRef(compra.id(), cuota.number(), compra.installmentCount(), cuota.principal()), null, null, null, null, null);
     }
 
     private static InstallmentPurchaseView resumen(InstallmentPurchase compra, List<ScheduledInstallment> plan,

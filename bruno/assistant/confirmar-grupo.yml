@@ -35,7 +35,7 @@ runtime:
         test("cada uno trae el contrato completo del movimiento", function() {
           expect(lista[0]).to.have.all.keys("id", "type", "accountId", "destinationAccountId", "categoryId", "amount",
               "currencyCode", "description", "notes", "occurredAt", "status", "origin", "scheduled", "recurrenceId",
-              "installment", "destinationAmount", "originalAmount", "originalCurrencyCode", "groupId");
+              "installment", "destinationAmount", "originalAmount", "originalCurrencyCode", "groupId", "sharedBy", "sharedFrom", "shares");
         });
 
 settings:

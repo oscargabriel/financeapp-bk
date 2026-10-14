@@ -1,0 +1,37 @@
+info:
+  name: A intenta cambiar el tipo con una parte pendiente
+  type: http
+  seq: 56
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/transactions/{{idGastoCompartido}}"
+  body:
+    type: json
+    data: |-
+      {
+        "type": "INCOME",
+        "categoryId": "{{idSalarioA}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: INVALID_STATE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: type
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

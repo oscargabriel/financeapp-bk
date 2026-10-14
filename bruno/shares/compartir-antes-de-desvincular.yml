@@ -1,0 +1,39 @@
+info:
+  name: A comparte con C antes de desvincular
+  type: http
+  seq: 84
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCuentaA}}",
+          "categoryId": "{{idMercadoA}}",
+          "amount": 20000,
+          "description": "{{descDesvincular}}",
+          "shares": [
+            {
+              "affiliationId": "{{idAfAC}}",
+              "amount": 5000
+            }
+          ]
+        }
+      ]
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

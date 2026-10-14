@@ -47,6 +47,8 @@ public class UpdateTransactionUseCase implements UpdateTransactionPort {
     public Mono<Transaction> update(UUID userId, UUID transactionId, UpdateTransactionCommand parche) {
         return repositorio.findByIdAndUser(transactionId, userId)
                 .switchIfEmpty(Mono.error(UpdateTransactionUseCase::noEncontrado))
+                .flatMap(PendienteDelUsuario::noCompartido)
+                .flatMap(guardado -> sinPartesPendientes(guardado, parche))
                 .zipWith(ReferenciasDelUsuario.de(userId, cuentas, categorias))
                 .map(guardadoYReferencias -> {
                     Transaction guardado = guardadoYReferencias.getT1();
@@ -61,6 +63,29 @@ public class UpdateTransactionUseCase implements UpdateTransactionPort {
                         .flatMap(actualizado -> actualizado
                                 ? Mono.just(modificado)
                                 : Mono.error(noEncontrado())));
+    }
+
+    /**
+     * Mientras el gasto tenga partes pendientes, su monto y su tipo no cambian (FIN-66): son lo que las otras personas
+     * deben. Solo se consulta si el parche los cambia.
+     */
+    private Mono<Transaction> sinPartesPendientes(Transaction guardado, UpdateTransactionCommand parche) {
+        List<ErrorDetail> errores = new ArrayList<>();
+        if (parche.amount() != null && parche.amount().compareTo(guardado.amount()) != 0) {
+            errores.add(bloqueado("El monto no cambia mientras el gasto tenga partes pendientes", "amount"));
+        }
+        if (parche.type() != null && TransactionType.valueOf(parche.type().trim().toUpperCase()) != guardado.type()) {
+            errores.add(bloqueado("El tipo no cambia mientras el gasto tenga partes pendientes", "type"));
+        }
+        return errores.isEmpty()
+                ? Mono.just(guardado)
+                : repositorio.hasPendingShares(guardado.id()).flatMap(conPendientes -> conPendientes
+                        ? Mono.error(new BadRequestException(HttpStatus.CONFLICT, errores))
+                        : Mono.just(guardado));
+    }
+
+    private static ErrorDetail bloqueado(String descripcion, String campo) {
+        return ErrorDetail.of(ErrorCodes.INVALID_STATE.getCode(), descripcion, campo);
     }
 
     /** Inexistente y ajeno dan lo mismo: distinguirlos confirmaria que el id existe para otro usuario. */
@@ -121,7 +146,7 @@ public class UpdateTransactionUseCase implements UpdateTransactionPort {
                     parche.occurredAt() == null
                             ? guardado.occurredAt()
                             : OffsetDateTime.parse(parche.occurredAt().trim()).toInstant(),
-                    guardado.status(), guardado.origin(), guardado.recurrenceId(), guardado.installment(), montoDestino, guardado.original(), guardado.groupId());
+                    guardado.status(), guardado.origin(), guardado.recurrenceId(), guardado.installment(), montoDestino, guardado.original(), guardado.groupId(), guardado.sharedByUserId(), guardado.shareId());
         }
 
         /**

@@ -1,0 +1,47 @@
+info:
+  name: Alta con partes sin credencial
+  type: http
+  seq: 39
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCuentaA}}",
+          "categoryId": "{{idMercadoA}}",
+          "amount": 10000,
+          "description": "Sin credencial",
+          "shares": [
+            {
+              "affiliationId": "{{idAfAB}}",
+              "amount": 5000
+            }
+          ]
+        }
+      ]
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: authorization
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

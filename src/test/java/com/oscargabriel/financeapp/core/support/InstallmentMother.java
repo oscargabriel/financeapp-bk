@@ -13,6 +13,7 @@ import com.oscargabriel.financeapp.core.domain.model.CreateInstallmentPurchaseCo
 import com.oscargabriel.financeapp.core.domain.model.InstallmentPurchase;
 import com.oscargabriel.financeapp.core.domain.model.InstallmentPurchaseView;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.CreateInstallmentPurchaseRequest;
+import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.ShareRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.UpdateInstallmentPurchaseRequest;
 
 /** Tarjetas y compras en cuotas (FA-108). Las cuentas y categorias base son las de TransactionMother. */
@@ -126,9 +127,16 @@ public final class InstallmentMother {
             return this;
         }
 
+        private List<ShareRequest> shares;
+
+        public Cuerpo shares(ShareRequest... partes) {
+            this.shares = List.of(partes);
+            return this;
+        }
+
         public CreateInstallmentPurchaseRequest request() {
             return new CreateInstallmentPurchaseRequest(accountId, categoryId, amount, description, purchaseDate,
-                    installmentCount);
+                    installmentCount, shares);
         }
     }
 

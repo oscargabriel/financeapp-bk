@@ -1,0 +1,47 @@
+info:
+  name: A comparte otro gasto con B y C
+  type: http
+  seq: 61
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCuentaA}}",
+          "categoryId": "{{idMercadoA}}",
+          "amount": 40000,
+          "description": "{{descBorrar}}",
+          "shares": [
+            {
+              "affiliationId": "{{idAfAB}}",
+              "amount": 10000
+            },
+            {
+              "affiliationId": "{{idAfAC}}",
+              "amount": 10000
+            }
+          ]
+        }
+      ]
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idGastoBorrar", res.getBody()[0].id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

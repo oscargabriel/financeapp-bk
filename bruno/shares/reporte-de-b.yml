@@ -1,0 +1,41 @@
+info:
+  name: El gasto pagado de B sigue
+  type: http
+  seq: 67
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{hoyComp}}&to={{hoyComp}}"
+  auth:
+    type: bearer
+    token: "{{tokenCompB}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const lista = res.getBody().transactions;
+        const pagada = lista.find(function (t) { return t.id === bru.getVar("idParteBorrarB"); });
+        const primera = lista.find(function (t) { return t.id === bru.getVar("idParteB"); });
+
+        test("la parte pagada sigue confirmada, sin gasto de origen", function() {
+          expect(pagada.amount).to.equal(10000);
+          expect(pagada.sharedBy.email).to.equal(bru.getVar("emailCompA"));
+          expect(pagada.sharedFrom).to.equal(null);
+        });
+
+        test("la parte de un gasto que existe dice de cual", function() {
+          expect(primera.sharedBy.email).to.equal(bru.getVar("emailCompA"));
+          expect(primera.sharedFrom.amount).to.equal(95000);
+          expect(primera.sharedFrom.description).to.equal(bru.getVar("descCena"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

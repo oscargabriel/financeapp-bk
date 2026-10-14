@@ -1,0 +1,52 @@
+info:
+  name: Parte en cero
+  type: http
+  seq: 27
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCuentaA}}",
+          "categoryId": "{{idMercadoA}}",
+          "amount": 50000,
+          "description": "Parte en cero",
+          "shares": [
+            {
+              "affiliationId": "{{idAfAB}}",
+              "amount": 10000
+            },
+            {
+              "affiliationId": "{{idAfAC}}",
+              "amount": 0
+            }
+          ]
+        }
+      ]
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: "[0].shares[1].amount"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

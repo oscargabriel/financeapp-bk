@@ -1,0 +1,23 @@
+info:
+  name: B acepta a A
+  type: http
+  seq: 15
+
+http:
+  method: POST
+  url: "{{baseUrl}}/affiliations/{{idAfAB}}/accept"
+  auth:
+    type: bearer
+    token: "{{tokenCompB}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

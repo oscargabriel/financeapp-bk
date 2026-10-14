@@ -254,10 +254,11 @@ de navegador pueda modificar movimientos.
 
 ### Requirement: Estado de aprobación de un movimiento
 Todo movimiento SHALL tener un estado, `PENDING` o `CONFIRMED`. Un movimiento SHALL quedar `PENDING`
-cuando necesita que el usuario lo confirme, sea cual sea su origen: lo que registra el asistente y lo
-que el alta convierte de otra moneda. Lo demás que entra por `POST /api/transactions` SHALL quedar
-`CONFIRMED`. La respuesta de un movimiento SHALL incluir el campo `status` en el alta, la
-modificación, la aprobación y la lista de pendientes.
+cuando necesita que el usuario lo confirme, sea cual sea su origen: lo que registra el asistente, lo
+que el alta convierte de otra moneda y lo que otra persona comparte con el usuario (ver
+`compartidos`). Lo demás que entra por `POST /api/transactions` SHALL quedar `CONFIRMED`. La
+respuesta de un movimiento SHALL incluir el campo `status` en el alta, la modificación, la
+aprobación y la lista de pendientes.
 
 #### Scenario: El alta entra confirmada
 - **WHEN** el usuario envía `POST /api/transactions` con un lote válido en la moneda de sus cuentas
@@ -266,6 +267,10 @@ modificación, la aprobación y la lista de pendientes.
 #### Scenario: El cliente no puede elegir el estado
 - **WHEN** un elemento del lote trae `"status": "PENDING"`
 - **THEN** la respuesta es 201 y el movimiento devuelve `"status": "CONFIRMED"`
+
+#### Scenario: Lo compartido entra pendiente para la otra persona
+- **WHEN** A registra un gasto confirmado con una parte para B
+- **THEN** el gasto de A devuelve `"status": "CONFIRMED"` y el de B sale en su lista de pendientes con `"status": "PENDING"`
 
 ### Requirement: Un pendiente no mueve saldos
 Un movimiento `PENDING` SHALL dejar el `currentBalance` de sus cuentas como estaba, y SHALL
@@ -299,7 +304,8 @@ respuesta del alta. No SHALL incluir movimientos confirmados ni pendientes de ot
 ### Requirement: Aprobación de un pendiente
 `POST /api/transactions/{id}/approve` sobre un pendiente del usuario SHALL confirmarlo y responder
 200 con el movimiento completo y `"status": "CONFIRMED"`. Desde ese momento SHALL mover los saldos y
-contar en los reportes.
+contar en los reportes. Un pendiente que ya tiene cuenta SHALL aprobarse sin cuerpo; uno sin cuenta
+SHALL aprobarse con `{accountId, categoryId}` (ver `compartidos`).
 
 #### Scenario: Aprobar un gasto
 - **WHEN** el usuario aprueba un gasto pendiente de 45000
@@ -308,6 +314,10 @@ contar en los reportes.
 #### Scenario: Aprobar una transferencia
 - **WHEN** el usuario aprueba una transferencia pendiente de 100000 de la cuenta A a la cuenta B
 - **THEN** la respuesta es 200, el saldo de A baja 100000 y el de B sube 100000
+
+#### Scenario: Aprobar con cuenta y categoría un pendiente sin cuenta
+- **WHEN** el usuario aprueba un pendiente compartido con `{"accountId": ..., "categoryId": ...}` propios
+- **THEN** la respuesta es 200 con `"status": "CONFIRMED"` y esa cuenta y esa categoría
 
 ### Requirement: Rechazo de un pendiente
 `POST /api/transactions/{id}/reject` sobre un pendiente del usuario SHALL borrarlo y responder 204
@@ -352,7 +362,9 @@ es UUID SHALL responder 400. Ninguno de estos casos SHALL cambiar nada.
 
 ### Requirement: Modificar o eliminar un pendiente
 `PATCH` y `DELETE` sobre `/api/transactions/{id}` SHALL funcionar igual sobre un pendiente que sobre
-un confirmado. La modificación SHALL dejarlo `PENDING` y sin efecto en los saldos.
+un confirmado. La modificación SHALL dejarlo `PENDING` y sin efecto en los saldos. La excepción es un
+pendiente que otra persona compartió con el usuario: solo se aprueba o se rechaza (ver
+`compartidos`).
 
 #### Scenario: Corregir un pendiente antes de aprobarlo
 - **WHEN** el usuario envía `PATCH /api/transactions/{id}` con `{"amount": 50000}` sobre un gasto pendiente de 45000
@@ -361,6 +373,10 @@ un confirmado. La modificación SHALL dejarlo `PENDING` y sin efecto en los sald
 #### Scenario: Eliminar un pendiente
 - **WHEN** el usuario envía `DELETE /api/transactions/{id}` sobre un pendiente propio
 - **THEN** la respuesta es 204 y el saldo de su cuenta no cambia
+
+#### Scenario: Modificar un pendiente compartido
+- **WHEN** el usuario envía `PATCH /api/transactions/{id}` sobre un pendiente que otra persona compartió con él
+- **THEN** la respuesta es 409 con un error `INVALID_STATE` en `status`, y el pendiente no cambia
 
 ### Requirement: Pendientes autenticados con JWT
 Los tres endpoints de pendientes SHALL exigir un Bearer JWT válido. Sin credencial, o con la
@@ -875,7 +891,8 @@ Confirmar un grupo SHALL aplicar a cada pendiente las reglas de la aprobación u
 validar el saldo sobre el efecto conjunto del grupo, como el alta en lote. Si alguna falla, SHALL
 responder 409 con todos los errores, cada uno con el índice del pendiente en el orden del grupo
 (`[i].accountId`, `[i].destinationAccountId`, `[i].categoryId`, `[i].amount`), y SHALL NOT confirmar
-ninguno. Los errores `INVALID_STATE` SHALL salir sin los de saldo.
+ninguno. Los errores `INVALID_STATE` SHALL salir sin los de saldo. Un pendiente sin cuenta SHALL dar
+`INVALID_STATE` en `[i].accountId`: se aprueba uno a uno, con cuenta y categoría.
 
 #### Scenario: Una cuenta desactivada
 - **WHEN** el usuario confirma un grupo de dos gastos y la cuenta del segundo está desactivada
@@ -896,6 +913,10 @@ ninguno. Los errores `INVALID_STATE` SHALL salir sin los de saldo.
 #### Scenario: Gasto con fecha futura
 - **WHEN** el grupo tiene un gasto con fecha futura mayor que el saldo
 - **THEN** la respuesta es 200 con el gasto `"scheduled": true`, como al aprobarlo uno a uno
+
+#### Scenario: Pendiente sin cuenta
+- **WHEN** el usuario confirma el grupo de un pendiente compartido, que no tiene cuenta
+- **THEN** la respuesta es 409 con un error `INVALID_STATE` en `[0].accountId`, y nada se confirma
 
 ### Requirement: Descartar un grupo
 `POST /api/transactions/groups/{groupId}/reject` SHALL borrar los pendientes del grupo que siguen

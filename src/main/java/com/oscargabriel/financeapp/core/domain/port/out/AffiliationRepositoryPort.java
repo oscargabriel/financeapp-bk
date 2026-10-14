@@ -1,5 +1,6 @@
 package com.oscargabriel.financeapp.core.domain.port.out;
 
+import java.util.Map;
 import java.util.UUID;
 
 import com.oscargabriel.financeapp.core.domain.model.Affiliation;
@@ -31,4 +32,7 @@ public interface AffiliationRepositoryPort {
 
     /** Cambia el estado solo si sigue en from; false si otra peticion ya lo cambio. */
     Mono<Boolean> changeStatus(UUID id, AffiliationStatus from, AffiliationStatus to);
+
+    /** Las ACCEPTED en las que participa el usuario: el id de cada una con el de la otra persona (FIN-66). */
+    Mono<Map<UUID, UUID>> findAcceptedByUser(UUID userId);
 }

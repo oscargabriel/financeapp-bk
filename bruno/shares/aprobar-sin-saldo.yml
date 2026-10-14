@@ -1,0 +1,39 @@
+info:
+  name: B aprueba con una cuenta sin saldo
+  type: http
+  seq: 44
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/{{idParteB}}/approve"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idCuentaBPobre}}",
+        "categoryId": "{{idMercadoB}}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCompB}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: INSUFFICIENT_FUNDS
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: amount
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

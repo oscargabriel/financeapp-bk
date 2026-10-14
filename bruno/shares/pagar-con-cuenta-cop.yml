@@ -1,0 +1,42 @@
+info:
+  name: B paga la parte en dolares desde su cuenta en pesos
+  type: http
+  seq: 71
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/{{idParteUsdB}}/approve"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idCuentaB}}",
+        "categoryId": "{{idMercadoB}}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCompB}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const t = res.getBody();
+
+        test("se convierte con la tasa de la fecha y queda confirmado", function() {
+          expect(t.status).to.equal("CONFIRMED");
+          expect(t.amount).to.equal(123000);
+          expect(t.currencyCode).to.equal("COP");
+          expect(t.originalAmount).to.equal(30);
+          expect(t.originalCurrencyCode).to.equal("USD");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

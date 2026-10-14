@@ -63,7 +63,7 @@ class PendienteDelAsistenteAdapterTest {
     private static Transaction guardado() {
         return new Transaction(GUARDADO, USUARIO, com.oscargabriel.financeapp.core.domain.model.TransactionType.EXPENSE,
                 CUENTA, null, CATEGORIA, new BigDecimal("20000"), "COP", "Almuerzo", null, CUANDO,
-                TransactionStatus.PENDING, TransactionOrigin.TELEGRAM, null, null, null, null, GRUPO);
+                TransactionStatus.PENDING, TransactionOrigin.TELEGRAM, null, null, null, null, GRUPO, null, null);
     }
 
     @Test
@@ -78,7 +78,7 @@ class PendienteDelAsistenteAdapterTest {
         verify(alta).create(eq(USUARIO), eq(TransactionOrigin.TELEGRAM), eq(TransactionStatus.PENDING), lote.capture());
         assertThat(lote.getValue()).containsExactly(new CreateTransactionCommand("EXPENSE", CUENTA.toString(), null,
                 CATEGORIA.toString(), new BigDecimal("20000"), null, "COP", "Almuerzo", null,
-                "2026-10-05T12:00-05:00"));
+                "2026-10-05T12:00-05:00", null));
     }
 
     @Test

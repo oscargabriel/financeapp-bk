@@ -12,6 +12,8 @@ import java.util.UUID;
  * transferencia entre monedas distintas, es lo que entra al destino en su moneda; original, lo que llego
  * antes de convertirse (FA-51). groupId reune los que una misma peticion dejo pendientes, que se confirman o se
  * descartan juntos (FIN-58); se conserva al confirmar y es null en lo que entro confirmado.
+ * sharedByUserId es quien compartio el movimiento con el usuario, y shareId la parte de la que sale (FIN-66): un
+ * pendiente compartido puede no tener cuenta ni categoria hasta aprobarse.
  */
 public record Transaction(
         UUID id,
@@ -31,10 +33,17 @@ public record Transaction(
         InstallmentRef installment,
         BigDecimal destinationAmount,
         OriginalAmount original,
-        UUID groupId) {
+        UUID groupId,
+        UUID sharedByUserId,
+        UUID shareId) {
 
     /** Con fecha posterior al instante dado: no cuenta en saldos ni reportes hasta entonces (FA-106). */
     public boolean scheduledAt(Instant ahora) {
         return occurredAt.isAfter(ahora);
+    }
+
+    /** Lo compartio otra persona y sigue sin aprobar: solo se aprueba o se rechaza (FIN-66). */
+    public boolean pendingShared() {
+        return status == TransactionStatus.PENDING && sharedByUserId != null;
     }
 }

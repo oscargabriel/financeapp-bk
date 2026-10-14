@@ -1,0 +1,51 @@
+info:
+  name: A ve el estado de cada parte
+  type: http
+  seq: 59
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/transactions?from={{hoyComp}}&to={{hoyComp}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: before-request
+      code: |-
+        const dos = function (n) { return String(n).padStart(2, "0"); };
+        const hoy = new Date();
+        bru.setVar("hoyComp", hoy.getFullYear() + "-" + dos(hoy.getMonth() + 1) + "-" + dos(hoy.getDate()));
+    - type: tests
+      code: |-
+        const lista = res.getBody().transactions;
+        const g = lista.find(function (t) { return t.id === bru.getVar("idGastoCompartido"); });
+        const solo = lista.find(function (t) { return t.id === bru.getVar("idGastoSolo"); });
+        const estado = function (u) {
+          return g.shares.find(function (s) { return s.person.email === bru.getVar("emailComp" + u); }).status;
+        };
+
+        test("la parte de B esta pagada y la de C rechazada", function() {
+          expect(estado("B")).to.equal("PAID");
+          expect(estado("C")).to.equal("REJECTED");
+          expect(g.sharedBy).to.equal(null);
+        });
+
+        test("el gasto rechazado no cambio", function() {
+          expect(g.amount).to.equal(90000);
+        });
+
+        test("el gasto sin compartir trae los tres campos en null", function() {
+          expect(solo.shares).to.equal(null);
+          expect(solo.sharedBy).to.equal(null);
+          expect(solo.sharedFrom).to.equal(null);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -131,4 +131,91 @@ class CreateTransactionRequestTest {
                 .description(" ").occurredAt("2026-09-21T10:00:00").request()).keySet())
                 .containsExactlyInAnyOrder("amount", "currencyCode", "description", "occurredAt");
     }
+
+    /** Partes compartidas (FIN-66): que la afiliacion exista y este aceptada lo decide el caso de uso. */
+    @Test
+    void aceptaUnGastoConPartesQueNoSuperanElTotal() {
+        assertThat(Violaciones.de(TransactionMother.unGasto().amount(new BigDecimal("50000"))
+                .shares(TransactionMother.parte(TransactionMother.AFILIACION_B, "30000"),
+                        TransactionMother.parte(TransactionMother.AFILIACION_C, "20000"))
+                .request())).isEmpty();
+    }
+
+    @Test
+    void aceptaUnaTransferenciaCompartidaSinDestinoConCategoriaYPartesQueSumanElTotal() {
+        assertThat(Violaciones.de(TransactionMother.unaTransferenciaCompartida().request())).isEmpty();
+    }
+
+    /** Sin partes la transferencia sigue siendo entre cuentas propias. */
+    @Test
+    void unaListaDePartesVaciaEsUnMovimientoSinCompartir() {
+        assertThat(Violaciones.de(TransactionMother.unaTransferencia().shares().request())).isEmpty();
+        assertThat(Violaciones.de(TransactionMother.unaTransferencia().destinationAccountId(null).shares().request()))
+                .containsOnlyKeys("destinationAccountId");
+    }
+
+    static Stream<Arguments> unasPartesInvalidas() {
+        String b = TransactionMother.AFILIACION_B;
+        String c = TransactionMother.AFILIACION_C;
+        return Stream.of(
+                Arguments.of("parte en cero", TransactionMother.unGasto()
+                                .shares(TransactionMother.parte(b, "100"), TransactionMother.parte(c, "0")),
+                        "shares[1].amount", "El monto de la parte debe ser mayor que cero"),
+                Arguments.of("parte sin monto", TransactionMother.unGasto()
+                                .shares(TransactionMother.parte(b, null)),
+                        "shares[0].amount", "El monto de la parte es obligatorio"),
+                Arguments.of("parte con cinco decimales", TransactionMother.unGasto()
+                                .shares(TransactionMother.parte(b, "10.12345")),
+                        "shares[0].amount", "El monto de la parte admite hasta 4 decimales y menos de 14 digitos enteros"),
+                Arguments.of("parte sin afiliacion", TransactionMother.unGasto()
+                                .shares(TransactionMother.parte(null, "100")),
+                        "shares[0].affiliationId", "La afiliacion es obligatoria"),
+                Arguments.of("persona repetida", TransactionMother.unGasto()
+                                .shares(TransactionMother.parte(b, "100"), TransactionMother.parte(" " + b + " ", "200")),
+                        "shares", "Cada persona va una sola vez"),
+                Arguments.of("partes que superan el gasto", TransactionMother.unGasto().amount(new BigDecimal("50000"))
+                                .shares(TransactionMother.parte(b, "30000"), TransactionMother.parte(c, "25000")),
+                        "shares", "Las partes suman mas que el total del gasto"),
+                Arguments.of("ingreso con partes", TransactionMother.unIngreso()
+                                .shares(TransactionMother.parte(b, "100")),
+                        "shares", "Un ingreso no se comparte"),
+                Arguments.of("transferencia cuyas partes no suman el total", TransactionMother.unaTransferenciaCompartida()
+                                .shares(TransactionMother.parte(b, "60000"), TransactionMother.parte(c, "30000")),
+                        "shares", "Las partes de una transferencia tienen que sumar el total"),
+                Arguments.of("transferencia compartida con destino", TransactionMother.unaTransferenciaCompartida()
+                                .destinationAccountId(TransactionMother.DESTINO_ID.toString()),
+                        "destinationAccountId", "Una transferencia compartida no lleva cuenta destino"),
+                Arguments.of("transferencia compartida sin categoria", TransactionMother.unaTransferenciaCompartida()
+                                .categoryId(null),
+                        "categoryId", "Una transferencia compartida lleva una categoria de gasto"),
+                Arguments.of("transferencia compartida con monto de destino", TransactionMother.unaTransferenciaCompartida()
+                                .destinationAmount(BigDecimal.TEN),
+                        "destinationAmount", "Una transferencia compartida no lleva monto de destino"));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("unasPartesInvalidas")
+    void rechazaLasPartesInvalidasConSuTexto(String caso, TransactionMother.Elemento elemento, String campo,
+            String texto) {
+        assertThat(Violaciones.de(elemento.request())).containsExactly(Map.entry(campo, List.of(texto)));
+    }
+
+    /** Con una parte sin monto no hay suma que comparar: ya hay un error en esa parte. */
+    @Test
+    void conUnaParteSinMontoNoOpinaSobreLaSuma() {
+        assertThat(Violaciones.de(TransactionMother.unaTransferenciaCompartida()
+                .shares(TransactionMother.parte(TransactionMother.AFILIACION_B, null)).request()).keySet())
+                .containsExactly("shares[0].amount");
+    }
+
+    /** El campo con que sale por HTTP lo fija TransactionsIT: aqui solo que cae en esa posicion. */
+    @Test
+    void unaParteNulaEsUnErrorDeSuPosicion() {
+        assertThat(Violaciones.de(TransactionMother.unGasto().shares((ShareRequest) null).request()).entrySet())
+                .singleElement()
+                .satisfies(error -> {
+                    assertThat(error.getKey()).startsWith("shares[0]");
+                    assertThat(error.getValue()).containsExactly("La parte no puede ser nula");
+                });
+    }
 }

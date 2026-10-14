@@ -31,6 +31,7 @@ public class DeleteTransactionUseCase implements DeleteTransactionPort {
     public Mono<Void> delete(UUID userId, UUID transactionId) {
         return repositorio.findByIdAndUser(transactionId, userId)
                 .switchIfEmpty(Mono.error(UpdateTransactionUseCase::noEncontrado))
+                .flatMap(PendienteDelUsuario::noCompartido)
                 .zipWith(cuentas.findByUser(userId, true).collectMap(Account::id))
                 .doOnNext(guardadoYCuentas -> new SaldoNoNegativo(guardadoYCuentas.getT2()).exigir(
                         SaldoNoNegativo.diferencia(Map.of(),

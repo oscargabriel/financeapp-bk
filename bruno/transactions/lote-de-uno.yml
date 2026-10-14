@@ -48,7 +48,7 @@ runtime:
           expect(t).to.have.all.keys("id", "type", "accountId", "destinationAccountId", "categoryId",
               "amount", "currencyCode", "description", "notes", "occurredAt", "status", "origin",
               "scheduled", "recurrenceId", "installment", "destinationAmount", "originalAmount",
-              "originalCurrencyCode", "groupId");
+              "originalCurrencyCode", "groupId", "sharedBy", "sharedFrom", "shares");
           expect(t.destinationAmount).to.equal(null);
           expect(t.originalAmount).to.equal(null);
           expect(t.originalCurrencyCode).to.equal(null);

@@ -27,6 +27,7 @@ import com.oscargabriel.financeapp.core.domain.model.UuidV7;
 import com.oscargabriel.financeapp.core.domain.port.in.CreateTransactionsPort;
 import com.oscargabriel.financeapp.core.domain.port.in.ResolveExchangeRatePort;
 import com.oscargabriel.financeapp.core.domain.port.out.AccountQueryPort;
+import com.oscargabriel.financeapp.core.domain.port.out.AffiliationRepositoryPort;
 import com.oscargabriel.financeapp.core.domain.port.out.CategoryQueryPort;
 import com.oscargabriel.financeapp.core.domain.port.out.CurrencyQueryPort;
 import com.oscargabriel.financeapp.core.domain.port.out.TransactionRepositoryPort;
@@ -43,6 +44,7 @@ public class CreateTransactionsUseCase implements CreateTransactionsPort {
     private final CurrencyQueryPort monedas;
     private final TransactionRepositoryPort repositorio;
     private final ResolveExchangeRatePort tasas;
+    private final AffiliationRepositoryPort afiliaciones;
     private final Clock clock;
 
     /**
@@ -59,6 +61,9 @@ public class CreateTransactionsUseCase implements CreateTransactionsPort {
      *
      * El saldo se valida despues de convertir, cuando cada monto ya esta en la moneda de su cuenta y lo convertido ya
      * quedo pendiente (FA-133). Ahi mismo los pendientes del lote reciben su grupo (FIN-58).
+     *
+     * Las partes compartidas se resuelven contra las afiliaciones aceptadas del usuario, leidas solo si alguna
+     * parte llega (FIN-66). Lo que reciben otras personas entra pendiente: no cuenta en el saldo del usuario.
      */
     @Override
     public Flux<Transaction> create(UUID userId, TransactionOrigin origen, TransactionStatus estado,
@@ -71,17 +76,36 @@ public class CreateTransactionsUseCase implements CreateTransactionsPort {
                     .collectMap(Category::id);
             Mono<Map<String, Currency>> activas = monedas.findActive().collectMap(Currency::code);
 
+            Mono<Map<UUID, UUID>> afiliadas = lote.stream().allMatch(e -> e.shares().isEmpty())
+                    ? Mono.just(Map.of())
+                    : afiliaciones.findAcceptedByUser(userId);
+
             Instant ahora = clock.instant();
             Iterator<UUID> ids = idsCrecientes(lote.size());
-            return Mono.zip(suyas, vivas, activas)
-                    .flatMap(referencias -> convertir(new TransactionBatchValidator(userId, referencias.getT1(),
-                            referencias.getT2(), referencias.getT3(), ids::next, ahora,
-                            origen, estado).aBorradores(lote), referencias.getT3())
-                            .map(this::agruparPendientes)
-                            .doOnNext(movimientos -> new SaldoNoNegativo(referencias.getT1())
-                                    .exigirLote(movimientos, ahora)))
-                    .flatMapMany(movimientos -> tasasDeHoy(movimientos).thenMany(repositorio.saveAll(movimientos)));
+            return Mono.zip(suyas, vivas, activas, afiliadas)
+                    .flatMap(referencias -> {
+                        List<Borrador> borradores = new TransactionBatchValidator(userId, referencias.getT1(),
+                                referencias.getT2(), referencias.getT3(), referencias.getT4(), ids::next, ahora,
+                                origen, estado).aBorradores(lote);
+                        return convertir(borradores, referencias.getT3())
+                                .map(this::agruparPendientes)
+                                .doOnNext(movimientos -> new SaldoNoNegativo(referencias.getT1())
+                                        .exigirLote(movimientos, ahora))
+                                .map(movimientos -> new Alta(movimientos, PartesDelAlta.de(borradores, movimientos,
+                                        () -> UuidV7.from(clock.instant()))));
+                    })
+                    .flatMapMany(alta -> tasasDeHoy(alta.todos())
+                            .thenMany(repositorio.saveAll(alta.movimientos(), alta.compartido().partes(),
+                                    alta.compartido().deOtros())));
         });
+    }
+
+    /** Lo del usuario y lo que reciben otras personas: las tasas de hoy se piden para todo lo que se inserta. */
+    private record Alta(List<Transaction> movimientos, PartesDelAlta compartido) {
+
+        List<Transaction> todos() {
+            return Stream.concat(movimientos.stream(), compartido.deOtros().stream()).toList();
+        }
     }
 
     /**
@@ -106,7 +130,7 @@ public class CreateTransactionsUseCase implements CreateTransactionsPort {
     private static Transaction enGrupo(Transaction t, UUID grupo) {
         return new Transaction(t.id(), t.userId(), t.type(), t.accountId(), t.destinationAccountId(), t.categoryId(),
                 t.amount(), t.currencyCode(), t.description(), t.notes(), t.occurredAt(), t.status(), t.origin(),
-                t.recurrenceId(), t.installment(), t.destinationAmount(), t.original(), grupo);
+                t.recurrenceId(), t.installment(), t.destinationAmount(), t.original(), grupo, t.sharedByUserId(), t.shareId());
     }
 
     /** En el orden del lote: el lote vuelve en ese orden, y el conversor no pide dos veces la misma tasa. */

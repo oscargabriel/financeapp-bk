@@ -1,0 +1,47 @@
+info:
+  name: El pendiente de B
+  type: http
+  seq: 24
+
+http:
+  method: GET
+  url: "{{baseUrl}}/transactions/pending"
+  auth:
+    type: bearer
+    token: "{{tokenCompB}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const p = res.getBody().find(function (t) { return t.description === bru.getVar("descCena"); });
+
+        test("es un gasto pendiente por su parte, sin cuenta ni categoria", function() {
+          expect(p.type).to.equal("EXPENSE");
+          expect(p.status).to.equal("PENDING");
+          expect(p.amount).to.equal(30000);
+          expect(p.currencyCode).to.equal("COP");
+          expect(p.accountId).to.equal(null);
+          expect(p.categoryId).to.equal(null);
+          expect(p.groupId).to.not.equal(null);
+          expect(p.shares).to.equal(null);
+        });
+
+        test("dice quien lo compartio y de que gasto", function() {
+          expect(p.sharedBy.email).to.equal(bru.getVar("emailCompA"));
+          expect(p.sharedBy.firstName).to.equal("Ana");
+          expect(p.sharedFrom).to.eql({ description: bru.getVar("descCena"), amount: 90000, currencyCode: "COP" });
+        });
+
+        bru.setVar("idParteB", p.id);
+        bru.setVar("grupoParteB", p.groupId);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

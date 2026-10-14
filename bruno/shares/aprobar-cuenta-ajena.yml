@@ -1,0 +1,39 @@
+info:
+  name: B aprueba con la cuenta de A
+  type: http
+  seq: 42
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/{{idParteB}}/approve"
+  body:
+    type: json
+    data: |-
+      {
+        "accountId": "{{idCuentaA}}",
+        "categoryId": "{{idMercadoB}}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenCompB}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors
+      operator: length
+      value: "1"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: accountId
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
