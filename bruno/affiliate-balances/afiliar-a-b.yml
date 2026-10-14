@@ -1,0 +1,33 @@
+info:
+  name: A envia solicitud a B
+  type: http
+  seq: 13
+
+http:
+  method: POST
+  url: "{{baseUrl}}/affiliations"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailSaldoB}}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenSaldoA}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idSaldoAB", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -1,0 +1,48 @@
+info:
+  name: Saldo de A sin deudas
+  type: http
+  seq: 20
+
+http:
+  method: GET
+  url: "{{baseUrl}}/affiliations/balances"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const lista = res.getBody();
+        const de = function (letra) {
+          return lista.find(function (e) { return e.person.email === bru.getVar("emailSaldo" + letra); });
+        };
+        const saldo = function (codigo, aFavor, enContra, neto) {
+          return { currencyCode: codigo, owedToMe: aFavor, iOwe: enContra, net: neto };
+        };
+
+        test("salen B y C, la afiliacion mas reciente primero", function() {
+          expect(lista.map(function (e) { return e.person.email; }))
+            .to.eql([bru.getVar("emailSaldoC"), bru.getVar("emailSaldoB")]);
+        });
+
+        test("cada entrada trae la afiliacion, el estado, la persona y el saldo", function() {
+          lista.forEach(function (e) {
+            expect(e).to.have.all.keys("affiliationId", "status", "person", "balances");
+            expect(e.person).to.have.all.keys("email", "firstName", "lastName");
+            expect(e.status).to.equal("ACCEPTED");
+            expect(e.balances).to.eql([]);
+          });
+          expect(de("B").affiliationId).to.equal(bru.getVar("idSaldoAB"));
+          expect(de("C").affiliationId).to.equal(bru.getVar("idSaldoAC"));
+          expect(de("B").person.firstName).to.equal("Beto");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

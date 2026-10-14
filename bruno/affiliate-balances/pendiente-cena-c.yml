@@ -1,0 +1,28 @@
+info:
+  name: El pendiente de la cena de C
+  type: http
+  seq: 27
+
+http:
+  method: GET
+  url: "{{baseUrl}}/transactions/pending"
+  auth:
+    type: bearer
+    token: "{{tokenSaldoC}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const p = res.getBody().find(function (t) { return t.description === bru.getVar("descCena"); });
+        bru.setVar("idCenaC", p.id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

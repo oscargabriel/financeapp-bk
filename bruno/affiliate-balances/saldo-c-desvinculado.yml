@@ -1,0 +1,45 @@
+info:
+  name: Saldo de C con A desvinculada
+  type: http
+  seq: 41
+
+http:
+  method: GET
+  url: "{{baseUrl}}/affiliations/balances"
+  auth:
+    type: bearer
+    token: "{{tokenSaldoC}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const lista = res.getBody();
+        const de = function (letra) {
+          return lista.find(function (e) { return e.person.email === bru.getVar("emailSaldo" + letra); });
+        };
+        const saldo = function (codigo, aFavor, enContra, neto) {
+          return { currencyCode: codigo, owedToMe: aFavor, iOwe: enContra, net: neto };
+        };
+
+        test("salen B, afiliada, y A, desvinculada", function() {
+          expect(lista.map(function (e) { return e.person.email; }))
+            .to.eql([bru.getVar("emailSaldoB"), bru.getVar("emailSaldoA")]);
+          expect(de("B").status).to.equal("ACCEPTED");
+          expect(de("A").status).to.equal("UNLINKED");
+        });
+
+        test("C le debe a A el mercado y a B el taxi", function() {
+          expect(de("A").balances).to.eql([saldo("COP", 0, 15000, -15000)]);
+          expect(de("B").balances).to.eql([saldo("COP", 0, 5000, -5000)]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

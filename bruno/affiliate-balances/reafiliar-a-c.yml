@@ -1,0 +1,33 @@
+info:
+  name: A vuelve a enviar solicitud a C
+  type: http
+  seq: 43
+
+http:
+  method: POST
+  url: "{{baseUrl}}/affiliations"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailSaldoC}}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenSaldoA}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("idSaldoAC2", res.getBody().id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

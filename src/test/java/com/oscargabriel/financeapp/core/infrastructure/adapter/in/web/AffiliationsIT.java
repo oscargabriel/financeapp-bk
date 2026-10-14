@@ -16,9 +16,10 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import com.oscargabriel.financeapp.compartido.support.BasicMother;
 
 /**
- * Servidor real: las seis rutas de afiliaciones (FIN-65) quedan bajo spring.webflux.base-path y
- * protegidas por la cadena del JWT, que no acepta la credencial compartida del Basic. Con datos las
- * verifica bruno/affiliations/ contra PostgreSQL.
+ * Servidor real: las seis rutas de afiliaciones (FIN-65) y las del saldo y el detalle (FIN-67) quedan
+ * bajo spring.webflux.base-path y protegidas por la cadena del JWT, que no acepta la credencial
+ * compartida del Basic. Con datos las verifican bruno/affiliations/ y bruno/affiliate-balances/ contra
+ * PostgreSQL.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class AffiliationsIT {
@@ -40,14 +41,16 @@ class AffiliationsIT {
 
     @ParameterizedTest(name = "{0} {1} sin credencial")
     @CsvSource({"GET, /api/affiliations", "POST, /api/affiliations", "POST, " + RELACION + "/accept",
-            "POST, " + RELACION + "/reject", "POST, " + RELACION + "/cancel", "POST, " + RELACION + "/unlink"})
+            "POST, " + RELACION + "/reject", "POST, " + RELACION + "/cancel", "POST, " + RELACION + "/unlink",
+            "GET, /api/affiliations/balances", "GET, " + RELACION + "/shares"})
     void sinCredencialEs401ConElRetoDelJwt(HttpMethod metodo, String ruta) {
         pedir(metodo, ruta, cabeceras -> { });
     }
 
     @ParameterizedTest(name = "{0} {1} con el Basic")
     @CsvSource({"GET, /api/affiliations", "POST, /api/affiliations", "POST, " + RELACION + "/accept",
-            "POST, " + RELACION + "/reject", "POST, " + RELACION + "/cancel", "POST, " + RELACION + "/unlink"})
+            "POST, " + RELACION + "/reject", "POST, " + RELACION + "/cancel", "POST, " + RELACION + "/unlink",
+            "GET, /api/affiliations/balances", "GET, " + RELACION + "/shares"})
     void elBasicCompartidoEs401ConElRetoDelJwt(HttpMethod metodo, String ruta) {
         pedir(metodo, ruta, BasicMother.cabecera());
     }

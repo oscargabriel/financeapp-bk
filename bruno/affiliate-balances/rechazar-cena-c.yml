@@ -1,0 +1,23 @@
+info:
+  name: C rechaza su parte de la cena
+  type: http
+  seq: 28
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/{{idCenaC}}/reject"
+  auth:
+    type: bearer
+    token: "{{tokenSaldoC}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

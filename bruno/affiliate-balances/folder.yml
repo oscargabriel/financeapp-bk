@@ -1,0 +1,28 @@
+info:
+  name: Affiliate balances
+  type: folder
+  seq: 18
+
+request:
+  auth:
+    type: bearer
+    token: "{{tokenSaldoA}}"
+
+docs: |
+  # Saldo y detalle entre afiliados (FIN-67)
+
+  Corre con tres usuarios que registra en cada corrida: `saldos-a-`, `-b-` y
+  `-c-<timestamp>@bruno.local`, con sus tokens en `tokenSaldoA`, `tokenSaldoB` y `tokenSaldoC`, y
+  un correo sin cuenta (`saldos-nadie-`). La carpeta autentica con A; los requests de B y C declaran
+  su token. A se afilia con B y con C, B con C, y A deja una solicitud sin aceptar al correo sin
+  cuenta.
+
+  El recorrido: sin partes, B y C salen a paz y salvo. A comparte con B y C una cena y con B un hotel
+  en dolares, B comparte un taxi con A y con C, y A le transfiere a B: el saldo va por moneda, en los
+  dos sentidos, y ni la transferencia ni la parte de B con C suman para A. C rechaza la cena y B la
+  paga, y las dos dejan de contar. Un almuerzo borrado deja su parte anulada. El detalle lista las
+  partes entre los dos, en cualquier estado y con el sentido de cada una. A desvincula a C con el
+  mercado pendiente: C sigue saliendo desvinculada; afiliados de nuevo sale una sola vez, y
+  desvinculada y sin nada pendiente deja de salir. Termina con los errores del detalle y los 401.
+
+  Se repite sin recargar datos: cada corrida usa usuarios nuevos.

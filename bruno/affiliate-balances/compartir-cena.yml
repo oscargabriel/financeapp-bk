@@ -1,0 +1,43 @@
+info:
+  name: A comparte la cena con B y C
+  type: http
+  seq: 21
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "type": "EXPENSE",
+          "accountId": "{{idCuentaSaldoA}}",
+          "categoryId": "{{idMercadoSaldoA}}",
+          "amount": 90000,
+          "description": "{{descCena}}",
+          "shares": [
+            {
+              "affiliationId": "{{idSaldoAB}}",
+              "amount": 30000
+            },
+            {
+              "affiliationId": "{{idSaldoAC}}",
+              "amount": 20000
+            }
+          ]
+        }
+      ]
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

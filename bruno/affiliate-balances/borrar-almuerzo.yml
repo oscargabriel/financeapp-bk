@@ -1,0 +1,21 @@
+info:
+  name: A borra el almuerzo
+  type: http
+  seq: 34
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/transactions/{{idGastoAlmuerzo}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

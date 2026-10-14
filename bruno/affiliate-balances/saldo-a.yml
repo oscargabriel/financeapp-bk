@@ -1,0 +1,39 @@
+info:
+  name: Saldo de A
+  type: http
+  seq: 25
+
+http:
+  method: GET
+  url: "{{baseUrl}}/affiliations/balances"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const lista = res.getBody();
+        const de = function (letra) {
+          return lista.find(function (e) { return e.person.email === bru.getVar("emailSaldo" + letra); });
+        };
+        const saldo = function (codigo, aFavor, enContra, neto) {
+          return { currencyCode: codigo, owedToMe: aFavor, iOwe: enContra, net: neto };
+        };
+
+        test("B le debe a A en pesos y en dolares, y A le debe el taxi", function() {
+          expect(de("B").balances).to.eql([saldo("COP", 30000, 10000, 20000), saldo("USD", 20, 0, 20)]);
+        });
+
+        test("C le debe la cena; la parte de B con C no suma", function() {
+          expect(de("C").balances).to.eql([saldo("COP", 20000, 0, 20000)]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

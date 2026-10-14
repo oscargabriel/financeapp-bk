@@ -1,0 +1,36 @@
+info:
+  name: Saldo de A sin deudas con C
+  type: http
+  seq: 50
+
+http:
+  method: GET
+  url: "{{baseUrl}}/affiliations/balances"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const lista = res.getBody();
+        const de = function (letra) {
+          return lista.find(function (e) { return e.person.email === bru.getVar("emailSaldo" + letra); });
+        };
+        const saldo = function (codigo, aFavor, enContra, neto) {
+          return { currencyCode: codigo, owedToMe: aFavor, iOwe: enContra, net: neto };
+        };
+
+        test("C, desvinculada y sin nada pendiente, ya no sale", function() {
+          expect(de("C")).to.equal(undefined);
+          expect(lista).to.have.lengthOf(1);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -351,6 +351,8 @@ pagó, y el estado: `PENDING` es deuda abierta, y `PAID`, `REJECTED` y `VOIDED`
 la cierran, con `resolved_at`.
 
 - La deuda entre dos personas es la suma de sus partes `PENDING`, por moneda.
+  La exponen `GET /api/affiliations/balances` y, parte por parte,
+  `GET /api/affiliations/{id}/shares` (FIN-67).
 - La parte copia la descripción y la fecha del gasto. Borrar el gasto deja
   `source_transaction_id` en `NULL` y la parte pagada intacta. Anular las
   pendientes (`VOIDED`) lo hace la aplicación en la misma transacción.

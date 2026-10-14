@@ -1,0 +1,76 @@
+info:
+  name: Detalle de A con B
+  type: http
+  seq: 35
+
+http:
+  method: GET
+  url: "{{baseUrl}}/affiliations/{{idSaldoAB}}/shares"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const partes = res.getBody();
+        const parte = function (desc) {
+          return partes.find(function (s) { return s.description === bru.getVar(desc); });
+        };
+
+        test("las cuatro partes entre A y B; la de B con C no sale", function() {
+          expect(partes).to.have.lengthOf(4);
+          partes.forEach(function (s) {
+            expect(s).to.have.all.keys("id", "description", "occurredAt", "amount", "currencyCode", "status", "resolvedAt", "direction");
+          });
+        });
+
+        test("la cena, pagada", function() {
+          const s = parte("descCena");
+          expect(s.status).to.equal("PAID");
+          expect(s.direction).to.equal("OWED_TO_ME");
+          expect(s.amount).to.equal(30000);
+          expect(s.currencyCode).to.equal("COP");
+          expect(s.resolvedAt).to.not.equal(null);
+        });
+
+        test("el hotel, pendiente en dolares", function() {
+          const s = parte("descHotel");
+          expect(s.status).to.equal("PENDING");
+          expect(s.direction).to.equal("OWED_TO_ME");
+          expect(s.amount).to.equal(20);
+          expect(s.currencyCode).to.equal("USD");
+          expect(s.resolvedAt).to.equal(null);
+        });
+
+        test("el taxi, que A le debe a B", function() {
+          const s = parte("descTaxi");
+          expect(s.status).to.equal("PENDING");
+          expect(s.direction).to.equal("I_OWE");
+          expect(s.amount).to.equal(10000);
+        });
+
+        test("el almuerzo, anulado al borrarlo", function() {
+          const s = parte("descAlmuerzo");
+          expect(s.status).to.equal("VOIDED");
+          expect(s.direction).to.equal("OWED_TO_ME");
+          expect(s.resolvedAt).to.not.equal(null);
+        });
+
+        test("la transferencia no sale", function() {
+          expect(parte("descRegalo")).to.equal(undefined);
+        });
+
+        test("de la mas reciente a la mas antigua", function() {
+          const fechas = partes.map(function (s) { return s.occurredAt; });
+          expect(fechas).to.eql(fechas.slice().sort().reverse());
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
