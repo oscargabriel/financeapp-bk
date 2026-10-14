@@ -30,4 +30,16 @@ public interface TransactionRepositoryPort {
 
     /** Borra un pendiente del usuario; false si no habia un pendiente que borrar. */
     Mono<Boolean> deletePending(UUID id, UUID userId);
+
+    /** Los movimientos del usuario en el grupo, pendientes o no, en el orden en que entraron (por id). */
+    Flux<Transaction> findByGroup(UUID groupId, UUID userId);
+
+    /**
+     * Pasa a CONFIRMED todos esos pendientes del usuario en una sola transaccion de base; false, sin confirmar
+     * ninguno, si alguno ya no era un pendiente que confirmar.
+     */
+    Mono<Boolean> confirmAll(List<UUID> ids, UUID userId);
+
+    /** Borra los que sigan pendientes de esos; cuantos borro. */
+    Mono<Long> deletePendingIn(List<UUID> ids, UUID userId);
 }

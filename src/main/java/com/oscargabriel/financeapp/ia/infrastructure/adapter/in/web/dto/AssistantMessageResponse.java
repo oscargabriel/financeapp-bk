@@ -6,6 +6,7 @@ import java.util.List;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantBalance;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantReply;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantReport;
+import com.oscargabriel.financeapp.ia.domain.model.CreatedGroup;
 import com.oscargabriel.financeapp.ia.domain.model.CreatedMovement;
 
 /**
@@ -16,9 +17,17 @@ import com.oscargabriel.financeapp.ia.domain.model.CreatedMovement;
 public record AssistantMessageResponse(
         String intent,
         String message,
-        TransactionView transaction,
+        GroupView group,
         ReportView report,
         BalanceView balance) {
+
+    /** Lo registrado sin confirmar: el id con el que se confirma o se descarta, y sus movimientos (FIN-58). */
+    public record GroupView(String id, List<TransactionView> transactions) {
+
+        static GroupView from(CreatedGroup g) {
+            return new GroupView(g.id().toString(), g.transactions().stream().map(TransactionView::from).toList());
+        }
+    }
 
     public record TransactionView(
             String id,
@@ -96,7 +105,7 @@ public record AssistantMessageResponse(
         return new AssistantMessageResponse(
                 respuesta.intent().name(),
                 respuesta.message(),
-                respuesta.transaction() == null ? null : TransactionView.from(respuesta.transaction()),
+                respuesta.group() == null ? null : GroupView.from(respuesta.group()),
                 respuesta.report() == null ? null : ReportView.from(respuesta.report()),
                 respuesta.balance() == null ? null : BalanceView.from(respuesta.balance()));
     }

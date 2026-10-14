@@ -29,7 +29,7 @@ runtime:
       code: |-
         test("explica la regla del monto y no crea nada", function() {
           expect(res.getBody().message).to.contain("monto");
-          expect(res.getBody().transaction).to.equal(null);
+          expect(res.getBody().group).to.equal(null);
           expect(res.getBody().report).to.equal(null);
           expect(res.getBody().balance).to.equal(null);
         });

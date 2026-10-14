@@ -1,0 +1,39 @@
+info:
+  name: Grupo parcial
+  type: http
+  seq: 39
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: json
+    data: |-
+      {
+        "data": "crear_movimiento {\"tipo\":\"EXPENSE\",\"monto\":1000,\"cuenta\":\"Efectivo\",\"categoria\":\"Mercado\",\"descripcion\":\"Parcial 1\"}\ncrear_movimiento {\"tipo\":\"EXPENSE\",\"monto\":2000,\"cuenta\":\"Efectivo\",\"categoria\":\"Mercado\",\"descripcion\":\"Parcial 2\"}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.intent
+      operator: eq
+      value: CREATE_TRANSACTION
+  scripts:
+    - type: tests
+      code: |-
+        const grupo = res.getBody().group;
+        bru.setVar("grupoParcial", grupo.id);
+        bru.setVar("idParcial1", grupo.transactions[0].id);
+        bru.setVar("idParcial2", grupo.transactions[1].id);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

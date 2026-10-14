@@ -1,0 +1,32 @@
+info:
+  name: Grupo parcial — aprobar el primero uno a uno
+  type: http
+  seq: 40
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/{{idParcial1}}/approve"
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: eq
+      value: CONFIRMED
+  scripts:
+    - type: tests
+      code: |-
+        test("aprobado uno a uno conserva su grupo", function() {
+          expect(res.getBody().groupId).to.equal(bru.getVar("grupoParcial"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

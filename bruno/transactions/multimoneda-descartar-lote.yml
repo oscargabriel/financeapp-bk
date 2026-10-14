@@ -1,0 +1,23 @@
+info:
+  name: Multimoneda — descartar los convertidos del lote
+  type: http
+  seq: 72
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/groups/{{grupoConvertidos}}/reject"
+  auth:
+    type: bearer
+    token: "{{tokenTransacciones}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

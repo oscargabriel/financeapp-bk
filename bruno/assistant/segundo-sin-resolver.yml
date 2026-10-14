@@ -1,0 +1,39 @@
+info:
+  name: El segundo movimiento no se resuelve
+  type: http
+  seq: 54
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: json
+    data: |-
+      {
+        "data": "crear_movimiento {\"tipo\":\"EXPENSE\",\"monto\":7000,\"cuenta\":\"Efectivo\",\"categoria\":\"Mercado\",\"descripcion\":\"Bien resuelto\"}\ncrear_movimiento {\"tipo\":\"EXPENSE\",\"monto\":8000,\"cuenta\":\"Inexistente\",\"categoria\":\"Mercado\",\"descripcion\":\"Mal resuelto\"}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.intent
+      operator: eq
+      value: NEEDS_CLARIFICATION
+  scripts:
+    - type: tests
+      code: |-
+        test("dice que el problema esta en el movimiento 2, y no trae grupo", function() {
+          expect(res.getBody().message).to.contain("Movimiento 2");
+          expect(res.getBody().group).to.equal(null);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

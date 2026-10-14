@@ -1,0 +1,23 @@
+info:
+  name: Descartar el grupo
+  type: http
+  seq: 36
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/groups/{{grupoDescarte}}/reject"
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

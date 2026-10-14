@@ -30,7 +30,7 @@ runtime:
         test("pide la categoria con las de gasto y no crea nada", function() {
           expect(res.getBody().message).to.contain("Falta la categoria");
           expect(res.getBody().message).to.contain("Café");
-          expect(res.getBody().transaction).to.equal(null);
+          expect(res.getBody().group).to.equal(null);
           expect(res.getBody().report).to.equal(null);
           expect(res.getBody().balance).to.equal(null);
         });

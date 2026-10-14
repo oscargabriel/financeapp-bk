@@ -33,14 +33,17 @@ runtime:
       code: |-
         const t = res.getBody()[0];
         bru.setVar("idGastoConvertido", t.id);
+        bru.setVar("grupoGastoConvertido", t.groupId);
 
         test("se convierte a la moneda de la cuenta con la tasa de hoy (USD->COP 4100)", function() {
           expect(t.currencyCode).to.equal("USD");
           expect(t.amount).to.equal(10);
         });
 
-        test("queda pendiente y guarda lo recibido", function() {
+        test("queda pendiente en un grupo, con su origen WEB, y guarda lo recibido", function() {
           expect(t.status).to.equal("PENDING");
+          expect(t.origin).to.equal("WEB");
+          expect(t.groupId).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
           expect(t.originalAmount).to.equal(41000);
           expect(t.originalCurrencyCode).to.equal("COP");
         });

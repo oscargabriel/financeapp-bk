@@ -23,6 +23,6 @@ record Borrador(Transaction movimiento, String monedaRecibida, String monedaDest
         OriginalAmount original = monedaRecibida == null ? null : new OriginalAmount(t.amount(), monedaRecibida);
         return new Transaction(t.id(), t.userId(), t.type(), t.accountId(), t.destinationAccountId(), t.categoryId(),
                 monto, t.currencyCode(), t.description(), t.notes(), t.occurredAt(), TransactionStatus.PENDING,
-                t.origin(), t.recurrenceId(), t.installment(), destino, original);
+                t.origin(), t.recurrenceId(), t.installment(), destino, original, t.groupId());
     }
 }

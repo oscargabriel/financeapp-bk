@@ -1,0 +1,23 @@
+info:
+  name: Descartar el gasto con consulta
+  type: http
+  seq: 57
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/groups/{{grupoMixto}}/reject"
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

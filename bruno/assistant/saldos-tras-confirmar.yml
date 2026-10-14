@@ -1,0 +1,30 @@
+info:
+  name: Saldos tras confirmar el grupo
+  type: http
+  seq: 32
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts"
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("confirmar el grupo mueve el saldo de los dos: 980000 - 35000", function() {
+          const efectivo = res.getBody().find(function (c) { return c.id === bru.getVar("idEfectivo"); });
+          expect(efectivo.currentBalance).to.equal(945000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

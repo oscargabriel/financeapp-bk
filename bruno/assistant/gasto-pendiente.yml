@@ -27,8 +27,16 @@ runtime:
   scripts:
     - type: tests
       code: |-
-        const t = res.getBody().transaction;
+        const grupo = res.getBody().group;
+        const t = grupo.transactions[0];
         bru.setVar("idPendienteAsistente", t.id);
+
+        test("devuelve el grupo con el unico movimiento, y ya no trae transaction (FIN-58)", function() {
+          expect(Object.keys(grupo).sort()).to.deep.equal(["id", "transactions"]);
+          expect(grupo.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+          expect(grupo.transactions.length).to.equal(1);
+          expect(res.getBody()).to.not.have.property("transaction");
+        });
 
         test("queda pendiente", function() {
           expect(t.status).to.equal("PENDING");
@@ -49,8 +57,8 @@ runtime:
             "description", "destinationAccount", "id", "occurredAt", "status", "type"]);
         });
 
-        test("el mensaje dice que queda pendiente, y solo viene el movimiento", function() {
-          expect(res.getBody().message).to.contain("pendiente");
+        test("el mensaje pide confirmar o descartar, y solo viene el grupo", function() {
+          expect(res.getBody().message).to.contain("Confirmalo o descartalo");
           expect(res.getBody().report).to.equal(null);
           expect(res.getBody().balance).to.equal(null);
         });

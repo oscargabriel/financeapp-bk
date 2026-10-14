@@ -6,6 +6,7 @@ import static com.oscargabriel.financeapp.core.support.TransactionMother.USER_ID
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -28,6 +29,7 @@ import com.oscargabriel.financeapp.core.domain.model.Account;
 import com.oscargabriel.financeapp.core.domain.model.Transaction;
 import com.oscargabriel.financeapp.core.domain.model.TransactionStatus;
 import com.oscargabriel.financeapp.core.domain.port.out.AccountRepositoryPort;
+import com.oscargabriel.financeapp.core.domain.port.out.CategoryRepositoryPort;
 import com.oscargabriel.financeapp.core.domain.port.out.TransactionRepositoryPort;
 import com.oscargabriel.financeapp.core.support.AccountMother;
 import com.oscargabriel.financeapp.compartido.support.RelojFijo;
@@ -45,12 +47,32 @@ class ApprovePendingTransactionUseCaseTest {
     @Mock
     private AccountRepositoryPort cuentas;
 
+    @Mock
+    private CategoryRepositoryPort categorias;
+
     private ApprovePendingTransactionUseCase casoDeUso;
 
+    /** Mercado viva para todos; cualquier otra categoria, borrada. */
     @BeforeEach
     void reloj() {
-        casoDeUso = new ApprovePendingTransactionUseCase(repositorio, cuentas,
+        casoDeUso = new ApprovePendingTransactionUseCase(repositorio, cuentas, categorias,
                 Clock.fixed(RelojFijo.AHORA, ZoneOffset.UTC));
+        lenient().when(categorias.findActiveByIdAndUser(any(), any())).thenReturn(Mono.empty());
+        lenient().when(categorias.findActiveByIdAndUser(TransactionMother.MERCADO_ID, USER_ID))
+                .thenReturn(Mono.just(TransactionMother.categoriasDelUsuario().getFirst()));
+    }
+
+    @Test
+    void unGastoConLaCategoriaBorradaEsUnConflictoSobreLaCategoriaSinConfirmar() {
+        Transaction pendiente = TransactionMother.conCategoria(TransactionMother.unGastoPendiente(), UUID.randomUUID());
+        when(repositorio.findByIdAndUser(GASTO_GUARDADO_ID, USER_ID)).thenReturn(Mono.just(pendiente));
+        conCuenta(AccountMother.efectivo(), pendiente.accountId());
+
+        StepVerifier.create(casoDeUso.approve(USER_ID, GASTO_GUARDADO_ID))
+                .expectErrorSatisfies(error -> esError(error, HttpStatus.CONFLICT, "categoryId", ErrorCodes.INVALID_STATE))
+                .verify();
+
+        verify(repositorio, never()).confirm(any(), any());
     }
 
     @Test

@@ -37,18 +37,18 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
                    (id, user_id, account_id, destination_account_id, category_id, type,
                     amount, currency_code, amount_base, description, notes, occurred_at, status, origin, recurrence_id,
                     installment_purchase_id, installment_number, installment_principal,
-                    destination_amount, original_amount, original_currency_code)
+                    destination_amount, original_amount, original_currency_code, group_id)
             VALUES (:id, :userId, :accountId, :destinationAccountId, :categoryId, :type,
                     :amount, :currencyCode, :amount, :description, :notes, :occurredAt, :status, :origin, :recurrenceId,
                     :installmentPurchaseId, :installmentNumber, :installmentPrincipal,
-                    :destinationAmount, :originalAmount, :originalCurrencyCode)
+                    :destinationAmount, :originalAmount, :originalCurrencyCode, :groupId)
             """;
 
     /** La compra de una cuota da su total de cuotas (FA-108). */
     private static final String COLUMNAS = """
             t.id, t.user_id, t.type, t.account_id, t.destination_account_id, t.category_id,
                    t.amount, t.currency_code, t.description, t.notes, t.occurred_at, t.status, t.origin,
-                   t.recurrence_id, t.destination_amount, t.original_amount, t.original_currency_code, %s"""
+                   t.recurrence_id, t.destination_amount, t.original_amount, t.original_currency_code, t.group_id, %s"""
             .formatted(CuotaDeLaFila.COLUMNAS);
 
     private static final String BUSCAR = """
@@ -111,6 +111,32 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
     private static final String BORRAR_PENDIENTE = """
             DELETE FROM finance.transactions
              WHERE id = :id
+               AND user_id = :userId
+               AND status = 'PENDING'
+            """;
+
+    /** El orden por id es el del lote que lo creo: el alta reparte ids crecientes (FIN-58). */
+    private static final String DEL_GRUPO = """
+            SELECT %s
+              FROM finance.transactions t
+              %s
+             WHERE t.group_id = :groupId
+               AND t.user_id = :userId
+             ORDER BY t.id
+            """.formatted(COLUMNAS, CuotaDeLaFila.JOIN);
+
+    /** Como CONFIRMAR, para varios: el trigger aplica cada fila dentro de la misma transaccion. */
+    private static final String CONFIRMAR_VARIOS = """
+            UPDATE finance.transactions
+               SET status = 'CONFIRMED'
+             WHERE id = ANY(:ids)
+               AND user_id = :userId
+               AND status = 'PENDING'
+            """;
+
+    private static final String BORRAR_PENDIENTES = """
+            DELETE FROM finance.transactions
+             WHERE id = ANY(:ids)
                AND user_id = :userId
                AND status = 'PENDING'
             """;
@@ -178,6 +204,46 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
         return porIdYUsuario(BORRAR_PENDIENTE, id, userId);
     }
 
+    @Override
+    public Flux<Transaction> findByGroup(UUID groupId, UUID userId) {
+        return databaseClient.sql(DEL_GRUPO)
+                .bind("groupId", groupId)
+                .bind("userId", userId)
+                .map((row, metadata) -> toDomain(row))
+                .all();
+    }
+
+    /**
+     * Si otro request aprobo o borro alguno en medio, actualiza menos filas: el error deshace la transaccion, para
+     * que el grupo no quede confirmado a medias.
+     */
+    @Override
+    public Mono<Boolean> confirmAll(List<UUID> ids, UUID userId) {
+        return databaseClient.sql(CONFIRMAR_VARIOS)
+                .bind("ids", ids.toArray(UUID[]::new))
+                .bind("userId", userId)
+                .fetch().rowsUpdated()
+                .flatMap(filas -> filas == ids.size() ? Mono.just(true) : Mono.<Boolean>error(new GrupoCambiado()))
+                .as(transaccion::transactional)
+                .onErrorResume(GrupoCambiado.class, e -> Mono.just(false));
+    }
+
+    @Override
+    public Mono<Long> deletePendingIn(List<UUID> ids, UUID userId) {
+        return databaseClient.sql(BORRAR_PENDIENTES)
+                .bind("ids", ids.toArray(UUID[]::new))
+                .bind("userId", userId)
+                .fetch().rowsUpdated();
+    }
+
+    /** Solo existe para forzar el rollback de confirmAll. */
+    private static final class GrupoCambiado extends RuntimeException {
+
+        GrupoCambiado() {
+            super(null, null, false, false);
+        }
+    }
+
     private Mono<Boolean> porIdYUsuario(String sql, UUID id, UUID userId) {
         return databaseClient.sql(sql)
                 .bind("id", id)
@@ -211,6 +277,9 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
                 : sentencia.bind("installmentPurchaseId", cuota.purchaseId())
                         .bind("installmentNumber", (short) cuota.number())
                         .bind("installmentPrincipal", cuota.principal());
+        sentencia = t.groupId() == null
+                ? sentencia.bindNull("groupId", UUID.class)
+                : sentencia.bind("groupId", t.groupId());
         return sentencia.fetch().rowsUpdated();
     }
 
@@ -254,7 +323,8 @@ public class TransactionR2dbcAdapter implements TransactionRepositoryPort {
                 row.get("recurrence_id", UUID.class),
                 CuotaDeLaFila.de(row),
                 row.get("destination_amount", BigDecimal.class),
-                original(row));
+                original(row),
+                row.get("group_id", UUID.class));
     }
 
     private static OriginalAmount original(Row row) {

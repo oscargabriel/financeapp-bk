@@ -4,11 +4,13 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,6 +22,7 @@ import com.oscargabriel.financeapp.core.domain.model.CreateTransactionCommand;
 import com.oscargabriel.financeapp.core.domain.model.Currency;
 import com.oscargabriel.financeapp.core.domain.model.Transaction;
 import com.oscargabriel.financeapp.core.domain.model.TransactionOrigin;
+import com.oscargabriel.financeapp.core.domain.model.TransactionStatus;
 import com.oscargabriel.financeapp.core.domain.model.UuidV7;
 import com.oscargabriel.financeapp.core.domain.port.in.CreateTransactionsPort;
 import com.oscargabriel.financeapp.core.domain.port.in.ResolveExchangeRatePort;
@@ -55,10 +58,11 @@ public class CreateTransactionsUseCase implements CreateTransactionsPort {
      * posteriores (FA-122): el equivalente en USD lo congela la base al insertar, con la ultima tasa guardada.
      *
      * El saldo se valida despues de convertir, cuando cada monto ya esta en la moneda de su cuenta y lo convertido ya
-     * quedo pendiente (FA-133).
+     * quedo pendiente (FA-133). Ahi mismo los pendientes del lote reciben su grupo (FIN-58).
      */
     @Override
-    public Flux<Transaction> create(UUID userId, TransactionOrigin origen, List<CreateTransactionCommand> lote) {
+    public Flux<Transaction> create(UUID userId, TransactionOrigin origen, TransactionStatus estado,
+            List<CreateTransactionCommand> lote) {
         return Flux.defer(() -> {
             Mono<Map<UUID, Account>> suyas = cuentas.findByUser(userId, true)
                     .collectMap(Account::id);
@@ -68,14 +72,41 @@ public class CreateTransactionsUseCase implements CreateTransactionsPort {
             Mono<Map<String, Currency>> activas = monedas.findActive().collectMap(Currency::code);
 
             Instant ahora = clock.instant();
+            Iterator<UUID> ids = idsCrecientes(lote.size());
             return Mono.zip(suyas, vivas, activas)
                     .flatMap(referencias -> convertir(new TransactionBatchValidator(userId, referencias.getT1(),
-                            referencias.getT2(), referencias.getT3(), () -> UuidV7.from(clock.instant()), ahora,
-                            origen).aBorradores(lote), referencias.getT3())
+                            referencias.getT2(), referencias.getT3(), ids::next, ahora,
+                            origen, estado).aBorradores(lote), referencias.getT3())
+                            .map(this::agruparPendientes)
                             .doOnNext(movimientos -> new SaldoNoNegativo(referencias.getT1())
                                     .exigirLote(movimientos, ahora)))
                     .flatMapMany(movimientos -> tasasDeHoy(movimientos).thenMany(repositorio.saveAll(movimientos)));
         });
+    }
+
+    /**
+     * Ordenados, para que el orden por id de un grupo sea el del lote: dos UuidV7 del mismo milisegundo salen en orden
+     * aleatorio, y los errores de confirmar un grupo llevan la posicion de cada pendiente (FIN-58).
+     */
+    private Iterator<UUID> idsCrecientes(int cuantos) {
+        return Stream.generate(() -> UuidV7.from(clock.instant())).limit(cuantos).sorted().iterator();
+    }
+
+    /** Los pendientes de una misma peticion se confirman o se descartan juntos (FIN-58). */
+    private List<Transaction> agruparPendientes(List<Transaction> movimientos) {
+        if (movimientos.stream().noneMatch(t -> t.status() == TransactionStatus.PENDING)) {
+            return movimientos;
+        }
+        UUID grupo = UuidV7.from(clock.instant());
+        return movimientos.stream()
+                .map(t -> t.status() == TransactionStatus.PENDING ? enGrupo(t, grupo) : t)
+                .toList();
+    }
+
+    private static Transaction enGrupo(Transaction t, UUID grupo) {
+        return new Transaction(t.id(), t.userId(), t.type(), t.accountId(), t.destinationAccountId(), t.categoryId(),
+                t.amount(), t.currencyCode(), t.description(), t.notes(), t.occurredAt(), t.status(), t.origin(),
+                t.recurrenceId(), t.installment(), t.destinationAmount(), t.original(), grupo);
     }
 
     /** En el orden del lote: el lote vuelve en ese orden, y el conversor no pide dos veces la misma tasa. */

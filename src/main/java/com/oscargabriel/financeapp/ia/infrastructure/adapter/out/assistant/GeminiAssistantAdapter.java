@@ -103,17 +103,16 @@ public class GeminiAssistantAdapter implements AssistantModelPort {
     }
 
     /**
-     * La primera parte con functionCall decide. Sin candidatos (Gemini bloqueo el mensaje) o sin
-     * funcion, no se hace nada: el texto que haya escrito el modelo no se usa.
+     * Todas las partes con functionCall, en orden: un mensaje puede traer varios movimientos (FIN-58). Sin candidatos
+     * (Gemini bloqueo el mensaje) o sin funcion, no se hace nada: el texto que haya escrito el modelo no se usa.
      */
     private AssistantDecision decision(String respuesta) {
         JsonNode partes = json.readTree(respuesta).path("candidates").path(0).path("content").path("parts");
-        return partes.valueStream()
+        return FuncionesDelAsistente.decision(partes.valueStream()
                 .map(parte -> parte.path("functionCall"))
                 .filter(llamada -> !llamada.isMissingNode())
-                .findFirst()
-                .map(llamada -> FuncionesDelAsistente.decision(llamada.path("name").asString(), llamada.path("args")))
-                .orElseGet(AssistantDecision.SinFuncion::new);
+                .map(llamada -> new FuncionesDelAsistente.Llamada(llamada.path("name").asString(), llamada.path("args")))
+                .toList());
     }
 
     private static BadRequestException noDisponible(Throwable e) {

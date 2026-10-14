@@ -29,6 +29,7 @@ import com.oscargabriel.financeapp.core.domain.model.TransactionOrigin;
 import com.oscargabriel.financeapp.core.domain.model.TransactionStatus;
 import com.oscargabriel.financeapp.core.domain.port.in.CreateTransactionsPort;
 import com.oscargabriel.financeapp.ia.domain.model.NewMovement;
+import com.oscargabriel.financeapp.ia.domain.model.RegisteredGroup;
 import com.oscargabriel.financeapp.ia.domain.model.RegisteredMovement;
 import com.oscargabriel.financeapp.ia.domain.model.TransactionType;
 
@@ -44,6 +45,7 @@ class PendienteDelAsistenteAdapterTest {
     private static final UUID CATEGORIA = UUID.fromString("20000000-0000-7000-8000-000000000001");
     private static final UUID GUARDADO = UUID.fromString("30000000-0000-7000-8000-000000000001");
     private static final Instant CUANDO = Instant.parse("2026-10-05T17:00:00Z");
+    private static final UUID GRUPO = UUID.fromString("71000000-0000-7000-8000-000000000001");
 
     @Mock
     private CreateTransactionsPort alta;
@@ -61,34 +63,51 @@ class PendienteDelAsistenteAdapterTest {
     private static Transaction guardado() {
         return new Transaction(GUARDADO, USUARIO, com.oscargabriel.financeapp.core.domain.model.TransactionType.EXPENSE,
                 CUENTA, null, CATEGORIA, new BigDecimal("20000"), "COP", "Almuerzo", null, CUANDO,
-                TransactionStatus.PENDING, TransactionOrigin.TELEGRAM, null, null, null, null);
+                TransactionStatus.PENDING, TransactionOrigin.TELEGRAM, null, null, null, null, GRUPO);
     }
 
     @Test
-    void registraUnLoteDeUnoConElOrigenDelAsistenteYDevuelveIdEstadoYFecha() {
-        when(alta.create(eq(USUARIO), eq(TransactionOrigin.TELEGRAM), anyList())).thenReturn(Flux.just(guardado()));
+    void registraElLotePendienteConElOrigenDelAsistenteYDevuelveElGrupoConIdEstadoYFecha() {
+        when(alta.create(eq(USUARIO), eq(TransactionOrigin.TELEGRAM), eq(TransactionStatus.PENDING), anyList())).thenReturn(Flux.just(guardado()));
 
-        StepVerifier.create(puente.register(USUARIO, new NewMovement(TransactionType.EXPENSE, CUENTA, null, CATEGORIA,
-                        new BigDecimal("20000"), "COP", "Almuerzo", "2026-10-05T12:00-05:00")))
-                .expectNext(new RegisteredMovement(GUARDADO, "PENDING", CUANDO))
+        StepVerifier.create(puente.register(USUARIO, List.of(new NewMovement(TransactionType.EXPENSE, CUENTA, null,
+                        CATEGORIA, new BigDecimal("20000"), "COP", "Almuerzo", "2026-10-05T12:00-05:00"))))
+                .expectNext(new RegisteredGroup(GRUPO, List.of(new RegisteredMovement(GUARDADO, "PENDING", CUANDO))))
                 .verifyComplete();
 
-        verify(alta).create(eq(USUARIO), eq(TransactionOrigin.TELEGRAM), lote.capture());
+        verify(alta).create(eq(USUARIO), eq(TransactionOrigin.TELEGRAM), eq(TransactionStatus.PENDING), lote.capture());
         assertThat(lote.getValue()).containsExactly(new CreateTransactionCommand("EXPENSE", CUENTA.toString(), null,
                 CATEGORIA.toString(), new BigDecimal("20000"), null, "COP", "Almuerzo", null,
                 "2026-10-05T12:00-05:00"));
     }
 
     @Test
-    void unaTransferenciaLlevaLaCuentaDestinoYNoLaCategoria() {
-        when(alta.create(eq(USUARIO), eq(TransactionOrigin.TELEGRAM), anyList())).thenReturn(Flux.just(guardado()));
+    void registraVariosMovimientosEnUnSoloLoteYEnOrden() {
+        when(alta.create(eq(USUARIO), eq(TransactionOrigin.TELEGRAM), eq(TransactionStatus.PENDING), anyList()))
+                .thenReturn(Flux.just(guardado(), guardado()));
 
-        StepVerifier.create(puente.register(USUARIO, new NewMovement(TransactionType.TRANSFER, CUENTA, DESTINO, null,
-                        new BigDecimal("100000"), "COP", "Al ahorro", null)))
+        StepVerifier.create(puente.register(USUARIO, List.of(
+                        new NewMovement(TransactionType.EXPENSE, CUENTA, null, CATEGORIA, new BigDecimal("20000"), "COP",
+                                "Almuerzo", null),
+                        new NewMovement(TransactionType.EXPENSE, CUENTA, null, CATEGORIA, new BigDecimal("15000"), "COP",
+                                "Taxi", null))))
+                .assertNext(grupo -> assertThat(grupo.movements()).hasSize(2))
+                .verifyComplete();
+
+        verify(alta).create(eq(USUARIO), eq(TransactionOrigin.TELEGRAM), eq(TransactionStatus.PENDING), lote.capture());
+        assertThat(lote.getValue()).extracting(CreateTransactionCommand::description).containsExactly("Almuerzo", "Taxi");
+    }
+
+    @Test
+    void unaTransferenciaLlevaLaCuentaDestinoYNoLaCategoria() {
+        when(alta.create(eq(USUARIO), eq(TransactionOrigin.TELEGRAM), eq(TransactionStatus.PENDING), anyList())).thenReturn(Flux.just(guardado()));
+
+        StepVerifier.create(puente.register(USUARIO, List.of(new NewMovement(TransactionType.TRANSFER, CUENTA, DESTINO,
+                        null, new BigDecimal("100000"), "COP", "Al ahorro", null))))
                 .expectNextCount(1)
                 .verifyComplete();
 
-        verify(alta).create(eq(USUARIO), eq(TransactionOrigin.TELEGRAM), lote.capture());
+        verify(alta).create(eq(USUARIO), eq(TransactionOrigin.TELEGRAM), eq(TransactionStatus.PENDING), lote.capture());
         assertThat(lote.getValue().getFirst()).extracting(CreateTransactionCommand::type,
                         CreateTransactionCommand::destinationAccountId, CreateTransactionCommand::categoryId,
                         CreateTransactionCommand::occurredAt)
@@ -99,10 +118,10 @@ class PendienteDelAsistenteAdapterTest {
     void propagaElRechazoDelAltaTalCual() {
         BadRequestException rechazo = new BadRequestException(HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR,
                 "La cuenta esta desactivada", "[0].accountId");
-        when(alta.create(eq(USUARIO), any(), anyList())).thenReturn(Flux.error(rechazo));
+        when(alta.create(eq(USUARIO), any(), any(), anyList())).thenReturn(Flux.error(rechazo));
 
-        StepVerifier.create(puente.register(USUARIO, new NewMovement(TransactionType.EXPENSE, CUENTA, null, CATEGORIA,
-                        new BigDecimal("20000"), "COP", "Almuerzo", null)))
+        StepVerifier.create(puente.register(USUARIO, List.of(new NewMovement(TransactionType.EXPENSE, CUENTA, null,
+                        CATEGORIA, new BigDecimal("20000"), "COP", "Almuerzo", null))))
                 .verifyErrorMatches(e -> e == rechazo);
     }
 }

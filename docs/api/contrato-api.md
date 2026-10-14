@@ -35,6 +35,8 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | `GET` | `/api/transactions/pending` | Bearer | Movimientos pendientes de aprobación |
 | `POST` | `/api/transactions/{id}/approve` | Bearer | Aprobar un pendiente |
 | `POST` | `/api/transactions/{id}/reject` | Bearer | Rechazar un pendiente |
+| `POST` | `/api/transactions/groups/{groupId}/approve` | Bearer | Confirmar juntos los pendientes de un grupo |
+| `POST` | `/api/transactions/groups/{groupId}/reject` | Bearer | Descartar juntos los pendientes de un grupo |
 | `POST` | `/api/recurrences` | Bearer | Crear una serie de gastos o ingresos que se repiten |
 | `GET` | `/api/recurrences` | Bearer | Series activas, con su próxima ocurrencia |
 | `PATCH` | `/api/recurrences/{id}` | Bearer | Modificar una serie, en sus futuras o en todas |
@@ -197,7 +199,7 @@ Todos los errores salen con la misma forma:
 | 405 | `VALIDATION_ERROR` | Método no soportado en esa ruta (`description`: "La peticion no pudo ser procesada") |
 | 409 | `DUPLICATE_RESOURCE` | Ya existe: correo registrado, nombre de cuenta o de categoría repetido, o una solicitud de afiliación abierta o una afiliación con esa persona (`field`: `email`) |
 | 409 | `RESOURCE_IN_USE` | El cambio dejaría inconsistentes otros datos que usan el recurso: el alcance de una categoría con movimientos que no admitiría (`field`: `appliesTo`), la moneda de una cuenta con movimientos (`field`: `currencyCode`), o borrar una cuenta con saldo (`field`: `currentBalance`) |
-| 409 | `INVALID_STATE` | El recurso no está en el estado que la acción exige: aprobar o rechazar un movimiento ya confirmado (`field`: `status`), o aprobar un pendiente con una cuenta desactivada (`field`: `accountId` o `destinationAccountId`), o una acción sobre una afiliación que no corresponde a su estado o al papel del usuario (`field`: `status`) |
+| 409 | `INVALID_STATE` | El recurso no está en el estado que la acción exige: aprobar o rechazar un movimiento o un grupo ya confirmado (`field`: `status`), o aprobar un pendiente con una cuenta desactivada o una categoría borrada (`field`: `accountId`, `destinationAccountId` o `categoryId`, con `[i].` delante si es un grupo), o una acción sobre una afiliación que no corresponde a su estado o al papel del usuario (`field`: `status`) |
 | 409 | `INSUFFICIENT_FUNDS` | La petición dejaría por debajo de cero el saldo de una cuenta que no es de crédito. Ver [Saldo no negativo](#saldo-no-negativo) |
 | 413 | `PAYLOAD_TOO_LARGE` | El cuerpo pasa de 1 MB |
 | 500 | `INTERNAL_SERVER_ERROR` | Error inesperado. Nunca trae detalle técnico |
@@ -224,6 +226,7 @@ Una cuenta `CASH`, `DEBIT`, `SAVINGS`, `INVESTMENT` u `OTHER` no puede quedar po
 | `PATCH /api/transactions/{id}` | El movimiento resultante baja la cuenta por debajo de cero | `amount` |
 | `DELETE /api/transactions/{id}` | Borrar un ingreso o una transferencia entrante deja la cuenta en negativo | `id` |
 | `POST /api/transactions/{id}/approve` | Aprobar el pendiente deja la cuenta en negativo | `amount` |
+| `POST /api/transactions/groups/{groupId}/approve` | Confirmar el grupo entero deja la cuenta en negativo | `[i].amount` |
 | `PATCH /api/accounts/{id}` | Bajar `initialBalance` deja el saldo en negativo | `initialBalance` |
 
 **No se valida** en lo que llega solo: un programado que alcanza su fecha, ni las ocurrencias que las
@@ -1108,26 +1111,33 @@ la respuesta), que es lo que cobra el banco.
     "installment": null,
     "destinationAmount": null,
     "originalAmount": null,
-    "originalCurrencyCode": null
+    "originalCurrencyCode": null,
+    "groupId": null
   }
 ]
 ```
 
 `status` es `CONFIRMED` en todo lo que entra por aquí, salvo lo que se convierte de otra moneda; si el
-cuerpo trae un `status`, se ignora. Lo demás que entra `PENDING` lo pone el asistente (ver
+cuerpo trae un `status`, se ignora. Un movimiento queda `PENDING` porque necesita que el usuario lo
+confirme, sea cual sea su origen: aquí, lo convertido; desde el asistente, todo lo que registra (ver
 [Movimientos pendientes](#movimientos-pendientes)).
+
+`groupId` es el grupo de pendientes con que entró el movimiento: los que una misma petición deja
+pendientes comparten uno (aquí, los convertidos de un mismo lote), y se confirman o se descartan juntos.
+Es `null` si entró confirmado, y se conserva al confirmar. Va en toda respuesta de un movimiento: alta,
+modificación, pendientes y aprobación. Lo pone el servidor: si el cuerpo trae un `groupId`, se ignora.
 
 `destinationAmount`, `originalAmount` y `originalCurrencyCode` van en toda respuesta de un movimiento,
 en `null` cuando no aplican: el primero solo en una transferencia entre monedas distintas, y los otros
 dos solo si el movimiento se convirtió. El [reporte de movimientos](#get-apireportstransactions) tiene
 su propia forma: trae `destinationAmount`, pero no `originalAmount` ni `originalCurrencyCode`.
 
-`origin` dice por dónde entró el movimiento, y no cambia después:
+`origin` dice por dónde entró el movimiento, y no cambia después. No decide si entra pendiente:
 
 | Valor | Quién lo pone |
 |---|---|
 | `WEB` | Este endpoint, las ocurrencias de una [serie](#series-recurrentes) y las cuotas de una [compra en cuotas](#compras-en-cuotas) |
-| `TELEGRAM` | El [asistente](#post-apiassistantmessages). Entra `PENDING` |
+| `TELEGRAM` | El [asistente](#post-apiassistantmessages) |
 | `IMPORT` | Reservado para una importación de archivos. Hoy ningún endpoint lo produce |
 
 Va en las mismas respuestas que `status`. Lo pone el servidor: si el cuerpo trae un `origin`, se
@@ -1244,13 +1254,21 @@ Borra un movimiento del usuario del token. **Bearer.** El borrado es físico: no
 
 ### Movimientos pendientes
 
-Lo que registre el asistente de IA entra **pendiente** (`"status": "PENDING"`) hasta que el usuario
-lo aprueba. Mientras tanto no mueve saldos ni cuenta en `monthly-spending`, `reports/transactions`
-ni `reports/balance`. Los crea [`POST /api/assistant/messages`](#post-apiassistantmessages), con
-`"origin": "TELEGRAM"`. También entra pendiente lo que [`POST /api/transactions`](#post-apitransactions)
-convierte de otra moneda (FA-51), con su origen de siempre.
+Un movimiento entra **pendiente** (`"status": "PENDING"`) cuando necesita que el usuario lo confirme,
+sea cual sea su origen (FIN-58). Mientras tanto no mueve saldos ni cuenta en `monthly-spending`,
+`reports/transactions` ni `reports/balance`. Hoy entran así:
 
-Los tres endpoints son **Bearer**.
+- todo lo que registra [`POST /api/assistant/messages`](#post-apiassistantmessages), con
+  `"origin": "TELEGRAM"`;
+- lo que [`POST /api/transactions`](#post-apitransactions) convierte de otra moneda (FA-51), con
+  `"origin": "WEB"`.
+
+**Todo pendiente tiene un `groupId`**: los que una misma petición dejó pendientes (los movimientos de
+un mensaje al asistente, los convertidos de un lote) comparten grupo, y se confirman o se descartan
+juntos con las dos rutas de grupo. También se pueden aprobar o rechazar uno a uno: las rutas de grupo
+actúan sobre lo que siga pendiente.
+
+Los cinco endpoints son **Bearer**.
 
 **`GET /api/transactions/pending`** — **200 OK** con los pendientes del usuario, del más reciente al
 más antiguo por `occurredAt`, con la misma forma que un elemento de la respuesta del alta. Sin
@@ -1268,9 +1286,29 @@ deja rastro.
 | 404 | `NOT_FOUND` | `id` | No existe, ya se rechazó, o es de otro usuario: la respuesta es la misma |
 | 409 | `INVALID_STATE` | `status` | Ya está confirmado. Para borrar un confirmado está `DELETE /api/transactions/{id}` |
 | 409 | `INVALID_STATE` | `accountId` / `destinationAccountId` | Solo al aprobar: la cuenta de ese campo está desactivada, un error por cuenta. Sigue pendiente y ningún saldo cambia; se aprueba después de reactivarla |
-| 409 | `INSUFFICIENT_FUNDS` | `amount` | Solo al aprobar, con las cuentas activas: aprobarlo dejaría por debajo de cero una cuenta que no es de crédito. Sigue pendiente y ningún saldo cambia. Un pendiente con fecha futura se aprueba sin este chequeo |
+| 409 | `INVALID_STATE` | `categoryId` | Solo al aprobar un gasto o un ingreso: su categoría se borró. Sale junto con los de las cuentas. Sigue pendiente; se aprueba después de cambiarle la categoría con `PATCH` |
+| 409 | `INSUFFICIENT_FUNDS` | `amount` | Solo al aprobar, sin errores `INVALID_STATE`: aprobarlo dejaría por debajo de cero una cuenta que no es de crédito. Sigue pendiente y ningún saldo cambia. Un pendiente con fecha futura se aprueba sin este chequeo |
 
-Un pendiente también se corrige con `PATCH` y se borra con `DELETE`, igual que uno confirmado.
+**`POST /api/transactions/groups/{groupId}/approve`** — sin cuerpo. Confirma **todo lo que siga
+pendiente del grupo, o nada**. **200 OK** con un arreglo de esos movimientos, completos y
+`"status": "CONFIRMED"`, en el orden en que entraron (el del mensaje o el del lote). Lo que ya se
+aprobó o se rechazó uno a uno no cambia ni sale en la respuesta. Aplica las reglas de aprobar uno a
+uno a cada pendiente, y el saldo no negativo sobre el efecto de todos juntos, como el alta en lote:
+un ingreso del grupo compensa un gasto.
+
+**`POST /api/transactions/groups/{groupId}/reject`** — sin cuerpo. **204 No Content.** Borra lo que
+siga pendiente del grupo; lo ya aprobado no cambia.
+
+| HTTP | `code` | `field` | Cuándo |
+|---|---|---|---|
+| 400 | `VALIDATION_ERROR` | `groupId` | El id de la ruta no es un UUID |
+| 404 | `NOT_FOUND` | `groupId` | No existe, es de otro usuario, o ya se descartó: la respuesta es la misma |
+| 409 | `INVALID_STATE` | `status` | El grupo ya no tiene pendientes porque se confirmó |
+| 409 | `INVALID_STATE` | `[i].accountId` / `[i].destinationAccountId` / `[i].categoryId` | Solo al confirmar: los mismos de aprobar uno a uno, con `i`, la posición del pendiente entre los que siguen pendientes del grupo, en el orden en que entraron. No se confirma ninguno |
+| 409 | `INSUFFICIENT_FUNDS` | `[i].amount` | Solo al confirmar, sin errores `INVALID_STATE`: el grupo entero dejaría en negativo una cuenta que no es de crédito; `i` es el primer pendiente que la cruza. No se confirma ninguno |
+
+Un pendiente también se corrige con `PATCH` y se borra con `DELETE`, igual que uno confirmado, y
+conserva su `groupId`.
 
 ### Movimientos programados
 
@@ -1881,8 +1919,8 @@ el campo del parámetro:
 ### `POST /api/assistant/messages`
 
 Recibe un mensaje en lenguaje natural ("gasté 20 mil en almuerzo con la Nequi", "¿cuánto gasté este
-mes?") y lo resuelve con un modelo de IA (FA-77). **Bearer.** Registra un movimiento, consulta los
-movimientos o consulta el saldo, siempre del usuario del token.
+mes?") y lo resuelve con un modelo de IA (FA-77). **Bearer.** Registra uno o varios movimientos,
+consulta los movimientos o consulta el saldo, siempre del usuario del token.
 
 **Cuerpo**
 
@@ -1899,23 +1937,35 @@ movimientos o consulta el saldo, siempre del usuario del token.
 ```json
 {
   "intent": "CREATE_TRANSACTION",
-  "message": "Registre un gasto de 20.000 COP en Nequi (Restaurantes). Queda pendiente de tu aprobacion.",
-  "transaction": {
-    "id": "0199a1d0-...",
-    "type": "EXPENSE",
-    "accountId": "0199a1b3-...",
-    "destinationAccountId": null,
-    "categoryId": "0199a1c2-...",
-    "amount": 20000,
-    "currencyCode": "COP",
-    "description": "Almuerzo",
-    "notes": null,
-    "occurredAt": "2026-10-10T17:30:12.345Z",
-    "status": "PENDING",
-    "origin": "TELEGRAM",
-    "scheduled": false,
-    "recurrenceId": null,
-    "installment": null
+  "message": "Registre 2 movimientos: un gasto de 20.000 COP en Nequi (Restaurantes); un gasto de 15.000 COP en Nequi (Transporte). Confirmalos o descartalos.",
+  "group": {
+    "id": "0199a1d1-...",
+    "transactions": [
+      {
+        "id": "0199a1d0-...",
+        "type": "EXPENSE",
+        "status": "PENDING",
+        "amount": 20000,
+        "currencyCode": "COP",
+        "description": "Almuerzo",
+        "occurredAt": "2026-10-10T17:30:12.345Z",
+        "account": "Nequi",
+        "destinationAccount": null,
+        "category": "Restaurantes"
+      },
+      {
+        "id": "0199a1d0-...",
+        "type": "EXPENSE",
+        "status": "PENDING",
+        "amount": 15000,
+        "currencyCode": "COP",
+        "description": "Taxi",
+        "occurredAt": "2026-10-10T17:30:12.345Z",
+        "account": "Nequi",
+        "destinationAccount": null,
+        "category": "Transporte"
+      }
+    ]
   },
   "report": null,
   "balance": null
@@ -1924,7 +1974,7 @@ movimientos o consulta el saldo, siempre del usuario del token.
 
 | `intent` | Qué hizo | Objeto que trae |
 |---|---|---|
-| `CREATE_TRANSACTION` | Registró un gasto, ingreso o transferencia **pendiente** de aprobación | `transaction`, con la forma de un elemento del alta de [`POST /api/transactions`](#post-apitransactions) |
+| `CREATE_TRANSACTION` | Registró uno o varios gastos, ingresos o transferencias **sin confirmar**, en un grupo | `group`: el `id` del grupo y `transactions`, lo registrado en el orden del mensaje. Cada elemento trae solo `id`, `type`, `status`, `amount`, `currencyCode`, `description`, `occurredAt` y los nombres `account`, `destinationAccount` y `category` |
 | `LIST_TRANSACTIONS` | Consultó los movimientos | `report`, con la forma de [`GET /api/reports/transactions`](#get-apireportstransactions) |
 | `GET_BALANCE` | Consultó ingresos, gastos y cuentas | `balance`, con la forma de [`GET /api/reports/balance`](#get-apireportsbalance) |
 | `NEEDS_CLARIFICATION` | Nada: le falta o no reconoce un dato, y `message` dice cuál | Ninguno |
@@ -1936,8 +1986,15 @@ no se compara: para decidir se usa `intent`.
 
 **A tener en cuenta**
 
-- **Lo que registra queda pendiente.** Entra con `"status": "PENDING"` y `"origin": "TELEGRAM"`, y no
-  mueve saldos hasta que el usuario lo aprueba (ver [Movimientos pendientes](#movimientos-pendientes)).
+- **Lo que registra queda sin confirmar, en un grupo** (FIN-58). Entra con `"status": "PENDING"` y
+  `"origin": "TELEGRAM"`, y no mueve saldos hasta confirmarse. Se confirma o se descarta todo junto con
+  `POST /api/transactions/groups/{group.id}/approve` o `/reject`, y lo que no se confirme queda en
+  `GET /api/transactions/pending`, donde se aprueba o se rechaza uno a uno (ver
+  [Movimientos pendientes](#movimientos-pendientes)). `message` pide confirmar o descartar.
+- **Varios movimientos en un mensaje** ("almuerzo 20 mil y taxi 15 mil con la Nequi") se registran
+  todos o ninguno: si uno no se puede resolver, es `NEEDS_CLARIFICATION`, `message` dice cuál
+  ("Movimiento 2: …") y no se crea nada. Si el mensaje pide registrar y además consultar, solo se
+  registra.
 - **Los nombres se buscan exactos** entre las cuentas activas y las categorías del usuario, sin
   distinguir mayúsculas ni tildes ("nequi" encuentra "Nequi", pero "tarjeta" no encuentra
   "Tarjeta Débito"). Un nombre que no está, o que coincide con dos, es `NEEDS_CLARIFICATION`, y
@@ -2060,7 +2117,6 @@ Para que el frontend no lo busque:
 - Recuperar o listar las categorías borradas.
 - Consultar un movimiento por su id. Para listarlos está `GET /api/reports/transactions`.
 - Crear movimientos pendientes por otra vía que el asistente.
-- Aprobar o rechazar pendientes en lote.
 - Crear metas de gasto.
 - Listar las sesiones abiertas, o cerrarlas todas sin cambiar la contraseña.
 - Revocar el access en el logout: sigue sirviendo hasta vencer, como mucho una hora.

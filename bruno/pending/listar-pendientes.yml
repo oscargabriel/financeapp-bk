@@ -27,7 +27,7 @@ runtime:
           expect(lista[0]).to.have.all.keys("id", "type", "accountId", "destinationAccountId",
               "categoryId", "amount", "currencyCode", "description", "notes", "occurredAt", "status",
               "origin", "scheduled", "recurrenceId", "installment", "destinationAmount", "originalAmount",
-              "originalCurrencyCode");
+              "originalCurrencyCode", "groupId");
           lista.forEach(function (t) {
             expect(t.originalAmount).to.equal(null);
             expect(t.originalCurrencyCode).to.equal(null);
@@ -42,6 +42,12 @@ runtime:
             expect(t.status).to.equal("PENDING");
             expect(t.origin).to.equal("TELEGRAM");
           });
+        });
+
+        test("cada uno trae su grupo: la transferencia y el gasto entraron juntos (FIN-58)", function() {
+          expect(lista[0].groupId).to.equal("71000000-0000-7000-8000-000000000001");
+          expect(lista[1].groupId).to.equal("71000000-0000-7000-8000-000000000001");
+          expect(lista[2].groupId).to.equal("71000000-0000-7000-8000-000000000002");
         });
 
         test("del mas reciente al mas antiguo, sin el confirmado", function() {
