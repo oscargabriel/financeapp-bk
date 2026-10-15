@@ -8,8 +8,10 @@ context: |
   Proyecto: backend de finanzas personales. Java 25, Spring Boot 4 WebFlux, R2DBC sobre PostgreSQL,
   arquitectura hexagonal. La guía completa —arquitectura, errores, validación, configuración,
   pruebas y despliegue— está en AGENTS.md, que ya está cargada en la sesión: no la releas ni la copies en los
-  artefactos. Las specs y docs/api/contrato-api.md se leen por sección (encabezados con grep -n,
-  después el rango), no enteros.
+  artefactos. Las specs se leen por sección (encabezados con grep -n, después el rango), no
+  enteras. El contrato está en docs/api/, un archivo por recurso con contrato-api.md como índice:
+  se lee el del recurso que toca la tarea, no la carpeta. Un endpoint que cambia actualiza en el
+  mismo change el archivo de su recurso y su fila del índice.
   Las tareas vienen del proyecto FIN de Jira con clave FIN-n; el change se llama fin-<n>-<slug>.
   Las FA-n que aparecen en el código y en los changes archivados son del tablero anterior, en Notion.
   Toda ruta del API se pide con el prefijo /api, y todo error sale como

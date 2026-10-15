@@ -224,11 +224,17 @@ El change se llama igual que la rama sin el prefijo: `fin-<n>-<slug>`.
 Las reglas de cada artefacto están en `openspec/config.yaml`; no se repiten aquí.
 
 **Se lee por sección.** `AGENTS.md` ya está cargada en la sesión: no se relee. Las specs
-(`transacciones` mide 66k caracteres) y `docs/api/contrato-api.md` (137k) se leen por partes:
-primero los encabezados (`grep -n "^### Requirement"`, `grep -n "^#"`), después `Read` con
-`offset` y `limit` sobre la sección que toca el issue. Nunca varios archivos concatenados en un solo
-`cat`, ni un change archivado entero. Todo lo que se lee aquí se paga en cada turno que queda de
-la sesión.
+(`transacciones` mide 66k caracteres) se leen por partes: primero los encabezados
+(`grep -n "^### Requirement"`, `grep -n "^#"`), después `Read` con `offset` y `limit` sobre la
+sección que toca el issue. Nunca varios archivos concatenados en un solo `cat`, ni un change
+archivado entero. Todo lo que se lee aquí se paga en cada turno que queda de la sesión.
+
+El contrato del API está en `docs/api/` del back: un archivo por recurso (`cuentas.md`,
+`transacciones.md`…), `generalidades.md` con la autenticación, los errores, CORS y lo que el API
+todavía no tiene, y `contrato-api.md` como índice, con una fila por endpoint y el archivo que lo
+describe. Se busca la ruta en el índice (`grep -n "/api/accounts" docs/api/contrato-api.md`) y se
+lee solo ese archivo; el más grande, `transacciones.md`, mide 24k. `docs/api/` del front es una
+copia que se trae con `npm run sincronizar-contrato` y no se edita a mano.
 
 ### 4. Aprobar
 
@@ -350,7 +356,7 @@ que nunca mergea. Los PRs contra `main` **no** se mergean nunca: el script los r
 
 ### 9. Cerrar
 
-Si el PR del issue toca `docs/api/contrato-api.md` (`gh pr diff <número> --name-only`), aplicar
+Si el PR del issue toca `docs/api/` (`gh pr diff <número> --name-only`), aplicar
 primero *El contrato* de `references/crear-issue.md`: el contrato se decide en el change, así
 que al crear el issue casi nunca se sabía qué parte iba a cambiar. Los enlaces y el issue `Frontend`
 que salgan se reportan en el comentario de cierre.

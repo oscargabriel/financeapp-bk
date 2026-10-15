@@ -23,7 +23,8 @@ criterios quedan como texto en vez de casillas.
    - `## Depende de` lleva una línea por cada enlace `is blocked by` del paso 4, y se omite si no
      hay dependencias.
    - El último criterio es la verificación del repo. `Backend`: tests de la capa que toca,
-     `gradlew build` y `bru run` en verde, y si toca endpoints, `contrato-api.md` y `bruno/` al día.
+     `gradlew build` y `bru run` en verde, y si toca endpoints, el archivo del recurso en
+     `docs/api/`, su fila en `contrato-api.md` y `bruno/` al día.
      `Frontend`: tests de componente o servicio, `ng test` y `ng build` en verde.
    - No lleva `## Notas de implementación`: este repo deja las notas en un comentario al cerrar
      (paso 9).
@@ -81,18 +82,17 @@ mismo tema que se pueden cerrar en cualquier orden.
 
 ### El contrato
 
-Un issue que cambia `docs/api/contrato-api.md`, aunque sea solo texto, **bloquea a los issues
-`Frontend` abiertos que usan esa parte**: la copia `financeapp-fr/contrato-api.md` tiene que
-reflejarla. Para saber si el front la usa:
+Un issue que cambia un archivo de `docs/api/`, aunque sea solo texto, **bloquea a los issues
+`Frontend` abiertos que usan esa parte**: la copia `financeapp-fr/docs/api/` tiene que reflejarla.
+Para saber si el front la usa:
 
 1. `project = FIN AND component = Frontend AND statusCategory != Done AND text ~ "<ruta>"`.
-2. Si `../financeapp-fr` existe, buscar la ruta en su `src/` y en su `contrato-api.md`, solo
-   leyendo.
+2. Si `../financeapp-fr` existe, buscar la ruta en su `src/`, solo leyendo.
 3. Si con eso no se puede decidir, se pregunta.
 
 Si el front la usa y no hay ningún issue `Frontend` abierto que la cubra, se crea con este mismo
-procedimiento el issue `Frontend` que sincroniza en su copia de `contrato-api.md` la sección que
-cambió, en el epic del issue del back, en `pendiente` y bloqueado por él.
+procedimiento el issue `Frontend` que trae la copia con `npm run sincronizar-contrato` y ajusta lo
+que use la parte que cambió, en el epic del issue del back, en `pendiente` y bloqueado por él.
 
 Se aplica al crear, si el issue ya dice qué parte del contrato cambia, y otra vez al cerrar (paso
 9), si el change terminó tocando el contrato.
