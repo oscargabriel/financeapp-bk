@@ -1,7 +1,7 @@
 info:
   name: Login con Google que vincula la cuenta
   type: http
-  seq: 29
+  seq: 31
 
 http:
   method: POST

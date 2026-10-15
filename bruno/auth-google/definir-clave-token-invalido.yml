@@ -1,0 +1,41 @@
+info:
+  name: Definir la primera contrasena con un token invalido
+  type: http
+  seq: 42
+
+http:
+  method: POST
+  url: "{{baseUrl}}/users/me/password"
+  body:
+    type: json
+    data: |-
+      {
+        "idToken": "no-es-un-token-de-google",
+        "newPassword": "primeraClaveGoogle"
+      }
+  auth:
+    type: bearer
+    token: "{{accessDefinir}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: INVALID_CREDENTIALS
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: idToken
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # 400 y no 401
+
+  La ruta va en la cadena del JWT: un 401 le diria al cliente que su sesion vencio.

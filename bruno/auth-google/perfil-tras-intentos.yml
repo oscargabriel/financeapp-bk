@@ -1,7 +1,7 @@
 info:
   name: Perfil tras los cambios rechazados
   type: http
-  seq: 28
+  seq: 30
 
 http:
   method: GET

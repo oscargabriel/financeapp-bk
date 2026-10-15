@@ -27,6 +27,12 @@ runtime:
     - expression: res.body.baseCurrencyCode
       operator: eq
       value: COP
+    - expression: res.body.hasPassword
+      operator: eq
+      value: "false"
+    - expression: res.body.googleLinked
+      operator: eq
+      value: "true"
   scripts:
     - type: tests
       code: |-

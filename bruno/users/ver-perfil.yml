@@ -20,7 +20,13 @@ runtime:
       code: |-
         test("trae exactamente las claves del contrato", function() {
           expect(Object.keys(res.getBody()).sort()).to.deep.equal(
-            ["baseCurrencyCode", "email", "firstName", "id", "lastName", "phone", "timezone"]);
+            ["baseCurrencyCode", "email", "firstName", "googleLinked", "hasPassword", "id", "lastName",
+             "phone", "timezone"]);
+        });
+
+        test("se registro con contrasena y nunca entro con Google (FIN-53)", function() {
+          expect(res.getBody().hasPassword).to.equal(true);
+          expect(res.getBody().googleLinked).to.equal(false);
         });
 
         test("es el usuario del token", function() {

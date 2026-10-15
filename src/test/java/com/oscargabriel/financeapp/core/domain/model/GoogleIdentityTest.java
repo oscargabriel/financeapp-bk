@@ -8,21 +8,21 @@ class GoogleIdentityTest {
 
     @Test
     void normalizaElCorreoComoElAlta() {
-        GoogleIdentity identidad = GoogleIdentity.desdeClaims("sub-1", "  Ana@Ejemplo.COM ", "Ana", null, "Gomez");
+        GoogleIdentity identidad = GoogleIdentity.desdeClaims("sub-1", "  Ana@Ejemplo.COM ", "Ana", null, "Gomez", null);
 
         assertThat(identidad.email()).isEqualTo("ana@ejemplo.com");
     }
 
     @Test
     void tomaElNombreDePilaYElApellido() {
-        GoogleIdentity identidad = GoogleIdentity.desdeClaims("sub-1", "ana@ejemplo.com", " Ana ", "Ana Gomez", " Gomez ");
+        GoogleIdentity identidad = GoogleIdentity.desdeClaims("sub-1", "ana@ejemplo.com", " Ana ", "Ana Gomez", " Gomez ", null);
 
-        assertThat(identidad).isEqualTo(new GoogleIdentity("sub-1", "ana@ejemplo.com", "Ana", "Gomez"));
+        assertThat(identidad).isEqualTo(new GoogleIdentity("sub-1", "ana@ejemplo.com", "Ana", "Gomez", null));
     }
 
     @Test
     void sinNombreDePilaUsaElNombreCompleto() {
-        GoogleIdentity identidad = GoogleIdentity.desdeClaims("sub-1", "ana@ejemplo.com", "  ", "Ana Gomez", null);
+        GoogleIdentity identidad = GoogleIdentity.desdeClaims("sub-1", "ana@ejemplo.com", "  ", "Ana Gomez", null, null);
 
         assertThat(identidad.firstName()).isEqualTo("Ana Gomez");
         assertThat(identidad.lastName()).isNull();
@@ -30,7 +30,7 @@ class GoogleIdentityTest {
 
     @Test
     void sinNingunNombreUsaLaParteDelCorreoAnteriorALaArroba() {
-        GoogleIdentity identidad = GoogleIdentity.desdeClaims("sub-1", "Ana.Gomez@ejemplo.com", null, "", "");
+        GoogleIdentity identidad = GoogleIdentity.desdeClaims("sub-1", "Ana.Gomez@ejemplo.com", null, "", "", null);
 
         assertThat(identidad.firstName()).isEqualTo("ana.gomez");
         assertThat(identidad.lastName()).isNull();
@@ -41,7 +41,7 @@ class GoogleIdentityTest {
     void recortaElNombreYElApellidoACienCaracteres() {
         String largo = "a".repeat(130);
 
-        GoogleIdentity identidad = GoogleIdentity.desdeClaims("sub-1", "ana@ejemplo.com", largo, null, largo);
+        GoogleIdentity identidad = GoogleIdentity.desdeClaims("sub-1", "ana@ejemplo.com", largo, null, largo, null);
 
         assertThat(identidad.firstName()).hasSize(100);
         assertThat(identidad.lastName()).hasSize(100);

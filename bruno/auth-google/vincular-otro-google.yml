@@ -1,7 +1,7 @@
 info:
   name: Login con otra cuenta Google del mismo correo
   type: http
-  seq: 31
+  seq: 33
 
 http:
   method: POST

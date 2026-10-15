@@ -33,7 +33,7 @@ import com.oscargabriel.financeapp.core.support.UserMother;
 import reactor.core.publisher.Mono;
 
 /**
- * Servidor real: las tres rutas del perfil quedan bajo spring.webflux.base-path y en la cadena del
+ * Servidor real: las cuatro rutas del perfil quedan bajo spring.webflux.base-path y en la cadena del
  * JWT. El camino con datos lo verifica bruno/users/ contra PostgreSQL, porque el R2DBC de la suite
  * apunta a un puerto sin escucha: por eso el caso de uso del parche es un mock.
  */
@@ -58,7 +58,8 @@ class UsersIT {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"GET /api/users/me", "PATCH /api/users/me", "PUT /api/users/me/password"})
+    @ValueSource(strings = {"GET /api/users/me", "PATCH /api/users/me", "PUT /api/users/me/password",
+        "POST /api/users/me/password"})
     void sinCredencialesEsUn401ConElRetoDelJwt(String ruta) {
         pedir(ruta, cabeceras -> { })
                 .expectStatus().isUnauthorized()
@@ -70,7 +71,8 @@ class UsersIT {
 
     /** El Basic compartido abre /auth/* y /status, no el perfil. */
     @ParameterizedTest
-    @ValueSource(strings = {"GET /api/users/me", "PATCH /api/users/me", "PUT /api/users/me/password"})
+    @ValueSource(strings = {"GET /api/users/me", "PATCH /api/users/me", "PUT /api/users/me/password",
+        "POST /api/users/me/password"})
     void conElBasicCompartidoEsUn401(String ruta) {
         pedir(ruta, BasicMother.cabecera())
                 .expectStatus().isUnauthorized()

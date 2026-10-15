@@ -1,7 +1,7 @@
 info:
   name: Perfil tras el login con el correo anterior
   type: http
-  seq: 34
+  seq: 36
 
 http:
   method: GET
@@ -15,6 +15,12 @@ runtime:
     - expression: res.status
       operator: eq
       value: "200"
+    - expression: res.body.hasPassword
+      operator: eq
+      value: "true"
+    - expression: res.body.googleLinked
+      operator: eq
+      value: "true"
   scripts:
     - type: tests
       code: |-

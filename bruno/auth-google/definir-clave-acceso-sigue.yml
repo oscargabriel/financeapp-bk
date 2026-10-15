@@ -1,0 +1,31 @@
+info:
+  name: Perfil tras los rechazos de la definicion
+  type: http
+  seq: 47
+
+http:
+  method: GET
+  url: "{{baseUrl}}/users/me"
+  auth:
+    type: bearer
+    token: "{{accessDefinir}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.hasPassword
+      operator: eq
+      value: "false"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Ningun rechazo cerro la sesion ni definio nada
+
+  Los 400 anteriores no tocan la contrasena ni la version de sesion.

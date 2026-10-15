@@ -1,0 +1,45 @@
+info:
+  name: Modificar el nombre sin tener contrasena
+  type: http
+  seq: 29
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/users/me"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailGoogle}}",
+        "firstName": "Lucia Maria"
+      }
+  auth:
+    type: bearer
+    token: "{{accessGoogle}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.firstName
+      operator: eq
+      value: Lucia Maria
+    - expression: res.body.hasPassword
+      operator: eq
+      value: "false"
+    - expression: res.body.googleLinked
+      operator: eq
+      value: "true"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Lo demas del perfil no exige contrasena (FIN-53)
+
+  Con su mismo correo, el parche no pide `currentPassword`. La respuesta del `PATCH` trae los dos
+  campos de metodos, como el `GET`.

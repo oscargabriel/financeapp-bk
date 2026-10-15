@@ -1,0 +1,40 @@
+info:
+  name: Login con Google antes de definir la contrasena
+  type: http
+  seq: 39
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/google/login"
+  body:
+    type: json
+    data: |-
+      {
+        "idToken": "{{tokenGoogle}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("guarda la sesion que la definicion va a cerrar", function() {
+          bru.setVar("accessDefinir", res.getBody().accessToken);
+          bru.setVar("refreshDefinir", res.getBody().refreshToken);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Una sesion vigente para la definicion
+
+  La del registro ya tiene el refresh revocado por `Logout de la sesion de Google`. Esta deja un
+  access y un refresh vigentes, para probar que la definicion los cierra.

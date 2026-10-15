@@ -49,7 +49,7 @@ class ListRecurrencesUseCaseTest {
     void escenario() {
         when(alDia.ponerAlDia(USER_ID)).thenReturn(Mono.empty());
         when(usuarios.findActiveProfile(USER_ID)).thenReturn(Mono.just(
-                new UserProfile(USER_ID, "ana@ejemplo.com", "Ana", null, null, "COP", "America/Bogota")));
+                new UserProfile(USER_ID, "ana@ejemplo.com", "Ana", null, null, "COP", "America/Bogota", true, false)));
         casoDeUso = new ListRecurrencesUseCase(series, usuarios, alDia);
     }
 

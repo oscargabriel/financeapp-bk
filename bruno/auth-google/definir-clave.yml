@@ -1,0 +1,37 @@
+info:
+  name: Definir la primera contrasena
+  type: http
+  seq: 48
+
+http:
+  method: POST
+  url: "{{baseUrl}}/users/me/password"
+  body:
+    type: json
+    data: |-
+      {
+        "idToken": "{{tokenGoogle}}",
+        "newPassword": "primeraClaveGoogle"
+      }
+  auth:
+    type: bearer
+    token: "{{accessDefinir}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # La primera contrasena (FIN-53)
+
+  El token del registro no lleva sexto campo: el stub lo da por emitido ahora, y su `sub` es el
+  vinculado. Desde aqui el usuario entra tambien con correo y contrasena, y sus sesiones anteriores
+  quedan cerradas.

@@ -1,0 +1,41 @@
+info:
+  name: Definir una primera contrasena demasiado corta
+  type: http
+  seq: 41
+
+http:
+  method: POST
+  url: "{{baseUrl}}/users/me/password"
+  body:
+    type: json
+    data: |-
+      {
+        "idToken": "{{tokenGoogle}}",
+        "newPassword": "corta12"
+      }
+  auth:
+    type: bearer
+    token: "{{accessDefinir}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: newPassword
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Las reglas del alta
+
+  Siete caracteres no alcanzan: la nueva tiene al menos 8 y no mas de 72 bytes.

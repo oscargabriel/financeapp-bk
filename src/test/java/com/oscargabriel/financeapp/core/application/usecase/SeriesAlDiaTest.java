@@ -67,7 +67,7 @@ class SeriesAlDiaTest {
     void escenario() {
         when(usuarios.findActiveProfile(USER_ID))
                 .thenReturn(Mono.just(new UserProfile(USER_ID, "ana@ejemplo.com", "Ana", null, null, "COP",
-                        "America/Bogota")));
+                        "America/Bogota", true, false)));
         when(series.append(any(), anyInt(), anyList())).thenReturn(Mono.just(true));
         alDia = new SeriesAlDia(series, usuarios, RELOJ);
     }

@@ -21,10 +21,10 @@ runtime:
   assertions:
     - expression: res.status
       operator: eq
-      value: "400"
+      value: "409"
     - expression: res.body.errors[0].code
       operator: eq
-      value: INVALID_CREDENTIALS
+      value: INVALID_STATE
     - expression: res.body.errors[0].field
       operator: eq
       value: currentPassword
@@ -36,6 +36,6 @@ settings:
   maxRedirects: 5
 
 docs: |
-  # Provisional hasta FIN-53
+  # Cambiar el correo exige una contrasena que no tiene (FIN-53)
 
-  FIN-53 lo rechaza con un error propio.
+  409 `INVALID_STATE` en `currentPassword`, aunque la mande: no hay contra que compararla.

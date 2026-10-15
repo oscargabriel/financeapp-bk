@@ -5,6 +5,7 @@ import com.oscargabriel.financeapp.core.domain.model.UserProfile;
 /**
  * El perfil en las respuestas de GET y PATCH /users/me. Se construye campo por campo, como
  * RegisterUserResponse, para que una columna nueva del usuario no salga sin que nadie lo decida.
+ * hasPassword y googleLinked dicen con que metodos entra el usuario (FIN-53).
  */
 public record UserProfileResponse(
         String id,
@@ -13,7 +14,9 @@ public record UserProfileResponse(
         String lastName,
         String phone,
         String baseCurrencyCode,
-        String timezone) {
+        String timezone,
+        boolean hasPassword,
+        boolean googleLinked) {
 
     public static UserProfileResponse from(UserProfile perfil) {
         return new UserProfileResponse(
@@ -23,6 +26,8 @@ public record UserProfileResponse(
                 perfil.lastName(),
                 perfil.phone(),
                 perfil.baseCurrencyCode(),
-                perfil.timezone());
+                perfil.timezone(),
+                perfil.hasPassword(),
+                perfil.googleLinked());
     }
 }

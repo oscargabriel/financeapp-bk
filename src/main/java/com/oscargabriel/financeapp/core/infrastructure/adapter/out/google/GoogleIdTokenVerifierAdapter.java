@@ -73,7 +73,7 @@ public class GoogleIdTokenVerifierAdapter implements GoogleIdTokenVerifierPort {
                 .filter(GoogleIdTokenVerifierAdapter::correoVerificado)
                 .map(jwt -> GoogleIdentity.desdeClaims(jwt.getSubject(), jwt.getClaimAsString("email"),
                         jwt.getClaimAsString("given_name"), jwt.getClaimAsString("name"),
-                        jwt.getClaimAsString("family_name")))
+                        jwt.getClaimAsString("family_name"), jwt.getIssuedAt()))
                 .onErrorResume(JwtException.class, e -> {
                     log.info("ID token de Google rechazado: {}", e.getClass().getSimpleName());
                     return Mono.empty();

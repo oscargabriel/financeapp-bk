@@ -7,6 +7,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,8 +20,10 @@ import com.oscargabriel.financeapp.compartido.infrastructure.adapter.in.web.Usua
 import com.oscargabriel.financeapp.core.domain.model.ChangePasswordCommand;
 import com.oscargabriel.financeapp.core.domain.port.in.ChangePasswordPort;
 import com.oscargabriel.financeapp.core.domain.port.in.GetUserProfilePort;
+import com.oscargabriel.financeapp.core.domain.port.in.SetFirstPasswordPort;
 import com.oscargabriel.financeapp.core.domain.port.in.UpdateUserProfilePort;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.ChangePasswordRequest;
+import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.FirstPasswordRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.UpdateUserProfileRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.UserProfileResponse;
 
@@ -35,6 +38,7 @@ public class UserController {
     private final GetUserProfilePort getProfile;
     private final UpdateUserProfilePort updateProfile;
     private final ChangePasswordPort changePassword;
+    private final SetFirstPasswordPort setFirstPassword;
 
     @GetMapping
     public Mono<UserProfileResponse> profile(@AuthenticationPrincipal Jwt jwt) {
@@ -64,5 +68,14 @@ public class UserController {
             @Valid @RequestBody ChangePasswordRequest request) {
         return Mono.defer(() -> changePassword.change(UsuarioDelToken.de(jwt),
                 new ChangePasswordCommand(request.currentPassword(), request.newPassword())));
+    }
+
+    /** POST porque crea el valor que el PUT reemplaza: solo para quien no tiene contrasena (FIN-53). */
+    @PostMapping("/password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public Mono<Void> setFirstPassword(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody FirstPasswordRequest request) {
+        return Mono.defer(() -> setFirstPassword.define(UsuarioDelToken.de(jwt), request.toCommand()));
     }
 }

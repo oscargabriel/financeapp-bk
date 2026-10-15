@@ -9,6 +9,7 @@ import static org.springframework.security.test.web.reactive.server.SecurityMock
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webflux.test.autoconfigure.WebFluxTest;
@@ -22,9 +23,11 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.core.domain.model.ChangePasswordCommand;
+import com.oscargabriel.financeapp.core.domain.model.FirstPasswordCommand;
 import com.oscargabriel.financeapp.core.domain.model.UpdateUserProfileCommand;
 import com.oscargabriel.financeapp.core.domain.port.in.ChangePasswordPort;
 import com.oscargabriel.financeapp.core.domain.port.in.GetUserProfilePort;
+import com.oscargabriel.financeapp.core.domain.port.in.SetFirstPasswordPort;
 import com.oscargabriel.financeapp.core.domain.port.in.UpdateUserProfilePort;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
 import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
@@ -54,6 +57,9 @@ class UserControllerTest {
     @MockitoBean
     private ChangePasswordPort changePassword;
 
+    @MockitoBean
+    private SetFirstPasswordPort setFirstPassword;
+
     private static JwtMutator tokenDelUsuario() {
         return mockJwt().jwt(jwt -> jwt.subject(UserMother.ID.toString()));
     }
@@ -81,7 +87,22 @@ class UserControllerTest {
                 .jsonPath("$.lastName").isEqualTo(null)
                 .jsonPath("$.phone").isEqualTo("3001234567")
                 .jsonPath("$.baseCurrencyCode").isEqualTo("COP")
-                .jsonPath("$.timezone").isEqualTo("America/Bogota");
+                .jsonPath("$.timezone").isEqualTo("America/Bogota")
+                .jsonPath("$.hasPassword").isEqualTo(true)
+                .jsonPath("$.googleLinked").isEqualTo(false);
+    }
+
+    /** FIN-53: el front decide con estos dos campos si ofrece definir la primera contrasena. */
+    @Test
+    void elPerfilDeUnUsuarioDeGoogleDiceQueNoTieneContrasena() {
+        when(getProfile.get(UserMother.ID)).thenReturn(Mono.just(UserMother.unPerfilDeGoogle()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_PERFIL)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.hasPassword").isEqualTo(false)
+                .jsonPath("$.googleLinked").isEqualTo(true);
     }
 
     /** OWASP A02: el perfil nunca lleva la contrasena ni su hash, ni bajo otro nombre. */
@@ -111,7 +132,9 @@ class UserControllerTest {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.id").isEqualTo(UserMother.ID.toString())
-                .jsonPath("$.firstName").isEqualTo("Ana");
+                .jsonPath("$.firstName").isEqualTo("Ana")
+                .jsonPath("$.hasPassword").isEqualTo(true)
+                .jsonPath("$.googleLinked").isEqualTo(false);
 
         verify(updateProfile).update(UserMother.ID, new UpdateUserProfileCommand(
                 " Ana ", "", "Ana@Ejemplo.com", "3001234567", "America/Bogota", " usd ", "unaClaveLarga"));
@@ -242,6 +265,71 @@ class UserControllerTest {
                 .expectStatus().isUnauthorized();
 
         verifyNoInteractions(changePassword);
+    }
+
+    @Test
+    void definirLaPrimeraClaveEsUn204SinCuerpo() {
+        when(setFirstPassword.define(any(), any())).thenReturn(Mono.empty());
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_CLAVE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"idToken\": \"un.id-token.de-google\", \"newPassword\": \"primeraClaveLarga\"}")
+                .exchange()
+                .expectStatus().isNoContent()
+                .expectBody().isEmpty();
+
+        verify(setFirstPassword).define(UserMother.ID,
+                new FirstPasswordCommand("un.id-token.de-google", "primeraClaveLarga"));
+    }
+
+    @Test
+    void definirLaPrimeraClaveSinCamposEsUn400EnCadaUno() {
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_CLAVE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{}")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[?(@.field == 'idToken')].code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.errors[?(@.field == 'newPassword')].code").isEqualTo("VALIDATION_ERROR");
+
+        verifyNoInteractions(setFirstPassword);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"corta12", "unaClaveDeMasDeSetentaYDosBytesUnaClaveDeMasDeSetentaYDosBytesUnaClaveDeMas"})
+    void unaPrimeraClaveFueraDeLasReglasEsUn400(String clave) {
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_CLAVE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"idToken\": \"un.id-token.de-google\", \"newPassword\": \"" + clave + "\"}")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.errors[0].field").isEqualTo("newPassword");
+
+        verifyNoInteractions(setFirstPassword);
+    }
+
+    /** Los errores del caso de uso salen con su status: 400 y no 401 para el token (decision 3 de FIN-53). */
+    @ParameterizedTest
+    @CsvSource({
+        "BAD_REQUEST, INVALID_CREDENTIALS, idToken",
+        "CONFLICT, INVALID_STATE, newPassword",
+        "BAD_GATEWAY, EXTERNAL_SERVICE_ERROR, idToken"
+    })
+    void losErroresDeLaPrimeraClaveSalenConSuStatus(HttpStatus status, ErrorCodes codigo, String campo) {
+        when(setFirstPassword.define(any(), any())).thenReturn(Mono.error(
+                new BadRequestException(status, codigo, "rechazado", campo)));
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_CLAVE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"idToken\": \"un.id-token.de-google\", \"newPassword\": \"primeraClaveLarga\"}")
+                .exchange()
+                .expectStatus().isEqualTo(status)
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo(codigo.getCode())
+                .jsonPath("$.errors[0].field").isEqualTo(campo);
     }
 
     @Test
