@@ -85,7 +85,7 @@ class UserControllerTest {
                 .jsonPath("$.email").isEqualTo(UserMother.EMAIL)
                 .jsonPath("$.firstName").isEqualTo("Ana")
                 .jsonPath("$.lastName").isEqualTo(null)
-                .jsonPath("$.phone").isEqualTo("3001234567")
+                .jsonPath("$.phone").isEqualTo("+573001234567")
                 .jsonPath("$.baseCurrencyCode").isEqualTo("COP")
                 .jsonPath("$.timezone").isEqualTo("America/Bogota")
                 .jsonPath("$.hasPassword").isEqualTo(true)
@@ -125,7 +125,7 @@ class UserControllerTest {
         webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_PERFIL)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("""
-                        {"firstName": " Ana ", "lastName": "", "email": "Ana@Ejemplo.com", "phone": "3001234567",
+                        {"firstName": " Ana ", "lastName": "", "email": "Ana@Ejemplo.com", "phone": "+573001234567",
                          "timezone": "America/Bogota", "baseCurrencyCode": " usd ", "currentPassword": "unaClaveLarga"}
                         """)
                 .exchange()
@@ -137,7 +137,7 @@ class UserControllerTest {
                 .jsonPath("$.googleLinked").isEqualTo(false);
 
         verify(updateProfile).update(UserMother.ID, new UpdateUserProfileCommand(
-                " Ana ", "", "Ana@Ejemplo.com", "3001234567", "America/Bogota", " usd ", "unaClaveLarga"));
+                " Ana ", "", "Ana@Ejemplo.com", "+573001234567", "America/Bogota", " usd ", "unaClaveLarga"));
     }
 
     @ParameterizedTest

@@ -15,7 +15,7 @@ El perfil del usuario del token. **Bearer.**
   "email": "ana@correo.com",
   "firstName": "Ana",
   "lastName": "Pérez",
-  "phone": "3001234567",
+  "phone": "+573001234567",
   "baseCurrencyCode": "COP",
   "timezone": "America/Bogota",
   "hasPassword": true,
@@ -48,7 +48,7 @@ Modifica el perfil del usuario del token. **Bearer.** Se envían solo los campos
 | `firstName` | string | Hasta 100 caracteres, no en blanco. Se recorta |
 | `lastName` | string | Hasta 100 caracteres. **En blanco lo borra** |
 | `email` | string | Formato de correo, hasta 255 caracteres, no en blanco. Se guarda en minúsculas. **Si cambia, exige `currentPassword`** |
-| `phone` | string | Las reglas del alta. **En blanco lo borra** |
+| `phone` | string | Las reglas del alta: `+` e indicativo (`+573001234567`). **En blanco lo borra** |
 | `timezone` | string | Zona IANA, no en blanco |
 | `baseCurrencyCode` | string | Código de 3 letras de una moneda **activa** del catálogo, no en blanco. Sin distinguir mayúsculas; se guarda en mayúsculas |
 | `currentPassword` | string | La contraseña actual. Solo se mira si el correo cambia |
@@ -83,7 +83,7 @@ la tasa de la fecha de cada movimiento. Los saldos de las cuentas siguen en la m
 ```json
 {
   "firstName": "Ana María",
-  "phone": "3109876543",
+  "phone": "+573109876543",
   "email": "ana.maria@correo.com",
   "currentPassword": "unaClaveLarga"
 }

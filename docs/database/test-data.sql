@@ -98,7 +98,7 @@ INSERT INTO finance.users
 VALUES
     (:'uid'::uuid, 'prueba@financeapp.local',
      '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy',
-     'Oscar', 'Zambrano', '3001234567', DATE '1995-03-14',
+     'Oscar', 'Zambrano', '+573001234567', DATE '1995-03-14',
      123456789, 'COP', 'America/Bogota');
 
 

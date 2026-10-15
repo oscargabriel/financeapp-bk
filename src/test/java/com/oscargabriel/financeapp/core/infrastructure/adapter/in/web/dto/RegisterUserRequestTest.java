@@ -100,19 +100,21 @@ class RegisterUserRequestTest {
                 UserMother.EMAIL, UserMother.PASSWORD, "Ana", null, moneda, null, null))).isEmpty();
     }
 
-    /** El celular es opcional, y los espacios del borde se recortan al guardar. */
+    /** El celular es opcional, va en E.164 y los espacios del borde se recortan al guardar. */
     @ParameterizedTest
     @NullAndEmptySource
-    @ValueSource(strings = {" +573001234567 ", "3001234567", "1234567", "123456789012345"})
+    @ValueSource(strings = {"+573001234567", "+5730012345", " +573001234567 ", "+1234567", "+123456789012345"})
     void aceptaUnCelularValidoOAusente(String celular) {
         assertThat(Violaciones.de(conCelular(celular))).isEmpty();
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"300 123", "abc1234567", "123456", "1234567890123456", "12-34", "57+3001234567"})
+    @ValueSource(strings = {"3001234567", "+57 300 123 4567", "+57-3001234567", "+0573001234567",
+            "+5730012345678901", "+123456", "300 123", "abc1234567", "12-34", "57+3001234567"})
     void rechazaUnCelularMalFormado(String celular) {
         assertThat(Violaciones.de(conCelular(celular))).containsExactly(Map.entry("phone",
-                List.of("El celular admite un + opcional y de 7 a 15 digitos, sin espacios ni separadores")));
+                List.of("El celular va en formato internacional: + e indicativo, de 7 a 15 digitos en total,"
+                        + " sin espacios ni separadores")));
     }
 
     private static RegisterUserRequest valido() {

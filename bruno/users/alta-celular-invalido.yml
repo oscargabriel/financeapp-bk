@@ -41,4 +41,4 @@ settings:
 docs: |
   # Celular con espacios en medio
 
-  Solo se admite un + opcional y de 7 a 15 digitos seguidos.
+  Solo se admite el formato internacional: + e indicativo, de 7 a 15 digitos seguidos.

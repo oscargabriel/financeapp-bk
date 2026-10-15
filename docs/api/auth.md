@@ -24,7 +24,7 @@ la lista admite `@front.local`.
 | `lastName` | string | no | Hasta 100 caracteres |
 | `baseCurrencyCode` | string | no | Código de 3 letras que exista en el catálogo. Por defecto `COP` |
 | `timezone` | string | no | Zona IANA (`America/Bogota`, `Europe/Madrid`). Por defecto `America/Bogota` |
-| `phone` | string | no | Un `+` opcional y de 7 a 15 dígitos, sin espacios ni separadores. Se recorta |
+| `phone` | string | no | Formato internacional E.164: `+`, un indicativo que no empieza por 0 y de 7 a 15 dígitos en total, sin espacios ni separadores (`+573001234567`). Se recorta |
 
 ```json
 {
@@ -58,7 +58,9 @@ incluye la contraseña ni su hash.
 **Errores**, en el orden en que se resuelven:
 
 1. 400 `VALIDATION_ERROR`, por campo. Primero el formato del cuerpo; la moneda inexistente sale en
-   `baseCurrencyCode`.
+   `baseCurrencyCode`. Un `phone` sin `+` o con separadores (`3001234567`, `+57 300 123 4567`) sale
+   en `phone` con la descripción `El celular va en formato internacional: + e indicativo, de 7 a 15
+   digitos en total, sin espacios ni separadores`, la misma en el alta y en el perfil (FIN-59).
 2. 403 `REGISTRATION_NOT_ALLOWED` en `email` si el correo no está admitido. No se crea nada.
 3. 409 `DUPLICATE_RESOURCE` en `email` si el correo ya está registrado. Las mayúsculas no cuentan:
    `Ana@correo.com` y `ana@correo.com` son el mismo correo.

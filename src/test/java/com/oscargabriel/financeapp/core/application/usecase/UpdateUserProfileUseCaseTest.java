@@ -68,12 +68,12 @@ class UpdateUserProfileUseCaseTest {
         actualizacionPosible();
 
         StepVerifier.create(useCase().update(UserMother.ID,
-                        parche(" Ana Maria ", null, null, " 3109876543 ", " Europe/Madrid ", null)))
+                        parche(" Ana Maria ", null, null, " +573109876543 ", " Europe/Madrid ", null)))
                 .expectNextCount(1)
                 .verifyComplete();
 
         assertThat(guardado()).isEqualTo(new UserProfile(UserMother.ID, UserMother.EMAIL, "Ana Maria", null,
-                "3109876543", "COP", "Europe/Madrid", true, false));
+                "+573109876543", "COP", "Europe/Madrid", true, false));
         verifyNoInteractions(hasher);
     }
 

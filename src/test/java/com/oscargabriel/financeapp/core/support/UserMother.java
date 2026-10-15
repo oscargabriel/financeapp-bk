@@ -23,12 +23,12 @@ public final class UserMother {
      * con contrasena y sin Google.
      */
     public static UserProfile unPerfil() {
-        return new UserProfile(ID, EMAIL, "Ana", null, "3001234567", "COP", "America/Bogota", true, false);
+        return new UserProfile(ID, EMAIL, "Ana", null, "+573001234567", "COP", "America/Bogota", true, false);
     }
 
     /** Registrado con Google, sin contrasena (FIN-52). */
     public static UserProfile unPerfilDeGoogle() {
-        return new UserProfile(ID, EMAIL, "Ana", null, "3001234567", "COP", "America/Bogota", false, true);
+        return new UserProfile(ID, EMAIL, "Ana", null, "+573001234567", "COP", "America/Bogota", false, true);
     }
 
     /** Las de unPerfil(): con contrasena y sin Google. */

@@ -19,12 +19,15 @@ public final class Formatos {
     /** El mismo patron que los CHECK de color de categories y default_categories, en cualquier caja. */
     public static final String COLOR_HEX = "^\\s*(#[0-9A-Fa-f]{6})?\\s*$";
 
-    /** Un + opcional y de 7 a 15 digitos (el maximo de E.164), sin separadores: el front lo manda limpio. */
-    public static final String CELULAR = "^\\s*(\\+?[0-9]{7,15})?\\s*$";
+    /**
+     * E.164: el + obligatorio, un indicativo que no empieza por 0 y de 7 a 15 digitos en total, sin
+     * separadores. Asi se guarda tal como lo entrega Telegram, que lo compara al vincular el chat (FIN-60).
+     */
+    public static final String CELULAR = "^\\s*(\\+[1-9][0-9]{6,14})?\\s*$";
 
     /** Compartido por el alta y el parche del perfil, que validan el mismo campo. */
-    public static final String MENSAJE_CELULAR =
-            "El celular admite un + opcional y de 7 a 15 digitos, sin espacios ni separadores";
+    public static final String MENSAJE_CELULAR = "El celular va en formato internacional: + e indicativo,"
+            + " de 7 a 15 digitos en total, sin espacios ni separadores";
 
     /** Vacio, o al menos 8 caracteres de cualquier tipo, espacios incluidos. */
     public static final String AL_MENOS_8 = "^\\s*$|^[\\s\\S]{8,}$";

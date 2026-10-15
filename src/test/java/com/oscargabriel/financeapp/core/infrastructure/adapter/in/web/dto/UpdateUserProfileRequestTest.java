@@ -15,6 +15,9 @@ import com.oscargabriel.financeapp.compartido.support.Violaciones;
 
 class UpdateUserProfileRequestTest {
 
+    private static final String MENSAJE_CELULAR =
+            "El celular va en formato internacional: + e indicativo, de 7 a 15 digitos en total, sin espacios ni separadores";
+
     @Test
     void unParcheCompletoNoTieneViolaciones() {
         assertThat(Violaciones.de(new UpdateUserProfileRequest(" Ana Maria ", "Perez", " Ana@Correo.com ",
@@ -47,7 +50,9 @@ class UpdateUserProfileRequestTest {
                 Arguments.of("correo de 256", conCorreo("a".repeat(250) + "@x.com"),
                         "email", "El correo no tiene un formato valido"),
                 Arguments.of("celular con guion", new UpdateUserProfileRequest(null, null, null, "12-34", null, null, null),
-                        "phone", "El celular admite un + opcional y de 7 a 15 digitos, sin espacios ni separadores"),
+                        "phone", MENSAJE_CELULAR),
+                Arguments.of("celular sin indicativo", new UpdateUserProfileRequest(null, null, null, "3109876543", null, null, null),
+                        "phone", MENSAJE_CELULAR),
                 Arguments.of("zona en blanco", conZona(" "),
                         "timezone", "La zona horaria no puede ir en blanco: para no cambiarla, omitela"),
                 Arguments.of("zona desconocida", conZona("Marte/Base"),
