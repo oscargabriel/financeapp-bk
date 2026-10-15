@@ -1,0 +1,38 @@
+info:
+  name: Webhook con un mensaje sin chat
+  type: http
+  seq: 11
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  headers:
+    - name: X-Telegram-Bot-Api-Secret-Token
+      value: "{{telegramSecret}}"
+  body:
+    type: json
+    data: |-
+      {"update_id": 10004, "message": {"message_id": 3, "date": 1791590401, "text": "hola"}}
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: message.chat
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un mensaje sin chat
+
+  Sin `chat.id` el bot no tiene a quien responder: 400 sobre `message.chat` y no se envia nada.

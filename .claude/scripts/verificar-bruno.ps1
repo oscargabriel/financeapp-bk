@@ -118,6 +118,8 @@ $env:ASISTENTE_PROVEEDOR = 'stub'
 $env:TASAS_PROVEEDOR = 'stub'
 # bruno/auth-google/ presenta tokens del stub, nunca ID tokens reales de Google (FIN-52).
 $env:GOOGLE_PROVEEDOR = 'stub'
+# bruno/telegram/ responde con el bot stub, que solo escribe en el log, nunca con Telegram (FIN-89).
+$env:TELEGRAM_PROVEEDOR = 'stub'
 # El perfil local lee el puerto de SERVER_PORT (PORT solo lo usa Cloud Run): uno heredado de la
 # terminal sacaria a la app del puerto validado.
 $env:SERVER_PORT = $puerto

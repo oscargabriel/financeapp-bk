@@ -36,6 +36,8 @@ class CloudRunConfigTest {
         variables.put("GEMINI_API_KEY", "clave-de-gemini");
         variables.put("GEMINI_MODEL", "modelo-de-pruebas");
         variables.put("GOOGLE_CLIENT_ID", "cliente.apps.googleusercontent.com");
+        variables.put("TELEGRAM_BOT_TOKEN", "123456:token-del-bot");
+        variables.put("TELEGRAM_WEBHOOK_SECRET", "secreto-del-webhook-de-32-caracteres");
         return variables;
     }
 
@@ -116,6 +118,19 @@ class CloudRunConfigTest {
         assertThat(entorno.getRequiredProperty("google.timeout")).isEqualTo("5s");
     }
 
+    /** El stub solo existe fuera de prod; el servicio habla con la Bot API de Telegram (FIN-89). */
+    @Test
+    void elBotHablaConLaBotApiDeTelegram() throws IOException {
+        StandardEnvironment entorno = configuracion(variablesDelServicio());
+
+        assertThat(entorno.getRequiredProperty("telegram.proveedor")).isEqualTo("telegram");
+        assertThat(entorno.getRequiredProperty("telegram.bot-token")).isEqualTo("123456:token-del-bot");
+        assertThat(entorno.getRequiredProperty("telegram.webhook-secret"))
+                .isEqualTo("secreto-del-webhook-de-32-caracteres");
+        assertThat(entorno.getRequiredProperty("telegram.base-url")).isEqualTo("https://api.telegram.org");
+        assertThat(entorno.getRequiredProperty("telegram.timeout")).isEqualTo("5s");
+    }
+
     /** Tras un fallo de ExchangeRate-API no se le vuelve a consultar en una hora (FA-121). */
     @Test
     void elReintentoDeLasTasasTrasUnFalloEsDeUnaHoraSinVariable() throws IOException {
@@ -175,7 +190,9 @@ class CloudRunConfigTest {
             "CORS_ALLOWED_ORIGINS, cors.allowed-origins",
             "GEMINI_API_KEY, asistente.gemini.api-key",
             "GEMINI_MODEL, asistente.gemini.model",
-            "GOOGLE_CLIENT_ID, google.client-id"
+            "GOOGLE_CLIENT_ID, google.client-id",
+            "TELEGRAM_BOT_TOKEN, telegram.bot-token",
+            "TELEGRAM_WEBHOOK_SECRET, telegram.webhook-secret"
     })
     void noResuelveUnSecretoSinSuVariable(String variable, String propiedad) throws IOException {
         Map<String, Object> variables = variablesDelServicio();

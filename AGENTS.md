@@ -47,7 +47,9 @@ con un modelo de mentira que entiende `<funcion> <json>`, nunca con Gemini. Cont
 a mano sin esa variable, esa carpeta falla. Lo mismo con `TASAS_PROVEEDOR=stub` (FA-120):
 `bruno/exchange-rates/` recibe tasas fijas en vez de las de ExchangeRate-API. Y con
 `GOOGLE_PROVEEDOR=stub` (FIN-52): `bruno/auth-google/` presenta tokens `stub|<sub>|<email>|…` en vez
-de ID tokens de Google. Ninguno de los tres stubs existe con el perfil `prod`.
+de ID tokens de Google. Y con `TELEGRAM_PROVEEDOR=stub` (FIN-89): el bot de `bruno/telegram/` deja
+sus respuestas en el log en vez de mandarlas a Telegram. Ninguno de los cuatro stubs existe con el
+perfil `prod`.
 
 `bru` sale en 0 aunque descarte un archivo de la colección que no puede leer, y lo cuenta solo como
 «Skipped». Así dos requests de `bruno/assistant/` dejaron de correr sin aviso desde FIN-58. Por eso
@@ -102,7 +104,8 @@ Un solo proyecto de Gradle con un solo `src/main/resources`. Los módulos son pa
 |---|---|---|
 | `core/` | Finanzas: todo lo que atiende al front | `compartido` |
 | `ia/` | El asistente: modelo de lenguaje, sus lecturas y su endpoint | `compartido` |
-| `compartido/` | Errores (`ErrorCodes`, `BadRequestException`, `WebExceptionHandler`), las dos cadenas de seguridad, la trazabilidad, el `Clock` y la conexión R2DBC | nada de los otros |
+| `telegram/` | El bot de Telegram: el webhook y el cliente de la Bot API (FIN-89) | `compartido` |
+| `compartido/` | Errores (`ErrorCodes`, `BadRequestException`, `WebExceptionHandler`), las tres cadenas de seguridad, la trazabilidad, el `Clock` y la conexión R2DBC | nada de los otros |
 | `puente/` | Los adaptadores que conectan `ia` con el core | `core` e `ia` |
 
 El `main` (`FinanceappBkApplication`) queda en la raíz del paquete.
@@ -119,7 +122,7 @@ conversión con `finance.in_currency` (la de `MontoDeLaPersona`). Al cambiar una
 core hay que cambiarla también ahí. Si las dos copias se separan, lo detecta `bruno/assistant/`, que
 compara los totales y la lista del asistente con `/reports`.
 
-Para agregar un módulo (Telegram será el primero): un paquete nuevo
+Para agregar un módulo (Telegram fue el primero): un paquete nuevo
 `com.oscargabriel.financeapp.<modulo>` con su `domain/`, `application/` e `infrastructure/`, y sus
 tests en el mismo paquete bajo `src/test/java`. Lo que necesite de otro módulo va por un puerto de
 salida propio y un adaptador en `puente/`. Los nombres de clase de los beans no se repiten entre
@@ -228,8 +231,10 @@ pasen por `boundedElastic`.
   en los que Neon suspende. Si sube el máximo de instancias, rehacer esa cuenta.
 - Lee sin **default** los secretos y `CORS_ALLOWED_ORIGINS`: un despliegue sin `DB_USERNAME` /
   `DB_PASSWORD` / `JWT_SECRET` / `BASIC_USERNAME` / `BASIC_PASSWORD` / `CORS_ALLOWED_ORIGINS` /
-  `GEMINI_API_KEY` / `GEMINI_MODEL` / `GOOGLE_CLIENT_ID` falla
-  al arrancar en vez de levantar con valores implícitos. `DB_USERNAME` y `DB_PASSWORD` los enlaza el
+  `GEMINI_API_KEY` / `GEMINI_MODEL` / `GOOGLE_CLIENT_ID` / `TELEGRAM_BOT_TOKEN` /
+  `TELEGRAM_WEBHOOK_SECRET` falla al arrancar en vez de levantar con valores implícitos.
+  `TELEGRAM_WEBHOOK_SECRET` además tiene que tener entre 32 y 256 caracteres de `A-Za-z0-9_-`:
+  `SecurityConfig` lo comprueba al construir la cadena del webhook. `DB_USERNAME` y `DB_PASSWORD` los enlaza el
   binder de Boot, que deja pasar el placeholder sin resolver como texto literal. Lo que los hace
   fallar en el acto, como a los demás, es `R2dbcCredentialsCheck`, que los vuelve a pedir con
   `@Value` (FA-53): no lo borres por parecer vacío. `JWT_SECRET`
@@ -252,17 +257,21 @@ pasen por `boundedElastic`.
   [`docs/verificaciones-manuales.md`](docs/verificaciones-manuales.md), que cubre los dos caminos.
 - El bean `Clock` (`ClockConfig`, zona `app.timezone`) existe para que los casos de uso que dependen
   de «hoy» se puedan probar con fecha fija. Inyéctalo en vez de llamar a `YearMonth.now()`.
-- **Dos cadenas y ninguna ruta pública**: `SecurityConfig` expone dos
+- **Tres cadenas y ninguna ruta pública**: `SecurityConfig` expone tres
   `SecurityWebFilterChain`. La de `@Order(0)` lleva un `securityMatcher` con `POST /auth/register`,
   `/auth/login`, `/auth/refresh` y `/auth/logout` (FIN-47), `/auth/google/register` y
   `/auth/google/login` (FIN-52) y `GET /status`, y las autentica con `httpBasic` contra el único usuario del
-  `MapReactiveUserDetailsService`; la de `@Order(1)` recoge todo lo demás con
-  `oauth2ResourceServer().jwt()` y el Basic deshabilitado. CSRF, CORS y `formLogin` salen del método
-  `comun(...)`, para que las dos no se separen con el tiempo. Las reglas se escriben **sin** el
-  prefijo `/api`: el base-path lo quita el `HttpHandler` antes de que la cadena vea la petición.
-  Lo que hay que probar al tocar esto no es que cada credencial sirva, sino que la otra **no**: un
-  Bearer válido contra `/status` y un Basic válido contra una ruta de la API tienen que dar 401, y
-  `JwtSecurityIT` es lo que avisa si el matcher se corre. El precio, aceptado en FA-43: ya no hay
+  `MapReactiveUserDetailsService`. La de `@Order(1)` solo atiende `POST /telegram/webhook` (FIN-89)
+  y lo autentica con la cabecera `X-Telegram-Bot-Api-Secret-Token`, comparada en tiempo constante con
+  el secreto del webhook (`AutenticacionDelWebhook`). La de `@Order(2)` recoge todo lo demás con
+  `oauth2ResourceServer().jwt()` y el Basic deshabilitado, y por eso va última. CSRF, CORS y
+  `formLogin` salen del método `comun(...)`, para que las tres no se separen con el tiempo. Las
+  reglas se escriben **sin** el prefijo `/api`: el base-path lo quita el `HttpHandler` antes de que
+  la cadena vea la petición.
+  Lo que hay que probar al tocar esto no es que cada credencial sirva, sino que las otras **no**: un
+  Bearer válido contra `/status`, un Basic válido contra una ruta de la API, y cualquiera de los
+  dos, o el secreto del webhook fuera de él, tienen que dar 401. `JwtSecurityIT` y
+  `TelegramWebhookIT` son los que avisan si un matcher se corre. El precio, aceptado en FA-43: ya no hay
   ruta pública, así que un cliente sin la credencial compartida no puede ni registrarse, y un
   frontend de navegador la expone a quien abra las DevTools.
 - **La clave de firma vive solo en `JwtConfig`**, que expone el `SecretKey` y el `ReactiveJwtDecoder`.
@@ -306,6 +315,9 @@ asistente:
 google:
   client-id: ...         # sin default (FIN-52); con el stub de verificar-bruno.ps1 vale cualquier texto,
                          # con Google real, el client ID del OAuth Client de Google Cloud Console
+telegram:
+  bot-token: ...         # sin default (FIN-89); con el stub de verificar-bruno.ps1 vale cualquier texto
+  webhook-secret: ...    # sin default; 32 a 256 de A-Za-z0-9_-, el mismo TELEGRAM_WEBHOOK_SECRET de bruno/.env
 ```
 
 ## Tests

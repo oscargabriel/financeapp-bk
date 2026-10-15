@@ -44,3 +44,9 @@ variables:
     enabled: true
     secret: false
     type: text
+  # Secreto del webhook de Telegram (bruno/telegram/). secret: false por lo mismo que basicPass.
+  - name: telegramSecret
+    value: "{{process.env.TELEGRAM_WEBHOOK_SECRET}}"
+    enabled: true
+    secret: false
+    type: text

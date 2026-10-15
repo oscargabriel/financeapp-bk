@@ -74,6 +74,16 @@ google:
   jwks-uri: http://localhost:65535/oauth2/v3/certs
   timeout: 2s
 
+# Igual que Gemini: ningun test de contexto sale a la red. El adapter se prueba contra su propio
+# servidor falso (TelegramBotApiAdapterTest). El secreto esta duplicado en TelegramMother, que es
+# quien lo manda en las peticiones de la suite.
+telegram:
+  proveedor: telegram
+  bot-token: 123456:token-del-bot-de-pruebas
+  webhook-secret: secreto-del-webhook-de-pruebas-0123456789
+  base-url: http://localhost:65535
+  timeout: 2s
+
 # Apagado a proposito: el r2dbc de esta suite apunta a un puerto sin escucha, asi que el chequeo
 # de arranque abortaria el contexto de todos los tests de integracion.
 startup:

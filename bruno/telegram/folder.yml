@@ -1,0 +1,24 @@
+info:
+  name: Telegram
+  type: folder
+  seq: 21
+
+# Sin auth a proposito: Telegram no manda Authorization, sino la cabecera
+# X-Telegram-Bot-Api-Secret-Token, que cada request declara en http.headers. Los requests omiten
+# http.auth y asi no heredan el Bearer de la coleccion; los dos que cruzan credenciales con el
+# webhook declaran la suya.
+
+docs: |
+  # Webhook de Telegram (FIN-89)
+
+  `POST /api/telegram/webhook` vive en una tercera cadena de seguridad, que solo acepta el secreto
+  del webhook en `X-Telegram-Bot-Api-Secret-Token` (variable `telegramSecret`, desde
+  `TELEGRAM_WEBHOOK_SECRET` de `.env`). Ni la Basic ni el Bearer sirven ahi, y el secreto no sirve
+  en ninguna otra ruta: los requests `*-con-*` prueban las dos mitades del cruce.
+
+  **Corre contra el stub, nunca contra Telegram.** `verificar-bruno.ps1` levanta la app con
+  `TELEGRAM_PROVEEDOR=stub`, que solo deja el envio en el log. Por eso aqui se comprueban la
+  autenticacion y los status, no el texto que responde el bot: eso lo fija
+  `AtenderUpdateUseCaseTest` en la suite.
+
+  Necesita `auth/login` antes, por el `accessToken` de `Webhook con Bearer`.
