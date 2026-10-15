@@ -1,0 +1,23 @@
+info:
+  name: Descartar lo del archivo
+  type: http
+  seq: 68
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/groups/{{grupoArchivo}}/reject"
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

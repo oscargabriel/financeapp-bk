@@ -1,0 +1,37 @@
+info:
+  name: Archivo PDF
+  type: http
+  seq: 72
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: multipart-form
+    data:
+      - name: file
+        type: file
+        value:
+          - assistant/archivos/documento.pdf
+        contentType: application/pdf
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: file
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

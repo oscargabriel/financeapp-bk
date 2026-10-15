@@ -5,6 +5,8 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -22,6 +24,7 @@ import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestExcept
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantContext;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantDecision;
+import com.oscargabriel.financeapp.ia.domain.model.AssistantMessage;
 import com.oscargabriel.financeapp.ia.domain.port.out.AssistantModelPort;
 
 import lombok.extern.slf4j.Slf4j;
@@ -32,7 +35,7 @@ import tools.jackson.databind.ObjectMapper;
 /**
  * generateContent de Gemini con function calling, una llamada por mensaje (design.md de FA-77). La
  * clave va en el header, nunca en la URL. El log de una falla dice el status y el tipo, nunca la
- * clave, el prompt, el texto del usuario ni el cuerpo que devolvio Google.
+ * clave, el prompt, el texto o el archivo del usuario ni el cuerpo que devolvio Google.
  *
  * WebClient.builder() y no el bean: en Boot 4 el builder autoconfigurado vive en
  * spring-boot-starter-webclient, y para mandar un Map y leer un String no hace falta.
@@ -69,11 +72,11 @@ public class GeminiAssistantAdapter implements AssistantModelPort {
     }
 
     @Override
-    public Mono<AssistantDecision> interpretar(String texto, AssistantContext contexto) {
+    public Mono<AssistantDecision> interpretar(AssistantMessage mensaje, AssistantContext contexto) {
         return Mono.defer(() -> webClient.post()
                         .uri("/v1beta/models/{model}:generateContent", model)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .bodyValue(cuerpo(texto, contexto))
+                        .bodyValue(cuerpo(mensaje, contexto))
                         .retrieve()
                         .bodyToMono(String.class)
                         .timeout(timeout)
@@ -81,12 +84,29 @@ public class GeminiAssistantAdapter implements AssistantModelPort {
                 .onErrorMap(e -> !(e instanceof BadRequestException), GeminiAssistantAdapter::noDisponible);
     }
 
-    private Map<String, Object> cuerpo(String texto, AssistantContext contexto) {
+    private Map<String, Object> cuerpo(AssistantMessage mensaje, AssistantContext contexto) {
         return Map.of(
                 "systemInstruction", Map.of("parts", List.of(Map.of("text", instruccion(contexto)))),
-                "contents", List.of(Map.of("role", "user", "parts", List.of(Map.of("text", texto)))),
+                "contents", List.of(Map.of("role", "user", "parts", partes(mensaje))),
                 "tools", List.of(Map.of("functionDeclarations", funciones)),
                 "toolConfig", Map.of("functionCallingConfig", Map.of("mode", "AUTO")));
+    }
+
+    /**
+     * El texto, si lo hay, y despues el archivo en base64 dentro del mismo turno (design.md de FIN-57, decision 5).
+     * inlineData y no la Files API, que guardaria el archivo en Google.
+     */
+    private static List<Map<String, Object>> partes(AssistantMessage mensaje) {
+        List<Map<String, Object>> partes = new ArrayList<>(2);
+        if (mensaje.texto() != null) {
+            partes.add(Map.of("text", mensaje.texto()));
+        }
+        if (mensaje.archivo() != null) {
+            partes.add(Map.of("inlineData", Map.of(
+                    "mimeType", mensaje.archivo().tipo().mime(),
+                    "data", Base64.getEncoder().encodeToString(mensaje.archivo().contenido()))));
+        }
+        return partes;
     }
 
     private String instruccion(AssistantContext contexto) {

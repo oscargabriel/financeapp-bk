@@ -78,7 +78,9 @@ Una ruta sin el prefijo `/api` no existe: responde 404.
 
 ### Formato
 
-- Cuerpos en JSON, con `Content-Type: application/json`. Los campos van en `camelCase`.
+- Cuerpos en JSON, con `Content-Type: application/json`. Los campos van en `camelCase`. La única
+  excepción es [`POST /api/assistant/messages`](#post-apiassistantmessages) con un audio o una
+  imagen, que va en `multipart/form-data`.
 - Los identificadores son UUID en texto (versión 7, ordenables por fecha de creación).
 - Los campos sin valor salen como `null`. No se omiten, con una excepción: `installments` de una
   [compra en cuotas](#compras-en-cuotas) solo sale en el alta, y en las demás respuestas no viene.
@@ -209,7 +211,7 @@ Todos los errores salen con la misma forma:
 | 409 | `RESOURCE_IN_USE` | El cambio dejaría inconsistentes otros datos que usan el recurso: el alcance de una categoría con movimientos que no admitiría (`field`: `appliesTo`), la moneda de una cuenta con movimientos (`field`: `currencyCode`), o borrar una cuenta con saldo (`field`: `currentBalance`) |
 | 409 | `INVALID_STATE` | El recurso no está en el estado que la acción exige: aprobar o rechazar un movimiento o un grupo ya confirmado (`field`: `status`), o aprobar un pendiente con una cuenta desactivada o una categoría borrada (`field`: `accountId`, `destinationAccountId` o `categoryId`, con `[i].` delante si es un grupo), o una acción sobre una afiliación que no corresponde a su estado o al papel del usuario (`field`: `status`), o cambiar la contraseña o el correo sin tener contraseña (`field`: `currentPassword`), o definir la primera contraseña teniendo una (`field`: `newPassword`) |
 | 409 | `INSUFFICIENT_FUNDS` | La petición dejaría por debajo de cero el saldo de una cuenta que no es de crédito. Ver [Saldo no negativo](#saldo-no-negativo) |
-| 413 | `PAYLOAD_TOO_LARGE` | El cuerpo pasa de 1 MB |
+| 413 | `PAYLOAD_TOO_LARGE` | El cuerpo pasa de 1 MB. No aplica al archivo del asistente, que tiene su propio tope de 5 MB y responde 400 (ver [`POST /api/assistant/messages`](#post-apiassistantmessages)) |
 | 500 | `INTERNAL_SERVER_ERROR` | Error inesperado. Nunca trae detalle técnico |
 | 502 | `EXTERNAL_SERVICE_ERROR` | El modelo del asistente falló o no respondió a tiempo (`field`: `server`). Ver [`POST /api/assistant/messages`](#post-apiassistantmessages). También al registrar o modificar un movimiento, o al cambiar la moneda base en `PATCH /api/users/me`, cuando la moneda no tiene ninguna tasa de cambio guardada y el proveedor no respondió: no se guardó nada y se puede reintentar. Y en el registro y el login con Google cuando no se pudieron obtener las llaves de Google (`field`: `idToken`) |
 | 503 | — | Solo en `/status`, cuando la base no responde (ver su sección) |
@@ -2270,9 +2272,10 @@ el campo del parámetro:
 
 Recibe un mensaje en lenguaje natural ("gasté 20 mil en almuerzo con la Nequi", "¿cuánto gasté este
 mes?") y lo resuelve con un modelo de IA (FA-77). **Bearer.** Registra uno o varios movimientos,
-consulta los movimientos o consulta el saldo, siempre del usuario del token.
+consulta los movimientos o consulta el saldo, siempre del usuario del token. El mensaje puede ser un
+texto, una nota de voz o la foto de un recibo (FIN-57).
 
-**Cuerpo**
+**Cuerpo — solo texto**, en `application/json`:
 
 | Campo | Tipo | Obligatorio | Reglas |
 |---|---|---|---|
@@ -2281,6 +2284,49 @@ consulta los movimientos o consulta el saldo, siempre del usuario del token.
 ```json
 { "data": "gaste 20000 en almuerzo con la Nequi" }
 ```
+
+**Cuerpo — con un audio o una imagen**, en `multipart/form-data`, por la misma ruta:
+
+| Parte | Obligatoria | Reglas |
+|---|---|---|
+| `file` | no, si viene `data` | Un solo archivo, de 1 byte a 5 MB (5 242 880 bytes). Su `Content-Type` tiene que ser uno de los admitidos y coincidir con el contenido |
+| `data` | no, si viene `file` | El texto que acompaña al archivo, hasta 1000 caracteres. En blanco cuenta como ausente |
+
+| Tipo | `Content-Type` admitidos |
+|---|---|
+| Imagen | `image/jpeg`, `image/png`, `image/webp`, `image/heic`, `image/heif` |
+| Audio | `audio/ogg`, `audio/mpeg` (MP3), `audio/wav`, `audio/aac`, `audio/flac` |
+
+```
+POST /api/assistant/messages
+Authorization: Bearer <token>
+Content-Type: multipart/form-data; boundary=b
+
+--b
+Content-Disposition: form-data; name="file"; filename="recibo.jpg"
+Content-Type: image/jpeg
+
+<bytes de la imagen>
+--b
+Content-Disposition: form-data; name="data"
+
+con la Nequi
+--b--
+```
+
+Con `curl`: `curl -H "Authorization: Bearer $TOKEN" -F "file=@recibo.jpg;type=image/jpeg" -F "data=con la Nequi" .../api/assistant/messages`.
+
+- **La nota de voz** vale como si el usuario hubiera escrito lo que dice.
+- **De la foto de un recibo, factura o voucher** se toman el monto total, la fecha y una descripción
+  corta. **La cuenta nunca sale de la imagen**: va en `data` o en el audio, y si no viene la
+  respuesta es `NEEDS_CLARIFICATION` pidiéndola. Una imagen que no es un comprobante es
+  `UNSUPPORTED`.
+- Con imagen y texto se usan los dos ("con la Nequi" junto a la foto).
+- **El archivo no se guarda**: ni en la base ni en disco, y no aparece en los logs. Se manda al
+  modelo dentro de la misma petición y se descarta al responder. Lo registrado guarda los mismos
+  campos que con un texto.
+- Video, cualquier otro tipo, varios archivos o un audio grabado en un formato que no está en la
+  tabla (como el `audio/webm` del navegador) son 400.
 
 **200 OK** — también cuando el asistente no pudo hacer lo pedido: `intent` dice qué pasó.
 
@@ -2360,8 +2406,11 @@ no se compara: para decidir se usa `intent`.
 
 | HTTP | `code` | `field` | Cuándo |
 |---|---|---|---|
-| 400 | `VALIDATION_ERROR` | `data` | Falta, está en blanco o pasa de 1000 caracteres |
+| 400 | `VALIDATION_ERROR` | `data` | Falta, está en blanco o pasa de 1000 caracteres. En multipart: no vienen ni `data` ni `file`, `data` pasa de 1000 caracteres o viene dos veces |
+| 400 | `VALIDATION_ERROR` | `file` | Vacío, por encima de 5 MB, de un tipo que no está en la tabla, con un contenido que no corresponde a su `Content-Type`, o más de un archivo |
+| 400 | `VALIDATION_ERROR` | el nombre de la parte | Una parte que no es `data` ni `file` |
 | 401 | `UNAUTHENTICATED` | `authorization` | Sin token, token inválido o la credencial Basic |
+| 415 | `VALIDATION_ERROR` | `request` | El cuerpo no es `application/json` ni `multipart/form-data` |
 | 502 | `EXTERNAL_SERVICE_ERROR` | `server` | El modelo falló o no respondió a tiempo. No se registró nada: se puede reintentar |
 
 ### Afiliaciones

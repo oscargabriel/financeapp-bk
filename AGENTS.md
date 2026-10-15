@@ -200,6 +200,12 @@ validación de método de Spring: sus errores llegan como `HandlerMethodValidati
 handler traduce con el índice (`[3].amount`). Los path y query params siguen el primer patrón de
 arriba, no este. El orden de los errores no está garantizado: los tests comparan por contenido.
 
+La excepción es un cuerpo `multipart/form-data`, como el del asistente con un archivo (FIN-57). Se
+recibe como `Flux<PartEvent>`, porque el lector de `FilePart` escribe en disco las partes grandes, y
+ese flujo no pasa por `@Valid`. Las reglas de formato las aplica un lector propio en
+`adapter/in/web` (`LectorDeMensajeMultipart`) mientras lee las partes, y lanza `BadRequestException`
+con el campo de cada parte. Lo que necesita la base sigue en el caso de uso.
+
 ### Trazabilidad
 
 `LoggingFilter` mete un `requestId` en el Reactor Context; `ReactorMdcHook` lo copia al MDC de SLF4J

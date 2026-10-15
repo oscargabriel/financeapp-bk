@@ -25,6 +25,7 @@ import com.oscargabriel.financeapp.ia.domain.model.AssistantBalance;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantContext;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantContext.CategoriaConAmbito;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantDecision;
+import com.oscargabriel.financeapp.ia.domain.model.AssistantMessage;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantReply;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantReport;
 import com.oscargabriel.financeapp.ia.domain.model.CategoryScope;
@@ -47,7 +48,8 @@ import com.oscargabriel.financeapp.ia.domain.port.out.SeriesCatchUpPort;
 import reactor.core.publisher.Mono;
 
 /**
- * Pasa el texto al modelo y ejecuta lo que decida (design.md de FA-77). El modelo solo aporta
+ * Pasa el mensaje al modelo y ejecuta lo que decida (design.md de FA-77). Un archivo no cambia nada aqui: va al
+ * modelo con el texto, y lo que decide se resuelve igual (FIN-57). El modelo solo aporta
  * nombres y valores: el usuario sale del token, los nombres se resuelven entre los suyos y el formato
  * se valida aqui, porque el modelo no pasa por ningun DTO. Lo que no se pueda resolver se le pide
  * aclarar, sin crear ni consultar nada.
@@ -77,12 +79,12 @@ public class AssistantUseCase implements AssistantPort {
     private final Clock clock;
 
     @Override
-    public Mono<AssistantReply> atender(UUID userId, String texto) {
+    public Mono<AssistantReply> atender(UUID userId, AssistantMessage mensaje) {
         return Mono.zip(nombres.findActiveAccounts(userId).collectList(),
                         nombres.findLiveCategories(userId).collectList())
                 .flatMap(t -> {
                     DelUsuario suyo = new DelUsuario(t.getT1(), t.getT2());
-                    return modelo.interpretar(texto, suyo.contexto(LocalDate.now(clock)))
+                    return modelo.interpretar(mensaje, suyo.contexto(LocalDate.now(clock)))
                             .flatMap(decision -> ejecutar(userId, decision, suyo)
                                     .onErrorResume(Aclaracion.class,
                                             a -> Mono.just(AssistantReply.aclaracion(a.getMessage())))

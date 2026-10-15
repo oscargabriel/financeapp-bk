@@ -1,8 +1,8 @@
 # Verificaciones manuales
 
 Comprobaciones que ninguna de las dos capas de prueba puede hacer y que por eso hay que correr a
-mano. No están en la suite de Gradle porque exigen manipular el entorno de arranque, y no están en
-`bruno/` porque ocurren antes de que la aplicación acepte tráfico.
+mano: porque exigen manipular el entorno de arranque y ocurren antes de que la aplicación acepte
+tráfico, o porque dependen de un servicio externo que `bruno/` reemplaza por un stub.
 
 Cada una dice qué cambiar, qué comando correr y qué salida esperar. Si la salida no coincide, el
 cableado se rompió.
@@ -80,3 +80,79 @@ Lo que hay que comprobar, en este orden:
    el detalle del driver se queda en el log y no sube al mensaje.
 
 Un cambio de `max-attempts` cambia el conteo de los mensajes; el resto no debería moverse.
+
+## El asistente con audio e imagen contra Gemini
+
+`bruno/assistant/` corre con el modelo stub, que solo lee el texto del mensaje: ejerce el
+multipart, el formato del archivo y el 401, pero no lo que el modelo hace con una nota de voz o con
+la foto de un recibo (FIN-57). Eso solo se ve contra Gemini. Lo que se detecta aquí es una
+instrucción (`asistente/instrucciones.txt`) que el modelo deja de seguir, o un tipo de archivo que
+Gemini rechaza.
+
+**Correr esto al tocar `instrucciones.txt`, `GeminiAssistantAdapter`, el modelo
+(`GEMINI_MODEL`) o los tipos de `AssistantFileType`.** Verificado por última vez el 14-10-2026 con
+`gemini-3.1-flash-lite`.
+
+### Los archivos
+
+Se generan en `build/verificacion-fin-57/`, que git ignora: una nota de voz con la síntesis de voz
+de Windows y un recibo dibujado como PNG. Se corre con `powershell.exe` (5.1), que trae
+`System.Speech`:
+
+```powershell
+$d = "$PWD\build\verificacion-fin-57"; New-Item -ItemType Directory -Force $d | Out-Null
+powershell.exe -NoProfile -Command @"
+Add-Type -AssemblyName System.Speech
+`$s = New-Object System.Speech.Synthesis.SpeechSynthesizer
+`$v = `$s.GetInstalledVoices() | Where-Object { `$_.VoiceInfo.Culture.Name -like 'es*' } | Select-Object -First 1
+if (`$v) { `$s.SelectVoice(`$v.VoiceInfo.Name) }
+`$s.SetOutputToWaveFile('$d\nota.wav'); `$s.Speak('gasté veinte mil en almuerzo con la Nequi'); `$s.Dispose()
+Add-Type -AssemblyName System.Drawing
+`$b = New-Object System.Drawing.Bitmap 420, 560; `$g = [System.Drawing.Graphics]::FromImage(`$b)
+`$g.Clear([System.Drawing.Color]::White); `$f = New-Object System.Drawing.Font 'Consolas', 14; `$y = 20
+foreach (`$l in @('RESTAURANTE EL BUEN SABOR','NIT 900.123.456-7','Calle 10 # 5-20, Bogota','',
+  'Fecha: 13/10/2026  Hora: 12:45','Factura No. 004512','----------------------------------',
+  '1 Bandeja paisa        28.000','1 Limonada natural      6.000','1 Postre del dia        4.500',
+  '----------------------------------','TOTAL A PAGAR    38.500','Medio de pago: TARJETA DEBITO',
+  'Gracias por su compra')) {
+  `$g.DrawString(`$l, `$f, [System.Drawing.Brushes]::Black, 20, `$y); `$y += 28 }
+`$b.Save('$d\recibo.png', [System.Drawing.Imaging.ImageFormat]::Png); `$g.Dispose(); `$b.Dispose()
+"@
+```
+
+El recibo dice a propósito «TARJETA DEBITO»: la cuenta no puede salir de ahí.
+
+### La corrida
+
+Levantar la app de la rama con Gemini real (el perfil `local` ya trae la clave), en un puerto
+libre:
+
+```powershell
+$env:SPRING_PROFILES_ACTIVE = 'local'; $env:SERVER_PORT = '8082'; $env:ASISTENTE_PROVEEDOR = 'gemini'
+.\gradlew.bat bootRun
+```
+
+Desde Git Bash, con el token de `dev@financeapp.local` (`POST /api/auth/login` con la credencial
+Basic de `bruno/.env`), que tiene las cuentas `Nequi` y la categoría `Restaurantes`:
+
+```bash
+cd build/verificacion-fin-57; U=http://localhost:8082/api/assistant/messages
+curl -s -w "\n%{time_total}s\n" -H "Authorization: Bearer $T" -F "file=@nota.wav;type=audio/wav" $U
+curl -s -w "\n%{time_total}s\n" -H "Authorization: Bearer $T" -F "file=@recibo.png;type=image/png" $U
+curl -s -w "\n%{time_total}s\n" -H "Authorization: Bearer $T" -F "file=@recibo.png;type=image/png" -F "data=con la Nequi" $U
+```
+
+Lo esperado, y lo que dio el 14-10-2026:
+
+| Envío | Esperado | Resultado | Tiempo |
+|---|---|---|---|
+| Nota de voz | Lo mismo que el texto «gaste 20 mil en almuerzo con la Nequi»: un gasto pendiente de 20.000 en Nequi, categoría Restaurantes | `CREATE_TRANSACTION`, 20.000, Nequi, Restaurantes, «almuerzo». El texto da lo mismo en 3,2 s | 8,3 s |
+| Recibo sin texto | `NEEDS_CLARIFICATION` pidiendo la cuenta; no la saca del «TARJETA DEBITO» | `NEEDS_CLARIFICATION`: «Falta la cuenta. Tus cuentas: …» | 10,4 s |
+| Recibo con «con la Nequi» | Gasto pendiente con el total, la fecha y una descripción del recibo, en Nequi | `CREATE_TRANSACTION`, 38.500, 13-10-2026 a las 12:00, «Restaurante El Buen Sabor», Nequi, Restaurantes | 13,2 s |
+
+Después, descartar los grupos creados (`POST /api/transactions/groups/{id}/reject`) y comprobar que
+el log de la app no tiene el contenido de los archivos: buscar el texto del recibo y el comienzo de
+su base64 (`iVBORw0`, y `UklGR` del WAV) no debe dar ninguna línea.
+
+Los tiempos son lo que más hay que vigilar: el límite es `GEMINI_TIMEOUT` (20 s), y el recibo con
+texto ya usa dos tercios. Si una corrida se acerca al límite, subir la variable en el servicio.

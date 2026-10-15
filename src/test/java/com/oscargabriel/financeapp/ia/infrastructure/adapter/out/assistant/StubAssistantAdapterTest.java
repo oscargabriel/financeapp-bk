@@ -13,6 +13,9 @@ import org.springframework.http.HttpStatus;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantContext;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantDecision;
+import com.oscargabriel.financeapp.ia.domain.model.AssistantFile;
+import com.oscargabriel.financeapp.ia.domain.model.AssistantFileType;
+import com.oscargabriel.financeapp.ia.domain.model.AssistantMessage;
 import com.oscargabriel.financeapp.ia.domain.port.out.AssistantModelPort;
 
 import reactor.test.StepVerifier;
@@ -28,9 +31,9 @@ class StubAssistantAdapterTest {
 
     @Test
     void entiendeUnaFuncionConSusArgumentos() {
-        StepVerifier.create(stub.interpretar("""
+        StepVerifier.create(stub.interpretar(AssistantMessage.deTexto("""
                         crear_movimiento {"tipo":"EXPENSE","monto":20000,"cuenta":"nequi","categoria":"mercado",
-                        "descripcion":"Mercado"}""", CONTEXTO))
+                        "descripcion":"Mercado"}"""), CONTEXTO))
                 .expectNext(new AssistantDecision.CrearMovimientos(List.of(new AssistantDecision.CrearMovimiento(
                         "EXPENSE", "20000", "nequi", null, "mercado", "Mercado", null))))
                 .verifyComplete();
@@ -39,11 +42,11 @@ class StubAssistantAdapterTest {
     /** FIN-58: una llamada por linea, como Gemini devuelve varias partes functionCall. */
     @Test
     void entiendeVariasLlamadasUnaPorLinea() {
-        StepVerifier.create(stub.interpretar("""
+        StepVerifier.create(stub.interpretar(AssistantMessage.deTexto("""
                         crear_movimiento {"tipo":"EXPENSE","monto":20000,"cuenta":"nequi","categoria":"mercado",
                         "descripcion":"Almuerzo"}
                         crear_movimiento {"tipo":"EXPENSE","monto":15000,"cuenta":"nequi","descripcion":"Taxi"}
-                        consultar_saldo""", CONTEXTO))
+                        consultar_saldo"""), CONTEXTO))
                 .expectNext(new AssistantDecision.CrearMovimientos(List.of(
                         new AssistantDecision.CrearMovimiento("EXPENSE", "20000", "nequi", null, "mercado", "Almuerzo",
                                 null),
@@ -53,22 +56,43 @@ class StubAssistantAdapterTest {
 
     @Test
     void entiendeUnaFuncionSinArgumentos() {
-        StepVerifier.create(stub.interpretar("  consultar_saldo  ", CONTEXTO))
+        StepVerifier.create(stub.interpretar(AssistantMessage.deTexto("  consultar_saldo  "), CONTEXTO))
                 .expectNext(new AssistantDecision.ConsultarSaldo(null, null))
                 .verifyComplete();
     }
 
     @Test
     void cualquierOtroTextoEsSinFuncion() {
-        StepVerifier.create(stub.interpretar("cuentame un chiste", CONTEXTO))
+        StepVerifier.create(stub.interpretar(AssistantMessage.deTexto("cuentame un chiste"), CONTEXTO))
                 .expectNext(new AssistantDecision.SinFuncion())
+                .verifyComplete();
+    }
+
+    /** FIN-57: el stub no mira el archivo; sin texto no hay funcion, como Gemini ante algo que no entiende. */
+    @Test
+    void unArchivoSinTextoEsSinFuncion() {
+        AssistantFile recibo = new AssistantFile(AssistantFileType.JPEG,
+                new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x01});
+
+        StepVerifier.create(stub.interpretar(new AssistantMessage(null, recibo), CONTEXTO))
+                .expectNext(new AssistantDecision.SinFuncion())
+                .verifyComplete();
+    }
+
+    @Test
+    void conArchivoInterpretaSoloElTexto() {
+        AssistantFile recibo = new AssistantFile(AssistantFileType.JPEG,
+                new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x01});
+
+        StepVerifier.create(stub.interpretar(new AssistantMessage("consultar_saldo", recibo), CONTEXTO))
+                .expectNext(new AssistantDecision.ConsultarSaldo(null, null))
                 .verifyComplete();
     }
 
     /** Igual que un cuerpo ilegible de Gemini: Bruno puede ejercer el 502 sin Google. */
     @Test
     void argumentosQueNoSonJsonSonUn502() {
-        StepVerifier.create(stub.interpretar("crear_movimiento {no es json", CONTEXTO))
+        StepVerifier.create(stub.interpretar(AssistantMessage.deTexto("crear_movimiento {no es json"), CONTEXTO))
                 .verifyErrorSatisfies(error -> assertThat(error).isInstanceOfSatisfying(BadRequestException.class,
                         bre -> assertThat(bre.getHttpStatus()).isEqualTo(HttpStatus.BAD_GATEWAY)));
     }

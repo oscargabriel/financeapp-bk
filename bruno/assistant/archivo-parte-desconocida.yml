@@ -1,0 +1,37 @@
+info:
+  name: Parte desconocida
+  type: http
+  seq: 76
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: multipart-form
+    data:
+      - name: foto
+        type: file
+        value:
+          - assistant/archivos/recibo.png
+        contentType: image/png
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: foto
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
