@@ -25,8 +25,14 @@
 -- relativas al mes en curso, y del mes en curso solo entran los movimientos que
 -- ya ocurrieron: dos cargas el mismo dia dejan el mismo estado.
 --
--- En Neon se carga solo para demo@ (FIN-43): cómo, en docs/despliegue.md.
--- Necesita antes una tasa USD->COP: en local la deja test-data.sql (FIN-45).
+-- Carga sobre schema.sql + seed.sql sin pasos previos. Los movimientos necesitan
+-- una tasa USD->COP: si el par no tiene ninguna, el script inserta una de
+-- respaldo, 4000 MANUAL, fechada el dia 1 de hace seis meses (FIN-45). Si ya hay
+-- alguna (las de test-data.sql en local, las reales en Neon) no toca la tabla.
+--
+-- En Neon se carga solo para demo@ (FIN-43) y es seguro correrlo ahi: borra y
+-- recrea solo su usuario, y no cambia las tasas que ya existan. Cómo, en
+-- docs/despliegue.md.
 --
 -- Ejecutar:  psql -U postgres -d financeapp -f docs/database/demo-data.sql
 -- =============================================================================
@@ -72,6 +78,17 @@ DELETE FROM finance.users
 INSERT INTO finance.registration_allowlist (entry)
 VALUES ('@front.local')
 ON CONFLICT DO NOTHING;
+
+-- El trigger de transactions necesita alguna tasa USD->COP (FIN-45). Solo si el
+-- par no tiene ninguna: las de test-data.sql o las reales de Neon no se tocan.
+-- Fechada antes del movimiento mas antiguo, nunca hoy: una fila de hoy dejaria
+-- al proveedor sin guardar la tasa real del dia.
+INSERT INTO finance.exchange_rates (from_currency_code, to_currency_code, rate, rate_date, source)
+SELECT 'USD', 'COP', 4000, (date_trunc('month', now() AT TIME ZONE 'America/Bogota') - INTERVAL '6 months')::date, 'MANUAL'
+ WHERE NOT EXISTS (SELECT 1
+                     FROM finance.exchange_rates
+                    WHERE from_currency_code = 'USD'
+                      AND to_currency_code = 'COP');
 
 
 -- -----------------------------------------------------------------------------
