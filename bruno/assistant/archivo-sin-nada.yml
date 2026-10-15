@@ -1,0 +1,40 @@
+info:
+  name: Multipart sin texto ni archivo
+  type: http
+  seq: 75
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: multipart-form
+    data:
+      - name: data
+        type: text
+        value: "   "
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: data
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un data en blanco y ningun archivo
+
+  En blanco cuenta como ausente, y sin archivo el texto es obligatorio.

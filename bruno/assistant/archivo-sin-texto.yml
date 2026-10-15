@@ -1,0 +1,40 @@
+info:
+  name: Solo el archivo
+  type: http
+  seq: 70
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: multipart-form
+    data:
+      - name: file
+        type: file
+        value:
+          - assistant/archivos/recibo.png
+        contentType: image/png
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.intent
+      operator: eq
+      value: UNSUPPORTED
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Archivo sin texto
+
+  El archivo se acepta sin `data`. El stub solo lee el texto, asi que sin texto responde sin funcion
+  (`UNSUPPORTED`); con Gemini el modelo veria la imagen.

@@ -1,0 +1,59 @@
+info:
+  name: Archivo con texto
+  type: http
+  seq: 67
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: multipart-form
+    data:
+      - name: file
+        type: file
+        value:
+          - assistant/archivos/recibo.png
+        contentType: image/png
+      - name: data
+        type: text
+        value: "crear_movimiento {\"tipo\": \"EXPENSE\", \"monto\": 20000, \"cuenta\": \"efectivo\", \"categoria\": \"MERCADO\", \"descripcion\": \"Almuerzo\"}"
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.intent
+      operator: eq
+      value: CREATE_TRANSACTION
+  scripts:
+    - type: tests
+      code: |-
+        const grupo = res.getBody().group;
+        bru.setVar("grupoArchivo", grupo.id);
+
+        test("registra lo que dice el texto, igual que en JSON", function() {
+          const t = grupo.transactions[0];
+          expect(grupo.transactions.length).to.equal(1);
+          expect(t.status).to.equal("PENDING");
+          expect(t.amount).to.equal(20000);
+          expect(t.account).to.equal("Efectivo");
+          expect(t.category).to.equal("Mercado");
+          expect(t.description).to.equal("Almuerzo");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Multipart con una imagen y un texto (FIN-57)
+
+  El stub no mira el archivo: interpreta `data` como siempre. Aqui se prueba que el camino multipart
+  llega al mismo resultado que el JSON. Lo que hace Gemini con la imagen esta en
+  `docs/verificaciones-manuales.md`. El siguiente request descarta el grupo.

@@ -1,0 +1,42 @@
+info:
+  name: Archivo con tipo falso
+  type: http
+  seq: 73
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: multipart-form
+    data:
+      - name: file
+        type: file
+        value:
+          - assistant/archivos/nota.ogg
+        contentType: image/jpeg
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: file
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un OGG declarado image/jpeg
+
+  El tipo declarado lo controla el cliente: los primeros bytes tienen que ser los de ese tipo.

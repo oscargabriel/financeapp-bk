@@ -12,6 +12,7 @@ import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestExcept
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantContext;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantDecision;
+import com.oscargabriel.financeapp.ia.domain.model.AssistantMessage;
 import com.oscargabriel.financeapp.ia.domain.port.out.AssistantModelPort;
 
 import lombok.AllArgsConstructor;
@@ -23,6 +24,9 @@ import tools.jackson.databind.ObjectMapper;
  * decision 7). Entiende "<funcion> <json de argumentos>", una llamada por linea como las varias partes functionCall de
  * Gemini (FIN-58); el json puede seguir en las lineas siguientes. Un texto que no empieza por una funcion es una
  * respuesta sin funcion. Con el perfil prod no existe aunque se pida, y entonces no hay adapter y no arranca.
+ *
+ * El archivo de un mensaje no lo mira (design.md de FIN-57, decision 6): solo el texto, y sin texto no hay funcion. Lo
+ * que el modelo real hace con un audio o una imagen esta en docs/verificaciones-manuales.md.
  */
 @Component
 @Profile("!prod")
@@ -33,8 +37,11 @@ public class StubAssistantAdapter implements AssistantModelPort {
     private final ObjectMapper json;
 
     @Override
-    public Mono<AssistantDecision> interpretar(String texto, AssistantContext contexto) {
-        return Mono.fromCallable(() -> FuncionesDelAsistente.decision(llamadas(texto))).onErrorMap(e -> new BadRequestException(HttpStatus.BAD_GATEWAY, ErrorCodes.EXTERNAL_SERVICE_ERROR,
+    public Mono<AssistantDecision> interpretar(AssistantMessage mensaje, AssistantContext contexto) {
+        if (mensaje.texto() == null) {
+            return Mono.just(new AssistantDecision.SinFuncion());
+        }
+        return Mono.fromCallable(() -> FuncionesDelAsistente.decision(llamadas(mensaje.texto()))).onErrorMap(e -> new BadRequestException(HttpStatus.BAD_GATEWAY, ErrorCodes.EXTERNAL_SERVICE_ERROR,
                 "El asistente no esta disponible en este momento; intenta de nuevo", "server", e));
     }
 
