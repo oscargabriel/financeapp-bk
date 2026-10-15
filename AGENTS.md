@@ -423,7 +423,8 @@ montar en Bruno.
 igual que en local, y además la demo de `demo@financeapp.local` (`demo-data.sql`, decisión del
 usuario en FIN-43, 12-10-2026): la app se muestra con esos datos. Su contraseña es la del repo,
 que es público, y deja `@front.local` en la lista de admitidos: riesgos aceptados, descritos en
-`docs/despliegue.md`. Cargarla en una base nueva exige antes una tasa USD→COP (FIN-45). Cómo se aplica un update ahí, el registro de los ya aplicados y el
+`docs/despliegue.md`. Si el par USD→COP no tiene ninguna tasa, la demo inserta una de respaldo
+(FIN-45): en Neon se trae antes la real. Cómo se aplica un update ahí, el registro de los ya aplicados y el
 respaldo del plan están en [`docs/despliegue.md`](docs/despliegue.md#base-de-datos-neon). El
 encabezado de cada update dice si va antes o después del despliegue de su app; ese orden es el que
 sigue el procedimiento.

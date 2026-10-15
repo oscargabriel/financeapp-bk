@@ -90,9 +90,12 @@ psql -X -v ON_ERROR_STOP=1 -f docs/database/demo-data.sql
 psql -X -v ON_ERROR_STOP=1 -f docs/database/check-saldos.sql
 ```
 
-- **La tasa va primero.** `demo-data.sql` falla sin una tasa USD→COP (FIN-45); en local la pone
-  `test-data.sql`. Se toma de ExchangeRate-API, la misma fuente que usa la app, y como `usd_rate`
-  usa la primera posterior cuando no hay una anterior, una alcanza para los seis meses.
+- **La tasa real va primero, aunque no es obligatoria.** Los movimientos de la demo necesitan una
+  tasa USD→COP. Si el par no tiene ninguna, `demo-data.sql` inserta una de respaldo, 4000 `MANUAL`
+  fechada el día 1 de hace seis meses (FIN-45); si ya hay alguna, no toca la tabla. Se recomienda
+  traer antes la real de ExchangeRate-API, la misma fuente que usa la app: como `usd_rate` usa la
+  primera posterior cuando no hay una anterior, una alcanza para los seis meses. Sin ella, la de
+  respaldo queda como la tasa de toda la demo.
 - **Las fechas no avanzan.** Se calculan al cargar: al cambiar de mes, el mes en curso queda sin
   movimientos. Recargar es correr de nuevo `demo-data.sql`, que borra a `demo@` y a los
   `@front.local` y los recrea; la tasa ya existe.
