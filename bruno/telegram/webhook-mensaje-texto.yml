@@ -1,0 +1,44 @@
+info:
+  name: Webhook con un mensaje de texto
+  type: http
+  seq: 7
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  headers:
+    - name: X-Telegram-Bot-Api-Secret-Token
+      value: "{{telegramSecret}}"
+  body:
+    type: json
+    data: |-
+      {
+        "update_id": 10001,
+        "message": {
+          "message_id": 1,
+          "date": 1791590401,
+          "from": {"id": 123456, "is_bot": false, "first_name": "Prueba"},
+          "chat": {"id": 123456, "type": "private", "first_name": "Prueba"},
+          "text": "hola"
+        }
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un mensaje de texto de un chat sin vincular
+
+  Con el secreto correcto el update entra y el webhook responde 200. Mientras no exista la
+  vinculacion (FIN-60), todo chat esta sin vincular y el bot le responde el texto fijo; con el stub,
+  ese envio solo queda en el log de la app. Los campos que Telegram manda y el API no usa (`from`,
+  `date`) se ignoran.

@@ -12,10 +12,12 @@ docs:
   content: |
     # financeapp-bk
 
-    Ninguna ruta es publica, y no todas se autentican igual. Desde FA-43 el API tiene dos cadenas:
+    Ninguna ruta es publica, y no todas se autentican igual. Desde FIN-89 el API tiene tres cadenas:
 
     - `auth/`, `auth-google/` y `system/` van con **HTTP Basic**, la credencial compartida de
       `BASIC_USERNAME` y `BASIC_PASSWORD`. Las tres carpetas la declaran en su `folder.yml`.
+    - `telegram/` va con el **secreto del webhook** en `X-Telegram-Bot-Api-Secret-Token`
+      (`TELEGRAM_WEBHOOK_SECRET`), que cada request declara en sus cabeceras.
     - Todo lo demas va con **Bearer**, declarado aqui una sola vez; los requests usan
       `auth: inherit`.
 

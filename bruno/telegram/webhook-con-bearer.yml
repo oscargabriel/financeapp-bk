@@ -1,0 +1,42 @@
+info:
+  name: Webhook con Bearer
+  type: http
+  seq: 4
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  body:
+    type: json
+    data: |-
+      {"update_id": 10001, "message": {"message_id": 1, "date": 1791590401, "chat": {"id": 123456, "type": "private"}, "text": "hola"}}
+  auth:
+    type: bearer
+    token: "{{accessToken}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+  scripts:
+    - type: tests
+      code: |-
+        test("el reto es el de la cadena del webhook", function() {
+          expect(res.getHeader("www-authenticate")).to.equal("Telegram");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un access token valido no abre el webhook
+
+  El token de `auth/login` es impecable y aun asi no entra: la cadena del webhook no monta el
+  resource server.

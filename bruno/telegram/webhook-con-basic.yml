@@ -1,0 +1,43 @@
+info:
+  name: Webhook con la credencial Basic
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  body:
+    type: json
+    data: |-
+      {"update_id": 10001, "message": {"message_id": 1, "date": 1791590401, "chat": {"id": 123456, "type": "private"}, "text": "hola"}}
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+  scripts:
+    - type: tests
+      code: |-
+        test("el reto es el de la cadena del webhook", function() {
+          expect(res.getHeader("www-authenticate")).to.equal("Telegram");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # La credencial compartida no abre el webhook
+
+  La cadena del webhook no monta el Basic. Si este request da 200, la credencial del front sirve
+  para inyectar updates.

@@ -1,0 +1,39 @@
+info:
+  name: Webhook con un cuerpo que no es JSON
+  type: http
+  seq: 10
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: X-Telegram-Bot-Api-Secret-Token
+      value: "{{telegramSecret}}"
+  body:
+    type: text
+    data: "{update_id:"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: JSON_PARSING_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: body
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un cuerpo ilegible con el secreto correcto
+
+  Pasa la cadena del webhook y lo rechaza el codec, con el mismo error que el resto del API.

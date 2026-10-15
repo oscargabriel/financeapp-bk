@@ -117,6 +117,16 @@ google:
   jwks-uri: ${GOOGLE_JWKS_URI:https://www.googleapis.com/oauth2/v3/certs}
   timeout: ${GOOGLE_TIMEOUT:5s}
 
+# Bot de Telegram (FIN-89). El token y el secreto del webhook no llevan default, como los secretos.
+# El secreto lo valida SecurityConfig al arrancar. La URL de la Bot API es fija de configuracion,
+# nunca de la peticion. El stub solo existe fuera de prod.
+telegram:
+  proveedor: ${TELEGRAM_PROVEEDOR:telegram}
+  bot-token: ${TELEGRAM_BOT_TOKEN}
+  webhook-secret: ${TELEGRAM_WEBHOOK_SECRET}
+  base-url: ${TELEGRAM_BASE_URL:https://api.telegram.org}
+  timeout: ${TELEGRAM_TIMEOUT:5s}
+
 # Verificacion de conectividad con la base al arrancar: si no responde tras agotar los intentos,
 # el contexto no termina de levantar y la aplicacion no queda escuchando. Se apaga solo donde no
 # hay base que responder (la suite de tests).

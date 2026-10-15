@@ -66,12 +66,13 @@ de su recurso en el mismo PR; aquí, solo su fila de la tabla.
 | `POST` | `/api/affiliations/{id}/unlink` | Bearer | Desvincular una afiliación aceptada | [afiliaciones.md](afiliaciones.md) |
 | `GET` | `/api/affiliations/balances` | Bearer | Lo que el usuario y cada persona se deben, por moneda | [afiliaciones.md](afiliaciones.md) |
 | `GET` | `/api/affiliations/{id}/shares` | Bearer | Las partes compartidas entre el usuario y esa persona | [afiliaciones.md](afiliaciones.md) |
+| `POST` | `/api/telegram/webhook` | Secreto del webhook | Recibir los updates del bot de Telegram (lo llama Telegram) | [telegram.md](telegram.md) |
 
 ## Archivos
 
 | Archivo | Qué cubre |
 |---|---|
-| [generalidades.md](generalidades.md) | Lo común a todos los endpoints: URL base, formato, montos y fechas; autenticación Basic y Bearer, y el 401; errores y el saldo no negativo; CORS, y lo que el API todavía no tiene |
+| [generalidades.md](generalidades.md) | Lo común a todos los endpoints: URL base, formato, montos y fechas; autenticación Basic, Bearer y el secreto del webhook, y el 401; errores y el saldo no negativo; CORS, y lo que el API todavía no tiene |
 | [auth.md](auth.md) | Registro, login, Google, refresh y logout (`/api/auth/*`), y `GET /api/status` |
 | [usuarios.md](usuarios.md) | El perfil y la contraseña del usuario (`/api/users/me`) |
 | [cuentas.md](cuentas.md) | Las cuentas (`/api/accounts`) |
@@ -85,3 +86,4 @@ de su recurso en el mismo PR; aquí, solo su fila de la tabla.
 | [reportes.md](reportes.md) | El gasto mensual (`/api/monthly-spending`) y los reportes de movimientos y de balance (`/api/reports/*`) |
 | [asistente.md](asistente.md) | El asistente en lenguaje natural (`/api/assistant/messages`) |
 | [afiliaciones.md](afiliaciones.md) | Las afiliaciones entre usuarios y lo que se deben (`/api/affiliations`) |
+| [telegram.md](telegram.md) | El webhook del bot de Telegram (`/api/telegram/webhook`) |

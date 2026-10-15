@@ -54,7 +54,7 @@ el cliente la convierte a la zona que quiera mostrar.
 
 ## Autenticación
 
-**No hay rutas públicas.** El API tiene dos esquemas y cada ruta acepta exactamente uno. Si llega el
+**No hay rutas públicas.** El API tiene tres esquemas y cada ruta acepta exactamente uno. Si llega
 otro, la respuesta es 401 aunque sea válido.
 
 ### Basic — `register`, `login`, `google/register`, `google/login`, `refresh`, `logout`, `status`
@@ -95,6 +95,17 @@ Authorization: Bearer <accessToken>
 - El usuario sale del token (`sub`). Ninguna ruta lleva el id del usuario en la URL, y nadie puede
   pedir datos de otro.
 
+### Secreto del webhook — `telegram/webhook`
+
+Solo para [`POST /api/telegram/webhook`](telegram.md), que llama Telegram y no un cliente del API
+(FIN-89). Telegram repite en cada update el `secret_token` con el que se registró el webhook:
+
+```
+X-Telegram-Bot-Api-Secret-Token: <secreto>
+```
+
+El secreto no sirve en ninguna otra ruta, y ni la Basic ni el Bearer sirven en el webhook.
+
 ### El 401
 
 Todo 401 del API tiene el mismo cuerpo, falle lo que falle (token ausente, vencido, mal firmado o
@@ -104,7 +115,7 @@ credencial equivocada):
 {"errors":[{"code":"UNAUTHENTICATED","description":"Autenticacion requerida","field":"authorization"}]}
 ```
 
-Lleva además la cabecera `WWW-Authenticate: Basic` o `WWW-Authenticate: Bearer`, según la ruta. El
+Lleva además la cabecera `WWW-Authenticate: Basic`, `Bearer` o `Telegram`, según la ruta. El
 motivo concreto solo queda en el log del servidor. El cliente no lo puede saber y no debe
 intentarlo: ante un 401 en una ruta Bearer, prueba una vez con
 [`POST /auth/refresh`](auth.md#post-apiauthrefresh), y si el refresco también da 401, vuelve al login.

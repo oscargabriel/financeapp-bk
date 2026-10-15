@@ -1,0 +1,41 @@
+info:
+  name: Webhook con un update sin mensaje
+  type: http
+  seq: 9
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  headers:
+    - name: X-Telegram-Bot-Api-Secret-Token
+      value: "{{telegramSecret}}"
+  body:
+    type: json
+    data: |-
+      {
+        "update_id": 10003,
+        "edited_message": {
+          "message_id": 1,
+          "date": 1791590401,
+          "chat": {"id": 123456, "type": "private"},
+          "text": "hola de nuevo"
+        }
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un update sin message
+
+  Un mensaje editado, un callback o un cambio de miembros no traen `message`: se aceptan con 200 y
+  no se envia nada, para que Telegram no los reintente.

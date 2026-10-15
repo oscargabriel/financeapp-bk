@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
+import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.core.userdetails.MapReactiveUserDetailsService;
 import org.springframework.security.core.userdetails.User;
@@ -27,10 +28,11 @@ import com.oscargabriel.financeapp.compartido.infrastructure.adapter.in.web.Unau
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Dos cadenas, no una. Desde FA-43 el registro, el login y el status se autentican con la
- * credencial compartida del Basic, y desde FIN-47 tambien el refresco y el logout; el resto del API
- * con el JWT. Lo que separa las dos es el
- * securityMatcher de la primera: lo que no cae ahi lo atiende la segunda.
+ * Tres cadenas, no una. Desde FA-43 el registro, el login y el status se autentican con la
+ * credencial compartida del Basic, y desde FIN-47 tambien el refresco y el logout; desde FIN-89 el
+ * webhook de Telegram con su secreto; el resto del API con el JWT. Lo que las separa son los
+ * securityMatcher de las dos primeras: lo que no cae en ninguno lo atiende la del JWT, que por eso
+ * va ultima.
  *
  * El precio, aceptado al disenarlo: no queda ninguna ruta publica. Un cliente sin la credencial
  * compartida no puede ni crear una cuenta, y un frontend de navegador la expone a quien abra las
@@ -55,6 +57,10 @@ public class SecurityConfig {
                     "/auth/google/register", "/auth/google/login"),
             ServerWebExchangeMatchers.pathMatchers(HttpMethod.GET, "/status"));
 
+    /** Telegram entrega los updates por POST; un GET a la misma ruta cae en la cadena del JWT. */
+    private static final ServerWebExchangeMatcher RUTA_TELEGRAM =
+            ServerWebExchangeMatchers.pathMatchers(HttpMethod.POST, "/telegram/webhook");
+
     private final String allowedOrigins;
 
     public SecurityConfig(@Value("${cors.allowed-origins}") String allowedOrigins) {
@@ -74,12 +80,31 @@ public class SecurityConfig {
     }
 
     /**
-     * Sin securityMatcher: recoge todo lo que la cadena anterior no reclamo. El Basic se deshabilita
-     * explicitamente para que la credencial compartida no sirva tambien aqui — es la mitad del
-     * criterio que importa, porque una llave que abriera las dos puertas no separaria nada.
+     * Solo el webhook de Telegram, solo con su secreto (FIN-89). Ni Basic ni resource server: ninguna
+     * de las otras dos credenciales sirve aqui, y el 401 sale antes de leer el update. El secreto se
+     * valida al construir la cadena, y sin el la aplicacion no arranca.
      */
     @Bean
     @Order(1)
+    public SecurityWebFilterChain telegramSecurityFilterChain(ServerHttpSecurity http,
+            @Qualifier("telegramEntryPoint") UnauthenticatedEntryPoint entryPoint,
+            @Value("${telegram.webhook-secret}") String secreto) {
+        return comun(http)
+                .securityMatcher(RUTA_TELEGRAM)
+                .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
+                .addFilterAt(AutenticacionDelWebhook.filtro(secreto, entryPoint), SecurityWebFiltersOrder.AUTHENTICATION)
+                .authorizeExchange(exchanges -> exchanges.anyExchange().authenticated())
+                .exceptionHandling(handling -> handling.authenticationEntryPoint(entryPoint))
+                .build();
+    }
+
+    /**
+     * Sin securityMatcher: recoge todo lo que las cadenas anteriores no reclamaron. El Basic se
+     * deshabilita explicitamente para que la credencial compartida no sirva tambien aqui — es la
+     * mitad del criterio que importa, porque una llave que abriera las dos puertas no separaria nada.
+     */
+    @Bean
+    @Order(2)
     public SecurityWebFilterChain jwtSecurityFilterChain(ServerHttpSecurity http,
             @Qualifier("bearerEntryPoint") UnauthenticatedEntryPoint entryPoint) {
         return comun(http)
@@ -94,7 +119,7 @@ public class SecurityConfig {
                 .build();
     }
 
-    /** Lo que vale igual en las dos cadenas, en un solo sitio para que no se separen con el tiempo. */
+    /** Lo que vale igual en las tres cadenas, en un solo sitio para que no se separen con el tiempo. */
     private ServerHttpSecurity comun(ServerHttpSecurity http) {
         return http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
@@ -110,6 +135,12 @@ public class SecurityConfig {
     @Bean
     public UnauthenticatedEntryPoint bearerEntryPoint(ObjectMapper objectMapper) {
         return new UnauthenticatedEntryPoint(objectMapper, "Bearer");
+    }
+
+    /** Telegram no lee el reto, pero un 401 sin WWW-Authenticate no es valido en HTTP. */
+    @Bean
+    public UnauthenticatedEntryPoint telegramEntryPoint(ObjectMapper objectMapper) {
+        return new UnauthenticatedEntryPoint(objectMapper, "Telegram");
     }
 
     /**

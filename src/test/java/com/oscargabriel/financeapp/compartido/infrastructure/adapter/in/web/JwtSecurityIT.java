@@ -28,6 +28,7 @@ import org.springframework.web.reactive.function.server.ServerResponse;
 import com.oscargabriel.financeapp.compartido.domain.port.out.SesionDelTokenPort;
 import com.oscargabriel.financeapp.compartido.support.BasicMother;
 import com.oscargabriel.financeapp.compartido.support.TokenMother;
+import com.oscargabriel.financeapp.telegram.support.TelegramMother;
 
 import reactor.core.publisher.Mono;
 
@@ -316,6 +317,32 @@ class JwtSecurityIT {
                 .headers(BasicMother.cabecera())
                 .exchange()
                 .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED");
+    }
+
+    /**
+     * FIN-89: el secreto del webhook de Telegram solo abre el webhook. Contra el status lo rechaza la
+     * cadena del Basic y contra una ruta de la API la del JWT, cada una con su reto.
+     */
+    @Test
+    void elSecretoDelWebhookNoAbreElStatus() {
+        webTestClient.get().uri("/api/status")
+                .headers(TelegramMother.cabecera())
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().valueEquals(HttpHeaders.WWW_AUTHENTICATE, "Basic")
+                .expectBody()
+                .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED");
+    }
+
+    @Test
+    void elSecretoDelWebhookNoAbreUnaRutaDeLaApi() {
+        webTestClient.get().uri("/api/accounts")
+                .headers(TelegramMother.cabecera())
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().valueEquals(HttpHeaders.WWW_AUTHENTICATE, "Bearer")
                 .expectBody()
                 .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED");
     }

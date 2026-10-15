@@ -1,0 +1,41 @@
+info:
+  name: Webhook con un mensaje sin texto
+  type: http
+  seq: 8
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  headers:
+    - name: X-Telegram-Bot-Api-Secret-Token
+      value: "{{telegramSecret}}"
+  body:
+    type: json
+    data: |-
+      {
+        "update_id": 10002,
+        "message": {
+          "message_id": 2,
+          "date": 1791590401,
+          "chat": {"id": 123456, "type": "private"},
+          "contact": {"phone_number": "+573001234567", "first_name": "Prueba", "user_id": 123456}
+        }
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un mensaje sin texto de un chat sin vincular
+
+  Un contacto, una foto o un audio llegan sin `text`. Hasta FIN-60 reciben el mismo texto fijo que
+  un mensaje de texto.

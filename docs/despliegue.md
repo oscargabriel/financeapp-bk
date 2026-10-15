@@ -358,6 +358,11 @@ la imagen de `deployment/Dockerfile`, ver abajo).
 | `basic-username` | `BASIC_USERNAME` | `spring.security.basic.username` | Usuario de la credencial compartida de `/auth/register`, `/auth/login` y `/status` |
 | `basic-password` | `BASIC_PASSWORD` | `spring.security.basic.password` | Su contraseña |
 | `gemini-api-key` | `GEMINI_API_KEY` | `asistente.gemini.api-key` | Key de Google AI Studio para el asistente (FA-77). Hoy es la misma que la de local (decisión del 10-10-2026, FA-100) |
+| `telegram-bot-token` | `TELEGRAM_BOT_TOKEN` | `telegram.bot-token` | Token del bot que entrega @BotFather (FIN-89). **Pendiente de crear** |
+| `telegram-webhook-secret` | `TELEGRAM_WEBHOOK_SECRET` | `telegram.webhook-secret` | Secreto con el que Telegram autentica cada update del webhook: 32 a 256 caracteres de `A-Z`, `a-z`, `0-9`, `_` y `-`, o `SecurityConfig` aborta el arranque (FIN-89). **Pendiente de crear** |
+
+Los dos de Telegram **hay que crearlos y enlazarlos al servicio antes de llevar FIN-89 a `main`**, o
+la revisión no arranca (ver *Webhook de Telegram*).
 
 Comparadas el 10-10-2026 (FA-128) con `application.yaml` de `dev`: el servicio tiene las nueve
 propiedades sin default (las seis de esta tabla que lo son, más `SPRING_PROFILES_ACTIVE`,
@@ -387,12 +392,16 @@ existe con el perfil `prod` aunque se pida (FIN-52).
 `ASISTENTE_PROVEEDOR` no se define: vale `gemini` por defecto, y el stub de `bruno/` no existe con el
 perfil `prod` aunque se pida (FA-77).
 
+`TELEGRAM_PROVEEDOR` no se define: vale `telegram` por defecto, y el stub de `bruno/telegram/` no
+existe con el perfil `prod` aunque se pida (FIN-89).
+
 `REGISTRO_ADMITIDOS_ENABLED` tampoco se define: vale `true` por defecto, y el registro queda
 restringido a la lista de *Correos admitidos* (FA-103). Para abrirlo a cualquiera, se define en
 `false` en el servicio, sin desplegar.
 
 El resto de propiedades (`DB_SSL_MODE`, `JWT_EXPIRATION`, `APP_TIMEZONE`, `STARTUP_DB_CHECK_*`,
-`GEMINI_BASE_URL`, `GEMINI_TIMEOUT`, `GOOGLE_JWKS_URI`, `GOOGLE_TIMEOUT`…)
+`GEMINI_BASE_URL`, `GEMINI_TIMEOUT`, `GOOGLE_JWKS_URI`, `GOOGLE_TIMEOUT`, `TELEGRAM_BASE_URL`,
+`TELEGRAM_TIMEOUT`…)
 usa el default de `application.yaml`.
 
 ### Rotar un secreto
@@ -439,6 +448,64 @@ Lo propio de cada uno:
   rotarla se actualizan también `application-local.yaml` y `application-prod.yaml`. La vieja se borra
   en AI Studio después del paso 3, comprobando además un `POST /api/assistant/messages` real:
   deshabilitar la versión del secreto no revoca la key.
+- **`telegram-bot-token`**: el token nuevo se pide a @BotFather con `/revoke`, que invalida el viejo en
+  el acto: el bot no puede responder entre ese momento y el paso 2. El webhook registrado sigue
+  valiendo con el token nuevo. En el paso 3 se comprueba con `getWebhookInfo` (ver *Webhook de
+  Telegram*) y mandándole un mensaje al bot.
+- **`telegram-webhook-secret`**: hay que volver a registrar el webhook con el secreto nuevo **justo
+  después del paso 2**: entre los dos, Telegram sigue mandando el viejo y cada update recibe 401.
+  Telegram los reintenta, así que no se pierden si el registro se hace enseguida.
+
+### Webhook de Telegram
+
+Telegram entrega los mensajes del bot en `POST /api/telegram/webhook` (FIN-89). El webhook se
+registra a mano una vez, después del primer despliegue con FIN-89; la app no lo registra al arrancar.
+
+Crear los dos secretos y enlazarlos al servicio, **antes** de desplegar FIN-89:
+
+```powershell
+# El token lo entrega @BotFather (/newbot). El secreto se genera al azar: 64 caracteres hexadecimales,
+# dentro del alfabeto que Telegram acepta.
+$tmp = New-TemporaryFile
+Set-Content -Path $tmp -Value (Read-Host -MaskInput 'Token del bot') -NoNewline
+gcloud secrets create telegram-bot-token --data-file=$tmp
+Set-Content -Path $tmp -Value (openssl rand -hex 32) -NoNewline
+gcloud secrets create telegram-webhook-secret --data-file=$tmp
+Remove-Item $tmp
+
+gcloud run services update financeapp-bk-git --region europe-west1 `
+    --update-secrets=TELEGRAM_BOT_TOKEN=telegram-bot-token:latest,TELEGRAM_WEBHOOK_SECRET=telegram-webhook-secret:latest
+```
+
+Registrar el webhook y comprobarlo. Los valores se leen de Secret Manager a variables de la sesión,
+para que ni el token ni el secreto queden en el historial de la terminal:
+
+```powershell
+$token = gcloud secrets versions access latest --secret=telegram-bot-token
+$secreto = gcloud secrets versions access latest --secret=telegram-webhook-secret
+$servicio = gcloud run services describe financeapp-bk-git --region europe-west1 --format='value(status.url)'
+
+$registro = @{ url = "$servicio/api/telegram/webhook"; secret_token = $secreto } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "https://api.telegram.org/bot$token/setWebhook" `
+    -ContentType 'application/json' -Body $registro
+
+# url tiene que ser la del servicio; pending_update_count y last_error_message dicen si los updates
+# fallan (un 401 aqui es un secreto que no coincide con el del servicio).
+Invoke-RestMethod -Uri "https://api.telegram.org/bot$token/getWebhookInfo" | Select-Object -ExpandProperty result
+
+Remove-Variable token, secreto, registro
+```
+
+Mandarle un mensaje al bot desde Telegram: tiene que responder que el chat no está vinculado.
+
+Para quitar el webhook (al revertir FIN-89, por ejemplo, la ruta queda respondiendo 401 y Telegram
+reintentaría cada update):
+
+```powershell
+$token = gcloud secrets versions access latest --secret=telegram-bot-token
+Invoke-RestMethod -Method Post -Uri "https://api.telegram.org/bot$token/deleteWebhook"
+Remove-Variable token
+```
 
 ### Cuenta de servicio
 
