@@ -1,6 +1,9 @@
 package com.oscargabriel.financeapp.core.support;
 
 import java.time.Duration;
+import java.time.Instant;
+
+import com.oscargabriel.financeapp.compartido.support.RelojFijo;
 
 import com.oscargabriel.financeapp.core.domain.model.AccessToken;
 import com.oscargabriel.financeapp.core.domain.model.GoogleIdentity;
@@ -20,8 +23,13 @@ public final class GoogleMother {
     private GoogleMother() {
     }
 
-    /** El correo ya viene normalizado, como lo entrega el verificador. */
+    /** El correo ya viene normalizado, como lo entrega el verificador. Emitida en el instante de RelojFijo. */
     public static GoogleIdentity unaIdentidad() {
-        return new GoogleIdentity(SUB, UserMother.EMAIL, "Ana", "Gomez");
+        return emitidaEn(RelojFijo.AHORA);
+    }
+
+    /** Para la ventana de recencia de la primera contrasena (FIN-53). */
+    public static GoogleIdentity emitidaEn(Instant emitidoEn) {
+        return new GoogleIdentity(SUB, UserMother.EMAIL, "Ana", "Gomez", emitidoEn);
     }
 }

@@ -1,0 +1,48 @@
+info:
+  name: Definir la primera contrasena con un token de hace 10 minutos
+  type: http
+  seq: 43
+
+http:
+  method: POST
+  url: "{{baseUrl}}/users/me/password"
+  body:
+    type: json
+    data: |-
+      {
+        "idToken": "{{tokenViejo}}",
+        "newPassword": "primeraClaveGoogle"
+      }
+  auth:
+    type: bearer
+    token: "{{accessDefinir}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: INVALID_CREDENTIALS
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: idToken
+  scripts:
+    - type: before-request
+      code: |-
+        // El sexto campo del stub es el iat en segundos: 600 s atras, fuera de la ventana de 5 min.
+        const iat = Math.floor(Date.now() / 1000) - 600;
+        bru.setVar("tokenViejo", bru.getVar("tokenGoogle") + "|" + iat);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # La identidad se confirma en el momento
+
+  El token es de la cuenta vinculada, pero se emitio hace 10 minutos: la definicion exige uno de
+  5 minutos o menos.

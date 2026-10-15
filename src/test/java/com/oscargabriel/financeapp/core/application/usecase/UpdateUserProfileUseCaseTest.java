@@ -73,7 +73,7 @@ class UpdateUserProfileUseCaseTest {
                 .verifyComplete();
 
         assertThat(guardado()).isEqualTo(new UserProfile(UserMother.ID, UserMother.EMAIL, "Ana Maria", null,
-                "3109876543", "COP", "Europe/Madrid"));
+                "3109876543", "COP", "Europe/Madrid", true, false));
         verifyNoInteractions(hasher);
     }
 
@@ -134,6 +134,42 @@ class UpdateUserProfileUseCaseTest {
 
         verify(usuarios, never()).existsByEmailForOtherUser(anyString(), any());
         verify(usuarios, never()).updateProfile(any());
+    }
+
+    /** FIN-53: sin contrasena no hay contra que comparar; el usuario la define primero. */
+    @Test
+    void cambiarElCorreoSinTenerContrasenaEsUn409() {
+        actualizacionDeGoogle();
+
+        StepVerifier.create(useCase().update(UserMother.ID, parche(null, null, CORREO_NUEVO, null, null, "cualquierClave1")))
+                .verifyErrorSatisfies(error -> esperaError(error, 409, ErrorCodes.INVALID_STATE, "currentPassword"));
+
+        verifyNoInteractions(hasher);
+        verify(usuarios, never()).existsByEmailForOtherUser(anyString(), any());
+        verify(usuarios, never()).updateProfile(any());
+    }
+
+    /** El estado va antes que la presencia de la clave: no se le pide una que no tiene (decision 5). */
+    @Test
+    void cambiarElCorreoSinTenerContrasenaNiMandarlaEsUn409() {
+        actualizacionDeGoogle();
+
+        StepVerifier.create(useCase().update(UserMother.ID, parche(null, null, CORREO_NUEVO, null, null, null)))
+                .verifyErrorSatisfies(error -> esperaError(error, 409, ErrorCodes.INVALID_STATE, "currentPassword"));
+
+        verify(usuarios, never()).updateProfile(any());
+    }
+
+    @Test
+    void sinContrasenaSeModificaLoQueNoEsElCorreo() {
+        actualizacionDeGoogle();
+
+        StepVerifier.create(useCase().update(UserMother.ID, parche("Ana Maria", null, UserMother.EMAIL, null, null, null)))
+                .expectNextCount(1)
+                .verifyComplete();
+
+        assertThat(guardado().firstName()).isEqualTo("Ana Maria");
+        verify(usuarios, never()).findActiveCredentials(any());
     }
 
     @Test
@@ -263,7 +299,7 @@ class UpdateUserProfileUseCaseTest {
                 .verifyErrorSatisfies(error -> esperaError(error, 400, ErrorCodes.VALIDATION_ERROR, "baseCurrencyCode"));
 
         verifyNoInteractions(hasher);
-        verify(usuarios, never()).findActivePasswordHash(any());
+        verify(usuarios, never()).findActiveCredentials(any());
     }
 
     /** La tasa va al final: puede salir al proveedor, y un parche rechazado no debe gastar esa consulta. */
@@ -291,9 +327,16 @@ class UpdateUserProfileUseCaseTest {
 
     private void actualizacionPosible() {
         when(usuarios.findActiveProfile(UserMother.ID)).thenReturn(Mono.just(UserMother.unPerfil()));
-        when(usuarios.findActivePasswordHash(UserMother.ID)).thenReturn(Mono.just(UserMother.HASH));
+        when(usuarios.findActiveCredentials(UserMother.ID)).thenReturn(Mono.just(UserMother.credenciales()));
         when(usuarios.existsByEmailForOtherUser(anyString(), any())).thenReturn(Mono.just(false));
         when(usuarios.updateProfile(any())).thenAnswer(invocacion -> Mono.just(invocacion.getArgument(0)));
+    }
+
+    /** Un usuario registrado con Google, sin contrasena (FIN-53). */
+    private void actualizacionDeGoogle() {
+        actualizacionPosible();
+        when(usuarios.findActiveProfile(UserMother.ID)).thenReturn(Mono.just(UserMother.unPerfilDeGoogle()));
+        when(usuarios.findActiveCredentials(UserMother.ID)).thenReturn(Mono.just(UserMother.credencialesDeGoogle()));
     }
 
     private void claveCorrecta() {

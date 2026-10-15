@@ -38,7 +38,7 @@ class ChangePasswordUseCaseTest {
     /** La nueva se guarda como el hash que produjo el hasher, nunca en claro. */
     @Test
     void guardaElHashDeLaNuevaSiLaActualCoincide() {
-        when(usuarios.findActivePasswordHash(UserMother.ID)).thenReturn(Mono.just(UserMother.HASH));
+        when(usuarios.findActiveCredentials(UserMother.ID)).thenReturn(Mono.just(UserMother.credenciales()));
         when(hasher.matches(UserMother.PASSWORD, UserMother.HASH)).thenReturn(true);
         when(hasher.hash(NUEVA)).thenReturn(HASH_NUEVO);
         when(usuarios.updatePassword(UserMother.ID, HASH_NUEVO)).thenReturn(Mono.empty());
@@ -52,7 +52,7 @@ class ChangePasswordUseCaseTest {
 
     @Test
     void conLaActualEquivocadaNoCambiaNada() {
-        when(usuarios.findActivePasswordHash(UserMother.ID)).thenReturn(Mono.just(UserMother.HASH));
+        when(usuarios.findActiveCredentials(UserMother.ID)).thenReturn(Mono.just(UserMother.credenciales()));
         when(hasher.matches("noEsLaClave", UserMother.HASH)).thenReturn(false);
 
         StepVerifier.create(useCase().change(UserMother.ID, new ChangePasswordCommand("noEsLaClave", NUEVA)))
@@ -62,9 +62,21 @@ class ChangePasswordUseCaseTest {
         verify(usuarios, never()).updatePassword(any(), anyString());
     }
 
+    /** FIN-53: un error propio, distinto de la clave equivocada, y sin cerrar sesiones. */
+    @Test
+    void sinContrasenaEsUn409YNoCambiaNada() {
+        when(usuarios.findActiveCredentials(UserMother.ID)).thenReturn(Mono.just(UserMother.credencialesDeGoogle()));
+
+        StepVerifier.create(useCase().change(UserMother.ID, new ChangePasswordCommand("cualquierClave1", NUEVA)))
+                .verifyErrorSatisfies(error -> esperaError(error, 409, ErrorCodes.INVALID_STATE, "currentPassword"));
+
+        verify(hasher, never()).matches(anyString(), anyString());
+        verify(usuarios, never()).updatePassword(any(), anyString());
+    }
+
     @Test
     void unUsuarioInactivoEsUn401() {
-        when(usuarios.findActivePasswordHash(UserMother.ID)).thenReturn(Mono.empty());
+        when(usuarios.findActiveCredentials(UserMother.ID)).thenReturn(Mono.empty());
 
         StepVerifier.create(useCase().change(UserMother.ID, new ChangePasswordCommand(UserMother.PASSWORD, NUEVA)))
                 .verifyErrorSatisfies(error -> esperaError(error, 401, ErrorCodes.UNAUTHENTICATED, "authorization"));

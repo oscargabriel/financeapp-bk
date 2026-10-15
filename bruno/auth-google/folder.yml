@@ -19,7 +19,9 @@ docs: |
   sin esa variable, esta carpeta falla con 401 en cada token.
 
   El stub acepta `stub|<sub>|<email>|<nombre>|<apellido>`, con nombre y apellido opcionales, y
-  rechaza cualquier otro texto como un token invalido. Lo que el stub no puede probar (la firma, el
+  rechaza cualquier otro texto como un token invalido. Un sexto campo opcional es el `iat` en
+  segundos epoch; sin el, el token sale emitido ahora. Lo usa la definicion de la primera contrasena
+  (FIN-53), que exige un token de 5 minutos o menos. Lo que el stub no puede probar (la firma, el
   `aud`, el vencimiento, `email_verified` y la caida de Google) lo cubre
   `GoogleIdTokenVerifierAdapterTest` en la suite.
 

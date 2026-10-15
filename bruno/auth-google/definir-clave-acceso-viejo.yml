@@ -1,0 +1,34 @@
+info:
+  name: Access de antes de definir la contrasena
+  type: http
+  seq: 49
+
+http:
+  method: GET
+  url: "{{baseUrl}}/users/me"
+  auth:
+    type: bearer
+    token: "{{accessDefinir}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: authorization
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # La definicion cierra la sesion en la que se hizo
+
+  Como el cambio de contrasena: sube la version de sesion y el access deja de servir.

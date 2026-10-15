@@ -3,6 +3,7 @@ package com.oscargabriel.financeapp.core.support;
 import java.util.UUID;
 
 import com.oscargabriel.financeapp.core.domain.model.RegistrationCommand;
+import com.oscargabriel.financeapp.core.domain.model.UserCredentials;
 import com.oscargabriel.financeapp.core.domain.model.UserProfile;
 
 /** Altas de usuario para los tests. El comando base es valido y completo. */
@@ -17,9 +18,27 @@ public final class UserMother {
     private UserMother() {
     }
 
-    /** El perfil tal como lo guarda la base: correo en minusculas, sin apellido y con celular. */
+    /**
+     * El perfil tal como lo guarda la base: correo en minusculas, sin apellido y con celular. Registrado
+     * con contrasena y sin Google.
+     */
     public static UserProfile unPerfil() {
-        return new UserProfile(ID, EMAIL, "Ana", null, "3001234567", "COP", "America/Bogota");
+        return new UserProfile(ID, EMAIL, "Ana", null, "3001234567", "COP", "America/Bogota", true, false);
+    }
+
+    /** Registrado con Google, sin contrasena (FIN-52). */
+    public static UserProfile unPerfilDeGoogle() {
+        return new UserProfile(ID, EMAIL, "Ana", null, "3001234567", "COP", "America/Bogota", false, true);
+    }
+
+    /** Las de unPerfil(): con contrasena y sin Google. */
+    public static UserCredentials credenciales() {
+        return new UserCredentials(ID, HASH, 0, null);
+    }
+
+    /** Las de unPerfilDeGoogle(): sin contrasena y con la cuenta de GoogleMother (FIN-53). */
+    public static UserCredentials credencialesDeGoogle() {
+        return new UserCredentials(ID, null, 0, GoogleMother.SUB);
     }
 
     public static RegistrationCommand unAlta() {

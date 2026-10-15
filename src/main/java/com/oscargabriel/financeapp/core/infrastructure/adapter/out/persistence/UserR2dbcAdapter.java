@@ -75,21 +75,22 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
                AND is_active
             """;
 
-    /** Mismo filtro que CREDENCIALES_ACTIVAS: un token vigente de un usuario desactivado no ve su perfil. */
+    /**
+     * Mismo filtro que CREDENCIALES_ACTIVAS: un token vigente de un usuario desactivado no ve su perfil.
+     * Los metodos de entrada salen como booleanos: el hash y el sub no salen de la base (FIN-53).
+     */
     private static final String PERFIL_ACTIVO = """
-            SELECT id, email, first_name, last_name, phone, base_currency_code, timezone
+            SELECT id, email, first_name, last_name, phone, base_currency_code, timezone,
+                   password_hash IS NOT NULL AS has_password, google_sub IS NOT NULL AS google_linked
               FROM finance.users
              WHERE id = :id
                AND deleted_at IS NULL
                AND is_active
             """;
 
-    /**
-     * Un usuario registrado con Google no tiene hash: el texto vacio no coincide con ninguna contrasena
-     * y evita un nulo en el mapeo (design.md de FIN-52, decision 7, hasta FIN-53).
-     */
-    private static final String HASH_ACTIVO = """
-            SELECT coalesce(password_hash, '') AS password_hash
+    /** Mismo filtro que CREDENCIALES_ACTIVAS, por id. password_hash nulo si se registro con Google. */
+    private static final String CREDENCIALES_POR_ID = """
+            SELECT id, password_hash, token_version, google_sub
               FROM finance.users
              WHERE id = :id
                AND deleted_at IS NULL
@@ -119,7 +120,8 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
              WHERE id = :id
                AND deleted_at IS NULL
                AND is_active
-            RETURNING id, email, first_name, last_name, phone, base_currency_code, timezone
+            RETURNING id, email, first_name, last_name, phone, base_currency_code, timezone,
+                      password_hash IS NOT NULL AS has_password, google_sub IS NOT NULL AS google_linked
             """;
 
     /**
@@ -131,6 +133,21 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
                SET password_hash = :passwordHash,
                    token_version = token_version + 1
              WHERE id = :id
+               AND deleted_at IS NULL
+               AND is_active
+            """;
+
+    /**
+     * Como ACTUALIZAR_CLAVE, pero solo si no tiene contrasena y la cuenta Google es la suya: dos
+     * definiciones simultaneas no se pisan, y la segunda no actualiza ninguna fila (FIN-53).
+     */
+    private static final String DEFINIR_PRIMERA_CLAVE = """
+            UPDATE finance.users
+               SET password_hash = :passwordHash,
+                   token_version = token_version + 1
+             WHERE id = :id
+               AND password_hash IS NULL
+               AND google_sub = :googleSub
                AND deleted_at IS NULL
                AND is_active
             """;
@@ -228,10 +245,10 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
     }
 
     @Override
-    public Mono<String> findActivePasswordHash(UUID id) {
-        return databaseClient.sql(HASH_ACTIVO)
+    public Mono<UserCredentials> findActiveCredentials(UUID id) {
+        return databaseClient.sql(CREDENCIALES_POR_ID)
                 .bind("id", id)
-                .map((row, metadata) -> row.get("password_hash", String.class))
+                .map((row, metadata) -> credenciales(row))
                 .one();
     }
 
@@ -270,6 +287,17 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
                 .then();
     }
 
+    @Override
+    public Mono<Boolean> setFirstPassword(UUID id, String googleSub, String passwordHash) {
+        return databaseClient.sql(DEFINIR_PRIMERA_CLAVE)
+                .bind("id", id)
+                .bind("googleSub", googleSub)
+                .bind("passwordHash", passwordHash)
+                .fetch()
+                .rowsUpdated()
+                .map(filas -> filas == 1);
+    }
+
     private static UserProfile perfil(Row row) {
         return new UserProfile(
                 row.get("id", UUID.class),
@@ -278,7 +306,9 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
                 row.get("last_name", String.class),
                 row.get("phone", String.class),
                 row.get("base_currency_code", String.class),
-                row.get("timezone", String.class));
+                row.get("timezone", String.class),
+                row.get("has_password", Boolean.class),
+                row.get("google_linked", Boolean.class));
     }
 
     @Override

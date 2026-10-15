@@ -236,7 +236,7 @@ class CreateRecurrenceUseCaseTest {
 
     private void enZona(String zona) {
         when(usuarios.findActiveProfile(USER_ID))
-                .thenReturn(Mono.just(new UserProfile(USER_ID, "ana@ejemplo.com", "Ana", null, null, "COP", zona)));
+                .thenReturn(Mono.just(new UserProfile(USER_ID, "ana@ejemplo.com", "Ana", null, null, "COP", zona, true, false)));
     }
 
     private static List<ErrorDetail> errores(Throwable e) {

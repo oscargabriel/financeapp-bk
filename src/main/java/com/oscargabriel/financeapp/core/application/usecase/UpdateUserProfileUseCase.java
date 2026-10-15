@@ -62,7 +62,9 @@ public class UpdateUserProfileUseCase implements UpdateUserProfilePort {
                 command.baseCurrencyCode() == null
                         ? actual.baseCurrencyCode()
                         : command.baseCurrencyCode().trim().toUpperCase(),
-                command.timezone() == null ? actual.timezone() : command.timezone().trim());
+                command.timezone() == null ? actual.timezone() : command.timezone().trim(),
+                actual.hasPassword(),
+                actual.googleLinked());
     }
 
     private Mono<Void> monedaActiva(String moneda) {
@@ -95,14 +97,17 @@ public class UpdateUserProfileUseCase implements UpdateUserProfilePort {
 
     /**
      * La clave va antes que la unicidad: si no, cualquiera con un token podria preguntar que correos
-     * estan registrados sin conocer siquiera su propia contrasena.
+     * estan registrados sin conocer siquiera su propia contrasena. Y que tenga contrasena va antes que
+     * pedirla: a quien no tiene ninguna no se le pide (design.md de FIN-53, decision 5).
      */
     private Mono<Void> autorizarCorreo(UUID userId, String email, String claveActual) {
-        if (claveActual == null || claveActual.isBlank()) {
-            return Mono.error(() -> new BadRequestException(HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR,
-                    "Para cambiar el correo hay que enviar la contrasena actual", "currentPassword"));
-        }
-        return usuarios.findActivePasswordHash(userId)
+        return usuarios.findActiveCredentials(userId)
+                .flatMap(ErroresDelPerfil::hashOSinContrasena)
+                .flatMap(hash -> claveActual == null || claveActual.isBlank()
+                        ? Mono.error(() -> new BadRequestException(HttpStatus.BAD_REQUEST,
+                                ErrorCodes.VALIDATION_ERROR, "Para cambiar el correo hay que enviar la contrasena actual",
+                                "currentPassword"))
+                        : Mono.just(hash))
                 .filter(hash -> hasher.matches(claveActual, hash))
                 .switchIfEmpty(Mono.error(ErroresDelPerfil::claveActualEquivocada))
                 .then(Mono.defer(() -> usuarios.existsByEmailForOtherUser(email, userId)))

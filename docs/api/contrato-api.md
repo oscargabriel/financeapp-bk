@@ -18,6 +18,7 @@ comportamiento del código en `dev`. Si un endpoint cambia, se actualiza aquí e
 | `GET` | `/api/users/me` | Bearer | Perfil del usuario del token |
 | `PATCH` | `/api/users/me` | Bearer | Modificar el perfil |
 | `PUT` | `/api/users/me/password` | Bearer | Cambiar la contraseña |
+| `POST` | `/api/users/me/password` | Bearer | Definir la primera contraseña, confirmando con Google |
 | `GET` | `/api/accounts` | Bearer | Listar las cuentas del usuario |
 | `POST` | `/api/accounts` | Bearer | Crear una cuenta |
 | `PATCH` | `/api/accounts/{id}` | Bearer | Modificar una cuenta |
@@ -206,7 +207,7 @@ Todos los errores salen con la misma forma:
 | 405 | `VALIDATION_ERROR` | Método no soportado en esa ruta (`description`: "La peticion no pudo ser procesada") |
 | 409 | `DUPLICATE_RESOURCE` | Ya existe: correo o cuenta de Google registrados, nombre de cuenta o de categoría repetido, una solicitud de afiliación abierta o una afiliación con esa persona, o un correo ya vinculado a otra cuenta de Google (`field`: `email`) |
 | 409 | `RESOURCE_IN_USE` | El cambio dejaría inconsistentes otros datos que usan el recurso: el alcance de una categoría con movimientos que no admitiría (`field`: `appliesTo`), la moneda de una cuenta con movimientos (`field`: `currencyCode`), o borrar una cuenta con saldo (`field`: `currentBalance`) |
-| 409 | `INVALID_STATE` | El recurso no está en el estado que la acción exige: aprobar o rechazar un movimiento o un grupo ya confirmado (`field`: `status`), o aprobar un pendiente con una cuenta desactivada o una categoría borrada (`field`: `accountId`, `destinationAccountId` o `categoryId`, con `[i].` delante si es un grupo), o una acción sobre una afiliación que no corresponde a su estado o al papel del usuario (`field`: `status`) |
+| 409 | `INVALID_STATE` | El recurso no está en el estado que la acción exige: aprobar o rechazar un movimiento o un grupo ya confirmado (`field`: `status`), o aprobar un pendiente con una cuenta desactivada o una categoría borrada (`field`: `accountId`, `destinationAccountId` o `categoryId`, con `[i].` delante si es un grupo), o una acción sobre una afiliación que no corresponde a su estado o al papel del usuario (`field`: `status`), o cambiar la contraseña o el correo sin tener contraseña (`field`: `currentPassword`), o definir la primera contraseña teniendo una (`field`: `newPassword`) |
 | 409 | `INSUFFICIENT_FUNDS` | La petición dejaría por debajo de cero el saldo de una cuenta que no es de crédito. Ver [Saldo no negativo](#saldo-no-negativo) |
 | 413 | `PAYLOAD_TOO_LARGE` | El cuerpo pasa de 1 MB |
 | 500 | `INTERNAL_SERVER_ERROR` | Error inesperado. Nunca trae detalle técnico |
@@ -363,7 +364,8 @@ El login **no consulta la lista de admitidos** del registro. Si un correo sale d
 que ya se registró con él sigue entrando; para cortarle el acceso se desactiva el usuario.
 
 Un usuario registrado con Google que no ha definido contraseña recibe el mismo 401
-`INVALID_CREDENTIALS` con cualquier contraseña: entra con [`POST /auth/google/login`](#post-apiauthgooglelogin).
+`INVALID_CREDENTIALS` con cualquier contraseña: entra con [`POST /auth/google/login`](#post-apiauthgooglelogin),
+y desde ahí puede definir una con [`POST /users/me/password`](#post-apiusersmepassword).
 
 ### Google Identity Services
 
@@ -545,11 +547,22 @@ El perfil del usuario del token. **Bearer.**
   "lastName": "Pérez",
   "phone": "3001234567",
   "baseCurrencyCode": "COP",
-  "timezone": "America/Bogota"
+  "timezone": "America/Bogota",
+  "hasPassword": true,
+  "googleLinked": false
 }
 ```
 
-`lastName` y `phone` pueden venir en `null`. La respuesta nunca trae la contraseña ni su hash.
+`lastName` y `phone` pueden venir en `null`. La respuesta nunca trae la contraseña, su hash ni el
+identificador de la cuenta Google.
+
+Los dos últimos campos dicen con qué métodos entra el usuario (FIN-53):
+
+| `hasPassword` | `googleLinked` | El usuario | Qué ofrece el cliente |
+|---|---|---|---|
+| `true` | `false` | Se registró con correo y contraseña y nunca entró con Google | Cambiar la contraseña |
+| `false` | `true` | Se registró con Google | Definir la primera contraseña con [`POST /users/me/password`](#post-apiusersmepassword) |
+| `true` | `true` | Tiene los dos: la primera entrada con Google vinculó su cuenta, o definió una contraseña | Cambiar la contraseña |
 
 **Errores:** 401 `UNAUTHENTICATED` también si el usuario fue desactivado o borrado y su token
 todavía no vence: el cliente lo trata como cualquier otro 401 y vuelve al login.
@@ -593,7 +606,8 @@ la tasa de la fecha de cada movimiento. Los saldos de las cuentas siguen en la m
 1. Formato de todos los campos, a la vez (400 en cada campo).
 2. Parche vacío (400 en `body`).
 3. Moneda inexistente o inactiva (400 en `baseCurrencyCode`).
-4. Contraseña actual y correo libre, si el correo cambia (400 en `currentPassword`, 409 en `email`).
+4. Si el correo cambia: que el usuario tenga contraseña (409 en `currentPassword`), que la haya
+   mandado y sea la correcta (400 en `currentPassword`) y que el correo esté libre (409 en `email`).
 5. Tasa de la moneda nueva (502 en `server`).
 
 ```json
@@ -616,6 +630,7 @@ la tasa de la fecha de cada movimiento. Los saldos de las cuentas siguen en la m
 | 400 | `VALIDATION_ERROR` | `baseCurrencyCode` | La moneda no existe en el catálogo o está inactiva |
 | 400 | `VALIDATION_ERROR` | `currentPassword` | El correo cambia y no vino la contraseña actual |
 | 400 | `INVALID_CREDENTIALS` | `currentPassword` | El correo cambia y la contraseña actual no es correcta |
+| 409 | `INVALID_STATE` | `currentPassword` | El correo cambia y el usuario no tiene contraseña (`hasPassword: false`), la mande o no |
 | 409 | `DUPLICATE_RESOURCE` | `email` | Otro usuario ya usa ese correo, sin distinguir mayúsculas |
 | 502 | `EXTERNAL_SERVICE_ERROR` | `server` | La moneda nueva no tiene ninguna tasa guardada y el proveedor no respondió. Se puede reintentar |
 
@@ -623,9 +638,10 @@ la tasa de la fecha de cada movimiento. Los saldos de las cuentas siguen en la m
 la sesión de alguien que solo se equivocó al escribir. Se verifica antes que el correo, así que con
 la contraseña mal nunca se sabe si el correo nuevo estaba libre.
 
-**Un usuario registrado con Google sin contraseña no puede cambiar el correo por ahora:** recibe el
-mismo 400 `INVALID_CREDENTIALS` en `currentPassword`, mande lo que mande. Es provisional: FIN-53 le
-da un error propio y una vía para definir la primera contraseña.
+**Un usuario sin contraseña no puede cambiar el correo** (FIN-53): recibe 409 `INVALID_STATE` en
+`currentPassword`, mande o no `currentPassword`, distinto del 400 de la contraseña equivocada. Primero
+define una con [`POST /users/me/password`](#post-apiusersmepassword). El resto del perfil lo modifica
+sin contraseña.
 
 ### `PUT /api/users/me/password`
 
@@ -653,10 +669,50 @@ tokens nuevos: el cliente vuelve al login. Un cambio rechazado no cierra ninguna
 |---|---|---|---|
 | 400 | `VALIDATION_ERROR` | el campo | Falta una de las dos, o la nueva no cumple las reglas |
 | 400 | `INVALID_CREDENTIALS` | `currentPassword` | La contraseña actual no es correcta. 400 y no 401, por lo mismo que en el `PATCH` |
+| 409 | `INVALID_STATE` | `currentPassword` | El usuario no tiene contraseña (`hasPassword: false`): la define con [`POST /users/me/password`](#post-apiusersmepassword). No cierra sesiones |
 
-Un usuario registrado con Google que no tiene contraseña recibe ese mismo 400, sin cerrar sesiones:
-no tiene una contraseña actual que probar. Es provisional hasta FIN-53, que agrega la vía para
-definir la primera confirmando la identidad con Google.
+### `POST /api/users/me/password`
+
+Define la **primera** contraseña de un usuario que no tiene ninguna, el que se registró con Google
+(FIN-53). **Bearer.** Para que una sesión ajena abierta (un equipo prestado, un token robado) no
+baste para quedarse con acceso permanente, exige además confirmar la identidad con Google **en ese
+momento**.
+
+**Cuerpo**
+
+| Campo | Tipo | Obligatorio | Reglas |
+|---|---|---|---|
+| `idToken` | string | sí | Un ID token de Google Identity Services de la cuenta vinculada al usuario, recién emitido (ver abajo) |
+| `newPassword` | string | sí | Las reglas del alta: al menos 8 caracteres y no más de 72 bytes en UTF-8 |
+
+```json
+{ "idToken": "eyJhbGciOiJSUzI1NiIs...", "newPassword": "unaClaveLarga" }
+```
+
+El ID token se obtiene como en el login con Google (ver
+[Google Identity Services](#google-identity-services)) y se verifica igual. Además:
+
+- su emisión (`iat`) tiene que estar a **5 minutos o menos** de la hora del servidor, antes o
+  después. El cliente le pide el token a Google **justo al enviar** el formulario, no al abrirlo:
+  el token con el que el usuario inició sesión ya no sirve;
+- tiene que ser de la cuenta Google vinculada al usuario de la sesión. Cuenta el identificador de
+  Google, no el correo.
+
+**204 No Content**, sin cuerpo. Desde ese momento el usuario entra también con su correo y esa
+contraseña, y sigue entrando con Google. Como el cambio de contraseña, **cierra todas las sesiones
+del usuario**, incluida la del access con el que se pidió: el cliente vuelve al login, con Google o
+con la contraseña nueva. Un rechazo no cierra ninguna.
+
+**Errores**, en el orden en que se resuelven:
+
+1. 400 `VALIDATION_ERROR` en `idToken` si falta, y en `newPassword` si falta o no cumple las reglas.
+2. 409 `INVALID_STATE` en `newPassword` si el usuario ya tiene contraseña: la cambia con
+   [`PUT /users/me/password`](#put-apiusersmepassword) y la actual. Sale sin consultar a Google.
+3. 502 `EXTERNAL_SERVICE_ERROR` en `idToken` si no se pudieron obtener las llaves de Google. Se puede
+   reintentar.
+4. 400 `INVALID_CREDENTIALS` en `idToken` si el token no es válido, se emitió fuera de los 5 minutos
+   o es de otra cuenta Google, sin decir cuál. **400 y no 401**: la sesión sigue siendo válida, y un
+   401 haría que el cliente la cerrara.
 
 ### `GET /api/accounts`
 

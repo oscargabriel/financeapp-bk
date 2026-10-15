@@ -1,0 +1,34 @@
+info:
+  name: Perfil tras definir la contrasena
+  type: http
+  seq: 52
+
+http:
+  method: GET
+  url: "{{baseUrl}}/users/me"
+  auth:
+    type: bearer
+    token: "{{accessConClave}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.hasPassword
+      operator: eq
+      value: "true"
+    - expression: res.body.googleLinked
+      operator: eq
+      value: "true"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Los dos metodos
+
+  El perfil refleja la contrasena nueva y conserva la cuenta Google.

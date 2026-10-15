@@ -1,0 +1,41 @@
+info:
+  name: Definir la primera contrasena con otra cuenta Google
+  type: http
+  seq: 45
+
+http:
+  method: POST
+  url: "{{baseUrl}}/users/me/password"
+  body:
+    type: json
+    data: |-
+      {
+        "idToken": "stub|g-otra-{{tsGoogle}}|google-{{tsGoogle}}@bruno.local|Lucia|Fernandez",
+        "newPassword": "primeraClaveGoogle"
+      }
+  auth:
+    type: bearer
+    token: "{{accessDefinir}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: INVALID_CREDENTIALS
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: idToken
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Cuenta por el sub, no por el correo
+
+  Mismo correo, `sub` distinto: no es la cuenta Google vinculada al usuario.

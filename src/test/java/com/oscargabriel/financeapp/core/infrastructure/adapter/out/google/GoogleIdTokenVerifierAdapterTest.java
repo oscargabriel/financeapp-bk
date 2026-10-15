@@ -7,6 +7,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.function.Consumer;
 
@@ -79,8 +80,24 @@ class GoogleIdTokenVerifierAdapterTest {
 
     @Test
     void devuelveLaIdentidadDeUnTokenValido() {
-        StepVerifier.create(adapter().verificar(token(c -> {})))
-                .expectNext(new GoogleIdentity("sub-123", "ana@gmail.com", "Ana", "Gomez"))
+        Instant emitido = Instant.now().truncatedTo(ChronoUnit.SECONDS).minusSeconds(30);
+
+        StepVerifier.create(adapter().verificar(token(c -> c.issueTime(Date.from(emitido)))))
+                .expectNext(new GoogleIdentity("sub-123", "ana@gmail.com", "Ana", "Gomez", emitido))
+                .verifyComplete();
+    }
+
+    /**
+     * Google siempre lo manda. Si faltara, MappedJwtClaimSetConverter de Spring lo llena con exp - 1 s,
+     * una hora en el futuro: la ventana de la primera contrasena lo rechaza (design.md de FIN-53,
+     * decision 2). Este test fija ese comportamiento de Spring.
+     */
+    @Test
+    void sinIatSpringLoDeduceDelVencimiento() {
+        Instant vence = Instant.now().truncatedTo(ChronoUnit.SECONDS).plus(Duration.ofHours(1));
+
+        StepVerifier.create(adapter().verificar(token(c -> c.issueTime(null).expirationTime(Date.from(vence)))))
+                .assertNext(identidad -> assertThat(identidad.emitidoEn()).isEqualTo(vence.minusSeconds(1)))
                 .verifyComplete();
     }
 
@@ -103,7 +120,10 @@ class GoogleIdTokenVerifierAdapterTest {
         String sinNombreDePila = token(c -> c.claim("given_name", null).claim("family_name", null));
 
         StepVerifier.create(adapter().verificar(sinNombreDePila))
-                .expectNext(new GoogleIdentity("sub-123", "ana@gmail.com", "Ana Gomez", null))
+                .assertNext(identidad -> {
+                    assertThat(identidad.firstName()).isEqualTo("Ana Gomez");
+                    assertThat(identidad.lastName()).isNull();
+                })
                 .verifyComplete();
     }
 

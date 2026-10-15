@@ -1,0 +1,39 @@
+info:
+  name: Refresh de antes de definir la contrasena
+  type: http
+  seq: 50
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/refresh"
+  body:
+    type: json
+    data: |-
+      {
+        "refreshToken": "{{refreshDefinir}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: refreshToken
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Tampoco se puede refrescar
+
+  El refresh de `Login con Google antes de definir la contrasena` es de una version de sesion
+  anterior.

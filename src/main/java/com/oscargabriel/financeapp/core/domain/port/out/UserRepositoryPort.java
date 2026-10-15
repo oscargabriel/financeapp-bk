@@ -42,10 +42,10 @@ public interface UserRepositoryPort {
     Mono<UserProfile> findActiveProfile(UUID id);
 
     /**
-     * El hash del usuario activo, para verificar la contrasena actual. Vacio si no esta activo. Texto
-     * vacio si no tiene contrasena: no coincide con ninguna (design.md de FIN-52, decision 7).
+     * Las credenciales del usuario activo, para verificar la contrasena actual o la cuenta Google.
+     * Vacio si no esta activo. El hash es nulo si no tiene contrasena (design.md de FIN-53, decision 6).
      */
-    Mono<String> findActivePasswordHash(UUID id);
+    Mono<UserCredentials> findActiveCredentials(UUID id);
 
     /** Si el correo, sin distinguir mayusculas, ya es de otro usuario no borrado. */
     Mono<Boolean> existsByEmailForOtherUser(String email, UUID id);
@@ -57,4 +57,11 @@ public interface UserRepositoryPort {
     Mono<UserProfile> updateProfile(UserProfile profile);
 
     Mono<Void> updatePassword(UUID id, String passwordHash);
+
+    /**
+     * Guarda la primera contrasena del usuario activo y cierra sus sesiones, solo si todavia no tiene
+     * ninguna y esa es su cuenta Google. FALSE si no guardo: ya tenia una, quiza definida entre medio
+     * por otra peticion (design.md de FIN-53, decision 7).
+     */
+    Mono<Boolean> setFirstPassword(UUID id, String googleSub, String passwordHash);
 }

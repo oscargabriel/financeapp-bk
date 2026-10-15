@@ -1,0 +1,32 @@
+info:
+  name: Login con Google tras definir la contrasena
+  type: http
+  seq: 53
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/google/login"
+  body:
+    type: json
+    data: |-
+      {
+        "idToken": "{{tokenGoogle}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Google sigue sirviendo
+
+  Definir la contrasena no desvincula la cuenta Google.

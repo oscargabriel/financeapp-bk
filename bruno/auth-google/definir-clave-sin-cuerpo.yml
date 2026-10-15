@@ -1,0 +1,42 @@
+info:
+  name: Definir la primera contrasena sin cuerpo
+  type: http
+  seq: 40
+
+http:
+  method: POST
+  url: "{{baseUrl}}/users/me/password"
+  body:
+    type: json
+    data: |-
+      {}
+  auth:
+    type: bearer
+    token: "{{accessDefinir}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+  scripts:
+    - type: tests
+      code: |-
+        test("un VALIDATION_ERROR por campo que falta", function() {
+          const campos = res.getBody().errors
+            .filter(e => e.code === "VALIDATION_ERROR")
+            .map(e => e.field)
+            .sort();
+          expect(campos).to.deep.equal(["idToken", "newPassword"]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Los dos campos son obligatorios
+
+  El orden de los errores no esta garantizado: se comparan por contenido.

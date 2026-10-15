@@ -1,0 +1,48 @@
+info:
+  name: Definir la primera contrasena con un token emitido una hora adelante
+  type: http
+  seq: 44
+
+http:
+  method: POST
+  url: "{{baseUrl}}/users/me/password"
+  body:
+    type: json
+    data: |-
+      {
+        "idToken": "{{tokenFuturo}}",
+        "newPassword": "primeraClaveGoogle"
+      }
+  auth:
+    type: bearer
+    token: "{{accessDefinir}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: INVALID_CREDENTIALS
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: idToken
+  scripts:
+    - type: before-request
+      code: |-
+        // Una hora adelante: el iat que Spring deduce (exp - 1 s) de un token sin iat.
+        const iat = Math.floor(Date.now() / 1000) + 3600;
+        bru.setVar("tokenFuturo", bru.getVar("tokenGoogle") + "|" + iat);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # La ventana tambien tiene limite hacia adelante
+
+  Un token sin `iat` le llega al back con el que Spring deduce del vencimiento, una hora adelante
+  (design.md de FIN-53, decision 2). La ventana es de 5 minutos antes o despues de ahora.

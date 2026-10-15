@@ -1,0 +1,41 @@
+info:
+  name: Cambiar el correo sin contrasena y sin mandarla
+  type: http
+  seq: 28
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/users/me"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "otro-{{tsGoogle}}@bruno.local"
+      }
+  auth:
+    type: bearer
+    token: "{{accessGoogle}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: INVALID_STATE
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: currentPassword
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El estado va antes que la presencia de la contrasena (FIN-53)
+
+  Sin `currentPassword`, un usuario con contrasena recibe 400 `VALIDATION_ERROR`. Este no tiene
+  ninguna que mandar: recibe el 409 que le dice que la defina primero.

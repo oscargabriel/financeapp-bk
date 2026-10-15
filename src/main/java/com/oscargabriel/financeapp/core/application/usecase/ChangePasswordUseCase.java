@@ -22,8 +22,9 @@ public class ChangePasswordUseCase implements ChangePasswordPort {
     /** Las reglas de la nueva ya vienen validadas por ChangePasswordRequest. */
     @Override
     public Mono<Void> change(UUID userId, ChangePasswordCommand command) {
-        return Mono.defer(() -> usuarios.findActivePasswordHash(userId))
+        return Mono.defer(() -> usuarios.findActiveCredentials(userId))
                 .switchIfEmpty(Mono.error(ErroresDelPerfil::usuarioNoActivo))
+                .flatMap(ErroresDelPerfil::hashOSinContrasena)
                 .filter(hash -> hasher.matches(command.currentPassword(), hash))
                 .switchIfEmpty(Mono.error(ErroresDelPerfil::claveActualEquivocada))
                 .flatMap(hash -> usuarios.updatePassword(userId, hasher.hash(command.newPassword())));

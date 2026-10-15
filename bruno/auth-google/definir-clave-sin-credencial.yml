@@ -1,0 +1,39 @@
+info:
+  name: Definir la primera contrasena sin credencial
+  type: http
+  seq: 37
+
+http:
+  method: POST
+  url: "{{baseUrl}}/users/me/password"
+  body:
+    type: json
+    data: |-
+      {
+        "idToken": "{{tokenGoogle}}",
+        "newPassword": "primeraClaveGoogle"
+      }
+  auth: none
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: authorization
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # La ruta exige Bearer (FIN-53)
+
+  El ID token de Google no basta: el que define la contrasena es el usuario de la sesion.
