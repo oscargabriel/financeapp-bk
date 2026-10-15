@@ -1,7 +1,7 @@
 info:
   name: Modificar perfil con parche vacio
   type: http
-  seq: 8
+  seq: 9
 
 http:
   method: PATCH

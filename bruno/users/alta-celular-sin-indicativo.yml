@@ -1,0 +1,45 @@
+info:
+  name: Alta con celular sin indicativo
+  type: http
+  seq: 35
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/register"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "sin-indicativo-{{emailPerfil}}",
+        "password": "unaClaveLarga",
+        "firstName": "Perfil",
+        "phone": "3001234567"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: phone
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Celular sin indicativo en el alta (FIN-59)
+
+  El celular va en formato internacional: + e indicativo. Telegram entrega el numero asi, y la
+  vinculacion del chat lo compara con el guardado.

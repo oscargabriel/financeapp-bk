@@ -1,7 +1,7 @@
 info:
   name: Modificar perfil con una moneda inactiva
   type: http
-  seq: 10
+  seq: 11
 
 http:
   method: PATCH

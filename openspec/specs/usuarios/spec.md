@@ -7,9 +7,10 @@ se cambia la contraseña. El usuario siempre sale del token, nunca de la URL.
 ## Requirements
 
 ### Requirement: Celular en el alta
-`POST /api/auth/register` SHALL aceptar `phone` opcional: un `+` opcional seguido de 7 a 15 dígitos,
-sin espacios ni separadores, tolerando espacios en el borde, que se recortan. La respuesta del alta
-SHALL incluir `phone`, en `null` si no vino.
+`POST /api/auth/register` SHALL aceptar `phone` opcional en formato internacional E.164: un `+`, un
+primer dígito de 1 a 9 y de 7 a 15 dígitos en total, sin espacios ni separadores, tolerando espacios
+en el borde, que se recortan. El celular SHALL guardarse con el `+`. La respuesta del alta SHALL
+incluir `phone`, en `null` si no vino.
 
 #### Scenario: Alta con celular
 - **WHEN** el alta trae `"phone": " +573001234567 "` con el resto de campos válidos
@@ -23,6 +24,22 @@ SHALL incluir `phone`, en `null` si no vino.
 - **WHEN** el alta trae `"phone": "300 123"` o `"phone": "abc1234567"`
 - **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en el campo `phone` y el usuario no se crea
 
+#### Scenario: Celular sin indicativo en el alta
+- **WHEN** el alta trae `"phone": "3001234567"`
+- **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en el campo `phone` y el usuario no se crea
+
+#### Scenario: Celular con separadores en el alta
+- **WHEN** el alta trae `"phone": "+57 300 123 4567"` o `"phone": "+57-3001234567"`
+- **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en el campo `phone` y el usuario no se crea
+
+#### Scenario: Indicativo que empieza por cero
+- **WHEN** el alta trae `"phone": "+0573001234567"`
+- **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en el campo `phone` y el usuario no se crea
+
+#### Scenario: Celular con más de 15 dígitos
+- **WHEN** el alta trae `"phone": "+5730012345678901"`
+- **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en el campo `phone` y el usuario no se crea
+
 ### Requirement: Forma del perfil
 `GET /api/users/me` y `PATCH /api/users/me` SHALL presentar el perfil como `{id, email, firstName,
 lastName, phone, baseCurrencyCode, timezone, hasPassword, googleLinked}`. `hasPassword` SHALL ser
@@ -30,8 +47,8 @@ verdadero si el usuario tiene contraseña, y `googleLinked` si tiene una cuenta 
 respuesta MUST NOT incluir la contraseña, su hash ni el identificador de Google.
 
 #### Scenario: Leer el perfil
-- **WHEN** un usuario registrado con `phone` `3001234567` y sin apellido pide `GET /api/users/me` con su token
-- **THEN** la respuesta es 200 con su `id`, `email`, `firstName`, `phone` `3001234567`, `lastName` en `null`, `baseCurrencyCode` y `timezone`, y sin `password` ni `passwordHash`
+- **WHEN** un usuario registrado con `phone` `+573001234567` y sin apellido pide `GET /api/users/me` con su token
+- **THEN** la respuesta es 200 con su `id`, `email`, `firstName`, `phone` `+573001234567`, `lastName` en `null`, `baseCurrencyCode` y `timezone`, y sin `password` ni `passwordHash`
 
 #### Scenario: Usuario registrado con contraseña
 - **WHEN** un usuario registrado con correo y contraseña, que nunca entró con Google, pide `GET /api/users/me`
@@ -74,8 +91,8 @@ SHALL conservar su valor. `lastName` y `phone` en blanco SHALL borrar el valor. 
 200 con el perfil tal como quedó.
 
 #### Scenario: Cambiar nombre, celular y zona
-- **WHEN** el parche trae `{"firstName": " Ana María ", "phone": "3109876543", "timezone": "Europe/Madrid"}`
-- **THEN** la respuesta es 200 con `firstName` `Ana María`, `phone` `3109876543` y `timezone` `Europe/Madrid`, y el resto del perfil sin cambios
+- **WHEN** el parche trae `{"firstName": " Ana María ", "phone": "+573109876543", "timezone": "Europe/Madrid"}`
+- **THEN** la respuesta es 200 con `firstName` `Ana María`, `phone` `+573109876543` y `timezone` `Europe/Madrid`, y el resto del perfil sin cambios
 
 #### Scenario: Borrar el celular y el apellido
 - **WHEN** el parche trae `{"phone": "", "lastName": "  "}`
@@ -102,6 +119,10 @@ modificar el perfil.
 #### Scenario: Celular, correo o zona mal formados
 - **WHEN** el parche trae `"phone": "12-34"`, `"email": "sin-arroba"` o `"timezone": "Marte/Base"`
 - **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en el campo correspondiente, uno por campo
+
+#### Scenario: Celular sin indicativo en el parche
+- **WHEN** el parche trae `"phone": "3109876543"`
+- **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en el campo `phone` y el perfil no cambia
 
 #### Scenario: Moneda en blanco o mal formada
 - **WHEN** el parche trae `"baseCurrencyCode": "  "`, `"baseCurrencyCode": "US"` o `"baseCurrencyCode": "U5D"`

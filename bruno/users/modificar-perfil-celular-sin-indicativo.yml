@@ -1,0 +1,41 @@
+info:
+  name: Modificar perfil con celular sin indicativo
+  type: http
+  seq: 6
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/users/me"
+  body:
+    type: json
+    data: |-
+      {
+        "phone": "3109876543"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenPerfil}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: phone
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Celular sin indicativo en el parche (FIN-59)
+
+  El celular va en formato internacional: + e indicativo. El GET siguiente comprueba que el perfil
+  conserva el celular del PATCH anterior.

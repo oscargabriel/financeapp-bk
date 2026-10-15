@@ -102,7 +102,7 @@ INSERT INTO finance.users
 VALUES
     (:'uid'::uuid, :'email',
      '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy',
-     'Laura', 'Gómez', '3109876543', DATE '1992-07-21',
+     'Laura', 'Gómez', '+573109876543', DATE '1992-07-21',
      'COP', 'America/Bogota');
 
 

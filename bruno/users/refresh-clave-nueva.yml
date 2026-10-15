@@ -1,7 +1,7 @@
 info:
   name: Refresco de la sesion con la clave nueva
   type: http
-  seq: 26
+  seq: 27
 
 http:
   method: POST

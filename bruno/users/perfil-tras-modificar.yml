@@ -1,7 +1,7 @@
 info:
   name: Perfil tras modificar
   type: http
-  seq: 6
+  seq: 7
 
 http:
   method: GET
@@ -28,7 +28,7 @@ runtime:
     - type: tests
       code: |-
         test("el celular es el del PATCH", function() {
-          expect(res.getBody().phone).to.equal("3109876543");
+          expect(res.getBody().phone).to.equal("+573109876543");
         });
 
 settings:
