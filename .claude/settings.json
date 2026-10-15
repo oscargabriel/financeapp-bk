@@ -19,6 +19,8 @@
       "mcp__atlassian__createIssueLink",
       "Bash(pwsh -NoProfile -File .claude/scripts/merge-pr-dev.ps1 *)",
       "PowerShell(pwsh -NoProfile -File .claude/scripts/merge-pr-dev.ps1 *)",
+      "Bash(pwsh -NoProfile -File ../.claude/scripts/jira.ps1 *)",
+      "PowerShell(pwsh -NoProfile -File ../.claude/scripts/jira.ps1 *)",
       "Bash(openspec *)",
       "PowerShell(openspec *)"
     ],

@@ -26,6 +26,14 @@ proyecto y taparía la copia.
 `java-debugging` incorpora el método de `systematic-debugging` de superpowers 6.4.2 (MIT, ver su
 `LICENSE-superpowers`). Al actualizarse superpowers, comparar esa parte con la versión nueva.
 
+## Configuración compartida con la raíz
+
+La configuración de agentes de este repo —`.claude/`, `AGENTS.md`, `openspec/config.yaml` y
+`.mcp.json`— también se mantiene desde la raíz `1-finanzas`, para que lo que comparte con
+`financeapp-fr` (tablero, estados, campos de Jira, corte de sesión) quede igual en los dos. Un
+cambio de ese tipo se hace allí; uno propio de este repo, aquí. Los cambios hechos desde la raíz
+llegan sin commit.
+
 ## OpenSpec
 
 `openspec init` instaló sus skills en `.claude/skills/openspec-*` y sus comandos en
@@ -46,7 +54,9 @@ change. La ejecución la cubren las skills del proyecto: `java-testing` (TDD por
 El servidor MCP `atlassian` está declarado en `.mcp.json` con alcance de proyecto: solo existe
 aquí. Requiere autenticarse una vez por máquina desde `/mcp`. El ciclo completo —consumir el issue,
 pasarlo por un change de OpenSpec, entregarlo y cerrarlo— está en el skill `tareas-jira`, que tiene
-el `cloudId`, los estados y sus transiciones.
+el `cloudId`, los estados y sus transiciones. Una tarea se lleva en dos sesiones: la
+propuesta termina en la aprobación, y la implementación arranca en una sesión nueva con
+`aplica fin-<n>-<slug>` (*Retomar un change aprobado* en `tareas-jira`).
 
 El servidor `notion` sigue declarado en `.mcp.json` solo para leer el histórico de las tareas
 `FA-n`, pero no está en `enabledMcpjsonServers`: se activa desde `/mcp` cuando hace falta, y
@@ -58,6 +68,5 @@ sistema hace, y el `design.md` de cada change el porqué. La memoria de Claude q
 trabajar con el usuario y para decisiones viejas que todavía no tienen spec: cuando un change toque
 una capacidad descrita en una memoria, su contenido pasa a la spec y la memoria se borra.
 
-Esto adapta la regla del `~/.claude/CLAUDE.md` global que pide registrar cada mock o stub acordado
-en una memoria tipo `project`: aquí se cumple creando el issue en Jira. Es deliberado, no un
-olvido.
+Un mock o stub acordado se registra como issue en Jira (paso 10 de `tareas-jira`), no en una
+memoria.

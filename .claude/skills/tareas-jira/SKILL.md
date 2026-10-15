@@ -1,6 +1,6 @@
 ---
 name: tareas-jira
-description: Usar cuando se pida la siguiente tarea, tomar o cerrar una tarea del tablero de financeapp-bk ("siguiente tarea", "qué sigue", "toma la tarea X", "toma la FIN-n", "cierra la tarea"), cuando llegue un encargo suelto para este repo que haya que convertir en tarea, o cuando aparezca un pendiente que haya que registrar. Cubre el ciclo completo: issue de Jira → change de OpenSpec → aprobación → implementación → archive → entrega → cierre. No usar en otros repositorios.
+description: Usar cuando se pida la siguiente tarea, tomar o cerrar una tarea del tablero de financeapp-bk ("siguiente tarea", "qué sigue", "toma la tarea X", "toma la FIN-n", "cierra la tarea"), cuando se retome un change ya aprobado en una sesión nueva ("aplica fin-n-slug", "aplica FIN-n", "retoma FIN-n"), cuando llegue un encargo suelto para este repo que haya que convertir en tarea, o cuando aparezca un pendiente que haya que registrar. Cubre el ciclo completo: issue de Jira → change de OpenSpec → aprobación → implementación → archive → entrega → cierre. No usar en otros repositorios.
 ---
 
 # Tareas en Jira — financeapp-bk
@@ -27,7 +27,7 @@ El tablero es compartido con el front, que vive en su propio repo, `financeapp-f
 
 El componente de cada tarea dice dónde se resuelve: `Backend` es este repo, `Frontend` el otro.
 **Este skill solo toma y modifica tareas con componente `Backend`** —un enlace `Blocks` desde o
-hacia un issue que crea o tiene en curso no cuenta como modificar, ver *Dependencias y orden*—, y toda tarea que
+hacia un issue que crea o tiene en curso no cuenta como modificar, ver `references/crear-issue.md`—, y toda tarea que
 cree lleva el componente y el epic puestos: sin componente no aparece en la consulta de ningún
 repo, y sin epic la raíz no la ve al refinar el tema.
 
@@ -42,11 +42,52 @@ Estados, con el id de la transición que lleva a cada uno:
 
 | Estado | Transición | Significa |
 |---|---|---|
-| `pendiente` | 11 | Backlog: falta refinar o es para después. Estado inicial al crear |
-| `Por hacer` | 21 | Listo para tomarse; lleva la etiqueta `sprint-actual` |
+| `pendiente` | 11 | Espera una próxima etapa o una decisión del usuario. Estado inicial al crear |
+| `Por hacer` | 21 | Bien definida y sin decisiones pendientes: lista para tomarse |
 | `En curso` | 31 | Lo tiene este repo o el otro |
 | `Por revisar` | 51 | Entregado, espera la revisión del usuario |
 | `Listo` | 41 | Cerrado por el usuario, o descartado (con la etiqueta `descartada`) |
+
+No hay sprints: `Por hacer` no lleva etiqueta. Las tareas que todavía tienen `sprint-actual` se
+dejan como están.
+
+Cada campo de Jira llega con todo su objeto REST (URLs, íconos, el issue enlazado completo): se
+piden solo los `fields` que dice cada paso. `transitionJiraIssue` y `editJiraIssue` devuelven el
+issue entero y no tienen cómo evitarlo. Por eso los estados, las dependencias y las escrituras que
+no crean nada van con `jira.ps1`.
+
+### `jira.ps1`
+
+`1-finanzas/.claude/scripts/jira.ps1` habla con la API REST de Jira: devuelve una línea por issue
+(`clave | estado | componente | epic | [etiquetas] | summary | bloqueada por … | bloquea …`, solo
+con los campos pedidos) y una línea `ok` por escritura. Se llama con
+`pwsh -NoProfile -File .claude/scripts/jira.ps1 …` desde la raíz y con
+`pwsh -NoProfile -File ../.claude/scripts/jira.ps1 …` desde un repo.
+
+| Para | Argumentos |
+|---|---|
+| Estado de pocas claves | `estado FIN-59 FIN-60` |
+| Buscar, o revisar dependencias | `buscar '<JQL>' -Campos summary,status`, solo con los campos del propósito; sin `-Campos` trae `summary`, `status`, `components`, `parent` e `issuelinks` |
+| Transicionar | `transicion FIN-60 21` |
+| Agregar o quitar etiquetas, conservando las demás | `etiquetas FIN-60 -Agregar descartada` / `-Quitar descartada` |
+| Reescribir una descripción | `descripcion FIN-60 -Archivo <carpeta>/FIN-60.json` (salida de `md2adf.ps1`) |
+| Comentar con un ADF ya generado | `comentar FIN-60 -Archivo <carpeta>/FIN-60.json` |
+
+El MCP queda para lo que el script no hace: leer descripciones y comentarios en markdown
+(`getJiraIssue`), crear issues (`createJiraIssue`) y enlaces (`createIssueLink`), y comentar en
+markdown (`addCommentToJiraIssue`). Un error de Jira sale como
+`HTTP <código> en <método> <ruta>. <mensaje de Jira>` y se corrige igual que con el MCP. Si el
+script dice que faltan `JIRA_EMAIL` o `JIRA_API_TOKEN` (variables de entorno de usuario), o falla
+por otra cosa que no es un HTTP de Jira, se sigue con el MCP y se avisa en chat. Probado contra
+Jira el 14-10-2026.
+
+### Cuándo leer las referencias
+
+| Si… | Leer |
+|---|---|
+| Hay que crear un issue (encargo suelto, descubrimiento, el issue `Frontend` de *El contrato*) o decidir sus dependencias | `references/crear-issue.md` |
+| Un issue queda obsoleto o sustituido (paso 11) | `references/descartar.md` |
+| El MCP no responde, no está autenticado o una escritura expira | `references/jira-falla.md` |
 
 ### El histórico de Notion
 
@@ -83,15 +124,17 @@ anterior si no hay una regla de uso, y `High` con la regla escrita ya cubre el c
 primero". Si la mayoría de los issues tomables acaba en `High`, la prioridad dejó de discriminar: se
 recalibra, no se agregan niveles.
 
-`getJiraIssue` del elegido, con `responseContentFormat: "markdown"` y `parent` e `issuelinks` en los
-campos, para leer `## Contexto`, `## Criterios de aceptación` y sus enlaces.
+`getJiraIssue` del elegido, con `responseContentFormat: "markdown"` y
+`fields: ["summary", "description", "parent", "issuelinks", "components"]`, para leer `## Contexto`,
+`## Criterios de aceptación`, sus enlaces y su componente.
 
 **Si los criterios no permiten decidir cuándo el issue está hecho, no lo tomes.** Deja la duda en un
 comentario con `addCommentToJiraIssue`, mantén el estado en `Por hacer` y dilo en chat.
 
 #### El epic de la tarea
 
-Después, `getJiraIssue` del epic (`parent`), también en markdown, para leer sus `## Decisiones`,
+Después, `getJiraIssue` del epic (`parent`), también en markdown y con
+`fields: ["description", "labels"]`, para leer sus `## Decisiones`,
 `## Fuera de alcance` y `## Flujo`. Ahí está lo acordado con el usuario para todo el tema, y la
 tarea no lo repite. El flujo dice qué otras tareas del tema hay, en los dos repos, y en qué orden.
 
@@ -113,8 +156,9 @@ lo que tiene que estar cerrado antes con enlaces `is blocked by`, y lo repite co
 - FIN-44 — confirma los parámetros de TLS que este archivo tiene que escribir
 ```
 
-**Antes de tomar un issue, revisar los dos.** Si alguno de los que lo bloquean no está en
-`Por revisar` o `Listo`, no lo tomes: dilo en chat y ofrece el que lo desbloquea. Una dependencia
+**Antes de tomar un issue, revisar los dos.** El estado de los que lo bloquean se pide en una sola
+consulta, `key in (...)` con `fields: ["status"]`, no con un `getJiraIssue` por cada uno. Si alguno
+no está en `Por revisar` o `Listo`, no lo tomes: dilo en chat y ofrece el que lo desbloquea. Una dependencia
 escrita como "FA-n (entregada, queda en Notion)" ya está cumplida.
 
 Las claves `FIN-n` de `## Depende de` y los `is blocked by` tienen que coincidir uno a uno. **Si no
@@ -139,13 +183,14 @@ repo, con `parent = FIN-x AND component = Backend AND statusCategory != Done`.
 #### Un encargo que llega suelto
 
 Si el usuario pide algo para este repo sin clave —un mensaje, lo que salió de una conversación—,
-primero se registra como issue en `Por hacer`, con la etiqueta `sprint-actual`, componente
-`Backend` y el epic de su tema como `parent` (ver *Crear un issue*). El texto **tal como llegó** va
+primero se registra como issue en `Por hacer`, con componente `Backend` y el epic de su tema como
+`parent` (ver `references/crear-issue.md`). El texto **tal como llegó** va
 bajo `## Contexto`, después de la línea que nombra el epic, y los criterios que se puedan deducir van
 bajo `## Criterios de aceptación`. El epic se elige entre los vigentes. **Si ninguno encaja, se
 pregunta**: este repo no crea epics, así que un tema nuevo se abre desde la raíz con `crear-tareas`.
 Lo que no se pueda deducir también se pregunta antes de seguir. Sus dependencias se resuelven con
-*Dependencias y orden* antes de crearlo. Después se toma como cualquier otro.
+*Dependencias y orden* (`references/crear-issue.md`) antes de crearlo. Después se toma como
+cualquier otro.
 
 ### 2. Tomar
 
@@ -178,6 +223,13 @@ El change se llama igual que la rama sin el prefijo: `fin-<n>-<slug>`.
 
 Las reglas de cada artefacto están en `openspec/config.yaml`; no se repiten aquí.
 
+**Se lee por sección.** `AGENTS.md` ya está cargada en la sesión: no se relee. Las specs
+(`transacciones` mide 66k caracteres) y `docs/api/contrato-api.md` (137k) se leen por partes:
+primero los encabezados (`grep -n "^### Requirement"`, `grep -n "^#"`), después `Read` con
+`offset` y `limit` sobre la sección que toca el issue. Nunca varios archivos concatenados en un solo
+`cat`, ni un change archivado entero. Todo lo que se lee aquí se paga en cada turno que queda de
+la sesión.
+
 ### 4. Aprobar
 
 Mostrar en el chat un resumen de la propuesta —el porqué, las decisiones del epic que aplica, los
@@ -187,9 +239,35 @@ lleva `por-refinar`, decirlo aquí. Los ajustes que pida se hacen con `/opsx:upd
 `openspec-update-change`) y se vuelve a mostrar lo que cambió.
 
 Única excepción: que el usuario haya aprobado de antemano en el mismo pedido ("propón e implementa
-sin parar"). Aun así el resumen se muestra.
+sin parar"). Aun así el resumen se muestra, y se sigue en la misma sesión: el usuario pidió no
+parar.
 
 Esta es la única espera del ciclo. La entrega del paso 8 sigue sin esperar revisión.
+
+**Con el "aprobado", la sesión termina.** Antes, comprobar que lo aclarado en el chat esté escrito
+en los artefactos (paso 3.3): es lo único que se pierde. Después, decir en chat:
+
+> Aprobado. Abre una sesión nueva (`/clear`) y escribe `aplica fin-<n>-<slug>`.
+
+El change ya guarda todo lo que la implementación necesita. Lo que entró al contexto para proponer
+—issue, epic, specs, código explorado, plantillas de `openspec instructions`— no hace falta en el
+apply y se pagaría en cada uno de sus turnos: con la sesión cortada aquí, las tareas medianas y
+grandes procesan un 30-45 % menos.
+
+### Retomar un change aprobado
+
+Es la entrada de la sesión nueva: «aplica fin-<n>-<slug>», «aplica FIN-n» o «retoma FIN-n».
+
+1. `getJiraIssue` con `fields: ["status", "components"]`: tiene que estar `En curso` y ser
+   `Backend`. Si no, no es un retomar: se sigue el ciclo desde el paso 1.
+2. Tiene que existir `openspec/changes/fin-<n>-*/`, y la rama actual tiene que ser
+   `feature/fin-<n>-<slug>` (`git branch --show-current`). Si es otra, `git checkout` a esa rama;
+   si se niega por cambios del working tree, decirlo y parar.
+3. Leer `proposal.md`, `design.md` si existe, `tasks.md` y las deltas de `specs/` del change. No se
+   relee el issue completo, ni el epic, ni el código explorado: lo que importa de ellos ya quedó en
+   el change.
+4. Si `tasks.md` tiene casillas marcadas, se sigue desde la primera sin marcar.
+5. Ir al paso 5.
 
 ### 5. Implementar
 
@@ -273,7 +351,7 @@ que nunca mergea. Los PRs contra `main` **no** se mergean nunca: el script los r
 ### 9. Cerrar
 
 Si el PR del issue toca `docs/api/contrato-api.md` (`gh pr diff <número> --name-only`), aplicar
-primero *El contrato* de *Dependencias y orden*: el contrato se decide en el change, así
+primero *El contrato* de `references/crear-issue.md`: el contrato se decide en el change, así
 que al crear el issue casi nunca se sabía qué parte iba a cambiar. Los enlaces y el issue `Frontend`
 que salgan se reportan en el comentario de cierre.
 
@@ -318,7 +396,7 @@ El discriminador es una sola pregunta:
 
 > **¿Puedo dejar este issue en verde y cerrado sin eso?**
 
-- **Sí** → issue nuevo en `pendiente` (ver *Crear un issue*): componente del repo donde se resuelve,
+- **Sí** → issue nuevo en `pendiente` (ver `references/crear-issue.md`): componente del repo donde se resuelve,
   tipo correspondiente, prioridad `Medium` salvo que sea un bug o una urgencia, y bajo
   `## Contexto` **por qué surgió y en qué issue apareció**. El epic es el de la tarea en curso,
   también cuando el issue es del otro repo o es un bug. Si de verdad es de otro tema, se usa el epic
@@ -329,141 +407,19 @@ El discriminador es una sola pregunta:
   actual, y se dice explícitamente en el comentario de cierre.
 
 Decir siempre en chat qué issues se crearon, con el orden de ejecución que queda (paso 6 de
-*Crear un issue*). Que un tema crezca mientras se implementa es la regla
-funcionando, no un desvío.
+`references/crear-issue.md`). Que un tema crezca mientras se implementa es la regla funcionando,
+no un desvío.
 
-Esto cubre la regla del CLAUDE.md global sobre registrar mocks y stubs acordados: el issue en Jira
-es el registro. En la memoria solo va la decisión de diseño, si la hubo.
+Un mock o stub acordado se registra igual: el issue en Jira es el registro. En la memoria solo va
+la decisión de diseño, si la hubo.
 
 ### 11. Cuando un issue queda obsoleto
 
-Un issue muere de dos formas: **otro lo sustituye**, o **una decisión posterior vuelve sus criterios
-irrealizables**. Jira no tiene un estado de descarte: se marca con la etiqueta `descartada` y la
-transición a `Listo`, que lo saca de las consultas activas sin borrarlo. Sigue buscable
-(`labels = descartada`), enlazable y se revierte con la transición de vuelta.
+Si otro issue lo sustituye o una decisión posterior vuelve irrealizables sus criterios, se descarta
+por cuenta propia: comentario `## Descartada`, etiqueta `descartada` y transición a `Listo`. Antes
+de hacerlo, leer `references/descartar.md`, que tiene la plantilla y el único caso que no se
+descarta sin preguntar.
 
-Hazlo por tu cuenta, sin pedir permiso, y dilo en chat. Antes, deja un comentario con
-`addCommentToJiraIssue`:
-
-```markdown
-## Descartada
-
-**Fecha** — DD-MM-AAAA.
-**Qué la sustituye** — la clave del issue que la reemplaza, o la decisión que la dejó sin sentido,
-con su fecha y dónde está escrita.
-**Dónde quedó cubierto lo que pedía** — el archivo, el test o el request de Bruno concreto. Si no
-quedó cubierto en ninguna parte, decirlo con esas palabras: es un hueco, no un issue muerto.
-```
-
-Los tres campos son obligatorios. Sin el tercero, descartar un issue equivale a perder trabajo
-pendiente sin que nadie lo note. Después, `editJiraIssue` para agregar la etiqueta `descartada`
-(conservando las que tenga) y `transitionJiraIssue` con `{"id": "41"}`.
-
-**El único caso que no descartas tú** es un issue en el que el usuario ya invirtió decisiones y
-quiere revisar: si dudas, deja el estado y pregunta.
-
-Se descarta directamente, en vez de proponerlo en chat, porque un aviso que vive en una
-conversación se pierde al cerrarla mientras el issue sigue en el tablero: un aviso que solo se dice
-una vez no es un estado.
-
-## Crear un issue
-
-La descripción va en ADF, no en markdown: con `contentFormat: "markdown"` Jira escapa `- [ ]` y los
-criterios quedan como texto en vez de casillas.
-
-0. Resolver sus dependencias con *Dependencias y orden*, más abajo.
-1. Escribir la descripción en un archivo temporal, precedida de una línea `=== <clave>` (por ejemplo
-   `=== nuevo`):
-
-   ```markdown
-   ## Contexto
-   Parte del epic FIN-<x>: leer sus `## Decisiones` antes de proponer. <Por qué surgió, en qué
-   issue apareció o el encargo tal como llegó, y las rutas de archivo que lo muestran.>
-   ## Depende de
-   - FIN-<n> — <qué entrega que esta necesita>
-   ## Criterios de aceptación
-   - [ ] <comportamiento observable, verificable>
-   - [ ] <verificación del repo>
-   ```
-
-   - El `## Contexto` **no copia** las decisiones ni los pedidos del epic: los nombra por su clave.
-     Una decisión que solo afecta a esta tarea sí va, como criterio.
-   - `## Depende de` lleva una línea por cada enlace `is blocked by` del paso 4, y se omite si no
-     hay dependencias.
-   - El último criterio es la verificación del repo. `Backend`: tests de la capa que toca,
-     `gradlew build` y `bru run` en verde, y si toca endpoints, `contrato-api.md` y `bruno/` al día.
-     `Frontend`: tests de componente o servicio, `ng test` y `ng build` en verde.
-   - No lleva `## Notas de implementación`: este repo deja las notas en un comentario al cerrar
-     (paso 9).
-2. `& .claude/skills/tareas-jira/md2adf.ps1 -Path <archivo> -OutDir <carpeta>` deja un
-   `<clave>.json`. Soporta `## `, `> `, `- [ ]`, `- [x]`, `- `, párrafos, `código`, `**negrita**` y
-   URLs; nada más.
-3. `createJiraIssue`: `projectKey: "FIN"`, `issueTypeName`, `summary`, `parent` (clave del epic,
-   **siempre**), `description` = contenido del `.json`, `contentFormat: "adf"`, `additional_fields` =
-   `{"components": [{"name": "Backend"}], "priority": {"name": "Medium"}, "labels": [...]}`, con
-   el componente del repo donde se resuelve. Sin `transition` queda en `pendiente`; con
-   `transition: {"id": "21"}` y la etiqueta `sprint-actual`, en `Por hacer`.
-4. `createIssueLink` por cada dependencia, con `type: "Blocks"`, `inwardIssue` = el que bloquea y
-   `outwardIssue` = el que depende. Incluye los enlaces en los que el nuevo bloquea a uno
-   existente.
-5. Verificar con `getJiraIssue` (campos `description`, `issuelinks`, `components`, `parent`) cada
-   issue creado: las claves `FIN-n` de `## Depende de` y sus `is blocked by` coinciden uno a uno
-   —las `FA-n` de Notion solo van en texto—, y los criterios salen como `- [ ]`, no `\[ \]`. Si
-   algo sobra o falta, se corrige antes de seguir.
-6. Decir en chat el orden de ejecución que queda, sacado de los enlaces y con las bloqueadoras de
-   otros epics o del otro repo («en `financeapp-bk`: FIN-n; después, en `financeapp-fr`: FIN-m»).
-   **Avisar si un issue en `Por hacer` con `sprint-actual` quedó bloqueado por uno en
-   `pendiente`**: no se puede tomar en el sprint, y el usuario decide si sube la bloqueadora o baja
-   la otra.
-
-Los epics vigentes salen de `project = FIN AND issuetype = Epic AND statusCategory != Done` (campos
-`summary` y `labels`).
-
-### Dependencias y orden
-
-Antes de redactar un issue, se cruza con las tareas abiertas de su epic
-(`parent = FIN-x AND statusCategory != Done`) y con las de otros epics que toquen lo mismo
-(`project = FIN AND issuetype != Epic AND statusCategory != Done AND text ~ "<palabra clave>"`, una
-consulta por palabra clave: la ruta, la tabla, el archivo), con `summary`, `status`, `components`,
-`parent` e `issuelinks`. Las dos consultas incluyen los issues del otro repo.
-
-**Es dependencia** —enlace `Blocks` y línea en `## Depende de`— cuando el issue:
-
-- consume un endpoint, campo, código de error, tabla, función o script que otro crea o cambia;
-- usa una parte del contrato que otro reescribe, **aunque sea solo texto** (ver *El contrato*);
-- necesita algo que otro decide (una tarea de definición) o deja listo (despliegue, secreto,
-  variable, dominio);
-- cambia el mismo archivo o tabla que otro y supone el estado que ese deja.
-
-**No es dependencia** el origen («surgió en FIN-n»), una mención de contexto ni dos issues del
-mismo tema que se pueden cerrar en cualquier orden.
-
-- **Si no está claro si hay dependencia, se pregunta.** Nunca se escribe que un issue «no bloquea»
-  a otro ni se omite el enlace por suponerlo: así se perdió la dependencia de FIN-50 hacia FIN-49.
-- La dependencia va en los dos sentidos: un issue nuevo —o, al cerrar, el que está en curso—
-  puede bloquear a uno existente, también del otro repo. Se crea el enlace y se dice en chat. Enlazar no cuenta como modificar ese issue:
-  su descripción no se toca, así que su `## Depende de` queda sin la línea nueva. Se dice en chat
-  para que la raíz la agregue en *Revisar dependencias* de `crear-tareas`. Ver `design.md` de
-  `fin-81-tareas-jira-dependencias`.
-- Se revisa que los enlaces no formen un ciclo.
-
-#### El contrato
-
-Un issue que cambia `docs/api/contrato-api.md`, aunque sea solo texto, **bloquea a los issues
-`Frontend` abiertos que usan esa parte**: la copia `financeapp-fr/contrato-api.md` tiene que
-reflejarla. Para saber si el front la usa:
-
-1. `project = FIN AND component = Frontend AND statusCategory != Done AND text ~ "<ruta>"`.
-2. Si `../financeapp-fr` existe, buscar la ruta en su `src/` y en su `contrato-api.md`, solo
-   leyendo.
-3. Si con eso no se puede decidir, se pregunta.
-
-Si el front la usa y no hay ningún issue `Frontend` abierto que la cubra, se crea con este mismo
-procedimiento el issue `Frontend` que sincroniza en su copia de `contrato-api.md` la sección que
-cambió, en el epic del issue del back, en `pendiente` y bloqueado por él.
-
-Se aplica al crear, si el issue ya dice qué parte del contrato cambia, y otra vez al cerrar (paso
-9), si el change terminó tocando el contrato.
 
 ## Prohibiciones
 
@@ -471,7 +427,7 @@ Se aplica al crear, si el issue ya dice qué parte del contrato cambia, y otra v
 - **Nunca** borrar un issue. Lo obsoleto se descarta con el paso 11, que es reversible y localizable.
 - **Nunca** modificar issues distintos del que está en curso. Tres excepciones: crear nuevos;
   enlazar `Blocks` un issue nuevo, o el que está en curso, con uno existente, también del otro
-  repo (*Dependencias y orden*); y las operaciones de tablero que el usuario pida explícitamente —repriorizar un
+  repo (`references/crear-issue.md`); y las operaciones de tablero que el usuario pida explícitamente —repriorizar un
   conjunto, descartar lo obsoleto, reordenar las tareas de un tema—, que se ejecutan y se reportan
   una por una.
 - **Nunca** escribir que un issue «no bloquea» a otro ni omitir un enlace por suponerlo: si no está
@@ -480,22 +436,6 @@ Se aplica al crear, si el issue ya dice qué parte del contrato cambia, y otra v
 - **Nunca** crear una tarea sin componente o sin epic (`parent`).
 - **Nunca** escribir en Notion: es histórico de solo lectura.
 - **Nunca** inventar el resultado de una verificación que no se corrió.
+- **Nunca** reintentar una escritura que expiró sin leer antes si se aplicó, ni implementar un
+  issue que no se pudo leer (`references/jira-falla.md`).
 
-## Cuando Jira falla
-
-Si el servidor MCP `atlassian` no responde o no está autenticado (`/mcp`), detener el ciclo y
-decirlo. No implementar a ciegas un issue que no se pudo leer, y no guardar la evidencia en un
-archivo local para sincronizarla después.
-
-Si la escritura falla **después** de implementar, no revertir el código: reportar el fallo junto con
-el contenido exacto que se iba a escribir, para pegarlo a mano.
-
-### Un timeout no es un fallo
-
-Una escritura que expira **puede haberse aplicado igual**: el servidor sigue procesando después de
-que la llamada se rinde. Reintentarla a ciegas duplica el comentario o el issue.
-
-Ante un timeout en cualquier escritura, **leer el issue con `getJiraIssue` antes de reintentar** (con
-`comment` en los campos si era un comentario; por JQL sobre `summary` si era una creación), y decidir
-con lo que diga: si ya está, no hay nada que reintentar; si quedó a medias, se completa con
-`editJiraIssue`.

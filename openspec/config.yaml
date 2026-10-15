@@ -7,7 +7,9 @@ context: |
 
   Proyecto: backend de finanzas personales. Java 25, Spring Boot 4 WebFlux, R2DBC sobre PostgreSQL,
   arquitectura hexagonal. La guía completa —arquitectura, errores, validación, configuración,
-  pruebas y despliegue— está en AGENTS.md: léela antes de proponer y no la copies en los artefactos.
+  pruebas y despliegue— está en AGENTS.md, que ya está cargada en la sesión: no la releas ni la copies en los
+  artefactos. Las specs y docs/api/contrato-api.md se leen por sección (encabezados con grep -n,
+  después el rango), no enteros.
   Las tareas vienen del proyecto FIN de Jira con clave FIN-n; el change se llama fin-<n>-<slug>.
   Las FA-n que aparecen en el código y en los changes archivados son del tablero anterior, en Notion.
   Toda ruta del API se pide con el prefijo /api, y todo error sale como
@@ -40,6 +42,8 @@ operations:
       - Antes de la primera tarea, carga las skills de dominio que indiquen los grupos de tasks.md.
       - Cada tarea se hace con TDD siguiendo java-testing; el test se ve fallar por la razón correcta antes de escribir el código.
       - No marques una tarea sin haber corrido su verificación; el último grupo exige gradlew build y bru run en verde.
+      - "Las ediciones independientes (el test, el DTO, el request, el contrato) van juntas en una sola respuesta. Edita con Edit, o con Write si reescribes la mayor parte del archivo; nunca con ReadAllText().Replace() de PowerShell ni con sed -i en serie."
+      - "Marca las casillas de tasks.md con Edit en la misma respuesta que cierra el grupo, sin imprimir el archivo ni el status después."
       - "No agregues al commit cambios del working tree que no sean de la tarea: el usuario suele tener archivos propios sin commitear."
   archive:
     guidance:
