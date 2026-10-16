@@ -66,7 +66,7 @@ de su recurso en el mismo PR; aquí, solo su fila de la tabla.
 | `POST` | `/api/affiliations/{id}/unlink` | Bearer | Desvincular una afiliación aceptada | [afiliaciones.md](afiliaciones.md) |
 | `GET` | `/api/affiliations/balances` | Bearer | Lo que el usuario y cada persona se deben, por moneda | [afiliaciones.md](afiliaciones.md) |
 | `GET` | `/api/affiliations/{id}/shares` | Bearer | Las partes compartidas entre el usuario y esa persona | [afiliaciones.md](afiliaciones.md) |
-| `POST` | `/api/telegram/webhook` | Secreto del webhook | Recibir los updates del bot de Telegram (lo llama Telegram) | [telegram.md](telegram.md) |
+| `POST` | `/api/telegram/webhook` | Secreto del webhook | Recibir los updates del bot de Telegram y vincular el chat con el contacto propio (lo llama Telegram) | [telegram.md](telegram.md) |
 
 ## Archivos
 

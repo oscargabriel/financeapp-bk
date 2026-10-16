@@ -91,7 +91,7 @@ class UpdateRecurrenceUseCaseTest {
         when(categorias.findActiveByUser(eq(USER_ID), any()))
                 .thenReturn(Flux.fromIterable(TransactionMother.categoriasDelUsuario()));
         when(usuarios.findActiveProfile(USER_ID)).thenReturn(Mono.just(
-                new UserProfile(USER_ID, "ana@ejemplo.com", "Ana", null, null, "COP", "America/Bogota", true, false)));
+                new UserProfile(USER_ID, "ana@ejemplo.com", "Ana", null, null, "COP", "America/Bogota", true, false, false)));
         when(series.update(any(), any(), any(), any(), any())).thenReturn(Mono.just(true));
         when(series.findNextOccurrence(SERIE_ID)).thenReturn(Mono.just(PROXIMA));
         casoDeUso = new UpdateRecurrenceUseCase(cuentas, categorias, usuarios, series,

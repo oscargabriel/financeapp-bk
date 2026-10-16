@@ -1,0 +1,38 @@
+info:
+  name: Perfil vinculado
+  type: http
+  seq: 20
+
+http:
+  method: GET
+  url: "{{baseUrl}}/users/me"
+  auth:
+    type: bearer
+    token: "{{tokenTelegram}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.telegramLinked
+      operator: eq
+      value: "true"
+  scripts:
+    - type: tests
+      code: |-
+        test("no trae el id del chat", function() {
+          expect(JSON.stringify(res.getBody())).to.not.contain("777001");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Ana quedó vinculada (FIN-60)
+
+  Es la otra copia de la regla del bot (`UserR2dbcAdapter`, `PERFIL_ACTIVO`): si el bot vinculó y el
+  perfil no lo ve, las dos consultas se separaron.

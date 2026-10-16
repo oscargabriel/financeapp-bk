@@ -1,6 +1,8 @@
 package com.oscargabriel.financeapp.telegram.infrastructure.adapter.out.telegram;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +15,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 
 import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
+import com.oscargabriel.financeapp.telegram.domain.model.RespuestaDelBot;
 import com.oscargabriel.financeapp.telegram.domain.port.out.BotDeTelegramPort;
 
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +38,14 @@ public class TelegramBotApiAdapter implements BotDeTelegramPort {
 
     private static final String NO_ENVIADO = "Telegram no recibio el mensaje del bot";
 
+    /** request_contact comparte el contacto propio del que toca el boton, y solo funciona en chats privados. */
+    private static final Map<String, Object> PEDIR_CONTACTO = Map.of(
+            "keyboard", List.of(List.of(Map.of("text", "Compartir mi número", "request_contact", true))),
+            "one_time_keyboard", true,
+            "resize_keyboard", true);
+
+    private static final Map<String, Object> QUITAR = Map.of("remove_keyboard", true);
+
     private final WebClient webClient;
     private final String token;
     private final Duration timeout;
@@ -49,16 +60,29 @@ public class TelegramBotApiAdapter implements BotDeTelegramPort {
     }
 
     @Override
-    public Mono<Void> enviar(long chatId, String texto) {
+    public Mono<Void> enviar(long chatId, RespuestaDelBot respuesta) {
         return Mono.defer(() -> webClient.post()
                         .uri("/bot{token}/sendMessage", token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .bodyValue(Map.of("chat_id", chatId, "text", texto))
+                        .bodyValue(cuerpo(chatId, respuesta))
                         .retrieve()
                         .toBodilessEntity()
                         .timeout(timeout))
                 .then()
                 .onErrorMap(TelegramBotApiAdapter::noEnviado);
+    }
+
+    /** reply_markup segun el teclado (FIN-60); sin el campo, Telegram deja el teclado que hubiera. */
+    private static Map<String, Object> cuerpo(long chatId, RespuestaDelBot respuesta) {
+        Map<String, Object> cuerpo = new LinkedHashMap<>();
+        cuerpo.put("chat_id", chatId);
+        cuerpo.put("text", respuesta.texto());
+        switch (respuesta.teclado()) {
+            case PEDIR_CONTACTO -> cuerpo.put("reply_markup", PEDIR_CONTACTO);
+            case QUITAR -> cuerpo.put("reply_markup", QUITAR);
+            case NINGUNO -> { }
+        }
+        return cuerpo;
     }
 
     private static BadRequestException noEnviado(Throwable e) {

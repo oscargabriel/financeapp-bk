@@ -1,0 +1,33 @@
+info:
+  name: Perfil con un chat guardado sin teléfono admitido
+  type: http
+  seq: 12
+
+http:
+  method: GET
+  url: "{{baseUrl}}/users/me"
+  auth:
+    type: bearer
+    token: "{{accessToken}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.telegramLinked
+      operator: eq
+      value: "false"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un chat guardado no basta (FIN-60)
+
+  `prueba@financeapp.local` tiene el chat 123456789 en `test-data.sql`, pero su `phone` no está en
+  la lista de admitidos: `telegramLinked` sale en `false`. Es la misma regla que aplica el bot en
+  cada mensaje, copiada en `TelegramChatR2dbcAdapter`.

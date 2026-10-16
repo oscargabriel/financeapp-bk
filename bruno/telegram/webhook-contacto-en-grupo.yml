@@ -1,0 +1,43 @@
+info:
+  name: Webhook con el contacto propio desde un grupo
+  type: http
+  seq: 17
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  headers:
+    - name: X-Telegram-Bot-Api-Secret-Token
+      value: "{{telegramSecret}}"
+  body:
+    type: json
+    data: |-
+      {
+        "update_id": 10102,
+        "message": {
+          "message_id": 102,
+          "date": 1791590401,
+          "from": {"id": 777001, "is_bot": false, "first_name": "Ana"},
+          "chat": {"id": -100777001, "type": "group", "title": "Familia"},
+          "contact": {"phone_number": "+573009990001", "first_name": "Ana", "user_id": 777001}
+        }
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un grupo nunca se vincula (FIN-60)
+
+  El contacto es el propio de Ana y su teléfono está admitido, pero llega desde un chat `group`:
+  vincularlo dejaría actuar como Ana a todos los miembros. El bot responde que solo atiende chats
+  privados, y `Perfil tras contacto en grupo` comprueba que Ana sigue sin chat.

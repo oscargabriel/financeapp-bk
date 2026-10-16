@@ -1,0 +1,43 @@
+info:
+  name: Webhook con un contacto ajeno
+  type: http
+  seq: 15
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  headers:
+    - name: X-Telegram-Bot-Api-Secret-Token
+      value: "{{telegramSecret}}"
+  body:
+    type: json
+    data: |-
+      {
+        "update_id": 10101,
+        "message": {
+          "message_id": 101,
+          "date": 1791590401,
+          "from": {"id": 777001, "is_bot": false, "first_name": "Otra"},
+          "chat": {"id": 777001, "type": "private", "first_name": "Otra"},
+          "contact": {"phone_number": "+573009990001", "first_name": "Ana", "user_id": 888002}
+        }
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un contacto reenviado no vincula (FIN-60)
+
+  El teléfono es el de Ana, admitido, pero el `user_id` del contacto no es el `from.id` del que
+  escribe: es un contacto de la agenda o reenviado. El bot responde que solo vincula con el número
+  propio, y `Perfil tras contacto ajeno` comprueba que Ana sigue sin chat.

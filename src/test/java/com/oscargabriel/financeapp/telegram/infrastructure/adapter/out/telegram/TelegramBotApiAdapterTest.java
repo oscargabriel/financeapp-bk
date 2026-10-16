@@ -13,6 +13,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 
+import com.oscargabriel.financeapp.telegram.domain.model.RespuestaDelBot;
+import com.oscargabriel.financeapp.telegram.domain.model.TecladoDelBot;
 import com.oscargabriel.financeapp.telegram.support.TelegramMother;
 import com.sun.net.httpserver.HttpServer;
 
@@ -66,16 +68,49 @@ class TelegramBotApiAdapterTest {
                 TelegramMother.TOKEN, Duration.ofSeconds(5));
     }
 
+    private static RespuestaDelBot respuesta(String texto, TecladoDelBot teclado) {
+        return new RespuestaDelBot(texto, teclado);
+    }
+
+    private JsonNode enviado() {
+        return JsonMapper.builder().build().readTree(cuerpo.get());
+    }
+
     @Test
-    void enviaElTextoAlChatPorSendMessageConElToken() {
-        StepVerifier.create(adapter().enviar(TelegramMother.CHAT, "Hola, ¿qué tal?"))
+    void enviaElTextoAlChatPorSendMessageConElTokenYSinTeclado() {
+        StepVerifier.create(adapter().enviar(TelegramMother.CHAT, respuesta("Hola, ¿qué tal?", TecladoDelBot.NINGUNO)))
                 .verifyComplete();
 
         assertThat(metodo.get()).isEqualTo("POST");
         assertThat(ruta.get()).isEqualTo("/bot" + TelegramMother.TOKEN + "/sendMessage");
-        JsonNode enviado = JsonMapper.builder().build().readTree(cuerpo.get());
-        assertThat(enviado.path("chat_id").asLong()).isEqualTo(TelegramMother.CHAT);
-        assertThat(enviado.path("text").asString()).isEqualTo("Hola, ¿qué tal?");
+        assertThat(enviado().path("chat_id").asLong()).isEqualTo(TelegramMother.CHAT);
+        assertThat(enviado().path("text").asString()).isEqualTo("Hola, ¿qué tal?");
+        assertThat(enviado().has("reply_markup")).isFalse();
+    }
+
+    /** request_contact solo manda el contacto propio del que toca el boton (FIN-60). */
+    @Test
+    void pedirElContactoMandaUnBotonQueLoComparte() {
+        StepVerifier.create(adapter().enviar(TelegramMother.CHAT, respuesta("vincula", TecladoDelBot.PEDIR_CONTACTO)))
+                .verifyComplete();
+
+        JsonNode teclado = enviado().path("reply_markup");
+        assertThat(teclado.path("one_time_keyboard").asBoolean()).isTrue();
+        assertThat(teclado.path("resize_keyboard").asBoolean()).isTrue();
+        JsonNode boton = teclado.path("keyboard").path(0).path(0);
+        assertThat(boton.path("text").asString()).isEqualTo("Compartir mi número");
+        assertThat(boton.path("request_contact").asBoolean()).isTrue();
+        assertThat(teclado.path("keyboard")).hasSize(1);
+        assertThat(teclado.path("keyboard").path(0)).hasSize(1);
+    }
+
+    @Test
+    void quitarElTecladoMandaRemoveKeyboard() {
+        StepVerifier.create(adapter().enviar(TelegramMother.CHAT, respuesta("listo", TecladoDelBot.QUITAR)))
+                .verifyComplete();
+
+        assertThat(enviado().path("reply_markup").path("remove_keyboard").asBoolean()).isTrue();
+        assertThat(enviado().path("reply_markup").has("keyboard")).isFalse();
     }
 
     @Test
@@ -83,7 +118,8 @@ class TelegramBotApiAdapterTest {
         status = 403;
         respuesta = "{\"ok\":false,\"error_code\":403,\"description\":\"Forbidden: bot was blocked by the user\"}";
 
-        StepVerifier.create(adapter().enviar(TelegramMother.CHAT, "hola")).verifyError();
+        StepVerifier.create(adapter().enviar(TelegramMother.CHAT, respuesta("hola", TecladoDelBot.NINGUNO)))
+                .verifyError();
 
         assertThat(logs.list).singleElement().satisfies(evento -> {
             assertThat(evento.getFormattedMessage()).contains("403").doesNotContain(TelegramMother.TOKEN, "/bot");
@@ -97,7 +133,7 @@ class TelegramBotApiAdapterTest {
         TelegramBotApiAdapter sinServidor = adapter();
         servidor.stop(0);
 
-        StepVerifier.create(sinServidor.enviar(TelegramMother.CHAT, "hola"))
+        StepVerifier.create(sinServidor.enviar(TelegramMother.CHAT, respuesta("hola", TecladoDelBot.NINGUNO)))
                 .verifyErrorSatisfies(error -> assertThat(error.getMessage()).doesNotContain(TelegramMother.TOKEN));
 
         assertThat(logs.list).singleElement().satisfies(evento -> {

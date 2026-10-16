@@ -1,0 +1,47 @@
+info:
+  name: Registro con celular admitido y correo no admitido
+  type: http
+  seq: 31
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/register"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailCelularAdmitido}}",
+        "password": "unaClaveLarga",
+        "firstName": "Fuera",
+        "phone": "+573009990001"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "403"
+  scripts:
+    - type: before-request
+      code: |-
+        bru.setVar("emailCelularAdmitido", "celular-" + Date.now() + "@no-admitido.local");
+    - type: tests
+      code: |-
+        test("un unico error REGISTRATION_NOT_ALLOWED en email", function() {
+          expect(res.getBody().errors).to.have.lengthOf(1);
+          expect(res.getBody().errors[0].code).to.equal("REGISTRATION_NOT_ALLOWED");
+          expect(res.getBody().errors[0].field).to.equal("email");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un teléfono admitido no abre el alta (FIN-60)
+
+  `+573009990001` está en la lista de admitidos, pero solo para vincular un chat del bot. El alta
+  mira el correo y su dominio, nunca el `phone`.

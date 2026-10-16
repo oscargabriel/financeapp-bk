@@ -1,0 +1,43 @@
+info:
+  name: Webhook con el contacto propio
+  type: http
+  seq: 19
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  headers:
+    - name: X-Telegram-Bot-Api-Secret-Token
+      value: "{{telegramSecret}}"
+  body:
+    type: json
+    data: |-
+      {
+        "update_id": 10103,
+        "message": {
+          "message_id": 103,
+          "date": 1791590401,
+          "from": {"id": 777001, "is_bot": false, "first_name": "Ana"},
+          "chat": {"id": 777001, "type": "private", "first_name": "Ana"},
+          "contact": {"phone_number": "573009990001", "first_name": "Ana", "user_id": 777001}
+        }
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El contacto propio vincula el chat (FIN-60)
+
+  Telegram manda `phone_number` a veces sin `+`, como aquí: el bot se lo agrega antes de buscarlo
+  en la lista. El `user_id` es el `from.id` y el chat es privado, así que el chat 777001 queda
+  vinculado a Ana. `Perfil vinculado` lo comprueba.

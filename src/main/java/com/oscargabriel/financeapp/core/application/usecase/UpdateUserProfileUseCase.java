@@ -64,7 +64,8 @@ public class UpdateUserProfileUseCase implements UpdateUserProfilePort {
                         : command.baseCurrencyCode().trim().toUpperCase(),
                 command.timezone() == null ? actual.timezone() : command.timezone().trim(),
                 actual.hasPassword(),
-                actual.googleLinked());
+                actual.googleLinked(),
+                actual.telegramLinked());
     }
 
     private Mono<Void> monedaActiva(String moneda) {

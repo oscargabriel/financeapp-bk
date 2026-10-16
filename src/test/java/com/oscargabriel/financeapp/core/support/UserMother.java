@@ -20,15 +20,23 @@ public final class UserMother {
 
     /**
      * El perfil tal como lo guarda la base: correo en minusculas, sin apellido y con celular. Registrado
-     * con contrasena y sin Google.
+     * con contrasena, sin Google y sin chat de Telegram.
      */
     public static UserProfile unPerfil() {
-        return new UserProfile(ID, EMAIL, "Ana", null, "+573001234567", "COP", "America/Bogota", true, false);
+        return new UserProfile(ID, EMAIL, "Ana", null, "+573001234567", "COP", "America/Bogota", true, false,
+                false);
     }
 
     /** Registrado con Google, sin contrasena (FIN-52). */
     public static UserProfile unPerfilDeGoogle() {
-        return new UserProfile(ID, EMAIL, "Ana", null, "+573001234567", "COP", "America/Bogota", false, true);
+        return new UserProfile(ID, EMAIL, "Ana", null, "+573001234567", "COP", "America/Bogota", false, true,
+                false);
+    }
+
+    /** Como unPerfil(), con un chat de Telegram vinculado y el celular admitido (FIN-60). */
+    public static UserProfile unPerfilConTelegram() {
+        return new UserProfile(ID, EMAIL, "Ana", null, "+573001234567", "COP", "America/Bogota", true, false,
+                true);
     }
 
     /** Las de unPerfil(): con contrasena y sin Google. */

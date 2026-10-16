@@ -73,8 +73,21 @@ class UpdateUserProfileUseCaseTest {
                 .verifyComplete();
 
         assertThat(guardado()).isEqualTo(new UserProfile(UserMother.ID, UserMother.EMAIL, "Ana Maria", null,
-                "+573109876543", "COP", "Europe/Madrid", true, false));
+                "+573109876543", "COP", "Europe/Madrid", true, false, false));
         verifyNoInteractions(hasher);
+    }
+
+    /** Lo decide el UPDATE: el parche no lo cambia, y si el phone cambia la base desvincula el chat (FIN-60). */
+    @Test
+    void conservaTelegramLinkedDelPerfilActualYEmiteElDeLaBase() {
+        when(usuarios.findActiveProfile(UserMother.ID)).thenReturn(Mono.just(UserMother.unPerfilConTelegram()));
+        when(usuarios.updateProfile(any())).thenReturn(Mono.just(UserMother.unPerfil()));
+
+        StepVerifier.create(useCase().update(UserMother.ID, parche(null, null, null, "+573109876543", null, null)))
+                .assertNext(perfil -> assertThat(perfil.telegramLinked()).isFalse())
+                .verifyComplete();
+
+        assertThat(guardado().telegramLinked()).isTrue();
     }
 
     @Test

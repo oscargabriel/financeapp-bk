@@ -1,0 +1,44 @@
+info:
+  name: Cambiar el celular desvincula el chat
+  type: http
+  seq: 24
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/users/me"
+  body:
+    type: json
+    data: |-
+      {
+        "phone": "+573009990003"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenTelegram}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.telegramLinked
+      operator: eq
+      value: "false"
+  scripts:
+    - type: tests
+      code: |-
+        test("guardo el celular nuevo", function() {
+          expect(res.getBody().phone).to.equal("+573009990003");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un celular nuevo desvincula el chat (FIN-60)
+
+  `+573009990003` también está admitido, así que el `false` no viene de la lista: viene de que el
+  chat se verificó con el teléfono anterior y el `UPDATE` lo limpió.

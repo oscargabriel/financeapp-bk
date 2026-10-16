@@ -396,7 +396,7 @@ recrea solo lo suyo:
 
 | Lado | Usuarios | Los recrea o limpia |
 |---|---|---|
-| Back (`bruno/`) | `prueba@`, `inactivo@`, `pendientes@` e `invitado@financeapp.local`, `*@bruno.local` | `test-data.sql` |
+| Back (`bruno/`) | `prueba@`, `inactivo@`, `pendientes@`, `invitado@` y `telegram*@financeapp.local`, `*@bruno.local` | `test-data.sql` |
 | Front | `demo@financeapp.local`, `*@front.local` | `demo-data.sql` |
 | Desarrollador | `dev@financeapp.local` | `demo-data.sql` con `email` y `u = 1` |
 
@@ -414,6 +414,11 @@ admite `@bruno.local` y el correo exacto `invitado@financeapp.local`, y `demo-da
 `@front.local`. Un request de alta nuevo en `bruno/` usa un correo `@bruno.local`, o recibe 403.
 `bruno/auth/` registra a `invitado@`, así que también **solo pasa con `test-data.sql` recién
 cargado**, igual que `bruno/pending/`.
+
+La lista admite además los teléfonos E.164 de los `telegram*@financeapp.local`, que solo sirven
+para vincular un chat del bot (FIN-60). `bruno/telegram/` vincula el chat de `telegram@` y después
+le cambia el celular, así que **solo pasa con `test-data.sql` recién cargado**, igual que
+`bruno/pending/`.
 
 El front solo tiene su aplicación contra el API local: no corre psql ni recarga nada. **Por ahora
 solo lee**, así que recargar la demo no le borra trabajo y está permitido. Cuando el front empiece a

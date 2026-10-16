@@ -7,6 +7,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockJwt;
 
+import java.util.Map;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -14,6 +16,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webflux.test.autoconfigure.WebFluxTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.JwtMutator;
@@ -89,7 +92,24 @@ class UserControllerTest {
                 .jsonPath("$.baseCurrencyCode").isEqualTo("COP")
                 .jsonPath("$.timezone").isEqualTo("America/Bogota")
                 .jsonPath("$.hasPassword").isEqualTo(true)
-                .jsonPath("$.googleLinked").isEqualTo(false);
+                .jsonPath("$.googleLinked").isEqualTo(false)
+                .jsonPath("$.telegramLinked").isEqualTo(false);
+    }
+
+    /** FIN-60: telegramLinked es un booleano; el id del chat no sale. */
+    @Test
+    void elPerfilTraeExactamenteLasClavesDelContrato() {
+        when(getProfile.get(UserMother.ID)).thenReturn(Mono.just(UserMother.unPerfilConTelegram()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_PERFIL)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(new ParameterizedTypeReference<Map<String, Object>>() {
+                })
+                .value(cuerpo -> assertThat(cuerpo)
+                        .containsOnlyKeys("id", "email", "firstName", "lastName", "phone", "baseCurrencyCode",
+                                "timezone", "hasPassword", "googleLinked", "telegramLinked")
+                        .containsEntry("telegramLinked", true));
     }
 
     /** FIN-53: el front decide con estos dos campos si ofrece definir la primera contrasena. */

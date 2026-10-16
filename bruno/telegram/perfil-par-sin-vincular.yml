@@ -1,0 +1,29 @@
+info:
+  name: Perfil de un usuario con el teléfono repetido
+  type: http
+  seq: 22
+
+http:
+  method: GET
+  url: "{{baseUrl}}/users/me"
+  auth:
+    type: bearer
+    token: "{{tokenTelegramPar1}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.telegramLinked
+      operator: eq
+      value: "false"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El teléfono repetido no vinculó a telegram-par1@ (FIN-60)
