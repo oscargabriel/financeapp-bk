@@ -17,13 +17,14 @@ runtime:
       value: "200"
     - expression: res.body
       operator: length
-      value: "2"
+      value: "3"
   scripts:
     - type: tests
       code: |-
-        test("el gasto y la transferencia siguen pendientes", function() {
+        test("el gasto, la transferencia y el de correo siguen pendientes", function() {
           const ids = res.getBody().map(function (t) { return t.id; });
-          expect(ids).to.have.members([bru.getVar("idPendienteGasto"), bru.getVar("idPendienteTraslado")]);
+          expect(ids).to.have.members([bru.getVar("idPendienteGasto"), bru.getVar("idPendienteTraslado"),
+              bru.getVar("idPendienteCorreo")]);
           res.getBody().forEach(function (t) { expect(t.status).to.equal("PENDING"); });
         });
 
@@ -36,4 +37,5 @@ settings:
 docs: |
   # Los 409 no tocaron nada
 
-  Los dos que no se pudieron aprobar siguen ahí; el rechazado ya no.
+  Los dos que no se pudieron aprobar siguen ahí, igual que el de correo, que no se toca hasta el
+  final; el rechazado ya no.

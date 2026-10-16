@@ -17,7 +17,7 @@ runtime:
       value: "200"
     - expression: res.body
       operator: length
-      value: "3"
+      value: "4"
   scripts:
     - type: tests
       code: |-
@@ -37,24 +37,25 @@ runtime:
           });
         });
 
-        test("todos estan pendientes y vienen del asistente", function() {
-          lista.forEach(function (t) {
-            expect(t.status).to.equal("PENDING");
-            expect(t.origin).to.equal("TELEGRAM");
-          });
+        test("todos estan pendientes; los del asistente son TELEGRAM y el de correo EMAIL (FIN-101)", function() {
+          lista.forEach(function (t) { expect(t.status).to.equal("PENDING"); });
+          expect(lista.map(function (t) { return t.origin; }))
+              .to.eql(["TELEGRAM", "TELEGRAM", "TELEGRAM", "EMAIL"]);
         });
 
         test("cada uno trae su grupo: la transferencia y el gasto entraron juntos (FIN-58)", function() {
           expect(lista[0].groupId).to.equal("71000000-0000-7000-8000-000000000001");
           expect(lista[1].groupId).to.equal("71000000-0000-7000-8000-000000000001");
           expect(lista[2].groupId).to.equal("71000000-0000-7000-8000-000000000002");
+          expect(lista[3].groupId).to.equal("71000000-0000-7000-8000-000000000003");
         });
 
         test("del mas reciente al mas antiguo, sin el confirmado", function() {
           expect(lista.map(function (t) { return t.id; })).to.eql([
             bru.getVar("idPendienteGasto"),
             bru.getVar("idPendienteTraslado"),
-            bru.getVar("idPendienteRechazo")
+            bru.getVar("idPendienteRechazo"),
+            bru.getVar("idPendienteCorreo")
           ]);
         });
 

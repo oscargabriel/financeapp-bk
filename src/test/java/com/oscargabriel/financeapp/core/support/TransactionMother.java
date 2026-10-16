@@ -187,6 +187,12 @@ public final class TransactionMother {
                 t.recurrenceId(), t.installment(), t.destinationAmount(), t.original(), t.groupId(), t.sharedByUserId(), t.shareId());
     }
 
+    public static Transaction conOrigen(Transaction t, TransactionOrigin origen) {
+        return new Transaction(t.id(), t.userId(), t.type(), t.accountId(), t.destinationAccountId(),
+                t.categoryId(), t.amount(), t.currencyCode(), t.description(), t.notes(), t.occurredAt(), t.status(),
+                origen, t.recurrenceId(), t.installment(), t.destinationAmount(), t.original(), t.groupId(), t.sharedByUserId(), t.shareId());
+    }
+
     /** El mismo movimiento en un grupo de pendientes (FIN-58). */
     public static Transaction enGrupo(Transaction t, UUID grupo) {
         return new Transaction(t.id(), t.userId(), t.type(), t.accountId(), t.destinationAccountId(),

@@ -141,6 +141,7 @@ su propia forma: trae `destinationAmount`, pero no `originalAmount` ni `original
 | `WEB` | Este endpoint, las ocurrencias de una [serie](recurrentes.md#series-recurrentes) y las cuotas de una [compra en cuotas](cuotas.md#compras-en-cuotas) |
 | `TELEGRAM` | El [asistente](asistente.md#post-apiassistantmessages) |
 | `IMPORT` | Reservado para una importación de archivos. Hoy ningún endpoint lo produce |
+| `EMAIL` | Reservado para la ingesta desde correo (FIN-12). Hoy ningún endpoint lo produce: solo lo traen los datos de demo y de prueba |
 
 Va en las mismas respuestas que `status`. Lo pone el servidor: si el cuerpo trae un `origin`, se
 ignora.

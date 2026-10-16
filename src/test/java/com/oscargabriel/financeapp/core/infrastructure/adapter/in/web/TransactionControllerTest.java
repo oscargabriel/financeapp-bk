@@ -631,6 +631,40 @@ class TransactionControllerTest {
                 .jsonPath("$[1].groupId").isEqualTo(GRUPO_ID.toString());
     }
 
+    /** FIN-101: el origen de la ingesta desde correo sale en la lista aunque ningun endpoint lo produzca. */
+    @Test
+    void unPendienteQueLlegoPorCorreoSaleConSuOrigen() {
+        when(listPending.listPending(TransactionMother.USER_ID, Optional.empty())).thenReturn(Flux.just(
+                TransactionMother.conOrigen(TransactionMother.enGrupo(
+                        TransactionMother.conEstado(gasto(), TransactionStatus.PENDING), GRUPO_ID),
+                        TransactionOrigin.EMAIL)));
+
+        webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "/pending")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$[0].status").isEqualTo("PENDING")
+                .jsonPath("$[0].origin").isEqualTo("EMAIL");
+    }
+
+    @Test
+    void unLoteQueDeclaraOrigenCorreoSeGuardaComoWeb() {
+        when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), eq(TransactionStatus.CONFIRMED), anyList()))
+                .thenReturn(Flux.just(gasto()));
+
+        webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        [{"type": "EXPENSE", "accountId": "30000000-0000-7000-8000-000000000001",
+                          "categoryId": "40000000-0000-7000-8000-000000000001", "amount": 50000,
+                          "description": "Mercado", "occurredAt": "2026-09-20T10:15:00-05:00", "origin": "EMAIL"}]
+                        """)
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody()
+                .jsonPath("$[0].origin").isEqualTo("WEB");
+    }
+
     @Test
     void unMovimientoSinCompartirTraeLosTresCamposEnNull() {
         when(createTransactions.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), eq(TransactionStatus.CONFIRMED), anyList()))

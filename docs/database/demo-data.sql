@@ -25,13 +25,17 @@
 -- Ademas de los pendientes que le dejan esas personas, el usuario tiene dos
 -- grupos pendientes del asistente (FIN-95), como los deja un mensaje a Telegram:
 -- uno de tres movimientos y otro de uno, para la pantalla de pendientes del
--- front y su filtro por persona, que los deja fuera (FIN-71, FIN-73).
+-- front y su filtro por persona, que los deja fuera (FIN-71, FIN-73). Y
+-- pendientes de los demas origenes (FIN-101): grupos EMAIL de correos del banco
+-- (compras con tarjeta, un retiro, debitos automaticos) en el mes en curso y el
+-- anterior, un gasto WEB que llego en USD a la Mastercard en el mes en curso, y
+-- un grupo IMPORT de tres movimientos el mes anterior.
 --
 -- Los casos en dolares (FIN-96): la cuenta en dolares con ingresos, gastos y una
 -- serie mensual; una tarjeta en USD con una compra en cuotas; transferencias
 -- entre la nomina y la cuenta en dolares en los dos sentidos, con
 -- destination_amount; y un gasto que llego en USD a la tarjeta en COP, ya
--- aprobado, con original_amount. Los montos convertidos salen de la tasa USD->COP
+-- aprobado, con original_amount (y otro igual todavia pendiente, FIN-101). Los montos convertidos salen de la tasa USD->COP
 -- de la base para la fecha de cada movimiento, no de un valor fijo.
 --
 -- Los doce meses van del mes en curso a once meses atras (FIN-97). Los gastos de
@@ -137,6 +141,12 @@ SELECT split_part(:'email', '@', 1) || '.financeapp.local' AS dominio \gset
 -- Grupos pendientes del asistente (FIN-95).
 \set grupo_a          'e000000' :u '-0000-7000-8000-000000000001'
 \set grupo_b          'e000000' :u '-0000-7000-8000-000000000002'
+-- Pendientes de los demas origenes (FIN-101).
+\set grupo_correo_1   'e000000' :u '-0000-7000-8000-000000000003'
+\set grupo_correo_2   'e000000' :u '-0000-7000-8000-000000000004'
+\set grupo_correo_3   'e000000' :u '-0000-7000-8000-000000000005'
+\set grupo_web_usd    'e000000' :u '-0000-7000-8000-000000000006'
+\set grupo_import     'e000000' :u '-0000-7000-8000-000000000007'
 
 BEGIN;
 
@@ -783,6 +793,53 @@ SELECT gen_random_uuid(), :'uid'::uuid, p.account_id, p.destination_id, c.id, p.
 
 
 -- -----------------------------------------------------------------------------
+-- Pendientes de los demas origenes (FIN-101), para que la pantalla de pendientes
+-- muestre por donde entro cada uno. Por mes, como los gastos: del mes en curso
+-- solo entra lo que ya ocurrio.
+--   EMAIL   un grupo por correo del banco: dos compras con tarjeta y un retiro en
+--           cajero en el mes en curso, y dos debitos automaticos el mes anterior.
+--           Ningun endpoint produce EMAIL todavia: lo reserva la ingesta desde
+--           correo (FIN-12)
+--   WEB     un gasto que llego en USD a la Mastercard en el mes en curso, con
+--           original_amount y el monto llevado a COP con la tasa de la base para
+--           su fecha, como el confirmado de FIN-96
+--   IMPORT  un grupo de tres movimientos de la tarjeta el mes anterior. Ningun
+--           endpoint produce IMPORT: esta reservado para importar archivos
+-- -----------------------------------------------------------------------------
+INSERT INTO finance.transactions
+    (id, user_id, account_id, destination_account_id, category_id, type, amount, currency_code,
+     exchange_rate, amount_base, original_amount, original_currency_code, description, occurred_at,
+     status, origin, group_id)
+SELECT gen_random_uuid(), :'uid'::uuid, p.account_id, p.destination_id, c.id, p.type, v.monto, 'COP',
+       1, v.monto, p.usd, CASE WHEN p.usd IS NOT NULL THEN 'USD' END, p.description, t.occurred_at,
+       'PENDING', p.origin, p.group_id
+  FROM (VALUES
+        (0, :'grupo_correo_1'::uuid, :'tarjeta'::uuid, NULL::uuid,         'Restaurantes', 'EXPENSE',   58900::numeric, NULL::numeric, 'Compra con tarjeta *4521 Crepes & Waffles', INTERVAL '6 day 20 hours',  'EMAIL'),
+        (0, :'grupo_correo_1'::uuid, :'tarjeta'::uuid, NULL,               'Mercado',      'EXPENSE',  132450,          NULL,          'Compra con tarjeta *4521 Éxito',           INTERVAL '7 day 18 hours',  'EMAIL'),
+        (0, :'grupo_correo_2'::uuid, :'nomina'::uuid,  :'efectivo'::uuid,  NULL,           'TRANSFER', 300000,          NULL,          'Retiro en cajero Bancolombia',             INTERVAL '10 day 12 hours', 'EMAIL'),
+        (1, :'grupo_correo_3'::uuid, :'nomina'::uuid,  NULL,               'Servicios',    'EXPENSE',  210350,          NULL,          'Débito automático EPM',                    INTERVAL '12 day 6 hours',  'EMAIL'),
+        (1, :'grupo_correo_3'::uuid, :'nomina'::uuid,  NULL,               'Servicios',    'EXPENSE',   89900,          NULL,          'Débito automático Claro hogar',            INTERVAL '12 day 6 hours',  'EMAIL'),
+        (0, :'grupo_web_usd'::uuid,  :'tarjeta'::uuid, NULL,               'Suscripciones', 'EXPENSE',      NULL,       19.99,         'Suscripción anual en línea',               INTERVAL '9 day 21 hours',  'WEB'),
+        (1, :'grupo_import'::uuid,   :'tarjeta'::uuid, NULL,               'Restaurantes', 'EXPENSE',   45600,          NULL,          'Rappi',                                    INTERVAL '15 day 21 hours', 'IMPORT'),
+        (1, :'grupo_import'::uuid,   :'tarjeta'::uuid, NULL,               'Transporte',   'EXPENSE',   18700,          NULL,          'Uber',                                     INTERVAL '16 day 8 hours',  'IMPORT'),
+        (1, :'grupo_import'::uuid,   :'tarjeta'::uuid, NULL,               'Mercado',      'EXPENSE',   97300,          NULL,          'Carulla',                                  INTERVAL '17 day 19 hours', 'IMPORT')
+       ) AS p(mes, group_id, account_id, destination_id, category_name, type, amount, usd, description, desfase, origin)
+ CROSS JOIN LATERAL (
+        SELECT (date_trunc('month', now() AT TIME ZONE 'America/Bogota')
+                - make_interval(months => p.mes) + p.desfase) AT TIME ZONE 'America/Bogota' AS occurred_at
+       ) AS t
+ CROSS JOIN LATERAL (
+        SELECT CASE WHEN p.usd IS NULL THEN p.amount
+                    ELSE round(finance.amount_in_currency('COP', 'USD', p.usd,
+                                                          (t.occurred_at AT TIME ZONE 'America/Bogota')::date), 0)
+               END AS monto
+       ) AS v
+  LEFT JOIN finance.categories c
+    ON c.user_id = :'uid'::uuid AND c.name = p.category_name
+ WHERE t.occurred_at <= now();
+
+
+-- -----------------------------------------------------------------------------
 -- Pago de la Mastercard, el 5 de cada mes menos el 3, desde la nomina: lo gastado
 -- en la tarjeta desde el pago anterior, asi que tras cada pago queda en cero.
 -- Un monto fijo la dejaba a favor en los meses flojos y pasada del cupo despues
@@ -877,11 +934,11 @@ SELECT COALESCE(p.first_name || ' ' || p.last_name, a.addressee_email) AS person
  WHERE :'uid'::uuid IN (a.requester_id, a.addressee_id)
  GROUP BY a.id, p.first_name, p.last_name
  ORDER BY a.created_at DESC;
-SELECT group_id AS grupo_del_asistente, count(*) AS pendientes, sum(amount) AS monto,
-       min(created_at AT TIME ZONE 'America/Bogota')::timestamp(0) AS mensaje
+SELECT group_id AS grupo_pendiente, origin AS origen, count(*) AS pendientes, sum(amount) AS monto,
+       min(occurred_at AT TIME ZONE 'America/Bogota')::timestamp(0) AS desde
   FROM finance.transactions
  WHERE user_id = :'uid'::uuid
    AND status = 'PENDING'
    AND shared_by_user_id IS NULL
- GROUP BY group_id
- ORDER BY mensaje;
+ GROUP BY group_id, origin
+ ORDER BY desde;
