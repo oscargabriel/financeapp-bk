@@ -1,0 +1,28 @@
+info:
+  name: Home
+  type: folder
+  seq: 9
+
+request:
+  auth: inherit
+
+docs: |
+  # Resumen de Inicio (FIN-107)
+
+  `GET /api/reports/home` contra el usuario del escenario (`{{accessToken}}` de `auth/`), contra
+  `saldo@financeapp.local` y contra un usuario recien creado. Va justo despues de `reports/` porque
+  las carpetas siguientes escriben movimientos del usuario del escenario y cambiarian sus numeros.
+
+  Cifras del escenario (`docs/database/test-data.sql`), en COP:
+
+  | Mes | Gastos | Ingresos |
+  |---|---|---|
+  | En curso | 1.905.500 | 5.300.000 |
+  | Anterior | 1.820.000 | 4.500.000 |
+  | Hace dos | 1.445.000 | 4.500.000 |
+
+  Los tres meses mas viejos de la ventana no tienen movimientos y vienen en cero. La variacion es
+  85.500 / 1.820.000 = 4,70 %. Los ultimos gastos son los cinco de mayor desfase del mes en curso
+  (Cena, Mensualidad, Streaming, Consulta medica, Cine), y los mas costosos Arriendo 1.200.000, Luz y
+  agua 180.000, Mensualidad 120.000, Consulta medica 90.000 y Carne y verduras 85.000. La Visa tiene
+  cupo 5.000.000 y debe 658.000: 13,16 % usado.

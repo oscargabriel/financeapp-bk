@@ -1,0 +1,53 @@
+info:
+  name: Resumen de un usuario sin datos
+  type: http
+  seq: 9
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/home"
+  auth:
+    type: bearer
+    token: "{{tokenInicioSinDatos}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.months
+      operator: length
+      value: "6"
+  scripts:
+    - type: tests
+      code: |-
+        const r = res.getBody();
+
+        test("los seis meses en cero y sin variacion", function() {
+          r.months.forEach(function (m) {
+            expect(m.totalSpent).to.equal(0);
+            expect(m.totalIncome).to.equal(0);
+          });
+          expect(r.spent).to.equal(0);
+          expect(r.spentChangePercent).to.equal(null);
+        });
+
+        test("listas vacias, sin cuentas y saldo debito en cero", function() {
+          expect(r.latestExpenses).to.eql([]);
+          expect(r.topExpenses).to.eql([]);
+          expect(r.accounts).to.eql([]);
+          expect(r.debitBalance).to.equal(0);
+          expect(r.currencyCode).to.equal("COP");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Usuario recien creado
+
+  200 con todo en cero y listas vacias, no 404: la ausencia de filas no es un recurso inexistente.
+  No ve nada del usuario del escenario.

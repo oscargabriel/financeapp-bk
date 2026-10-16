@@ -1,7 +1,7 @@
 info:
   name: Telegram
   type: folder
-  seq: 21
+  seq: 22
 
 # Sin auth a proposito: Telegram no manda Authorization, sino la cabecera
 # X-Telegram-Bot-Api-Secret-Token, que cada request declara en http.headers. Los requests omiten

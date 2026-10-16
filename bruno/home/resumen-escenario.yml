@@ -1,0 +1,106 @@
+info:
+  name: Resumen del escenario
+  type: http
+  seq: 1
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/home"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.currencyCode
+      operator: eq
+      value: COP
+    - expression: res.body.months
+      operator: length
+      value: "6"
+  scripts:
+    - type: tests
+      code: |-
+        const r = res.getBody();
+        // El escenario y su perfil estan en America/Bogota, UTC-5 sin horario de verano.
+        const mesBogota = function (desplazamiento) {
+          const d = new Date(Date.now() - 5 * 3600 * 1000);
+          d.setUTCDate(1);
+          d.setUTCMonth(d.getUTCMonth() + desplazamiento);
+          return d.toISOString().slice(0, 7);
+        };
+
+        test("devuelve el contrato del resumen", function() {
+          expect(r).to.have.all.keys("currencyCode", "month", "months", "spent", "spentChangePercent",
+              "latestExpenses", "topExpenses", "debitBalance", "accounts");
+          expect(r.month).to.equal(mesBogota(0));
+          expect(r.latestExpenses[0]).to.have.all.keys("id", "description", "categoryName", "occurredAt",
+              "amount", "currencyCode", "amountBase");
+          expect(r.topExpenses[0]).to.have.all.keys("id", "description", "categoryName", "occurredAt",
+              "amount", "currencyCode", "amountBase", "shareOfTop");
+        });
+
+        test("la serie trae los seis meses que terminan en el mes en curso, los vacios en cero", function() {
+          const meses = r.months.map(function (m) { return m.periodMonth; });
+          expect(meses).to.eql([-5, -4, -3, -2, -1, 0].map(mesBogota));
+          expect(r.months.map(function (m) { return m.totalSpent; }))
+              .to.eql([0, 0, 0, 1445000, 1820000, 1905500]);
+          expect(r.months.map(function (m) { return m.totalIncome; }))
+              .to.eql([0, 0, 0, 4500000, 4500000, 5300000]);
+        });
+
+        test("el gastado del mes y su variacion frente al anterior", function() {
+          expect(r.spent).to.equal(1905500);
+          expect(r.spentChangePercent).to.equal(4.70);
+        });
+
+        test("los ultimos cinco gastos ya ocurridos, del mas reciente al mas antiguo", function() {
+          expect(r.latestExpenses.map(function (t) { return t.description; }))
+              .to.eql(["Cena", "Mensualidad", "Streaming", "Consulta médica", "Cine"]);
+          const fechas = r.latestExpenses.map(function (t) { return new Date(t.occurredAt).getTime(); });
+          expect(fechas).to.eql(fechas.slice().sort().reverse());
+          fechas.forEach(function (f) { expect(f).to.be.at.most(Date.now()); });
+          expect(r.latestExpenses[0].categoryName).to.equal("Restaurantes");
+          expect(r.latestExpenses[0].currencyCode).to.equal("COP");
+          expect(r.latestExpenses[0].amount).to.equal(50000);
+          expect(r.latestExpenses[0].amountBase).to.equal(50000);
+        });
+
+        test("los cinco mas costosos del mes por su monto en la moneda base", function() {
+          expect(r.topExpenses.map(function (t) { return t.amountBase; }))
+              .to.eql([1200000, 180000, 120000, 90000, 85000]);
+          expect(r.topExpenses.map(function (t) { return t.shareOfTop; }))
+              .to.eql([100, 15, 10, 7.5, 7.08]);
+          expect(r.topExpenses[0].description).to.equal("Arriendo");
+        });
+
+        test("ninguna transferencia entra como gasto", function() {
+          const descripciones = r.latestExpenses.concat(r.topExpenses).map(function (t) { return t.description; });
+          expect(descripciones).to.not.include("Retiro de cajero");
+          expect(descripciones).to.not.include("Cambio de dólares");
+        });
+
+        test("el cupo usado de cada tarjeta y null en las demas cuentas", function() {
+          r.accounts.forEach(function (a) {
+            if (a.type === "CREDIT" && a.creditLimit > 0) {
+              const usado = Math.min(100, Math.max(0, -a.currentBalance / a.creditLimit * 100));
+              expect(a.creditUsedPercent).to.equal(Math.round(usado * 100) / 100);
+            } else {
+              expect(a.creditUsedPercent).to.equal(null);
+            }
+          });
+          const visa = r.accounts.find(function (a) { return a.name === "Visa"; });
+          expect(visa.creditUsedPercent).to.equal(13.16);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Resumen del usuario del escenario
+
+  Las cifras y su origen estan en la documentacion de la carpeta.

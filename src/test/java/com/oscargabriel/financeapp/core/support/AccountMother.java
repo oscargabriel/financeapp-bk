@@ -44,6 +44,13 @@ public final class AccountMother {
                 new BigDecimal("120000.0000"), new BigDecimal("5000000.0000"), 15, 5, null, true);
     }
 
+    /** Una tarjeta con el cupo y el saldo dados; cupo null es una tarjeta sin cupo. */
+    public static Account tarjeta(String cupo, String saldo) {
+        return new Account(UUID.fromString("20000000-0000-7000-8000-000000000012"), "Master", AccountType.CREDIT,
+                "COP", BigDecimal.ZERO, new BigDecimal(saldo), cupo == null ? null : new BigDecimal(cupo), 15, 5, null,
+                true);
+    }
+
     /** La tabla admite una CREDIT sin credit_limit: no hay cupo que calcular. */
     public static Account creditoSinLimite() {
         return new Account(UUID.fromString("20000000-0000-7000-8000-000000000005"), "Tarjeta nueva",

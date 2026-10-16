@@ -1,7 +1,7 @@
 info:
   name: Auth con Google
   type: folder
-  seq: 20
+  seq: 21
 
 # Como auth/: estas rutas viven en la cadena del Basic. Los requests que leen el perfil con la
 # sesion de Google declaran su propio bearer.

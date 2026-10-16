@@ -1,7 +1,7 @@
 info:
   name: Affiliate balances
   type: folder
-  seq: 18
+  seq: 19
 
 request:
   auth:

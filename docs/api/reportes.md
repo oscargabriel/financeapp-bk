@@ -292,3 +292,104 @@ el campo del parámetro:
 - El día de cada movimiento se decide con la zona horaria del usuario, como en
   `reports/transactions`. El mes por defecto sale del reloj del servidor, que hoy está en la misma
   zona.
+
+### `GET /api/reports/home`
+
+Todo lo que muestra la pantalla de Inicio, ya calculado, para el usuario del token (FIN-107).
+**Bearer.** No recibe parámetros: uno desconocido se ignora. Siempre es el mes en curso.
+
+**200 OK**
+
+```json
+{
+  "currencyCode": "COP",
+  "month": "2026-10",
+  "months": [
+    { "periodMonth": "2026-05", "totalIncome": 0, "totalSpent": 0 },
+    { "periodMonth": "2026-06", "totalIncome": 0, "totalSpent": 0 },
+    { "periodMonth": "2026-07", "totalIncome": 0, "totalSpent": 0 },
+    { "periodMonth": "2026-08", "totalIncome": 4500000.00, "totalSpent": 1445000.00 },
+    { "periodMonth": "2026-09", "totalIncome": 4500000.00, "totalSpent": 1820000.00 },
+    { "periodMonth": "2026-10", "totalIncome": 5300000.00, "totalSpent": 1905500.00 }
+  ],
+  "spent": 1905500.00,
+  "spentChangePercent": 4.70,
+  "latestExpenses": [
+    {
+      "id": "0192a3b4-...",
+      "description": "Cena",
+      "categoryName": "Restaurantes",
+      "occurredAt": "2026-10-29T02:30:00Z",
+      "amount": 50000.0000,
+      "currencyCode": "COP",
+      "amountBase": 50000.0000
+    }
+  ],
+  "topExpenses": [
+    {
+      "id": "0192a3b4-...",
+      "description": "Arriendo",
+      "categoryName": "Vivienda",
+      "occurredAt": "2026-10-01T13:00:00Z",
+      "amount": 1200000.0000,
+      "currencyCode": "COP",
+      "amountBase": 1200000.0000,
+      "shareOfTop": 100.00
+    },
+    {
+      "id": "0192a3b4-...",
+      "description": "Luz y agua",
+      "categoryName": "Servicios",
+      "occurredAt": "2026-10-08T16:00:00Z",
+      "amount": 180000.0000,
+      "currencyCode": "COP",
+      "amountBase": 180000.0000,
+      "shareOfTop": 15.00
+    }
+  ],
+  "debitBalance": 12375000.0000,
+  "accounts": [
+    {
+      "id": "0192a3b4-...",
+      "name": "Visa",
+      "type": "CREDIT",
+      "currencyCode": "COP",
+      "currentBalance": -658000.0000,
+      "creditLimit": 5000000.0000,
+      "availableCredit": 4342000.0000,
+      "creditUsedPercent": 13.16
+    }
+  ]
+}
+```
+
+(Las listas van recortadas en el ejemplo: `latestExpenses` y `topExpenses` traen hasta 5.)
+
+| Campo | Significado |
+|---|---|
+| `currencyCode` | La moneda base del usuario: la de `months`, `spent`, `debitBalance` y cada `amountBase` |
+| `month` | El mes en curso, `YYYY-MM`, en la zona horaria del usuario |
+| `months` | Exactamente los 6 meses que terminan en `month`, del más antiguo al más reciente. `totalIncome` y `totalSpent` significan lo mismo que en `GET /api/monthly-spending`; un mes sin movimientos viene en `0` |
+| `spent` | El `totalSpent` del mes en curso |
+| `spentChangePercent` | `(spent − gasto del mes anterior) / gasto del mes anterior × 100`, con signo. `null` si el mes anterior no tiene gastos |
+| `latestExpenses` | Los 5 gastos más recientes ya ocurridos, de cualquier fecha, del más reciente al más antiguo. Con menos, los que haya |
+| `topExpenses` | Hasta 5 gastos ya ocurridos del mes en curso, de mayor a menor `amountBase`; un empate, el más reciente primero |
+| `amount` / `currencyCode` del gasto | En la moneda de su cuenta |
+| `categoryName` | `null` si el gasto no tiene categoría |
+| `shareOfTop` | `amountBase` del gasto sobre el del primero × 100. El primero trae `100` |
+| `debitBalance` | El mismo de `GET /api/reports/balance` |
+| `accounts` | Las mismas cuentas activas de `GET /api/reports/balance`, con sus mismos campos, más `creditUsedPercent` |
+| `creditUsedPercent` | En una tarjeta con `creditLimit` mayor que 0: `−currentBalance / creditLimit × 100`, acotado entre 0 y 100. No descuenta las cuotas que todavía no llegan. `null` en una tarjeta sin cupo y en los demás tipos |
+
+**A tener en cuenta**
+
+- **Los montos y porcentajes salen como números**, sin formato. Los porcentajes van a 2 decimales,
+  redondeados mitad hacia arriba, igual que `percentUsed` de `monthly-spending`.
+- **El mes en curso sale de la zona horaria del usuario**, no del reloj del servidor como en
+  `reports/balance`: a las 22:00 del 31 en Bogotá, `month` sigue siendo ese mes aunque en UTC ya sea
+  el 1. El mes de cada movimiento se decide con la misma zona.
+- **Los pendientes y los programados no cuentan en nada**: ni en `months`, ni en `spent`, ni en las
+  listas, ni en `debitBalance`, ni en el `currentBalance` de las cuentas.
+- **Las transferencias no son gasto ni ingreso**: no están en las listas ni en los totales.
+- Un usuario sin datos recibe 200 con los 6 meses en cero, `spentChangePercent` en `null` y las listas
+  vacías, no 404.
