@@ -79,8 +79,9 @@ El editor SQL de la consola de Neon no sirve para estos scripts: no entiende los
 ### La demo en Neon
 
 Desde FIN-43 (12-10-2026, decisión del usuario) Neon tiene la demo del front para
-`demo@financeapp.local`, para mostrar la app. No van `dev@` ni `test-data.sql`. Con la base recién
-creada, y sin la solo lectura:
+`demo@financeapp.local`, para mostrar la app. Desde FIN-30 la acompañan sus tres personas
+afiliadas —`carlos@`, `valentina@` y `andres@demo.financeapp.local`— con lo que comparten con
+`demo@`. No van `dev@` ni `test-data.sql`. Con la base recién creada, y sin la solo lectura:
 
 ```powershell
 $cop = (Invoke-RestMethod 'https://open.er-api.com/v6/latest/USD').rates.COP
@@ -97,12 +98,15 @@ psql -X -v ON_ERROR_STOP=1 -f docs/database/check-saldos.sql
   primera posterior cuando no hay una anterior, una alcanza para los seis meses. Sin ella, la de
   respaldo queda como la tasa de toda la demo.
 - **Las fechas no avanzan.** Se calculan al cargar: al cambiar de mes, el mes en curso queda sin
-  movimientos. Recargar es correr de nuevo `demo-data.sql`, que borra a `demo@` y a los
-  `@front.local` y los recrea; la tasa ya existe.
+  movimientos. Recargar es correr de nuevo `demo-data.sql`, que borra a `demo@`, a sus personas
+  y a los `@front.local` y los recrea; la tasa ya existe. Lo que se haya aprobado o rechazado
+  entre ellos desde el front se pierde con la recarga.
 - **Riesgos aceptados por el usuario** el 12-10-2026:
   - La contraseña de `demo@` es `claveDePrueba123`, escrita en el repo, que es público. Con la
     Basic, que ve quien abra el front, cualquiera entra a la demo y puede usar el asistente, que
-    gasta cuota de Gemini.
+    gasta cuota de Gemini. Desde el 15-10-2026 (FIN-30) vale lo mismo para sus tres personas
+    afiliadas, que tienen esa contraseña. Sus correos `*@demo.financeapp.local` no están en la
+    lista de admitidos y no coinciden con la comprobación de datos de prueba de arriba.
   - `demo-data.sql` agrega `@front.local` a `registration_allowlist`: con la Basic, cualquiera se
     registra en producción con un correo `@front.local` inventado.
 

@@ -14,25 +14,36 @@
 -- tambien para dev@financeapp.local con u = 1. En una sesion de psql que ya
 -- tenga esas variables, carga el usuario que digan ellas.
 --
+-- Junto al usuario crea tres personas con la misma clave (FIN-30), en
+-- <nombre>@<local del usuario>.financeapp.local: carlos@, valentina@ y andres@
+-- demo.financeapp.local para demo@, y las mismas en dev.financeapp.local para
+-- dev@. Carlos y Valentina estan afiliados al usuario y comparten gastos con el
+-- en los dos sentidos; Andres le envio una solicitud sin responder, y el usuario
+-- tiene otra abierta a sofia@, que no tiene cuenta. Ningun correo de esos es de
+-- alguien real ni entra en la lista de admitidos del alta.
+--
 -- Front, back y desarrollador comparten la base local, separados por usuario:
 --   back : prueba@ e inactivo@financeapp.local, y los *@bruno.local  -> test-data.sql
---   front: demo@financeapp.local, y los *@front.local                -> este script
---   dev  : dev@financeapp.local                                      -> este script
+--   front: demo@financeapp.local, los *@demo.financeapp.local y los
+--          *@front.local                                             -> este script
+--   dev  : dev@financeapp.local y los *@dev.financeapp.local         -> este script
 -- Los usuarios que el front registre desde la interfaz van con correo
 -- @front.local: recargar la demo los borra.
 --
--- Re-ejecutable: borra el usuario con todo lo suyo y lo recrea. Las fechas son
--- relativas al mes en curso, y del mes en curso solo entran los movimientos que
--- ya ocurrieron: dos cargas el mismo dia dejan el mismo estado.
+-- Re-ejecutable: borra el usuario y sus tres personas con todo lo suyo, incluido
+-- lo que se haya aprobado o rechazado desde el front, y los recrea. Las fechas
+-- son relativas al mes en curso, y del mes en curso solo entran los movimientos
+-- que ya ocurrieron: dos cargas el mismo dia dejan el mismo estado. Lo
+-- compartido va por dias hacia atras desde la carga.
 --
 -- Carga sobre schema.sql + seed.sql sin pasos previos. Los movimientos necesitan
 -- una tasa USD->COP: si el par no tiene ninguna, el script inserta una de
 -- respaldo, 4000 MANUAL, fechada el dia 1 de hace seis meses (FIN-45). Si ya hay
 -- alguna (las de test-data.sql en local, las reales en Neon) no toca la tabla.
 --
--- En Neon se carga solo para demo@ (FIN-43) y es seguro correrlo ahi: borra y
--- recrea solo su usuario, y no cambia las tasas que ya existan. Cómo, en
--- docs/despliegue.md.
+-- En Neon se carga solo para demo@ (FIN-43), con sus tres personas, y es seguro
+-- correrlo ahi: borra y recrea solo a demo@ y a ellas, y no cambia las tasas
+-- que ya existan. Cómo, en docs/despliegue.md.
 --
 -- Ejecutar:  psql -U postgres -d financeapp -f docs/database/demo-data.sql
 -- =============================================================================
@@ -62,14 +73,47 @@ SET search_path TO finance, public;
 \set club       '9000000' :u '-0000-7000-8000-000000000001'
 \set televisor  'a000000' :u '-0000-7000-8000-000000000001'
 
+-- Personas afiliadas (FIN-30): correos en <nombre>@<local del usuario>.financeapp.local,
+-- para que demo@ y dev@ tengan las suyas.
+SELECT split_part(:'email', '@', 1) || '.financeapp.local' AS dominio \gset
+\set carlos           '4000000' :u '-0000-7000-8000-000000000002'
+\set valentina        '4000000' :u '-0000-7000-8000-000000000003'
+\set andres           '4000000' :u '-0000-7000-8000-000000000004'
+\set carlos_email     'carlos@' :dominio
+\set valentina_email  'valentina@' :dominio
+\set andres_email     'andres@' :dominio
+\set sofia_email      'sofia@' :dominio
+\set cta_carlos       '5000000' :u '-0000-7000-8000-000000000011'
+\set cta_valentina    '5000000' :u '-0000-7000-8000-000000000012'
+\set cta_andres       '5000000' :u '-0000-7000-8000-000000000013'
+\set af_carlos        'b000000' :u '-0000-7000-8000-000000000001'
+\set af_valentina     'b000000' :u '-0000-7000-8000-000000000002'
+\set af_andres        'b000000' :u '-0000-7000-8000-000000000003'
+\set af_sofia         'b000000' :u '-0000-7000-8000-000000000004'
+\set g1               'd000000' :u '-0000-7000-8000-000000000001'
+\set g2               'd000000' :u '-0000-7000-8000-000000000002'
+\set g3               'd000000' :u '-0000-7000-8000-000000000003'
+\set g4               'd000000' :u '-0000-7000-8000-000000000004'
+\set g5               'd000000' :u '-0000-7000-8000-000000000005'
+\set g6               'd000000' :u '-0000-7000-8000-000000000006'
+\set s1               'c000000' :u '-0000-7000-8000-000000000001'
+\set s2               'c000000' :u '-0000-7000-8000-000000000002'
+\set s3               'c000000' :u '-0000-7000-8000-000000000003'
+\set s4               'c000000' :u '-0000-7000-8000-000000000004'
+\set s5               'c000000' :u '-0000-7000-8000-000000000005'
+\set s6               'c000000' :u '-0000-7000-8000-000000000006'
+\set s7               'c000000' :u '-0000-7000-8000-000000000007'
+\set s8               'c000000' :u '-0000-7000-8000-000000000008'
+
 BEGIN;
 
--- Cuentas, categorias, movimientos y metas caen en cascada. Por id y por correo,
--- por si alguien le cambio el correo al usuario desde el API. Los @front.local
--- solo se limpian al recargar la demo del front.
+-- Cuentas, categorias, movimientos y metas caen en cascada, y con las personas
+-- sus afiliaciones y partes. Por id y por correo, por si alguien le cambio el
+-- correo a un usuario desde el API. Los @front.local solo se limpian al recargar
+-- la demo del front.
 DELETE FROM finance.users
- WHERE id = :'uid'::uuid
-    OR email = :'email'
+ WHERE id IN (:'uid'::uuid, :'carlos'::uuid, :'valentina'::uuid, :'andres'::uuid)
+    OR email IN (:'email', :'carlos_email', :'valentina_email', :'andres_email')
     OR (:'email' = 'demo@financeapp.local' AND email LIKE '%@front.local');
 
 -- Los usuarios que el front registra desde la interfaz necesitan su dominio en la
@@ -339,6 +383,165 @@ SELECT gen_random_uuid(), p.user_id, p.account_id, p.category_id, 'EXPENSE', c.m
 
 
 -- -----------------------------------------------------------------------------
+-- Personas afiliadas (FIN-30)
+--
+-- Carlos y Valentina, afiliados; Andres, con una solicitud sin responder; y una
+-- solicitud abierta a Sofia, que no tiene cuenta. Misma contrasena que el
+-- usuario, una cuenta en COP y la copia de las categorias, como el registro.
+-- Fechas en dias hacia atras desde now(), no por mes: todo queda en el pasado y
+-- los pendientes salen como recientes.
+-- -----------------------------------------------------------------------------
+INSERT INTO finance.users (id, email, password_hash, first_name, last_name, created_at)
+VALUES
+    (:'carlos'::uuid,    :'carlos_email',
+     '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy', 'Carlos',    'Ruiz',   now() - INTERVAL '72 days'),
+    (:'valentina'::uuid, :'valentina_email',
+     '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy', 'Valentina', 'Torres', now() - INTERVAL '62 days'),
+    (:'andres'::uuid,    :'andres_email',
+     '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy', 'Andrés',    'Mejía',  now() - INTERVAL '5 days');
+
+INSERT INTO finance.categories
+    (id, user_id, name, applies_to, icon, color, sort_order, is_system)
+SELECT gen_random_uuid(), p.id, d.name, d.applies_to, d.icon, d.color, d.sort_order, TRUE
+  FROM finance.default_categories d
+ CROSS JOIN (VALUES (:'carlos'::uuid), (:'valentina'::uuid), (:'andres'::uuid)) AS p(id)
+ WHERE d.is_active;
+
+INSERT INTO finance.accounts (id, user_id, name, type, currency_code, initial_balance)
+VALUES
+    (:'cta_carlos'::uuid,    :'carlos'::uuid,    'Bancolombia', 'DEBIT', 'COP', 2000000),
+    (:'cta_valentina'::uuid, :'valentina'::uuid, 'Davivienda',  'DEBIT', 'COP', 2500000),
+    (:'cta_andres'::uuid,    :'andres'::uuid,    'Nequi',       'DEBIT', 'COP',  500000);
+
+-- updated_at es cuando se acepto: el saldo por persona ordena por ella.
+INSERT INTO finance.affiliations
+    (id, requester_id, addressee_email, addressee_id, status, created_at, updated_at)
+VALUES
+    (:'af_carlos'::uuid,    :'uid'::uuid,       :'carlos_email', :'carlos'::uuid, 'ACCEPTED',
+     now() - INTERVAL '70 days', now() - INTERVAL '69 days'),
+    (:'af_valentina'::uuid, :'valentina'::uuid, :'email',        :'uid'::uuid,    'ACCEPTED',
+     now() - INTERVAL '60 days', now() - INTERVAL '59 days'),
+    (:'af_andres'::uuid,    :'andres'::uuid,    :'email',        :'uid'::uuid,    'REQUESTED',
+     now() - INTERVAL '3 days',  now() - INTERVAL '3 days'),
+    (:'af_sofia'::uuid,     :'uid'::uuid,       :'sofia_email',  NULL,            'REQUESTED',
+     now() - INTERVAL '20 days', now() - INTERVAL '20 days');
+
+
+-- -----------------------------------------------------------------------------
+-- Lo compartido (FIN-30)
+--
+-- Las filas que el API habria dejado (TransactionR2dbcAdapter, PartesDelAlta,
+-- ApprovePendingTransactionUseCase): si cambia como las escribe, esto se queda
+-- viejo sin que nada falle. Todo en COP.
+--   G5 hace 50 d  Valentina paga la cabaña; la parte del usuario, pagada
+--   G1 hace 35 d  el usuario paga el asado; Carlos y Valentina pagan su parte,
+--                 y solo el ingreso de Carlos esta aprobado
+--   G2 hace 12 d  el usuario paga el mercado; Carlos debe, Valentina rechazo
+--   G6 hace  8 d  Valentina paga el taxi; el usuario rechazo su parte
+--   G4 hace  6 d  Carlos paga las boletas; el usuario debe
+--   G3 hace  4 d  el usuario paga la pizza; Valentina debe
+--   T1 hace 18 d y T2 hace 2 d: transferencias compartidas, pendientes para
+--                 quien las recibe
+-- -----------------------------------------------------------------------------
+
+-- Gastos de quien pago: los que llevan partes.
+INSERT INTO finance.transactions
+    (id, user_id, account_id, category_id, type, amount, currency_code,
+     exchange_rate, amount_base, description, occurred_at, created_at)
+SELECT g.id, g.user_id, g.account_id, c.id, 'EXPENSE', g.amount, 'COP',
+       1, g.amount, g.description, now() - g.hace, now() - g.hace
+  FROM (VALUES
+        (:'g5'::uuid, :'valentina'::uuid, :'cta_valentina'::uuid, 'Viajes',          900000::numeric, 'Arriendo de la cabaña', INTERVAL '50 days'),
+        (:'g1'::uuid, :'uid'::uuid,       :'tarjeta'::uuid,       'Restaurantes',    240000::numeric, 'Asado en la finca',     INTERVAL '35 days'),
+        (:'g2'::uuid, :'uid'::uuid,       :'tarjeta'::uuid,       'Mercado',         180000::numeric, 'Mercado para el paseo', INTERVAL '12 days'),
+        (:'g6'::uuid, :'valentina'::uuid, :'cta_valentina'::uuid, 'Transporte',       64000::numeric, 'Taxi al aeropuerto',    INTERVAL '8 days'),
+        (:'g4'::uuid, :'carlos'::uuid,    :'cta_carlos'::uuid,    'Entretenimiento', 300000::numeric, 'Boletas del partido',   INTERVAL '6 days'),
+        (:'g3'::uuid, :'uid'::uuid,       :'efectivo'::uuid,      'Restaurantes',     72000::numeric, 'Pizza',                 INTERVAL '4 days')
+       ) AS g(id, user_id, account_id, category_name, amount, description, hace)
+  JOIN finance.categories c
+    ON c.user_id = g.user_id AND c.name = g.category_name;
+
+-- Las partes copian la descripcion y la fecha del gasto. resuelta: cuando quien
+-- debe la pago o la rechazo.
+INSERT INTO finance.expense_shares
+    (id, source_transaction_id, payer_id, debtor_id, amount, currency_code, description,
+     occurred_at, status, resolved_at, created_at, updated_at)
+SELECT s.id, t.id, t.user_id, s.debtor_id, s.amount, t.currency_code, t.description,
+       t.occurred_at, s.status, now() - s.resuelta, t.occurred_at, COALESCE(now() - s.resuelta, t.occurred_at)
+  FROM (VALUES
+        (:'s1'::uuid, :'g5'::uuid, :'uid'::uuid,       300000::numeric, 'PAID',     INTERVAL '47 days'),
+        (:'s2'::uuid, :'g1'::uuid, :'carlos'::uuid,     80000::numeric, 'PAID',     INTERVAL '30 days'),
+        (:'s3'::uuid, :'g1'::uuid, :'valentina'::uuid,  80000::numeric, 'PAID',     INTERVAL '33 days'),
+        (:'s4'::uuid, :'g2'::uuid, :'carlos'::uuid,     60000::numeric, 'PENDING',  NULL::interval),
+        (:'s5'::uuid, :'g2'::uuid, :'valentina'::uuid,  60000::numeric, 'REJECTED', INTERVAL '10 days'),
+        (:'s6'::uuid, :'g6'::uuid, :'uid'::uuid,        32000::numeric, 'REJECTED', INTERVAL '7 days'),
+        (:'s7'::uuid, :'g4'::uuid, :'uid'::uuid,       150000::numeric, 'PENDING',  NULL::interval),
+        (:'s8'::uuid, :'g3'::uuid, :'valentina'::uuid,  36000::numeric, 'PENDING',  NULL::interval)
+       ) AS s(id, source_id, debtor_id, amount, status, resuelta)
+  JOIN finance.transactions t
+    ON t.id = s.source_id;
+
+-- Lo que la parte le deja a quien debe, con la fecha del gasto y un grupo propio:
+-- pendiente sin cuenta ni categoria mientras no la paga, confirmado en la cuenta
+-- y la categoria que eligio al pagarla. La rechazada no deja nada: rechazar
+-- borra el pendiente.
+INSERT INTO finance.transactions
+    (id, user_id, account_id, category_id, type, amount, currency_code, exchange_rate, amount_base,
+     description, occurred_at, status, group_id, shared_by_user_id, share_id, created_at)
+SELECT gen_random_uuid(), s.debtor_id, e.account_id, c.id, 'EXPENSE', s.amount, s.currency_code, 1, s.amount,
+       s.description, s.occurred_at, CASE s.status WHEN 'PAID' THEN 'CONFIRMED' ELSE 'PENDING' END,
+       gen_random_uuid(), s.payer_id, s.id, s.occurred_at
+  FROM finance.expense_shares s
+  LEFT JOIN (VALUES
+        (:'s1'::uuid, :'nomina'::uuid,        'Viajes'),
+        (:'s2'::uuid, :'cta_carlos'::uuid,    'Restaurantes'),
+        (:'s3'::uuid, :'cta_valentina'::uuid, 'Restaurantes')
+       ) AS e(share_id, account_id, category_name)
+    ON e.share_id = s.id
+  LEFT JOIN finance.categories c
+    ON c.user_id = s.debtor_id AND c.name = e.category_name
+ WHERE :'uid'::uuid IN (s.payer_id, s.debtor_id)
+   AND s.status IN ('PENDING', 'PAID');
+
+-- Pagar una parte le crea a quien pago un ingreso pendiente con la fecha del
+-- pago, que queda confirmado si ya lo aprobo.
+INSERT INTO finance.transactions
+    (id, user_id, account_id, category_id, type, amount, currency_code, exchange_rate, amount_base,
+     description, occurred_at, status, group_id, shared_by_user_id, share_id, created_at)
+SELECT gen_random_uuid(), s.payer_id, i.account_id, c.id, 'INCOME', s.amount, s.currency_code, 1, s.amount,
+       s.description, s.resolved_at, CASE WHEN i.account_id IS NULL THEN 'PENDING' ELSE 'CONFIRMED' END,
+       gen_random_uuid(), s.debtor_id, s.id, s.resolved_at
+  FROM finance.expense_shares s
+  LEFT JOIN (VALUES
+        (:'s1'::uuid, :'cta_valentina'::uuid, 'Reembolsos'),
+        (:'s2'::uuid, :'nomina'::uuid,        'Reembolsos')
+       ) AS i(share_id, account_id, category_name)
+    ON i.share_id = s.id
+  LEFT JOIN finance.categories c
+    ON c.user_id = s.payer_id AND c.name = i.category_name
+ WHERE :'uid'::uuid IN (s.payer_id, s.debtor_id)
+   AND s.status = 'PAID';
+
+-- Transferencia compartida: un gasto de quien transfiere, sin partes, y para
+-- quien recibe un ingreso pendiente sin parte y con un grupo propio.
+INSERT INTO finance.transactions
+    (id, user_id, account_id, category_id, type, amount, currency_code, exchange_rate, amount_base,
+     description, occurred_at, status, group_id, shared_by_user_id, created_at)
+SELECT gen_random_uuid(), m.user_id, m.account_id, c.id, m.type, f.amount, 'COP', 1, f.amount,
+       f.description, now() - f.hace, m.status, m.group_id, m.shared_by, now() - f.hace
+  FROM (VALUES
+        (:'uid'::uuid,       :'nomina'::uuid,        'Otros gastos', :'carlos'::uuid, 100000::numeric, 'Préstamo',            INTERVAL '18 days'),
+        (:'valentina'::uuid, :'cta_valentina'::uuid, 'Regalos',      :'uid'::uuid,     50000::numeric, 'Mi parte del regalo', INTERVAL '2 days')
+       ) AS f(de, cuenta, categoria, para, amount, description, hace)
+ CROSS JOIN LATERAL (VALUES
+        (f.de,   f.cuenta,   f.categoria, 'EXPENSE', 'CONFIRMED', NULL::uuid,        NULL::uuid),
+        (f.para, NULL::uuid, NULL,        'INCOME',  'PENDING',   gen_random_uuid(), f.de)
+       ) AS m(user_id, account_id, category_name, type, status, group_id, shared_by)
+  LEFT JOIN finance.categories c
+    ON c.user_id = m.user_id AND c.name = m.category_name;
+
+
+-- -----------------------------------------------------------------------------
 -- Metas
 --   * Globales en todos los meses menos el 3, que queda sin meta
 --   * Hace cuatro meses el portatil pasa la meta global
@@ -382,3 +585,18 @@ SELECT name AS cuenta, type AS tipo, currency_code AS moneda, current_balance AS
   FROM finance.accounts
  WHERE user_id = :'uid'::uuid
  ORDER BY name;
+SELECT COALESCE(p.first_name || ' ' || p.last_name, a.addressee_email) AS persona,
+       a.status AS afiliacion,
+       CASE WHEN a.requester_id = :'uid'::uuid THEN 'enviada' ELSE 'recibida' END AS solicitud,
+       COALESCE(sum(s.amount) FILTER (WHERE s.payer_id = :'uid'::uuid), 0)  AS le_debe,
+       COALESCE(sum(s.amount) FILTER (WHERE s.debtor_id = :'uid'::uuid), 0) AS le_adeuda
+  FROM finance.affiliations a
+  LEFT JOIN finance.users p
+    ON p.id = CASE WHEN a.requester_id = :'uid'::uuid THEN a.addressee_id ELSE a.requester_id END
+  LEFT JOIN finance.expense_shares s
+    ON s.status = 'PENDING'
+   AND p.id IN (s.payer_id, s.debtor_id)
+   AND :'uid'::uuid IN (s.payer_id, s.debtor_id)
+ WHERE :'uid'::uuid IN (a.requester_id, a.addressee_id)
+ GROUP BY a.id, p.first_name, p.last_name
+ ORDER BY a.created_at DESC;

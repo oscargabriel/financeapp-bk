@@ -5,9 +5,11 @@
 -- schema.sql y seed.sql, despues de vaciarla, o despues de aplicar un update/
 -- que modifique tablas. Carga, en este orden:
 --   test-data.sql                el escenario de bruno/ (prueba@, inactivo@)
---   demo-data.sql                la demo del front (demo@financeapp.local)
---   demo-data.sql con u = 1      la misma demo para dev@financeapp.local
--- Los tres usuarios entran con la clave claveDePrueba123.
+--   demo-data.sql                la demo del front (demo@financeapp.local), con
+--                                sus personas afiliadas *@demo.financeapp.local
+--   demo-data.sql con u = 1      la misma demo para dev@financeapp.local, con
+--                                las suyas en *@dev.financeapp.local
+-- Todos entran con la clave claveDePrueba123.
 --
 -- Re-ejecutable: cada script borra y recrea solo lo suyo. Si uno falla,
 -- ON_ERROR_STOP detiene la carga; volver a correrlo lo deja todo bien.
