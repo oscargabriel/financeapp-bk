@@ -30,10 +30,7 @@ import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestExcept
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.core.domain.model.CreateAccountCommand;
 import com.oscargabriel.financeapp.core.domain.model.UpdateAccountCommand;
-import com.oscargabriel.financeapp.core.domain.port.in.CreateAccountPort;
-import com.oscargabriel.financeapp.core.domain.port.in.DeleteAccountPort;
-import com.oscargabriel.financeapp.core.domain.port.in.ListAccountsPort;
-import com.oscargabriel.financeapp.core.domain.port.in.UpdateAccountPort;
+import com.oscargabriel.financeapp.core.domain.port.in.AccountPort;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
 import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.SecurityConfig;
@@ -62,16 +59,7 @@ class AccountControllerTest {
             """;
 
     @MockitoBean
-    private ListAccountsPort listAccounts;
-
-    @MockitoBean
-    private CreateAccountPort createAccount;
-
-    @MockitoBean
-    private UpdateAccountPort updateAccount;
-
-    @MockitoBean
-    private DeleteAccountPort deleteAccount;
+    private AccountPort cuentas;
 
     private static JwtMutator tokenDelUsuario() {
         return mockJwt().jwt(jwt -> jwt.subject(AccountMother.USER_ID.toString()));
@@ -83,12 +71,12 @@ class AccountControllerTest {
                 .exchange()
                 .expectStatus().isUnauthorized();
 
-        verifyNoInteractions(listAccounts);
+        verifyNoInteractions(cuentas);
     }
 
     @Test
     void devuelveLasCuentasConElFormatoDelContrato() {
-        when(listAccounts.list(eq(AccountMother.USER_ID), anyBoolean()))
+        when(cuentas.list(eq(AccountMother.USER_ID), anyBoolean()))
                 .thenReturn(Flux.just(AccountMother.visa()));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE)
@@ -114,7 +102,7 @@ class AccountControllerTest {
 
     @Test
     void dejaEnNullElCupoLasFechasYLaTasaDeUnaCuentaQueNoEsDeCredito() {
-        when(listAccounts.list(eq(AccountMother.USER_ID), anyBoolean()))
+        when(cuentas.list(eq(AccountMother.USER_ID), anyBoolean()))
                 .thenReturn(Flux.just(AccountMother.efectivo()));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE)
@@ -134,7 +122,7 @@ class AccountControllerTest {
 
     @Test
     void marcaComoInactivaLaCuentaDesactivada() {
-        when(listAccounts.list(eq(AccountMother.USER_ID), anyBoolean()))
+        when(cuentas.list(eq(AccountMother.USER_ID), anyBoolean()))
                 .thenReturn(Flux.just(AccountMother.inactiva()));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "?includeInactive=true")
@@ -146,7 +134,7 @@ class AccountControllerTest {
 
     @Test
     void devuelveUnArrayVacioCuandoElUsuarioNoTieneCuentas() {
-        when(listAccounts.list(eq(AccountMother.USER_ID), anyBoolean())).thenReturn(Flux.empty());
+        when(cuentas.list(eq(AccountMother.USER_ID), anyBoolean())).thenReturn(Flux.empty());
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE)
                 .exchange()
@@ -156,35 +144,35 @@ class AccountControllerTest {
 
     @Test
     void sinElParametroExcluyeLasDesactivadas() {
-        when(listAccounts.list(eq(AccountMother.USER_ID), anyBoolean())).thenReturn(Flux.empty());
+        when(cuentas.list(eq(AccountMother.USER_ID), anyBoolean())).thenReturn(Flux.empty());
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE)
                 .exchange()
                 .expectStatus().isOk();
 
-        verify(listAccounts).list(AccountMother.USER_ID, false);
+        verify(cuentas).list(AccountMother.USER_ID, false);
     }
 
     @Test
     void conElParametroEnTrueIncluyeLasDesactivadas() {
-        when(listAccounts.list(eq(AccountMother.USER_ID), anyBoolean())).thenReturn(Flux.empty());
+        when(cuentas.list(eq(AccountMother.USER_ID), anyBoolean())).thenReturn(Flux.empty());
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "?includeInactive=true")
                 .exchange()
                 .expectStatus().isOk();
 
-        verify(listAccounts).list(AccountMother.USER_ID, true);
+        verify(cuentas).list(AccountMother.USER_ID, true);
     }
 
     @Test
     void conElParametroEnFalseExcluyeLasDesactivadas() {
-        when(listAccounts.list(eq(AccountMother.USER_ID), anyBoolean())).thenReturn(Flux.empty());
+        when(cuentas.list(eq(AccountMother.USER_ID), anyBoolean())).thenReturn(Flux.empty());
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "?includeInactive=false")
                 .exchange()
                 .expectStatus().isOk();
 
-        verify(listAccounts).list(AccountMother.USER_ID, false);
+        verify(cuentas).list(AccountMother.USER_ID, false);
     }
 
     @Test
@@ -196,7 +184,7 @@ class AccountControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
                 .jsonPath("$.errors[0].field").isEqualTo("includeInactive");
 
-        verifyNoInteractions(listAccounts);
+        verifyNoInteractions(cuentas);
     }
 
     @Test
@@ -207,12 +195,12 @@ class AccountControllerTest {
                 .exchange()
                 .expectStatus().isUnauthorized();
 
-        verifyNoInteractions(createAccount);
+        verifyNoInteractions(cuentas);
     }
 
     @Test
     void creaLaCuentaYRespondeConElMismoContratoQueElListado() {
-        when(createAccount.create(eq(AccountMother.USER_ID), any()))
+        when(cuentas.create(eq(AccountMother.USER_ID), any()))
                 .thenReturn(Mono.just(AccountMother.tarjetaCreada()));
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
@@ -238,7 +226,7 @@ class AccountControllerTest {
 
     @Test
     void pasaAlCasoDeUsoElUsuarioDelTokenYElCuerpoTalCualLlega() {
-        when(createAccount.create(eq(AccountMother.USER_ID), any()))
+        when(cuentas.create(eq(AccountMother.USER_ID), any()))
                 .thenReturn(Mono.just(AccountMother.tarjetaCreada()));
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
@@ -252,7 +240,7 @@ class AccountControllerTest {
                 .expectStatus().isCreated();
 
         ArgumentCaptor<CreateAccountCommand> comando = ArgumentCaptor.forClass(CreateAccountCommand.class);
-        verify(createAccount).create(eq(AccountMother.USER_ID), comando.capture());
+        verify(cuentas).create(eq(AccountMother.USER_ID), comando.capture());
         assertThat(comando.getValue()).isEqualTo(new CreateAccountCommand("Mastercard", "CREDIT", "COP",
                 new BigDecimal("-200000"), new BigDecimal("3000000"), 20, 5, new BigDecimal("2.15"), true, null));
     }
@@ -276,7 +264,7 @@ class AccountControllerTest {
                 .isEqualTo("El saldo vigente lo calcula el sistema; envia initialBalance")
                 .jsonPath("$.errors[?(@.code != 'VALIDATION_ERROR')]").isEmpty();
 
-        verifyNoInteractions(createAccount);
+        verifyNoInteractions(cuentas);
     }
 
     @Test
@@ -293,13 +281,13 @@ class AccountControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
                 .jsonPath("$.errors[0].field").isEqualTo("initialBalance");
 
-        verifyNoInteractions(createAccount);
+        verifyNoInteractions(cuentas);
     }
 
     /** Lo que necesita la base, como que la moneda este activa, lo sigue reportando el caso de uso. */
     @Test
     void devuelveElErrorDeValidacionDelCasoDeUso() {
-        when(createAccount.create(eq(AccountMother.USER_ID), any()))
+        when(cuentas.create(eq(AccountMother.USER_ID), any()))
                 .thenReturn(Mono.error(new BadRequestException(HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR,
                         "La moneda no existe en el catalogo o no esta activa", "currencyCode")));
 
@@ -315,7 +303,7 @@ class AccountControllerTest {
 
     @Test
     void modificaLaCuentaConElUsuarioDelTokenElIdYElParcheTalCualLlega() {
-        when(updateAccount.update(eq(AccountMother.USER_ID), eq(AccountMother.VISA_ID), any()))
+        when(cuentas.update(eq(AccountMother.USER_ID), eq(AccountMother.VISA_ID), any()))
                 .thenReturn(Mono.just(AccountMother.visa()));
 
         webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/" + AccountMother.VISA_ID)
@@ -332,7 +320,7 @@ class AccountControllerTest {
                 .jsonPath("$.availableCredit").isEqualTo(4342000.0);
 
         ArgumentCaptor<UpdateAccountCommand> comando = ArgumentCaptor.forClass(UpdateAccountCommand.class);
-        verify(updateAccount).update(eq(AccountMother.USER_ID), eq(AccountMother.VISA_ID), comando.capture());
+        verify(cuentas).update(eq(AccountMother.USER_ID), eq(AccountMother.VISA_ID), comando.capture());
         assertThat(comando.getValue()).isEqualTo(new UpdateAccountCommand(" Visa ", "cop", new BigDecimal("10"),
                 new BigDecimal("6000000"), 16, 6, new BigDecimal("1.9"), true, null));
     }
@@ -350,7 +338,7 @@ class AccountControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
                 .jsonPath("$.errors[0].field").isEqualTo("body");
 
-        verifyNoInteractions(updateAccount);
+        verifyNoInteractions(cuentas);
     }
 
     @Test
@@ -364,7 +352,7 @@ class AccountControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
                 .jsonPath("$.errors[0].field").isEqualTo("id");
 
-        verifyNoInteractions(updateAccount);
+        verifyNoInteractions(cuentas);
     }
 
     @Test
@@ -381,12 +369,12 @@ class AccountControllerTest {
                 .jsonPath("$.errors[?(@.field == 'currentBalance')]").exists()
                 .jsonPath("$.errors[?(@.field == 'type')]").exists();
 
-        verifyNoInteractions(updateAccount);
+        verifyNoInteractions(cuentas);
     }
 
     @Test
     void pasaElEstadoDelParcheAlCasoDeUso() {
-        when(updateAccount.update(eq(AccountMother.USER_ID), eq(AccountMother.EFECTIVO_ID), any()))
+        when(cuentas.update(eq(AccountMother.USER_ID), eq(AccountMother.EFECTIVO_ID), any()))
                 .thenReturn(Mono.just(AccountMother.inactiva()));
 
         webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/" + AccountMother.EFECTIVO_ID)
@@ -400,7 +388,7 @@ class AccountControllerTest {
                 .jsonPath("$.isActive").isEqualTo(false);
 
         ArgumentCaptor<UpdateAccountCommand> comando = ArgumentCaptor.forClass(UpdateAccountCommand.class);
-        verify(updateAccount).update(eq(AccountMother.USER_ID), eq(AccountMother.EFECTIVO_ID), comando.capture());
+        verify(cuentas).update(eq(AccountMother.USER_ID), eq(AccountMother.EFECTIVO_ID), comando.capture());
         assertThat(comando.getValue())
                 .isEqualTo(new UpdateAccountCommand(null, null, null, null, null, null, null, null, false));
     }
@@ -418,7 +406,7 @@ class AccountControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
                 .jsonPath("$.errors[0].field").isEqualTo("body");
 
-        verifyNoInteractions(updateAccount);
+        verifyNoInteractions(cuentas);
     }
 
     static Stream<Arguments> erroresDelCasoDeUso() {
@@ -432,7 +420,7 @@ class AccountControllerTest {
     @ParameterizedTest(name = "{1} en {2}")
     @MethodSource("erroresDelCasoDeUso")
     void propagaElErrorDelCasoDeUsoConSuCodigoYCampo(HttpStatus status, ErrorCodes codigo, String campo) {
-        when(updateAccount.update(eq(AccountMother.USER_ID), eq(AccountMother.VISA_ID), any()))
+        when(cuentas.update(eq(AccountMother.USER_ID), eq(AccountMother.VISA_ID), any()))
                 .thenReturn(Mono.error(new BadRequestException(status, codigo, "error del caso de uso", campo)));
 
         webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/" + AccountMother.VISA_ID)
@@ -453,19 +441,19 @@ class AccountControllerTest {
                 .exchange()
                 .expectStatus().isUnauthorized();
 
-        verifyNoInteractions(updateAccount);
+        verifyNoInteractions(cuentas);
     }
 
     @Test
     void borraLaCuentaConElUsuarioDelTokenYElIdYRespondeSinCuerpo() {
-        when(deleteAccount.delete(AccountMother.USER_ID, AccountMother.CAJA_CHICA_ID)).thenReturn(Mono.empty());
+        when(cuentas.delete(AccountMother.USER_ID, AccountMother.CAJA_CHICA_ID)).thenReturn(Mono.empty());
 
         webTestClient.mutateWith(tokenDelUsuario()).delete().uri(URI_BASE + "/" + AccountMother.CAJA_CHICA_ID)
                 .exchange()
                 .expectStatus().isNoContent()
                 .expectBody().isEmpty();
 
-        verify(deleteAccount).delete(AccountMother.USER_ID, AccountMother.CAJA_CHICA_ID);
+        verify(cuentas).delete(AccountMother.USER_ID, AccountMother.CAJA_CHICA_ID);
     }
 
     @Test
@@ -477,7 +465,7 @@ class AccountControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
                 .jsonPath("$.errors[0].field").isEqualTo("id");
 
-        verifyNoInteractions(deleteAccount);
+        verifyNoInteractions(cuentas);
     }
 
     static Stream<Arguments> erroresDelBorrado() {
@@ -489,7 +477,7 @@ class AccountControllerTest {
     @ParameterizedTest(name = "{1} en {2}")
     @MethodSource("erroresDelBorrado")
     void propagaElErrorDelBorradoConSuCodigoYCampo(HttpStatus status, ErrorCodes codigo, String campo) {
-        when(deleteAccount.delete(AccountMother.USER_ID, AccountMother.CAJA_CHICA_ID))
+        when(cuentas.delete(AccountMother.USER_ID, AccountMother.CAJA_CHICA_ID))
                 .thenReturn(Mono.error(new BadRequestException(status, codigo, "error del caso de uso", campo)));
 
         webTestClient.mutateWith(tokenDelUsuario()).delete().uri(URI_BASE + "/" + AccountMother.CAJA_CHICA_ID)
@@ -506,7 +494,7 @@ class AccountControllerTest {
                 .exchange()
                 .expectStatus().isUnauthorized();
 
-        verifyNoInteractions(deleteAccount);
+        verifyNoInteractions(cuentas);
     }
 
     @Test
@@ -519,6 +507,6 @@ class AccountControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.UNAUTHENTICATED.getCode())
                 .jsonPath("$.errors[0].field").isEqualTo("authorization");
 
-        verifyNoInteractions(listAccounts);
+        verifyNoInteractions(cuentas);
     }
 }

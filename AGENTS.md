@@ -139,13 +139,30 @@ application/     usecase                                 ← implementa port/in,
 infrastructure/  adapter/in/web, adapter/out/persistence, config
 ```
 
-El cableado que importa: un controlador depende del **puerto de entrada**
-(`GetMonthlySpendingPort`), nunca de la clase del caso de uso. El caso de uso
-(`GetMonthlySpendingUseCase`, `@Service`) implementa ese puerto y consume un **puerto de salida**
-(`MonthlySpendingQueryPort`), que implementa un adapter de persistencia. Para un endpoint nuevo se
-tocan los cuatro archivos en ese orden. La excepción es un endpoint que solo expone los valores de un
-enum del dominio, como `GET /api/catalogs/account-types` (FA-59): no hay persistencia ni regla que
-orquestar, así que el controlador lee el enum sin puerto ni caso de uso.
+El cableado que importa: un controlador depende de **un solo puerto de entrada**, nunca de la clase
+del caso de uso. El puerto se llama como el recurso del controlador más `Port` y tiene una operación
+por endpoint: `AccountController` depende de `AccountPort`, con `list`, `create`, `update` y
+`delete`. Lo implementa un solo caso de uso, con el mismo nombre más `UseCase` (`AccountUseCase`,
+`@Service`), y la lógica auxiliar de cada operación son métodos privados suyos. El caso de uso
+consume **puertos de salida** (`AccountRepositoryPort`, `AccountQueryPort`), que implementan los
+adapters de persistencia. Los puertos de salida no se agrupan por controller: siguen como están.
+
+Un caso de uso con lógica propia que usan otros casos de uso o adapters sigue aparte, con su propio
+puerto, como `ResolveExchangeRatePort` o `CatchUpSeriesPort`: el caso de uso del controller lo
+consume en vez de absorberlo.
+
+Un endpoint nuevo en un controller que ya sigue la regla toca, en este orden, la operación del
+puerto, su implementación en el caso de uso y el método del controlador; el puerto de salida y su
+adapter, antes que todo eso, solo si la operación necesita una consulta que no existe. En un
+controller que todavía tiene un puerto por operación, el endpoint nuevo sigue el patrón que ese
+controller ya tiene —su propio puerto y su propio caso de uso—: migrarlo es una tarea aparte, y
+mezclar los dos patrones lo dejaría a medias. Mientras dure la migración conviven los controllers
+migrados y los que no. Los controllers que ya dependen de un solo puerto, como
+`MonthlySpendingController` con `GetMonthlySpendingPort`, no se fusionan con otros ni se renombran.
+
+La excepción es un endpoint que solo expone los valores de un enum del dominio, como
+`GET /api/catalogs/account-types` (FA-59): no hay persistencia ni regla que orquestar, así que el
+controlador lee el enum sin puerto ni caso de uso.
 
 Los beans (controladores, casos de uso, adapters) inyectan por constructor con `@AllArgsConstructor`
 de Lombok sobre campos `private final`; el constructor explícito queda solo para los que reciben

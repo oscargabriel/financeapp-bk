@@ -34,7 +34,7 @@ public class DeleteCategoryUseCase implements DeleteCategoryPort {
                         ? categorias.softDelete(categoryId, userId)
                         : Mono.error(new BadRequestException(HttpStatus.CONFLICT, ErrorCodes.RESOURCE_IN_USE,
                                 "La categoria la usa" + (activas == 1 ? " " : "n ")
-                                        + UpdateAccountUseCase.seriesActivas(activas)
+                                        + AccountUseCase.seriesActivas(activas)
                                         + ": cancelalas o cambiales la categoria antes de borrarla",
                                 "id")))
                 .flatMap(borrada -> borrada
