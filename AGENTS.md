@@ -398,8 +398,8 @@ recrea solo lo suyo:
 | Lado | Usuarios | Los recrea o limpia |
 |---|---|---|
 | Back (`bruno/`) | `prueba@`, `inactivo@`, `pendientes@`, `invitado@` y `telegram*@financeapp.local`, `*@bruno.local` | `test-data.sql` |
-| Front | `demo@financeapp.local`, `*@front.local` | `demo-data.sql` |
-| Desarrollador | `dev@financeapp.local` | `demo-data.sql` con `email` y `u = 1` |
+| Front | `demo@financeapp.local`, sus personas afiliadas `*@demo.financeapp.local`, `*@front.local` | `demo-data.sql` |
+| Desarrollador | `dev@financeapp.local`, sus personas afiliadas `*@dev.financeapp.local` | `demo-data.sql` con `email` y `u = 1` |
 
 Nadie entra como `prueba@` para probar a mano: le cambiaría a la colección los totales que verifica.
 Para eso está `dev@`.
