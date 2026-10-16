@@ -379,7 +379,7 @@ suite: rompe `bru run`**, y solo si te acuerdas de correrlo. El escenario de la 
 `docs/database/test-data.sql`, que se carga con psql y usa fechas relativas al mes en curso.
 
 Los datos de demo son otro script, `docs/database/demo-data.sql` (FA-93): un usuario con cuentas de
-cada tipo y seis meses de movimientos. Se carga para dos usuarios: `demo@financeapp.local`, que usa
+cada tipo y doce meses de movimientos, unos 30 por mes (FIN-97). Se carga para dos usuarios: `demo@financeapp.local`, que usa
 el front, y `dev@financeapp.local`, para las pruebas a mano del desarrollador. Los dos tienen el
 mismo escenario con ids propios, y la misma contraseña que el usuario de `test-data.sql`
 (`claveDePrueba123`). Los montos de la demo no los fija ninguna spec ni ningún assert: se cambian

@@ -1,8 +1,8 @@
 -- =============================================================================
 -- financeapp-bk : datos de demo
 --
--- Crea un usuario con seis meses de movimientos, para la demo, las pruebas del
--- front y las del desarrollador. No es el escenario de bruno/: ese es
+-- Crea un usuario con doce meses de movimientos (FIN-97), unos 30 por mes, para
+-- la demo, las pruebas del front y las del desarrollador. No es el escenario de bruno/: ese es
 -- test-data.sql, con totales que las specs fijan. Aqui los montos se pueden
 -- cambiar cuando el front lo necesite sin romper nada.
 --
@@ -34,6 +34,14 @@
 -- aprobado, con original_amount. Los montos convertidos salen de la tasa USD->COP
 -- de la base para la fecha de cada movimiento, no de un valor fijo.
 --
+-- Los doce meses van del mes en curso a once meses atras (FIN-97). Los gastos de
+-- rutina (mercado, almuerzos, transporte, cafe) salen de una plantilla con una
+-- variacion fija por mes y por fila, no aleatoria; los extraordinarios estan
+-- escritos a mano. Hace tres meses es el mes de pocos movimientos, sin fijos,
+-- rutina ni meta. Hace ocho a once meses el salario y el arriendo son los de
+-- antes del aumento anual. La Mastercard se paga cada mes por lo gastado desde
+-- el pago anterior, asi nunca queda a favor ni pasa del cupo.
+--
 -- Front, back y desarrollador comparten la base local, separados por usuario:
 --   back : prueba@ e inactivo@financeapp.local, y los *@bruno.local  -> test-data.sql
 --   front: demo@financeapp.local, los *@demo.financeapp.local y los
@@ -51,7 +59,7 @@
 --
 -- Carga sobre schema.sql + seed.sql sin pasos previos. Los movimientos necesitan
 -- una tasa USD->COP: si el par no tiene ninguna, el script inserta una de
--- respaldo, 4000 MANUAL, fechada el dia 1 de hace seis meses (FIN-45). Si ya hay
+-- respaldo, 4000 MANUAL, fechada el dia 1 de hace doce meses (FIN-45). Si ya hay
 -- alguna (las de test-data.sql en local, las reales en Neon) no toca la tabla.
 --
 -- En Neon se carga solo para demo@ (FIN-43), con sus tres personas, y es seguro
@@ -88,6 +96,7 @@ SET search_path TO finance, public;
 \set nube       '9000000' :u '-0000-7000-8000-000000000002'
 \set televisor  'a000000' :u '-0000-7000-8000-000000000001'
 \set celular    'a000000' :u '-0000-7000-8000-000000000002'
+\set nevera     'a000000' :u '-0000-7000-8000-000000000003'
 
 -- Personas afiliadas (FIN-30): correos en <nombre>@<local del usuario>.financeapp.local,
 -- para que demo@ y dev@ tengan las suyas.
@@ -112,6 +121,8 @@ SELECT split_part(:'email', '@', 1) || '.financeapp.local' AS dominio \gset
 \set g4               'd000000' :u '-0000-7000-8000-000000000004'
 \set g5               'd000000' :u '-0000-7000-8000-000000000005'
 \set g6               'd000000' :u '-0000-7000-8000-000000000006'
+\set g7               'd000000' :u '-0000-7000-8000-000000000007'
+\set g8               'd000000' :u '-0000-7000-8000-000000000008'
 \set s1               'c000000' :u '-0000-7000-8000-000000000001'
 \set s2               'c000000' :u '-0000-7000-8000-000000000002'
 \set s3               'c000000' :u '-0000-7000-8000-000000000003'
@@ -120,6 +131,9 @@ SELECT split_part(:'email', '@', 1) || '.financeapp.local' AS dominio \gset
 \set s6               'c000000' :u '-0000-7000-8000-000000000006'
 \set s7               'c000000' :u '-0000-7000-8000-000000000007'
 \set s8               'c000000' :u '-0000-7000-8000-000000000008'
+\set s9               'c000000' :u '-0000-7000-8000-000000000009'
+\set s10              'c000000' :u '-0000-7000-8000-000000000010'
+\set s11              'c000000' :u '-0000-7000-8000-000000000011'
 -- Grupos pendientes del asistente (FIN-95).
 \set grupo_a          'e000000' :u '-0000-7000-8000-000000000001'
 \set grupo_b          'e000000' :u '-0000-7000-8000-000000000002'
@@ -147,7 +161,7 @@ ON CONFLICT DO NOTHING;
 -- Fechada antes del movimiento mas antiguo, nunca hoy: una fila de hoy dejaria
 -- al proveedor sin guardar la tasa real del dia.
 INSERT INTO finance.exchange_rates (from_currency_code, to_currency_code, rate, rate_date, source)
-SELECT 'USD', 'COP', 4000, (date_trunc('month', now() AT TIME ZONE 'America/Bogota') - INTERVAL '6 months')::date, 'MANUAL'
+SELECT 'USD', 'COP', 4000, (date_trunc('month', now() AT TIME ZONE 'America/Bogota') - INTERVAL '12 months')::date, 'MANUAL'
  WHERE NOT EXISTS (SELECT 1
                      FROM finance.exchange_rates
                     WHERE from_currency_code = 'USD'
@@ -159,14 +173,16 @@ SELECT 'USD', 'COP', 4000, (date_trunc('month', now() AT TIME ZONE 'America/Bogo
 -- -----------------------------------------------------------------------------
 -- Contrasena 'claveDePrueba123', el mismo hash BCrypt de test-data.sql: psql no
 -- calcula BCrypt sin pgcrypto. Dato de la base local, no una credencial.
+-- Creado el dia 1 de hace doce meses, antes de su primer movimiento.
 INSERT INTO finance.users
     (id, email, password_hash, first_name, last_name, phone, birth_date,
-     base_currency_code, timezone)
+     base_currency_code, timezone, created_at)
 VALUES
     (:'uid'::uuid, :'email',
      '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy',
      'Laura', 'Gómez', '+573109876543', DATE '1992-07-21',
-     'COP', 'America/Bogota');
+     'COP', 'America/Bogota',
+     (date_trunc('month', now() AT TIME ZONE 'America/Bogota') - INTERVAL '12 months') AT TIME ZONE 'America/Bogota');
 
 
 -- -----------------------------------------------------------------------------
@@ -214,9 +230,14 @@ VALUES
 -- Gastos e ingresos
 --
 -- mes = meses hacia atras desde el mes en curso (0 = este mes). La fecha es el
--- primer dia de ese mes en hora de Bogota mas el desfase. Los fijos se repiten
--- en todos los meses menos el 3, que es el mes con pocos movimientos; su monto
--- cambia un poco cada mes con la columna variacion.
+-- primer dia de ese mes en hora de Bogota mas el desfase.
+--
+-- Los fijos y la rutina se repiten en los meses 0 a 11 menos el 3, que es el mes
+-- con pocos movimientos. En los meses 8 a 11 el salario y el arriendo son los de
+-- antes del aumento anual (viejo). Las filas con numero de fila varian entre
+-- -6 % y +6 % con una formula fija del mes y la fila, no con random(), para que
+-- dos cargas dejen lo mismo; decimales es el redondeo (2 a centavos, -2 a cientos
+-- de pesos). Lo demas esta escrito a mano, distinto en cada mes.
 -- -----------------------------------------------------------------------------
 INSERT INTO finance.transactions
     (id, user_id, account_id, category_id, type, amount, currency_code,
@@ -224,97 +245,119 @@ INSERT INTO finance.transactions
 SELECT gen_random_uuid(), :'uid'::uuid, x.account_id, c.id, x.type, x.amount, 'COP',
        1, x.amount, x.description, t.occurred_at, x.origin
   FROM (
-        SELECT f.account_id, f.category_name, f.type, f.amount + f.variacion * meses.mes AS amount,
+        SELECT f.account_id, f.category_name, f.type,
+               CASE WHEN f.fila IS NOT NULL
+                    THEN round(f.amount * (1 + ((meses.mes * 7 + f.fila * 5) % 13 - 6) / 100.0), f.decimales)
+                    WHEN meses.mes >= 8 THEN COALESCE(f.viejo, f.amount)
+                    ELSE f.amount
+               END AS amount,
                f.description, f.desfase, f.origin, meses.mes
           FROM (VALUES
-                (:'nomina'::uuid,  'Salario',       'INCOME',  2600000::numeric,      0::numeric, 'Salario quincena 1', INTERVAL '0 day 9 hours',   'WEB'),
-                (:'nomina'::uuid,  'Vivienda',      'EXPENSE', 1650000::numeric,      0::numeric, 'Arriendo',           INTERVAL '1 day 8 hours',   'WEB'),
-                (:'tarjeta'::uuid, 'Gimnasio',      'EXPENSE',  129000::numeric,      0::numeric, 'Mensualidad gimnasio', INTERVAL '2 day 18 hours', 'WEB'),
-                (:'nomina'::uuid,  'Servicios',     'EXPENSE',  149900::numeric,      0::numeric, 'Internet y celular', INTERVAL '4 day 10 hours',  'IMPORT'),
-                (:'tarjeta'::uuid, 'Suscripciones', 'EXPENSE',   44900::numeric,      0::numeric, 'Streaming',          INTERVAL '5 day 7 hours',   'IMPORT'),
-                (:'tarjeta'::uuid, 'Suscripciones', 'EXPENSE',   16900::numeric,      0::numeric, 'Música',             INTERVAL '5 day 8 hours',   'IMPORT'),
-                (:'nomina'::uuid,  'Servicios',     'EXPENSE',  182430.75::numeric, 4120.50::numeric, 'Luz, agua y gas', INTERVAL '8 day 11 hours', 'WEB'),
-                (:'nomina'::uuid,  'Salario',       'INCOME',  2600000::numeric,      0::numeric, 'Salario quincena 2', INTERVAL '14 day 9 hours',  'WEB')
-               ) AS f(account_id, category_name, type, amount, variacion, description, desfase, origin)
-         CROSS JOIN (VALUES (0), (1), (2), (4), (5)) AS meses(mes)
+                -- Fijos
+                (:'nomina'::uuid,   'Salario',       'INCOME',  2600000::numeric, 2450000::numeric, NULL::int, NULL::int, 'Salario quincena 1',   INTERVAL '0 day 9 hours',   'WEB'),
+                (:'nomina'::uuid,   'Vivienda',      'EXPENSE', 1650000,          1560000,          NULL,      NULL,      'Arriendo',             INTERVAL '1 day 8 hours',   'WEB'),
+                (:'tarjeta'::uuid,  'Gimnasio',      'EXPENSE',  129000,          NULL,             NULL,      NULL,      'Mensualidad gimnasio', INTERVAL '2 day 18 hours',  'WEB'),
+                (:'nomina'::uuid,   'Servicios',     'EXPENSE',  149900,          NULL,             NULL,      NULL,      'Internet y celular',   INTERVAL '4 day 10 hours',  'IMPORT'),
+                (:'tarjeta'::uuid,  'Suscripciones', 'EXPENSE',   44900,          NULL,             NULL,      NULL,      'Streaming',            INTERVAL '5 day 7 hours',   'IMPORT'),
+                (:'tarjeta'::uuid,  'Suscripciones', 'EXPENSE',   16900,          NULL,             NULL,      NULL,      'Música',               INTERVAL '5 day 8 hours',   'IMPORT'),
+                (:'nomina'::uuid,   'Servicios',     'EXPENSE',  182430.75,       NULL,             11,        2,         'Luz, agua y gas',      INTERVAL '8 day 11 hours',  'WEB'),
+                (:'nomina'::uuid,   'Salario',       'INCOME',  2600000,          2450000,          NULL,      NULL,      'Salario quincena 2',   INTERVAL '14 day 9 hours',  'WEB'),
+                -- Rutina
+                (:'tarjeta'::uuid,  'Mercado',       'EXPENSE',  190000.00,       NULL,             1,         2,         'Mercado semanal',      INTERVAL '2 day 11 hours',  'WEB'),
+                (:'tarjeta'::uuid,  'Mercado',       'EXPENSE',  190000.00,       NULL,             2,         2,         'Mercado semanal',      INTERVAL '9 day 11 hours',  'WEB'),
+                (:'tarjeta'::uuid,  'Mercado',       'EXPENSE',  190000.00,       NULL,             3,         2,         'Mercado semanal',      INTERVAL '16 day 11 hours', 'WEB'),
+                (:'tarjeta'::uuid,  'Mercado',       'EXPENSE',  190000.00,       NULL,             4,         2,         'Mercado semanal',      INTERVAL '23 day 11 hours', 'WEB'),
+                (:'tarjeta'::uuid,  'Restaurantes',  'EXPENSE',   40000,          NULL,             5,         -2,        'Almuerzo',             INTERVAL '4 day 13 hours',  'TELEGRAM'),
+                (:'tarjeta'::uuid,  'Restaurantes',  'EXPENSE',   40000,          NULL,             6,         -2,        'Almuerzo',             INTERVAL '18 day 13 hours', 'TELEGRAM'),
+                (:'efectivo'::uuid, 'Transporte',    'EXPENSE',   21000,          NULL,             7,         -2,        'Taxi',                 INTERVAL '11 day 22 hours', 'TELEGRAM'),
+                (:'efectivo'::uuid, 'Transporte',    'EXPENSE',    9800,          NULL,             8,         -2,        'Bus',                  INTERVAL '20 day 7 hours',  'TELEGRAM'),
+                (:'efectivo'::uuid, 'Restaurantes',  'EXPENSE',    9500,          NULL,             9,         -2,        'Café',                 INTERVAL '26 day 8 hours',  'TELEGRAM'),
+                (:'tarjeta'::uuid,  'Transporte',    'EXPENSE',  125000,          NULL,             10,        -2,        'Gasolina',             INTERVAL '21 day 8 hours',  'WEB')
+               ) AS f(account_id, category_name, type, amount, viejo, fila, decimales, description, desfase, origin)
+         CROSS JOIN generate_series(0, 11) AS meses(mes)
+         WHERE meses.mes <> 3
 
         UNION ALL
 
         SELECT v.account_id, v.category_name, v.type, v.amount, v.description, v.desfase, v.origin, v.mes
           FROM (VALUES
                 -- Mes en curso
-                (0, :'tarjeta'::uuid,  'Mercado',         'EXPENSE',  187650.40::numeric, 'Mercado semanal',          INTERVAL '2 day 11 hours',  'WEB'),
-                (0, :'efectivo'::uuid, 'Transporte',      'EXPENSE',   18500::numeric,    'Taxi',                     INTERVAL '2 day 22 hours',  'TELEGRAM'),
-                (0, :'tarjeta'::uuid,  'Restaurantes',    'EXPENSE',   64300::numeric,    'Almuerzo con el equipo',   INTERVAL '4 day 13 hours',  'TELEGRAM'),
+                (0, :'tarjeta'::uuid,  'Restaurantes',    'EXPENSE',   64300::numeric,    'Almuerzo con el equipo',   INTERVAL '3 day 13 hours',  'TELEGRAM'),
                 (0, :'efectivo'::uuid, 'Mercado',         'EXPENSE',   32750.50::numeric, 'Fruta y verdura',          INTERVAL '5 day 17 hours',  'TELEGRAM'),
                 (0, :'tarjeta'::uuid,  'Entretenimiento', 'EXPENSE',   58000::numeric,    'Cine',                     INTERVAL '6 day 20 hours',  'WEB'),
                 (0, :'nomina'::uuid,   'Salud',           'EXPENSE',   47890.25::numeric, 'Farmacia',                 INTERVAL '7 day 10 hours',  'WEB'),
-                (0, :'tarjeta'::uuid,  'Mercado',         'EXPENSE',  201340::numeric,    'Mercado semanal',          INTERVAL '9 day 11 hours',  'WEB'),
-                (0, :'tarjeta'::uuid,  'Transporte',      'EXPENSE',  120000::numeric,    'Gasolina',                 INTERVAL '12 day 8 hours',  'WEB'),
                 (0, :'nomina'::uuid,   'Freelance',       'INCOME',   950000::numeric,    'Diseño de logo',           INTERVAL '16 day 15 hours', 'WEB'),
                 (0, :'tarjeta'::uuid,  'Restaurantes',    'EXPENSE',  236500::numeric,    'Cena de cumpleaños',       INTERVAL '18 day 21 hours', 'WEB'),
-                (0, :'efectivo'::uuid, 'Transporte',      'EXPENSE',    9800::numeric,    'Bus',                      INTERVAL '20 day 7 hours',  'TELEGRAM'),
                 (0, :'tarjeta'::uuid,  'Ropa',            'EXPENSE',  289900::numeric,    'Zapatos',                  INTERVAL '23 day 16 hours', 'WEB'),
-                (0, :'tarjeta'::uuid,  'Mercado',         'EXPENSE',  176420.80::numeric, 'Mercado semanal',          INTERVAL '24 day 11 hours', 'WEB'),
 
                 -- Hace un mes
-                (1, :'tarjeta'::uuid,  'Mercado',         'EXPENSE',  195300.60::numeric, 'Mercado semanal',          INTERVAL '1 day 11 hours',  'WEB'),
-                (1, :'tarjeta'::uuid,  'Restaurantes',    'EXPENSE',   38500::numeric,    'Almuerzo',                 INTERVAL '3 day 13 hours',  'TELEGRAM'),
-                (1, :'efectivo'::uuid, 'Transporte',      'EXPENSE',   22000::numeric,    'Taxi',                     INTERVAL '6 day 23 hours',  'TELEGRAM'),
-                (1, :'tarjeta'::uuid,  'Mercado',         'EXPENSE',  182760.30::numeric, 'Mercado semanal',          INTERVAL '8 day 11 hours',  'WEB'),
                 (1, :'nomina'::uuid,   'Salud',           'EXPENSE',  180000::numeric,    'Consulta odontológica',    INTERVAL '10 day 9 hours',  'WEB'),
                 (1, :'tarjeta'::uuid,  'Entretenimiento', 'EXPENSE',  320000::numeric,    'Concierto',                INTERVAL '12 day 20 hours', 'WEB'),
-                (1, :'tarjeta'::uuid,  'Mercado',         'EXPENSE',  210450::numeric,    'Mercado semanal',          INTERVAL '15 day 11 hours', 'WEB'),
                 (1, :'nomina'::uuid,   'Freelance',       'INCOME',  2800000::numeric,    'Proyecto web',             INTERVAL '17 day 16 hours', 'WEB'),
                 (1, :'tarjeta'::uuid,  'Regalos',         'EXPENSE',  150000::numeric,    'Regalo de cumpleaños',     INTERVAL '19 day 18 hours', 'WEB'),
-                (1, :'tarjeta'::uuid,  'Transporte',      'EXPENSE',  135000::numeric,    'Gasolina',                 INTERVAL '21 day 8 hours',  'WEB'),
-                (1, :'tarjeta'::uuid,  'Mercado',         'EXPENSE',  198230.45::numeric, 'Mercado semanal',          INTERVAL '22 day 11 hours', 'WEB'),
                 (1, :'nomina'::uuid,   'Educación',       'EXPENSE',  349000::numeric,    'Curso de inglés',          INTERVAL '24 day 19 hours', 'IMPORT'),
                 (1, :'efectivo'::uuid, 'Restaurantes',    'EXPENSE',   15600::numeric,    'Empanadas',                INTERVAL '27 day 17 hours', 'TELEGRAM'),
 
                 -- Hace dos meses
-                (2, :'tarjeta'::uuid,  'Mercado',         'EXPENSE',  176980.25::numeric, 'Mercado semanal',          INTERVAL '2 day 11 hours',  'WEB'),
-                (2, :'tarjeta'::uuid,  'Restaurantes',    'EXPENSE',   42000::numeric,    'Almuerzo',                 INTERVAL '4 day 13 hours',  'TELEGRAM'),
                 (2, :'tarjeta'::uuid,  'Tecnología',      'EXPENSE',  459900::numeric,    'Audífonos',                INTERVAL '6 day 15 hours',  'WEB'),
-                (2, :'tarjeta'::uuid,  'Mercado',         'EXPENSE',  205640::numeric,    'Mercado semanal',          INTERVAL '9 day 11 hours',  'WEB'),
-                (2, :'efectivo'::uuid, 'Transporte',      'EXPENSE',   26700::numeric,    'Taxi',                     INTERVAL '11 day 22 hours', 'TELEGRAM'),
                 (2, :'cdt'::uuid,      'Intereses',       'INCOME',    83456.78::numeric, 'Intereses CDT',            INTERVAL '14 day 6 hours',  'IMPORT'),
-                (2, :'tarjeta'::uuid,  'Mercado',         'EXPENSE',  189320.70::numeric, 'Mercado semanal',          INTERVAL '16 day 11 hours', 'WEB'),
                 (2, :'tarjeta'::uuid,  'Mascotas',        'EXPENSE',  135000::numeric,    'Veterinario',              INTERVAL '18 day 10 hours', 'WEB'),
                 (2, :'tarjeta'::uuid,  'Entretenimiento', 'EXPENSE',  219000::numeric,    'Videojuego',               INTERVAL '20 day 21 hours', 'WEB'),
-                (2, :'tarjeta'::uuid,  'Mercado',         'EXPENSE',  201110::numeric,    'Mercado semanal',          INTERVAL '23 day 11 hours', 'WEB'),
                 (2, :'nomina'::uuid,   'Impuestos',       'EXPENSE',  612000::numeric,    'Impuesto vehicular',       INTERVAL '25 day 10 hours', 'WEB'),
-                (2, :'efectivo'::uuid, 'Restaurantes',    'EXPENSE',    9500.50::numeric, 'Café',                     INTERVAL '27 day 8 hours',  'TELEGRAM'),
 
-                -- Hace tres meses: el mes con pocos movimientos, sin los fijos
+                -- Hace tres meses: el mes con pocos movimientos, sin los fijos ni la rutina
                 (3, :'nomina'::uuid,   'Salario',         'INCOME',  5200000::numeric,    'Salario del mes',          INTERVAL '0 day 9 hours',   'WEB'),
                 (3, :'nomina'::uuid,   'Vivienda',        'EXPENSE', 1650000::numeric,    'Arriendo',                 INTERVAL '1 day 8 hours',   'WEB'),
                 (3, :'tarjeta'::uuid,  'Viajes',          'EXPENSE', 1250000::numeric,    'Tiquetes a Cartagena',     INTERVAL '10 day 14 hours', 'WEB'),
 
                 -- Hace cuatro meses
-                (4, :'tarjeta'::uuid,  'Mercado',         'EXPENSE',  168790.35::numeric, 'Mercado semanal',          INTERVAL '1 day 11 hours',  'WEB'),
                 (4, :'tarjeta'::uuid,  'Tecnología',      'EXPENSE', 4850000::numeric,    'Portátil',                 INTERVAL '3 day 16 hours',  'WEB'),
-                (4, :'tarjeta'::uuid,  'Restaurantes',    'EXPENSE',   35000::numeric,    'Almuerzo',                 INTERVAL '5 day 13 hours',  'TELEGRAM'),
-                (4, :'tarjeta'::uuid,  'Mercado',         'EXPENSE',  192450::numeric,    'Mercado semanal',          INTERVAL '8 day 11 hours',  'WEB'),
-                (4, :'efectivo'::uuid, 'Transporte',      'EXPENSE',   19900::numeric,    'Taxi',                     INTERVAL '10 day 23 hours', 'TELEGRAM'),
                 (4, :'nomina'::uuid,   'Ventas',          'INCOME',  1200000::numeric,    'Venta del portátil viejo', INTERVAL '12 day 17 hours', 'WEB'),
-                (4, :'tarjeta'::uuid,  'Mercado',         'EXPENSE',  181230.15::numeric, 'Mercado semanal',          INTERVAL '15 day 11 hours', 'WEB'),
                 (4, :'nomina'::uuid,   'Salud',           'EXPENSE',   98750.50::numeric, 'Exámenes de laboratorio',  INTERVAL '17 day 7 hours',  'WEB'),
                 (4, :'tarjeta'::uuid,  'Ropa',            'EXPENSE',  239900::numeric,    'Chaqueta',                 INTERVAL '19 day 15 hours', 'WEB'),
-                (4, :'tarjeta'::uuid,  'Mercado',         'EXPENSE',  199870::numeric,    'Mercado semanal',          INTERVAL '22 day 11 hours', 'WEB'),
                 (4, :'efectivo'::uuid, 'Otros gastos',    'EXPENSE',   10000::numeric,    'Propina',                  INTERVAL '25 day 20 hours', 'TELEGRAM'),
 
                 -- Hace cinco meses
-                (5, :'tarjeta'::uuid,  'Mercado',         'EXPENSE',  172340.90::numeric, 'Mercado semanal',          INTERVAL '2 day 11 hours',  'WEB'),
-                (5, :'tarjeta'::uuid,  'Restaurantes',    'EXPENSE',   41000::numeric,    'Almuerzo',                 INTERVAL '4 day 13 hours',  'TELEGRAM'),
-                (5, :'tarjeta'::uuid,  'Mercado',         'EXPENSE',  185600::numeric,    'Mercado semanal',          INTERVAL '9 day 11 hours',  'WEB'),
-                (5, :'efectivo'::uuid, 'Transporte',      'EXPENSE',   21300::numeric,    'Taxi',                     INTERVAL '12 day 22 hours', 'TELEGRAM'),
                 (5, :'nomina'::uuid,   'Reembolsos',      'INCOME',    87500.25::numeric, 'Reembolso EPS',            INTERVAL '14 day 10 hours', 'WEB'),
-                (5, :'tarjeta'::uuid,  'Mercado',         'EXPENSE',  194210::numeric,    'Mercado semanal',          INTERVAL '16 day 11 hours', 'WEB'),
                 (5, :'nomina'::uuid,   'Otros ingresos',  'INCOME',  2600000::numeric,    'Prima de servicios',       INTERVAL '19 day 9 hours',  'WEB'),
                 (5, :'tarjeta'::uuid,  'Entretenimiento', 'EXPENSE',  140000::numeric,    'Teatro',                   INTERVAL '20 day 19 hours', 'WEB'),
-                (5, :'tarjeta'::uuid,  'Mercado',         'EXPENSE',  203980.60::numeric, 'Mercado semanal',          INTERVAL '23 day 11 hours', 'WEB'),
-                (5, :'nomina'::uuid,   'Educación',       'EXPENSE',  186000::numeric,    'Libros',                   INTERVAL '26 day 16 hours', 'WEB')
+                (5, :'nomina'::uuid,   'Educación',       'EXPENSE',  186000::numeric,    'Libros',                   INTERVAL '26 day 16 hours', 'WEB'),
+
+                -- Hace seis meses
+                (6, :'nomina'::uuid,   'Salud',           'EXPENSE',   85000::numeric,    'Consulta médica',          INTERVAL '6 day 9 hours',   'WEB'),
+                (6, :'tarjeta'::uuid,  'Ropa',            'EXPENSE',  129900::numeric,    'Camisa',                   INTERVAL '10 day 17 hours', 'WEB'),
+                (6, :'nomina'::uuid,   'Freelance',       'INCOME',  1400000::numeric,    'Ilustraciones',            INTERVAL '17 day 15 hours', 'WEB'),
+                (6, :'tarjeta'::uuid,  'Entretenimiento', 'EXPENSE',   76000::numeric,    'Bolos',                    INTERVAL '24 day 20 hours', 'WEB'),
+
+                -- Hace siete meses
+                (7, :'tarjeta'::uuid,  'Mascotas',        'EXPENSE',  168500::numeric,    'Concentrado del perro',    INTERVAL '3 day 18 hours',  'WEB'),
+                (7, :'nomina'::uuid,   'Educación',       'EXPENSE',  520000::numeric,    'Curso de fotografía',      INTERVAL '9 day 19 hours',  'WEB'),
+                (7, :'tarjeta'::uuid,  'Regalos',         'EXPENSE',  260000::numeric,    'Regalo de aniversario',    INTERVAL '19 day 16 hours', 'WEB'),
+                (7, :'tarjeta'::uuid,  'Restaurantes',    'EXPENSE',  198000::numeric,    'Cena de aniversario',      INTERVAL '20 day 20 hours', 'WEB'),
+
+                -- Hace ocho meses
+                (8, :'tarjeta'::uuid,  'Viajes',          'EXPENSE',  486000::numeric,    'Tiquetes a Medellín',      INTERVAL '6 day 12 hours',  'WEB'),
+                (8, :'nomina'::uuid,   'Freelance',       'INCOME',  1900000::numeric,    'Sitio web de la panadería', INTERVAL '12 day 16 hours', 'WEB'),
+                (8, :'tarjeta'::uuid,  'Viajes',          'EXPENSE',  610000::numeric,    'Hotel en Medellín',        INTERVAL '24 day 15 hours', 'WEB'),
+                (8, :'efectivo'::uuid, 'Otros gastos',    'EXPENSE',   15000::numeric,    'Propina',                  INTERVAL '25 day 13 hours', 'TELEGRAM'),
+
+                -- Hace nueve meses
+                (9, :'tarjeta'::uuid,  'Tecnología',      'EXPENSE',  189900::numeric,    'Mouse y teclado',          INTERVAL '5 day 19 hours',  'WEB'),
+                (9, :'tarjeta'::uuid,  'Salud',           'EXPENSE',  450000::numeric,    'Lentes',                   INTERVAL '13 day 11 hours', 'WEB'),
+                (9, :'nomina'::uuid,   'Ventas',          'INCOME',   700000::numeric,    'Venta de la bicicleta',    INTERVAL '17 day 14 hours', 'WEB'),
+                (9, :'nomina'::uuid,   'Impuestos',       'EXPENSE', 1150000::numeric,    'Impuesto de renta',        INTERVAL '24 day 10 hours', 'WEB'),
+
+                -- Hace diez meses
+                (10, :'nomina'::uuid,  'Vivienda',        'EXPENSE',  230000::numeric,    'Reparación del calentador', INTERVAL '7 day 10 hours', 'WEB'),
+                (10, :'nomina'::uuid,  'Reembolsos',      'INCOME',   145000::numeric,    'Reembolso de la aseguradora', INTERVAL '15 day 11 hours', 'WEB'),
+                (10, :'tarjeta'::uuid, 'Ropa',            'EXPENSE',  279900::numeric,    'Tenis',                    INTERVAL '19 day 16 hours', 'WEB'),
+                (10, :'tarjeta'::uuid, 'Entretenimiento', 'EXPENSE',  410000::numeric,    'Festival de música',       INTERVAL '25 day 18 hours', 'WEB'),
+
+                -- Hace once meses
+                (11, :'nomina'::uuid,  'Salud',           'EXPENSE',  160000::numeric,    'Odontología',              INTERVAL '8 day 9 hours',   'WEB'),
+                (11, :'tarjeta'::uuid, 'Regalos',         'EXPENSE',  180000::numeric,    'Regalo para mamá',         INTERVAL '12 day 17 hours', 'WEB'),
+                (11, :'nomina'::uuid,  'Otros ingresos',  'INCOME',  2450000::numeric,    'Prima de servicios',       INTERVAL '19 day 9 hours',  'WEB'),
+                (11, :'tarjeta'::uuid, 'Restaurantes',    'EXPENSE',  245000::numeric,    'Cena familiar',            INTERVAL '23 day 20 hours', 'WEB')
                ) AS v(mes, account_id, category_name, type, amount, description, desfase, origin)
        ) AS x(account_id, category_name, type, amount, description, desfase, origin, mes)
  CROSS JOIN LATERAL (
@@ -328,8 +371,8 @@ SELECT gen_random_uuid(), :'uid'::uuid, x.account_id, c.id, x.type, x.amount, 'C
 
 -- -----------------------------------------------------------------------------
 -- Gastos e ingresos en dolares (FIN-96), en la cuenta en dolares y en su moneda,
--- con las mismas fechas por mes. La comision de manejo se repite en todos los
--- meses menos el 3, que solo tiene el hotel de los tiquetes a Cartagena.
+-- con las mismas fechas por mes. La comision de manejo se repite en los meses 0
+-- a 11 menos el 3, que solo tiene el hotel de los tiquetes a Cartagena.
 -- -----------------------------------------------------------------------------
 INSERT INTO finance.transactions
     (id, user_id, account_id, category_id, type, amount, currency_code,
@@ -338,11 +381,17 @@ SELECT gen_random_uuid(), :'uid'::uuid, :'dolares'::uuid, c.id, x.type, x.amount
        1, x.amount, x.description, t.occurred_at, 'WEB'
   FROM (
         SELECT meses.mes, 'Otros gastos', 'EXPENSE', 3.50::numeric, 'Comisión de manejo', INTERVAL '0 day 7 hours'
-          FROM (VALUES (0), (1), (2), (4), (5)) AS meses(mes)
+          FROM generate_series(0, 11) AS meses(mes)
+         WHERE meses.mes <> 3
 
         UNION ALL
 
         SELECT * FROM (VALUES
+                (10, 'Freelance',      'INCOME',  620.00::numeric, 'Pago de cliente del exterior',          INTERVAL '5 day 10 hours'),
+                (9,  'Tecnología',     'EXPENSE', 119.00::numeric, 'Licencia de software',                  INTERVAL '13 day 9 hours'),
+                (8,  'Freelance',      'INCOME',  680.00::numeric, 'Pago de cliente del exterior',          INTERVAL '5 day 10 hours'),
+                (7,  'Educación',      'EXPENSE',  49.00::numeric, 'Curso en línea',                        INTERVAL '11 day 20 hours'),
+                (6,  'Freelance',      'INCOME',  600.00::numeric, 'Pago de cliente del exterior',          INTERVAL '5 day 10 hours'),
                 (5, 'Freelance',       'INCOME',  650.00::numeric, 'Pago de cliente del exterior',          INTERVAL '5 day 10 hours'),
                 (5, 'Educación',       'EXPENSE',  89.00::numeric, 'Curso en línea',                        INTERVAL '11 day 20 hours'),
                 (4, 'Freelance',       'INCOME',  720.00::numeric, 'Pago de cliente del exterior',          INTERVAL '6 day 10 hours'),
@@ -366,7 +415,8 @@ SELECT gen_random_uuid(), :'uid'::uuid, :'dolares'::uuid, c.id, x.type, x.amount
 
 
 -- -----------------------------------------------------------------------------
--- Transferencias fijas de cada mes, menos el 3
+-- Transferencias fijas de cada mes, menos el 3. El pago de la Mastercard va al
+-- final, cuando ya estan todos sus gastos.
 -- -----------------------------------------------------------------------------
 INSERT INTO finance.transactions
     (id, user_id, account_id, destination_account_id, type, amount, currency_code,
@@ -374,16 +424,16 @@ INSERT INTO finance.transactions
 SELECT gen_random_uuid(), :'uid'::uuid, f.account_id, f.destination_id, 'TRANSFER',
        f.amount, 'COP', 1, f.amount, f.description, t.occurred_at, 'WEB'
   FROM (VALUES
-        (:'nomina'::uuid, :'efectivo'::uuid,  300000::numeric, 'Retiro de cajero',        INTERVAL '3 day 12 hours'),
-        (:'nomina'::uuid, :'tarjeta'::uuid,  1600000::numeric, 'Pago tarjeta Mastercard', INTERVAL '4 day 9 hours'),
+        (:'nomina'::uuid, :'efectivo'::uuid,  150000::numeric, 'Retiro de cajero',        INTERVAL '3 day 12 hours'),
         (:'nomina'::uuid, :'ahorros'::uuid,   500000::numeric, 'Ahorro del mes',          INTERVAL '15 day 11 hours')
        ) AS f(account_id, destination_id, amount, description, desfase)
- CROSS JOIN (VALUES (0), (1), (2), (4), (5)) AS meses(mes)
+ CROSS JOIN generate_series(0, 11) AS meses(mes)
  CROSS JOIN LATERAL (
         SELECT (date_trunc('month', now() AT TIME ZONE 'America/Bogota')
                 - make_interval(months => meses.mes) + f.desfase) AT TIME ZONE 'America/Bogota' AS occurred_at
        ) AS t
- WHERE t.occurred_at <= now();
+ WHERE meses.mes <> 3
+   AND t.occurred_at <= now();
 
 
 -- -----------------------------------------------------------------------------
@@ -400,6 +450,7 @@ SELECT gen_random_uuid(), :'uid'::uuid, f.account_id, f.destination_id, 'TRANSFE
              m.decimal_places),
        o.currency_code, 1, f.amount, f.description, t.occurred_at, 'WEB'
   FROM (VALUES
+        (9, :'nomina'::uuid,  :'dolares'::uuid, 1000000::numeric, 'Compra de dólares', INTERVAL '7 day 11 hours'),
         (4, :'nomina'::uuid,  :'dolares'::uuid, 1200000::numeric, 'Compra de dólares', INTERVAL '7 day 11 hours'),
         (2, :'dolares'::uuid, :'nomina'::uuid,      300::numeric, 'Venta de dólares',  INTERVAL '20 day 12 hours'),
         (1, :'nomina'::uuid,  :'dolares'::uuid,  800000::numeric, 'Compra de dólares', INTERVAL '18 day 11 hours')
@@ -417,8 +468,8 @@ SELECT gen_random_uuid(), :'uid'::uuid, f.account_id, f.destination_id, 'TRANSFE
 -- -----------------------------------------------------------------------------
 -- Series recurrentes (FA-107), sin fin y en la moneda de su cuenta: el club de
 -- lectura el 10 de cada mes desde hace tres meses en la tarjeta, y el
--- almacenamiento en la nube el 12 desde hace cinco en la cuenta en dolares
--- (FIN-96). Quedan creadas las ocurrencias hasta hoy y la siguiente, programada,
+-- almacenamiento en la nube el 12 desde hace once en la cuenta en dolares
+-- (FIN-96): una serie reciente y una larga. Quedan creadas las ocurrencias hasta hoy y la siguiente, programada,
 -- como las deja el API. El contador dice cuántas creó.
 -- -----------------------------------------------------------------------------
 INSERT INTO finance.recurrences
@@ -430,7 +481,7 @@ SELECT s.id, :'uid'::uuid, s.account_id, c.id, 'EXPENSE', s.amount, a.currency_c
          WHERE (d.inicio + make_interval(months => k))::date <= d.hoy) + 1
   FROM (VALUES
         (:'club'::uuid, :'tarjeta'::uuid, 35000::numeric, 'Club de lectura',            10, 3),
-        (:'nube'::uuid, :'dolares'::uuid,  9.99::numeric, 'Almacenamiento en la nube', 12, 5)
+        (:'nube'::uuid, :'dolares'::uuid,  9.99::numeric, 'Almacenamiento en la nube', 12, 11)
        ) AS s(id, account_id, amount, description, dia, meses)
   JOIN finance.accounts a ON a.id = s.account_id
  CROSS JOIN LATERAL (
@@ -458,6 +509,8 @@ SELECT gen_random_uuid(), s.user_id, s.account_id, s.category_id, s.type, s.amou
 --     corte 20 y pago 5, la cuota k vence el 5 del mes k despues de la compra.
 --   * Celular de 600 USD en la Visa en dolares, del 5 de hace tres meses
 --     (FIN-96). Con corte 25 y pago 10, la cuota k vence el 10 del mes k.
+--   * Nevera de 1.800.000 en la Mastercard, del 8 de hace diez meses: sus
+--     cuotas vencen el 5 de hace nueve a hace cuatro meses, ya pagada del todo.
 -- Capital fijo de amount / 6 mas la tasa de la tarjeta sobre el capital
 -- pendiente, a los decimales de la moneda, como las calcula el API. Las
 -- vencidas ya cuentan.
@@ -470,12 +523,13 @@ SELECT p.id, :'uid'::uuid, p.account_id, c.id, p.amount, a.currency_code, p.desc
            + (p.dia - 1),
        6, a.monthly_interest_rate
   FROM (VALUES
-        (:'televisor'::uuid, :'tarjeta'::uuid,  2400000::numeric, 'Televisor', 2, 15),
-        (:'celular'::uuid,   :'visa_usd'::uuid,     600::numeric, 'Celular',   3,  5)
-       ) AS p(id, account_id, amount, description, meses, dia)
+        (:'televisor'::uuid, :'tarjeta'::uuid,  2400000::numeric, 'Televisor', 'Tecnología',  2, 15),
+        (:'celular'::uuid,   :'visa_usd'::uuid,     600::numeric, 'Celular',   'Tecnología',  3,  5),
+        (:'nevera'::uuid,    :'tarjeta'::uuid,  1800000::numeric, 'Nevera',    'Vivienda',   10,  8)
+       ) AS p(id, account_id, amount, description, category_name, meses, dia)
   JOIN finance.accounts a ON a.id = p.account_id
   JOIN finance.categories c
-    ON c.user_id = :'uid'::uuid AND c.name = 'Tecnología';
+    ON c.user_id = :'uid'::uuid AND c.name = p.category_name;
 
 INSERT INTO finance.transactions
     (id, user_id, account_id, category_id, type, amount, currency_code, exchange_rate, amount_base,
@@ -491,7 +545,7 @@ SELECT gen_random_uuid(), p.user_id, p.account_id, p.category_id, 'EXPENSE', c.m
  CROSS JOIN generate_series(1, 6) k
  CROSS JOIN LATERAL (SELECT p.amount / 6 + round(p.amount * p.monthly_interest_rate / 100
                                                  * (7 - k) / 6, m.decimal_places) AS monto) c
- WHERE p.id IN (:'televisor'::uuid, :'celular'::uuid);
+ WHERE p.id IN (:'televisor'::uuid, :'celular'::uuid, :'nevera'::uuid);
 
 
 -- -----------------------------------------------------------------------------
@@ -529,14 +583,15 @@ SELECT gen_random_uuid(), :'uid'::uuid, a.id, c.id, 'EXPENSE', v.monto, a.curren
 -- solicitud abierta a Sofia, que no tiene cuenta. Misma contrasena que el
 -- usuario, una cuenta en COP y la copia de las categorias, como el registro.
 -- Fechas en dias hacia atras desde now(), no por mes: todo queda en el pasado y
--- los pendientes salen como recientes.
+-- los pendientes salen como recientes. Carlos y Valentina existen y estan
+-- afiliados desde antes del grupo compartido mas viejo (G7, hace 240 dias).
 -- -----------------------------------------------------------------------------
 INSERT INTO finance.users (id, email, password_hash, first_name, last_name, created_at)
 VALUES
     (:'carlos'::uuid,    :'carlos_email',
-     '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy', 'Carlos',    'Ruiz',   now() - INTERVAL '72 days'),
+     '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy', 'Carlos',    'Ruiz',   now() - INTERVAL '330 days'),
     (:'valentina'::uuid, :'valentina_email',
-     '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy', 'Valentina', 'Torres', now() - INTERVAL '62 days'),
+     '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy', 'Valentina', 'Torres', now() - INTERVAL '300 days'),
     (:'andres'::uuid,    :'andres_email',
      '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy', 'Andrés',    'Mejía',  now() - INTERVAL '5 days');
 
@@ -558,9 +613,9 @@ INSERT INTO finance.affiliations
     (id, requester_id, addressee_email, addressee_id, status, created_at, updated_at)
 VALUES
     (:'af_carlos'::uuid,    :'uid'::uuid,       :'carlos_email', :'carlos'::uuid, 'ACCEPTED',
-     now() - INTERVAL '70 days', now() - INTERVAL '69 days'),
+     now() - INTERVAL '320 days', now() - INTERVAL '319 days'),
     (:'af_valentina'::uuid, :'valentina'::uuid, :'email',        :'uid'::uuid,    'ACCEPTED',
-     now() - INTERVAL '60 days', now() - INTERVAL '59 days'),
+     now() - INTERVAL '295 days', now() - INTERVAL '294 days'),
     (:'af_andres'::uuid,    :'andres'::uuid,    :'email',        :'uid'::uuid,    'REQUESTED',
      now() - INTERVAL '3 days',  now() - INTERVAL '3 days'),
     (:'af_sofia'::uuid,     :'uid'::uuid,       :'sofia_email',  NULL,            'REQUESTED',
@@ -573,6 +628,10 @@ VALUES
 -- Las filas que el API habria dejado (TransactionR2dbcAdapter, PartesDelAlta,
 -- ApprovePendingTransactionUseCase): si cambia como las escribe, esto se queda
 -- viejo sin que nada falle. Todo en COP.
+--   G7 hace 240 d el usuario paga el hostal; Carlos y Valentina pagan su parte,
+--                 y los dos ingresos estan aprobados
+--   G8 hace 150 d Carlos paga el mercado de la finca; la parte del usuario,
+--                 pagada y aprobada
 --   G5 hace 50 d  Valentina paga la cabaña; la parte del usuario, pagada
 --   G1 hace 35 d  el usuario paga el asado; Carlos y Valentina pagan su parte,
 --                 y solo el ingreso de Carlos esta aprobado
@@ -591,6 +650,8 @@ INSERT INTO finance.transactions
 SELECT g.id, g.user_id, g.account_id, c.id, 'EXPENSE', g.amount, 'COP',
        1, g.amount, g.description, now() - g.hace, now() - g.hace
   FROM (VALUES
+        (:'g7'::uuid, :'uid'::uuid,       :'tarjeta'::uuid,       'Viajes',          450000::numeric, 'Hostal en la playa',    INTERVAL '240 days'),
+        (:'g8'::uuid, :'carlos'::uuid,    :'cta_carlos'::uuid,    'Mercado',         210000::numeric, 'Mercado de la finca',   INTERVAL '150 days'),
         (:'g5'::uuid, :'valentina'::uuid, :'cta_valentina'::uuid, 'Viajes',          900000::numeric, 'Arriendo de la cabaña', INTERVAL '50 days'),
         (:'g1'::uuid, :'uid'::uuid,       :'tarjeta'::uuid,       'Restaurantes',    240000::numeric, 'Asado en la finca',     INTERVAL '35 days'),
         (:'g2'::uuid, :'uid'::uuid,       :'tarjeta'::uuid,       'Mercado',         180000::numeric, 'Mercado para el paseo', INTERVAL '12 days'),
@@ -609,6 +670,9 @@ INSERT INTO finance.expense_shares
 SELECT s.id, t.id, t.user_id, s.debtor_id, s.amount, t.currency_code, t.description,
        t.occurred_at, s.status, now() - s.resuelta, t.occurred_at, COALESCE(now() - s.resuelta, t.occurred_at)
   FROM (VALUES
+        (:'s9'::uuid,  :'g7'::uuid, :'carlos'::uuid,   150000::numeric, 'PAID',     INTERVAL '236 days'),
+        (:'s10'::uuid, :'g7'::uuid, :'valentina'::uuid, 150000::numeric, 'PAID',    INTERVAL '233 days'),
+        (:'s11'::uuid, :'g8'::uuid, :'uid'::uuid,      105000::numeric, 'PAID',     INTERVAL '147 days'),
         (:'s1'::uuid, :'g5'::uuid, :'uid'::uuid,       300000::numeric, 'PAID',     INTERVAL '47 days'),
         (:'s2'::uuid, :'g1'::uuid, :'carlos'::uuid,     80000::numeric, 'PAID',     INTERVAL '30 days'),
         (:'s3'::uuid, :'g1'::uuid, :'valentina'::uuid,  80000::numeric, 'PAID',     INTERVAL '33 days'),
@@ -633,6 +697,9 @@ SELECT gen_random_uuid(), s.debtor_id, e.account_id, c.id, 'EXPENSE', s.amount, 
        gen_random_uuid(), s.payer_id, s.id, s.occurred_at
   FROM finance.expense_shares s
   LEFT JOIN (VALUES
+        (:'s9'::uuid,  :'cta_carlos'::uuid,    'Viajes'),
+        (:'s10'::uuid, :'cta_valentina'::uuid, 'Viajes'),
+        (:'s11'::uuid, :'nomina'::uuid,        'Mercado'),
         (:'s1'::uuid, :'nomina'::uuid,        'Viajes'),
         (:'s2'::uuid, :'cta_carlos'::uuid,    'Restaurantes'),
         (:'s3'::uuid, :'cta_valentina'::uuid, 'Restaurantes')
@@ -653,6 +720,9 @@ SELECT gen_random_uuid(), s.payer_id, i.account_id, c.id, 'INCOME', s.amount, s.
        gen_random_uuid(), s.debtor_id, s.id, s.resolved_at
   FROM finance.expense_shares s
   LEFT JOIN (VALUES
+        (:'s9'::uuid,  :'nomina'::uuid,       'Reembolsos'),
+        (:'s10'::uuid, :'nomina'::uuid,       'Reembolsos'),
+        (:'s11'::uuid, :'cta_carlos'::uuid,   'Reembolsos'),
         (:'s1'::uuid, :'cta_valentina'::uuid, 'Reembolsos'),
         (:'s2'::uuid, :'nomina'::uuid,        'Reembolsos')
        ) AS i(share_id, account_id, category_name)
@@ -713,17 +783,53 @@ SELECT gen_random_uuid(), :'uid'::uuid, p.account_id, p.destination_id, c.id, p.
 
 
 -- -----------------------------------------------------------------------------
+-- Pago de la Mastercard, el 5 de cada mes menos el 3, desde la nomina: lo gastado
+-- en la tarjeta desde el pago anterior, asi que tras cada pago queda en cero.
+-- Un monto fijo la dejaba a favor en los meses flojos y pasada del cupo despues
+-- del portatil. Va despues de todos sus gastos: cuotas, series y lo compartido.
+-- -----------------------------------------------------------------------------
+INSERT INTO finance.transactions
+    (id, user_id, account_id, destination_account_id, type, amount, currency_code,
+     exchange_rate, amount_base, description, occurred_at, origin)
+SELECT gen_random_uuid(), :'uid'::uuid, :'nomina'::uuid, :'tarjeta'::uuid, 'TRANSFER',
+       d.monto, 'COP', 1, d.monto, 'Pago tarjeta Mastercard', p.occurred_at, 'WEB'
+  FROM (
+        SELECT f.occurred_at, lag(f.occurred_at) OVER (ORDER BY f.occurred_at) AS anterior
+          FROM (SELECT (date_trunc('month', now() AT TIME ZONE 'America/Bogota')
+                        - make_interval(months => meses.mes) + INTERVAL '4 day 9 hours')
+                           AT TIME ZONE 'America/Bogota' AS occurred_at
+                  FROM generate_series(0, 11) AS meses(mes)
+                 WHERE meses.mes <> 3) AS f
+       ) AS p
+ CROSS JOIN LATERAL (
+        SELECT COALESCE(sum(t.amount), 0) AS monto
+          FROM finance.transactions t
+         WHERE t.account_id = :'tarjeta'::uuid
+           AND t.type = 'EXPENSE'
+           AND t.status = 'CONFIRMED'
+           AND t.occurred_at <= p.occurred_at
+           AND (p.anterior IS NULL OR t.occurred_at > p.anterior)
+       ) AS d
+ WHERE p.occurred_at <= now()
+   AND d.monto > 0;
+
+
+-- -----------------------------------------------------------------------------
 -- Metas
---   * Globales en todos los meses menos el 3, que queda sin meta
+--   * Globales en los meses 0 a 11 menos el 3, que queda sin meta; las de los
+--     meses 8 a 11, mas bajas, con el salario de antes del aumento
 --   * Hace cuatro meses el portatil pasa la meta global
---   * Hace un mes Mercado pasa su tope (786.741,35 sobre 700.000)
+--   * Por categoria solo en los dos ultimos meses: hace un mes Mercado pasa su
+--     tope de 700.000 (la rutina suma al menos 4 x 178.600)
 -- -----------------------------------------------------------------------------
 INSERT INTO finance.budgets (id, user_id, period_month, category_id, amount, currency_code)
 SELECT gen_random_uuid(), :'uid'::uuid,
        (date_trunc('month', now() AT TIME ZONE 'America/Bogota') - make_interval(months => b.mes))::date,
        NULL, b.amount, 'COP'
   FROM (VALUES (0, 4500000::numeric), (1, 4500000::numeric), (2, 4200000::numeric),
-               (4, 4000000::numeric), (5, 4000000::numeric)) AS b(mes, amount);
+               (4, 4000000::numeric), (5, 4000000::numeric), (6, 4000000::numeric),
+               (7, 4000000::numeric), (8, 3800000::numeric), (9, 3800000::numeric),
+               (10, 3800000::numeric), (11, 3800000::numeric)) AS b(mes, amount);
 
 INSERT INTO finance.budgets (id, user_id, period_month, category_id, amount, currency_code)
 SELECT gen_random_uuid(), :'uid'::uuid,
