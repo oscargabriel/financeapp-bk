@@ -22,6 +22,11 @@
 -- tiene otra abierta a sofia@, que no tiene cuenta. Ningun correo de esos es de
 -- alguien real ni entra en la lista de admitidos del alta.
 --
+-- Ademas de los pendientes que le dejan esas personas, el usuario tiene dos
+-- grupos pendientes del asistente (FIN-95), como los deja un mensaje a Telegram:
+-- uno de tres movimientos y otro de uno, para la pantalla de pendientes del
+-- front y su filtro por persona, que los deja fuera (FIN-71, FIN-73).
+--
 -- Front, back y desarrollador comparten la base local, separados por usuario:
 --   back : prueba@ e inactivo@financeapp.local, y los *@bruno.local  -> test-data.sql
 --   front: demo@financeapp.local, los *@demo.financeapp.local y los
@@ -31,7 +36,8 @@
 -- @front.local: recargar la demo los borra.
 --
 -- Re-ejecutable: borra el usuario y sus tres personas con todo lo suyo, incluido
--- lo que se haya aprobado o rechazado desde el front, y los recrea. Las fechas
+-- lo que se haya aprobado o rechazado desde el front, y los recrea: los
+-- pendientes vuelven a quedar sin confirmar. Las fechas
 -- son relativas al mes en curso, y del mes en curso solo entran los movimientos
 -- que ya ocurrieron: dos cargas el mismo dia dejan el mismo estado. Lo
 -- compartido va por dias hacia atras desde la carga.
@@ -104,6 +110,9 @@ SELECT split_part(:'email', '@', 1) || '.financeapp.local' AS dominio \gset
 \set s6               'c000000' :u '-0000-7000-8000-000000000006'
 \set s7               'c000000' :u '-0000-7000-8000-000000000007'
 \set s8               'c000000' :u '-0000-7000-8000-000000000008'
+-- Grupos pendientes del asistente (FIN-95).
+\set grupo_a          'e000000' :u '-0000-7000-8000-000000000001'
+\set grupo_b          'e000000' :u '-0000-7000-8000-000000000002'
 
 BEGIN;
 
@@ -169,8 +178,9 @@ VALUES
 -- -----------------------------------------------------------------------------
 -- Cuentas
 --
--- Nequi (saldo cero) y la cuenta en dolares no tienen movimientos: el API solo
--- acepta movimientos en COP.
+-- La cuenta en dolares no tiene movimientos: el API solo acepta movimientos en
+-- COP. Nequi queda en saldo cero, sin movimientos confirmados: solo la recarga
+-- pendiente del asistente, hasta que se apruebe.
 -- -----------------------------------------------------------------------------
 INSERT INTO finance.accounts (id, user_id, name, type, currency_code, initial_balance)
 VALUES
@@ -542,6 +552,37 @@ SELECT gen_random_uuid(), m.user_id, m.account_id, c.id, m.type, f.amount, 'COP'
 
 
 -- -----------------------------------------------------------------------------
+-- Pendientes del asistente (FIN-95)
+--
+-- Las filas que deja el alta en lote del asistente (PendienteDelAsistenteAdapter):
+-- origen TELEGRAM, cuenta y categoria resueltas, un grupo por mensaje y sin
+-- persona que los comparta. Sin fecha dictada, occurred_at es el instante del
+-- mensaje; con fecha, ese dia a las 12:00 en Bogota. Por dias hacia atras desde
+-- now(), como lo compartido.
+--   A hace 1 dia    mercado y gasolina en la tarjeta (la gasolina con fecha
+--                   dictada, dos dias antes) y una recarga de la nomina a Nequi
+--   B hace 3 horas  almuerzo en efectivo
+-- -----------------------------------------------------------------------------
+INSERT INTO finance.transactions
+    (id, user_id, account_id, destination_account_id, category_id, type, amount, currency_code,
+     exchange_rate, amount_base, description, occurred_at, status, origin, group_id, created_at)
+SELECT gen_random_uuid(), :'uid'::uuid, p.account_id, p.destination_id, c.id, p.type, p.amount, 'COP',
+       1, p.amount, p.description,
+       COALESCE((((now() - p.mensaje) AT TIME ZONE 'America/Bogota')::date - p.dias_antes + TIME '12:00')
+                    AT TIME ZONE 'America/Bogota',
+                now() - p.mensaje),
+       'PENDING', 'TELEGRAM', p.group_id, now() - p.mensaje
+  FROM (VALUES
+        (:'grupo_a'::uuid, :'tarjeta'::uuid,  NULL::uuid,     'Mercado',      'EXPENSE',   86400::numeric, 'Mercado del fin de semana', INTERVAL '1 day',   NULL::int),
+        (:'grupo_a'::uuid, :'tarjeta'::uuid,  NULL::uuid,     'Transporte',   'EXPENSE',  120000::numeric, 'Gasolina',                  INTERVAL '1 day',   2),
+        (:'grupo_a'::uuid, :'nomina'::uuid,   :'nequi'::uuid, NULL,           'TRANSFER', 200000::numeric, 'Recarga Nequi',             INTERVAL '1 day',   NULL),
+        (:'grupo_b'::uuid, :'efectivo'::uuid, NULL::uuid,     'Restaurantes', 'EXPENSE',   28000::numeric, 'Almuerzo',                  INTERVAL '3 hours', NULL)
+       ) AS p(group_id, account_id, destination_id, category_name, type, amount, description, mensaje, dias_antes)
+  LEFT JOIN finance.categories c
+    ON c.user_id = :'uid'::uuid AND c.name = p.category_name;
+
+
+-- -----------------------------------------------------------------------------
 -- Metas
 --   * Globales en todos los meses menos el 3, que queda sin meta
 --   * Hace cuatro meses el portatil pasa la meta global
@@ -600,3 +641,11 @@ SELECT COALESCE(p.first_name || ' ' || p.last_name, a.addressee_email) AS person
  WHERE :'uid'::uuid IN (a.requester_id, a.addressee_id)
  GROUP BY a.id, p.first_name, p.last_name
  ORDER BY a.created_at DESC;
+SELECT group_id AS grupo_del_asistente, count(*) AS pendientes, sum(amount) AS monto,
+       min(created_at AT TIME ZONE 'America/Bogota')::timestamp(0) AS mensaje
+  FROM finance.transactions
+ WHERE user_id = :'uid'::uuid
+   AND status = 'PENDING'
+   AND shared_by_user_id IS NULL
+ GROUP BY group_id
+ ORDER BY mensaje;
