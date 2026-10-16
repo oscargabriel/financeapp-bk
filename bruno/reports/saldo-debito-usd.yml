@@ -1,0 +1,47 @@
+info:
+  name: Saldo debito — en dolares
+  type: http
+  seq: 62
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/balance"
+  auth:
+    type: bearer
+    token: "{{tokenSaldo}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.currencyCode
+      operator: eq
+      value: USD
+  scripts:
+    - type: tests
+      code: |-
+        const r = res.getBody();
+
+        test("el total se recalcula en dolares sin reescribir nada guardado", function() {
+          expect(r.debitBalance).to.equal(382.6829);
+        });
+
+        test("las cuentas conservan sus saldos en su moneda", function() {
+          const saldos = {};
+          r.accounts.forEach(function (a) { saldos[a.name] = a.currentBalance; });
+          expect(saldos).to.eql({ "Débito dólares": 190, "Débito pesos": 790000, "Efectivo saldo": 400000 });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # debitBalance en USD
+
+  Débito pesos aporta 243,9024 + 121,9512 - 48,7805 - 100 - 24,3902 = 192,6829: cada movimiento
+  por su `amountBase` y el saldo inicial con la tasa de su creacion, redondeados a 4 decimales.
+  Débito dólares aporta 190 tal cual, porque ya esta en la moneda base.

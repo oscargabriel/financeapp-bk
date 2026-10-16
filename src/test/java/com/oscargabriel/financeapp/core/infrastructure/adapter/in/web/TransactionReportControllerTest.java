@@ -350,6 +350,7 @@ class TransactionReportControllerTest {
                 .jsonPath("$.allTime.expense").isEqualTo(5170500.0)
                 .jsonPath("$.allTime.net").isEqualTo(9129500.0)
                 .jsonPath("$.allTime.from").doesNotExist()
+                .jsonPath("$.debitBalance").isEqualTo(12375000.0)
                 .jsonPath("$.accounts.length()").isEqualTo(2)
                 .jsonPath("$.accounts[0].name").isEqualTo("Efectivo")
                 .jsonPath("$.accounts[0].type").isEqualTo("CASH")

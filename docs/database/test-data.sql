@@ -57,6 +57,12 @@ SET search_path TO finance, public;
 \set telegram            '10000000-0000-7000-8000-000000000006'
 \set telegram_par1       '10000000-0000-7000-8000-000000000007'
 \set telegram_par2       '10000000-0000-7000-8000-000000000008'
+\set saldo               '10000000-0000-7000-8000-000000000009'
+\set debito_pesos        '20000000-0000-7000-8000-000000000020'
+\set debito_dolares      '20000000-0000-7000-8000-000000000021'
+\set debito_apagada      '20000000-0000-7000-8000-000000000022'
+\set efectivo_saldo      '20000000-0000-7000-8000-000000000023'
+\set grupo_saldo         '71000000-0000-7000-8000-000000000004'
 
 BEGIN;
 
@@ -64,7 +70,8 @@ BEGIN;
 DELETE FROM finance.users
  WHERE email IN ('prueba@financeapp.local', 'inactivo@financeapp.local', 'pendientes@financeapp.local',
                  'series@financeapp.local', 'cuotas@financeapp.local', 'telegram@financeapp.local',
-                 'telegram-par1@financeapp.local', 'telegram-par2@financeapp.local');
+                 'telegram-par1@financeapp.local', 'telegram-par2@financeapp.local',
+                 'saldo@financeapp.local');
 
 -- Los requests de alta de bruno/ crean un usuario nuevo en cada corrida: auth/ con el correo
 -- registro-<timestamp>@bruno.local, monthly-spending/ con sin-datos-<timestamp>@bruno.local,
@@ -608,6 +615,63 @@ VALUES
     (:'telegram_par2'::uuid, 'telegram-par2@financeapp.local',
      '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy',
      'Par dos', '+573009990002', 'COP', 'America/Bogota');
+
+
+-- -----------------------------------------------------------------------------
+-- Saldo débito en la moneda base (FIN-104)
+--
+-- Usuario aparte para bruno/reports/saldo-debito-*: cambia su moneda base a USD y
+-- la vuelve a COP, y sus cuentas cambiarían la lista que verifican otras carpetas
+-- en prueba@. Débito dólares se creó hace 50 días, antes de la tasa más antigua
+-- (3900, de hace 45): su saldo inicial vale 390.000, no 410.000 como con la de hoy.
+-- La API no deja fijar created_at, por eso el escenario vive aquí.
+--
+-- "De hoy" es una hora antes de now(): hoy y hace 35 días valen los dos 4100, así
+-- que una carga justo después de medianoche da lo mismo.
+--
+-- Saldos vigentes: Débito pesos 790.000, Débito dólares 190 USD, Débito apagada
+-- 80.000 y Efectivo saldo 400.000. En COP, debitBalance = 790.000 + 761.000
+-- (390.000 - 39.000 + 410.000) = 1.551.000; en USD, 192,6829 + 190 = 382,6829.
+-- -----------------------------------------------------------------------------
+INSERT INTO finance.users
+    (id, email, password_hash, first_name, base_currency_code, timezone)
+VALUES
+    (:'saldo'::uuid, 'saldo@financeapp.local',
+     '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy',
+     'Saldo', 'COP', 'America/Bogota');
+
+INSERT INTO finance.categories
+    (id, user_id, name, applies_to, icon, color, sort_order, is_system)
+SELECT gen_random_uuid(), :'saldo'::uuid, d.name, d.applies_to, d.icon, d.color, d.sort_order, TRUE
+  FROM finance.default_categories d
+ WHERE d.is_active;
+
+INSERT INTO finance.accounts (id, user_id, name, type, currency_code, initial_balance, is_active, created_at)
+VALUES
+    (:'debito_pesos'::uuid,   :'saldo'::uuid, 'Débito pesos',   'DEBIT', 'COP', 1000000, TRUE,  now()),
+    (:'debito_dolares'::uuid, :'saldo'::uuid, 'Débito dólares', 'DEBIT', 'USD',     100, TRUE,  now() - INTERVAL '50 days'),
+    (:'debito_apagada'::uuid, :'saldo'::uuid, 'Débito apagada', 'DEBIT', 'COP',   80000, FALSE, now()),
+    (:'efectivo_saldo'::uuid, :'saldo'::uuid, 'Efectivo saldo', 'CASH',  'COP',  300000, TRUE,  now());
+
+-- exchange_rate y amount_base los fija trg_transactions_usd_equivalent: lo que va aquí se ignora.
+INSERT INTO finance.transactions
+    (id, user_id, account_id, destination_account_id, category_id, type, amount, destination_amount,
+     currency_code, exchange_rate, amount_base, description, occurred_at, status, origin, group_id)
+SELECT gen_random_uuid(), :'saldo'::uuid, m.cuenta, m.destino,
+       (SELECT c.id FROM finance.categories c
+         WHERE c.user_id = :'saldo'::uuid AND c.name = m.category_name),
+       m.type, m.amount, m.destination_amount, m.moneda, 1, m.amount, m.description,
+       now() - m.antes, m.status, 'WEB',
+       CASE WHEN m.status = 'PENDING' THEN :'grupo_saldo'::uuid END
+  FROM (VALUES
+        (:'debito_pesos'::uuid,   NULL::uuid,                'Salario', 'INCOME',   500000::numeric, NULL::numeric, 'COP', 'Pago',               INTERVAL '1 hour',    'CONFIRMED'),
+        (:'debito_pesos'::uuid,   NULL::uuid,                'Mercado', 'EXPENSE',  200000::numeric, NULL::numeric, 'COP', 'Mercado',            INTERVAL '1 hour',    'CONFIRMED'),
+        (:'debito_dolares'::uuid, NULL::uuid,                'Mercado', 'EXPENSE',      10::numeric, NULL::numeric, 'USD', 'Compra en dólares',  INTERVAL '40 days',   'CONFIRMED'),
+        (:'debito_pesos'::uuid,   :'debito_dolares'::uuid,   NULL,      'TRANSFER', 410000::numeric, 100::numeric,  'COP', 'Compra de dólares',  INTERVAL '1 hour',    'CONFIRMED'),
+        (:'debito_pesos'::uuid,   :'efectivo_saldo'::uuid,   NULL,      'TRANSFER', 100000::numeric, NULL::numeric, 'COP', 'Retiro',             INTERVAL '1 hour',    'CONFIRMED'),
+        (:'debito_pesos'::uuid,   NULL::uuid,                'Mercado', 'EXPENSE',   50000::numeric, NULL::numeric, 'COP', 'Gasto por aprobar',  INTERVAL '1 hour',    'PENDING'),
+        (:'debito_pesos'::uuid,   NULL::uuid,                'Mercado', 'EXPENSE',   70000::numeric, NULL::numeric, 'COP', 'Gasto programado',   INTERVAL '-1 month',  'CONFIRMED')
+       ) AS m(cuenta, destino, category_name, type, amount, destination_amount, moneda, description, antes, status);
 
 COMMIT;
 

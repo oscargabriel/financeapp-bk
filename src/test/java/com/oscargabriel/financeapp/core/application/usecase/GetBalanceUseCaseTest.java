@@ -104,6 +104,16 @@ class GetBalanceUseCaseTest {
     }
 
     @Test
+    void elTotalDebitoDeLaBaseLlegaAlSaldo() {
+        when(query.findSums(any(), any(), any())).thenReturn(Mono.just(sumasDelEscenario()));
+        when(accounts.findByUser(USER_ID, false)).thenReturn(Flux.empty());
+
+        StepVerifier.create(casoDeUso.get(USER_ID, PRIMERO, ULTIMO))
+                .assertNext(saldo -> assertThat(saldo.debitBalance()).isEqualByComparingTo("12375000"))
+                .verifyComplete();
+    }
+
+    @Test
     void conSoloFromEsErrorEnToSinConsultar() {
         verificaErrorEn(casoDeUso.get(USER_ID, PRIMERO, null), "to");
     }

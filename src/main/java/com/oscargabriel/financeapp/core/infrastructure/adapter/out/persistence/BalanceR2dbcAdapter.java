@@ -25,9 +25,19 @@ public class BalanceR2dbcAdapter implements BalanceQueryPort {
      * en el ON y no en el WHERE: un usuario con solo pendientes tambien sale, con ceros (FA-76). Lo
      * programado tampoco entra hasta su fecha (FA-106), y se decide con now() de la base. Las sumas van en la
      * moneda de la persona (FA-122).
+     *
+     * El total debito sale de v_account_balance_in_base en la misma consulta (FIN-104): la vista convierte
+     * cada aporte con la tasa de su fecha, y el filtro de que cuentas suman queda aqui, a la vista. La
+     * subconsulta escalar no depende del LEFT JOIN de movimientos, y el COALESCE da 0 a quien no tiene
+     * cuentas debito.
      */
     private static final String SQL = """
             SELECT u.base_currency_code,
+                   COALESCE((SELECT SUM(v.balance)
+                               FROM finance.v_account_balance_in_base v
+                              WHERE v.user_id = u.id
+                                AND v.account_type = 'DEBIT'
+                                AND v.is_active), 0) AS debit_balance,
                    COALESCE(SUM(monto) FILTER (WHERE t.type = 'INCOME' AND t.occurred_at >= desde
                             AND t.occurred_at < hasta), 0) AS period_income,
                    COALESCE(SUM(monto) FILTER (WHERE t.type = 'EXPENSE' AND t.occurred_at >= desde
@@ -42,7 +52,7 @@ public class BalanceR2dbcAdapter implements BalanceQueryPort {
                     AND t.occurred_at <= now()
              CROSS JOIN LATERAL (SELECT %s AS monto) m
              WHERE u.id = :userId
-             GROUP BY u.base_currency_code
+             GROUP BY u.id, u.base_currency_code
             """.formatted(MontoDeLaPersona.DE_T);
 
     private final DatabaseClient databaseClient;
@@ -63,6 +73,7 @@ public class BalanceR2dbcAdapter implements BalanceQueryPort {
                 new Balance.Totals(row.get("period_income", BigDecimal.class),
                         row.get("period_expense", BigDecimal.class)),
                 new Balance.Totals(row.get("all_income", BigDecimal.class),
-                        row.get("all_expense", BigDecimal.class)));
+                        row.get("all_expense", BigDecimal.class)),
+                row.get("debit_balance", BigDecimal.class));
     }
 }

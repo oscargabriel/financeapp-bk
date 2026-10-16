@@ -1,0 +1,35 @@
+info:
+  name: Saldo debito — volver a COP
+  type: http
+  seq: 63
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/users/me"
+  body:
+    type: json
+    data: |-
+      {
+        "baseCurrencyCode": "COP"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenSaldo}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.baseCurrencyCode
+      operator: eq
+      value: COP
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  Deja a `saldo@` como lo carga `test-data.sql`, para que la carpeta pase dos veces sin recargar.

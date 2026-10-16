@@ -24,6 +24,9 @@ runtime:
     - expression: res.body.allTime.expense
       operator: eq
       value: "20"
+    - expression: res.body.debitBalance
+      operator: eq
+      value: "0"
 
 settings:
   encodeUrl: true

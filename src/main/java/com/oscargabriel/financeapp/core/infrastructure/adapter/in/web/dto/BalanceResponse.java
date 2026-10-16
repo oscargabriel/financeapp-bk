@@ -6,11 +6,15 @@ import java.util.List;
 import com.oscargabriel.financeapp.core.domain.model.Account;
 import com.oscargabriel.financeapp.core.domain.model.Balance;
 
-/** La consulta de saldo. Los montos de period y allTime van en currencyCode; los de cada cuenta, en la suya. */
+/**
+ * La consulta de saldo. Los montos de period, allTime y debitBalance van en currencyCode; los de cada cuenta,
+ * en la suya.
+ */
 public record BalanceResponse(
         String currencyCode,
         Period period,
         Totals allTime,
+        BigDecimal debitBalance,
         List<AccountItem> accounts) {
 
     public record Period(String from, String to, BigDecimal income, BigDecimal expense, BigDecimal net) {
@@ -51,6 +55,7 @@ public record BalanceResponse(
                 new Period(saldo.from().toString(), saldo.to().toString(), periodo.income(), periodo.expense(),
                         periodo.net()),
                 Totals.from(saldo.allTime()),
+                saldo.debitBalance(),
                 saldo.accounts().stream().map(AccountItem::from).toList());
     }
 }

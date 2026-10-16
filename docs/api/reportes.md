@@ -200,8 +200,8 @@ dos extremos. Errores 400 `VALIDATION_ERROR`, en el campo del parámetro:
 
 ### `GET /api/reports/balance`
 
-Cuánto entró menos cuánto salió, en un rango y desde siempre, junto con las cuentas activas del
-usuario del token. **Bearer.**
+Cuánto entró menos cuánto salió, en un rango y desde siempre, el saldo total de las cuentas débito
+y las cuentas activas del usuario del token. **Bearer.**
 
 **Query params**
 
@@ -234,6 +234,7 @@ el campo del parámetro:
     "expense": 5170500.0000,
     "net": 9129500.0000
   },
+  "debitBalance": 12375000.0000,
   "accounts": [
     {
       "id": "0192a3b4-...",
@@ -259,10 +260,11 @@ el campo del parámetro:
 
 | Campo | Significado |
 |---|---|
-| `currencyCode` | La moneda base del usuario: la de `period` y `allTime` |
+| `currencyCode` | La moneda base del usuario: la de `period`, `allTime` y `debitBalance` |
 | `period` | Ingresos, gastos y neto del rango, con las fechas que se usaron |
 | `allTime` | Lo mismo con todos los movimientos del usuario, sin importar el rango |
 | `net` | `income` menos `expense`. Puede ser negativo |
+| `debitBalance` | La suma de los saldos vigentes de las cuentas `DEBIT` activas, de cualquier moneda, en la moneda base. No depende del rango. `0` si no hay ninguna |
 | `accounts` | Las cuentas activas por nombre, cada una con su saldo en **su** moneda. Las desactivadas no salen |
 | `availableCredit` | En una tarjeta, lo que queda por gastar: igual que en `GET /accounts`, `creditLimit` + `currentBalance` menos el capital de las cuotas de [compras en cuotas](cuotas.md#compras-en-cuotas) que todavía no llegan |
 
@@ -271,10 +273,20 @@ el campo del parámetro:
 - **Las transferencias no cuentan** como ingreso ni como gasto: mover plata entre cuentas propias,
   incluido pagar la tarjeta, no cambia el neto. Los gastos pagados con tarjeta sí cuentan.
 - **Los pendientes no cuentan** hasta aprobarse, ni en `period` ni en `allTime`.
-- **Los programados no cuentan** hasta su fecha, ni en `period`, ni en `allTime`, ni en el
-  `currentBalance` de las cuentas: un rango futuro con solo programados sale en cero.
-- **Las cuentas no se suman.** Pueden estar en monedas distintas, así que la respuesta no trae un
-  saldo total.
+- **Los programados no cuentan** hasta su fecha, ni en `period`, ni en `allTime`, ni en
+  `debitBalance`, ni en el `currentBalance` de las cuentas: un rango futuro con solo programados sale
+  en cero.
+- **La única suma entre cuentas es `debitBalance`** (FIN-104). Cada cuenta de `accounts` sigue en su
+  moneda, sin convertir. `debitBalance` convierte cada aporte con la tasa de su propia fecha, nunca
+  con la de hoy:
+  - el saldo inicial de la cuenta, con la del día en que se creó;
+  - cada movimiento, con la de su fecha, igual que `period`;
+  - lo que entra por una transferencia en otra moneda, su `destinationAmount` con la tasa de la
+    fecha de la transferencia.
+
+  Lo que ya está en la moneda base suma tal cual. Por eso, si se cambia la moneda base, el total
+  cambia sin que se reescriba nada guardado, y no es el `currentBalance` de cada cuenta por la tasa
+  de hoy. Las cuentas desactivadas, las borradas y las de otros tipos no suman.
 - Una tarjeta sin cupo cargado trae `creditLimit` y `availableCredit` en `null`. Se completa con
   `PATCH /api/accounts/{id}`.
 - El día de cada movimiento se decide con la zona horaria del usuario, como en

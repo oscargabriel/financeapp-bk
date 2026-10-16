@@ -1,0 +1,32 @@
+info:
+  name: Saldo debito — cambiar la moneda a USD
+  type: http
+  seq: 61
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/users/me"
+  body:
+    type: json
+    data: |-
+      {
+        "baseCurrencyCode": "USD"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenSaldo}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.baseCurrencyCode
+      operator: eq
+      value: USD
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

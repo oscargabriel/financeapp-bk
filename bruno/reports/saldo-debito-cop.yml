@@ -1,0 +1,56 @@
+info:
+  name: Saldo debito — en pesos
+  type: http
+  seq: 60
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/balance"
+  auth:
+    type: bearer
+    token: "{{tokenSaldo}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.currencyCode
+      operator: eq
+      value: COP
+  scripts:
+    - type: tests
+      code: |-
+        const r = res.getBody();
+        const porNombre = function (n) {
+          return r.accounts.find(function (a) { return a.name === n; });
+        };
+
+        test("suma las dos debito activas en pesos, cada aporte con la tasa de su fecha", function() {
+          expect(r.debitBalance).to.equal(1551000);
+        });
+
+        test("la cuenta en dolares sigue en su moneda, sin convertir", function() {
+          const usd = porNombre("Débito dólares");
+          expect(usd.currencyCode).to.equal("USD");
+          expect(usd.currentBalance).to.equal(190);
+        });
+
+        test("la debito desactivada no esta en la lista", function() {
+          expect(porNombre("Débito apagada")).to.equal(undefined);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # debitBalance en COP
+
+  790.000 de Débito pesos (1.000.000 + 500.000 - 200.000 - 410.000 - 100.000; el pendiente de 50.000
+  y el programado de 70.000 no cuentan) mas 761.000 de Débito dólares: el saldo inicial de 100 USD
+  con la tasa de su creacion, 3900 (390.000), el gasto de 10 USD de hace 40 dias con 3900 (39.000) y
+  los 100 USD que entran hoy con 4100 (410.000). Débito apagada (80.000) y Efectivo saldo (400.000)
+  no suman.

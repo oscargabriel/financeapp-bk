@@ -1010,3 +1010,64 @@ SELECT m.user_id,
   JOIN finance.categories c ON c.id = m.category_id;
 
 COMMENT ON VIEW finance.v_monthly_spending_by_category IS 'Desglose del gasto del mes por categoría, con su tope si existe y el peso porcentual sobre el total gastado en el mes.';
+
+
+-- =============================================================================
+-- SALDO DE CADA CUENTA EN LA MONEDA DE LA PERSONA (FIN-104)
+--
+-- Reglas:
+--   * Rehace el saldo vigente desde sus partes, no convierte current_balance:
+--     cada aporte vale lo de su propia fecha, nunca lo de hoy.
+--   * El saldo inicial se convierte con finance.amount_in_currency y la fecha
+--     local en que se creó la cuenta.
+--   * Cada movimiento que sale de la cuenta, o entra si es INCOME, se convierte
+--     con finance.in_currency y su fecha local; el signo lo da
+--     finance.balance_delta, como en trg_transactions_sync_balance.
+--   * Lo que entra por una transferencia: sin destination_amount está en la
+--     moneda del movimiento y va por finance.in_currency; con él está en la
+--     moneda de la cuenta y va por finance.amount_in_currency con la fecha del
+--     movimiento.
+--   * Solo cuentan los CONFIRMED que ya ocurrieron, como en el saldo vigente:
+--     pendientes y programados (occurred_at > now()) no.
+--   * Lo que ya está en la moneda de la persona suma su monto tal cual: una
+--     cuenta en esa moneda da exactamente current_balance menos lo programado.
+--   * Excluye las cuentas borradas; el tipo y el estado los filtra quien la lee.
+-- =============================================================================
+
+CREATE OR REPLACE VIEW finance.v_account_balance_in_base AS
+SELECT a.id                 AS account_id,
+       a.user_id,
+       a.type               AS account_type,
+       a.is_active,
+       u.base_currency_code AS currency_code,
+       finance.amount_in_currency(u.base_currency_code, a.currency_code, a.initial_balance,
+                                  (a.created_at AT TIME ZONE u.timezone)::date)
+           + COALESCE(m.efecto, 0) AS balance
+  FROM finance.accounts a
+  JOIN finance.users u ON u.id = a.user_id
+  LEFT JOIN LATERAL (
+      SELECT SUM(e.efecto) AS efecto
+        FROM (SELECT finance.balance_delta(t.type,
+                         finance.in_currency(u.base_currency_code, t.currency_code, t.amount,
+                                             t.amount_base, (t.occurred_at AT TIME ZONE u.timezone)::date))
+                         AS efecto
+                FROM finance.transactions t
+               WHERE t.account_id = a.id
+                 AND t.status = 'CONFIRMED'
+                 AND t.occurred_at <= now()
+              UNION ALL
+              SELECT CASE WHEN t.destination_amount IS NULL
+                          THEN finance.in_currency(u.base_currency_code, t.currency_code, t.amount,
+                                                   t.amount_base, (t.occurred_at AT TIME ZONE u.timezone)::date)
+                          ELSE finance.amount_in_currency(u.base_currency_code, a.currency_code,
+                                                          t.destination_amount,
+                                                          (t.occurred_at AT TIME ZONE u.timezone)::date)
+                     END
+                FROM finance.transactions t
+               WHERE t.destination_account_id = a.id
+                 AND t.status = 'CONFIRMED'
+                 AND t.occurred_at <= now()) AS e
+  ) m ON TRUE
+ WHERE a.deleted_at IS NULL;
+
+COMMENT ON VIEW finance.v_account_balance_in_base IS 'Saldo vigente de cada cuenta no borrada en la moneda base de su dueño, con cada aporte convertido con la tasa de su fecha: el saldo inicial con la de la creación de la cuenta y cada movimiento con la suya.';

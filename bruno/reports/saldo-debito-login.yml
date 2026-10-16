@@ -1,0 +1,41 @@
+info:
+  name: Saldo debito — login
+  type: http
+  seq: 59
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/login"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "saldo@financeapp.local",
+        "password": "{{testUserPassword}}"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("tokenSaldo", res.getBody().accessToken);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Saldo debito en la moneda base (FIN-104)
+
+  `saldo@financeapp.local`, de `test-data.sql`: moneda COP, cuentas debito en COP y en USD, una
+  debito desactivada y una de efectivo. Las cifras y su origen estan en el comentario del escenario.
