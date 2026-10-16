@@ -21,12 +21,17 @@ runtime:
         test("trae exactamente las claves del contrato", function() {
           expect(Object.keys(res.getBody()).sort()).to.deep.equal(
             ["baseCurrencyCode", "email", "firstName", "googleLinked", "hasPassword", "id", "lastName",
-             "phone", "timezone"]);
+             "phone", "telegramLinked", "timezone"]);
         });
 
         test("se registro con contrasena y nunca entro con Google (FIN-53)", function() {
           expect(res.getBody().hasPassword).to.equal(true);
           expect(res.getBody().googleLinked).to.equal(false);
+        });
+
+        test("recien registrado, sin chat de Telegram (FIN-60)", function() {
+          expect(res.getBody().telegramLinked).to.equal(false);
+          expect(JSON.stringify(res.getBody())).to.not.contain("telegramChatId");
         });
 
         test("es el usuario del token", function() {

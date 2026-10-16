@@ -21,4 +21,11 @@ docs: |
   autenticacion y los status, no el texto que responde el bot: eso lo fija
   `AtenderUpdateUseCaseTest` en la suite.
 
-  Necesita `auth/login` antes, por el `accessToken` de `Webhook con Bearer`.
+  **La vinculacion del chat (FIN-60) se observa por el perfil.** Cada `webhook-contacto-*` va
+  seguido de un `GET` o `PATCH /users/me` que mira `telegramLinked`: es lo unico que Bruno ve de lo
+  que hizo el bot. Usa los usuarios `telegram*@financeapp.local` de `test-data.sql`; como
+  `webhook-contacto-propio` vincula el chat de `telegram@` y `parche-celular-desvincula` le cambia el
+  celular, **solo pasa con `test-data.sql` recien cargado**.
+
+  Necesita `auth/login` antes, por el `accessToken` de `Webhook con Bearer` y de
+  `Perfil con un chat guardado sin telefono admitido`.

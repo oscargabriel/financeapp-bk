@@ -4,6 +4,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
+import com.oscargabriel.financeapp.telegram.domain.model.RespuestaDelBot;
 import com.oscargabriel.financeapp.telegram.domain.port.out.BotDeTelegramPort;
 
 import lombok.extern.slf4j.Slf4j;
@@ -11,8 +12,8 @@ import reactor.core.publisher.Mono;
 
 /**
  * El bot con el que bruno/telegram/ no habla con Telegram (design.md de FIN-89, decision 3): el
- * envio solo queda en el log. Con el perfil prod no existe aunque se pida, y entonces no hay bot y
- * no arranca.
+ * envio solo queda en el log, con su teclado. Con el perfil prod no existe aunque se pida, y entonces
+ * no hay bot y no arranca.
  */
 @Component
 @Profile("!prod")
@@ -22,9 +23,10 @@ public class StubTelegramBotAdapter implements BotDeTelegramPort {
 
     /** En un onNext y no en fromRunnable: ReactorMdcHook solo copia el requestId en las senales. */
     @Override
-    public Mono<Void> enviar(long chatId, String texto) {
-        return Mono.just(texto)
-                .doOnNext(enviado -> log.info("Bot stub: al chat {} -> {}", chatId, enviado))
+    public Mono<Void> enviar(long chatId, RespuestaDelBot respuesta) {
+        return Mono.just(respuesta)
+                .doOnNext(enviada -> log.info("Bot stub: al chat {} -> {} [teclado {}]",
+                        chatId, enviada.texto(), enviada.teclado()))
                 .then();
     }
 }

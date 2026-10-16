@@ -17,8 +17,9 @@ http:
         "message": {
           "message_id": 2,
           "date": 1791590401,
+          "from": {"id": 123456, "is_bot": false, "first_name": "Prueba"},
           "chat": {"id": 123456, "type": "private"},
-          "contact": {"phone_number": "+573001234567", "first_name": "Prueba", "user_id": 123456}
+          "photo": [{"file_id": "foto-de-prueba", "file_unique_id": "foto", "width": 90, "height": 90}]
         }
       }
 
@@ -37,5 +38,6 @@ settings:
 docs: |
   # Un mensaje sin texto de un chat sin vincular
 
-  Un contacto, una foto o un audio llegan sin `text`. Hasta FIN-60 reciben el mismo texto fijo que
-  un mensaje de texto.
+  Una foto o un audio llegan sin `text`. Desde un chat sin vincular reciben el mismo texto fijo que
+  un mensaje de texto, con el botón para compartir el contacto (FIN-60). Un contacto no es un
+  mensaje sin texto cualquiera: es la vinculación, y la prueban los `webhook-contacto-*`.

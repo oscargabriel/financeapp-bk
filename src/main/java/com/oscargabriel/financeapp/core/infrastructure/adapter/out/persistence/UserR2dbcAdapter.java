@@ -78,10 +78,15 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
     /**
      * Mismo filtro que CREDENCIALES_ACTIVAS: un token vigente de un usuario desactivado no ve su perfil.
      * Los metodos de entrada salen como booleanos: el hash y el sub no salen de la base (FIN-53).
+     * telegram_linked es el chat guardado con el phone admitido (FIN-60): la misma regla que copia
+     * TelegramChatR2dbcAdapter para el bot; si cambia aqui, cambia alli.
      */
     private static final String PERFIL_ACTIVO = """
             SELECT id, email, first_name, last_name, phone, base_currency_code, timezone,
-                   password_hash IS NOT NULL AS has_password, google_sub IS NOT NULL AS google_linked
+                   password_hash IS NOT NULL AS has_password, google_sub IS NOT NULL AS google_linked,
+                   telegram_chat_id IS NOT NULL
+                       AND EXISTS (SELECT 1 FROM finance.registration_allowlist a WHERE a.entry = phone)
+                       AS telegram_linked
               FROM finance.users
              WHERE id = :id
                AND deleted_at IS NULL
@@ -108,20 +113,27 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
             )
             """;
 
-    /** updated_at lo pone trg_users_updated_at. */
+    /**
+     * updated_at lo pone trg_users_updated_at. Un phone distinto desvincula el chat, que se verifico con el
+     * anterior (FIN-60): en el SET, phone es todavia el guardado. telegram_linked, como en PERFIL_ACTIVO.
+     */
     private static final String ACTUALIZAR_PERFIL = """
             UPDATE finance.users
                SET email = :email,
                    first_name = :firstName,
                    last_name = :lastName,
                    phone = :phone,
+                   telegram_chat_id = CASE WHEN phone IS DISTINCT FROM :phone THEN NULL ELSE telegram_chat_id END,
                    base_currency_code = :baseCurrencyCode,
                    timezone = :timezone
              WHERE id = :id
                AND deleted_at IS NULL
                AND is_active
             RETURNING id, email, first_name, last_name, phone, base_currency_code, timezone,
-                      password_hash IS NOT NULL AS has_password, google_sub IS NOT NULL AS google_linked
+                      password_hash IS NOT NULL AS has_password, google_sub IS NOT NULL AS google_linked,
+                      telegram_chat_id IS NOT NULL
+                          AND EXISTS (SELECT 1 FROM finance.registration_allowlist a WHERE a.entry = phone)
+                          AS telegram_linked
             """;
 
     /**
@@ -308,7 +320,8 @@ public class UserR2dbcAdapter implements UserRepositoryPort {
                 row.get("base_currency_code", String.class),
                 row.get("timezone", String.class),
                 row.get("has_password", Boolean.class),
-                row.get("google_linked", Boolean.class));
+                row.get("google_linked", Boolean.class),
+                row.get("telegram_linked", Boolean.class));
     }
 
     @Override

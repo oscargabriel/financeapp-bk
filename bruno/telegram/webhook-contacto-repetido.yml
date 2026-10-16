@@ -1,0 +1,42 @@
+info:
+  name: Webhook con un teléfono de dos usuarios
+  type: http
+  seq: 21
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  headers:
+    - name: X-Telegram-Bot-Api-Secret-Token
+      value: "{{telegramSecret}}"
+  body:
+    type: json
+    data: |-
+      {
+        "update_id": 10104,
+        "message": {
+          "message_id": 104,
+          "date": 1791590401,
+          "from": {"id": 777002, "is_bot": false, "first_name": "Par"},
+          "chat": {"id": 777002, "type": "private", "first_name": "Par"},
+          "contact": {"phone_number": "+573009990002", "first_name": "Par", "user_id": 777002}
+        }
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un teléfono de dos usuarios no vincula (FIN-60)
+
+  `+573009990002` está admitido y es el `phone` de `telegram-par1@` y de `telegram-par2@`. El contacto
+  solo prueba el teléfono, así que el bot no elige a ninguno y responde el texto genérico.

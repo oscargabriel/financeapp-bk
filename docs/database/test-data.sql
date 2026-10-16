@@ -52,13 +52,17 @@ SET search_path TO finance, public;
 \set compra_ajena        '90000000-0000-7000-8000-000000000001'
 \set visa_guardada       '20000000-0000-7000-8000-000000000019'
 \set compra_guardada     '90000000-0000-7000-8000-000000000002'
+\set telegram            '10000000-0000-7000-8000-000000000006'
+\set telegram_par1       '10000000-0000-7000-8000-000000000007'
+\set telegram_par2       '10000000-0000-7000-8000-000000000008'
 
 BEGIN;
 
 -- Borrado del escenario anterior. El resto cae en cascada desde users.
 DELETE FROM finance.users
  WHERE email IN ('prueba@financeapp.local', 'inactivo@financeapp.local', 'pendientes@financeapp.local',
-                 'series@financeapp.local', 'cuotas@financeapp.local');
+                 'series@financeapp.local', 'cuotas@financeapp.local', 'telegram@financeapp.local',
+                 'telegram-par1@financeapp.local', 'telegram-par2@financeapp.local');
 
 -- Los requests de alta de bruno/ crean un usuario nuevo en cada corrida: auth/ con el correo
 -- registro-<timestamp>@bruno.local, monthly-spending/ con sin-datos-<timestamp>@bruno.local,
@@ -572,6 +576,33 @@ SELECT :'compra_ajena'::uuid, :'uid'::uuid, :'credit'::uuid, c.id, 600000, 'COP'
  WHERE c.user_id = :'uid'::uuid AND c.applies_to = 'EXPENSE' AND c.deleted_at IS NULL
  ORDER BY c.name
  LIMIT 1;
+
+
+-- -----------------------------------------------------------------------------
+-- Vinculación del chat de Telegram (FIN-60)
+--
+-- bruno/telegram/ vincula el chat de telegram@ compartiendo su contacto, y después
+-- le cambia el celular para desvincularlo: entre dos corridas hay que recargar este
+-- script. Los dos telegram-par* comparten teléfono admitido, así que ninguno vincula.
+-- +573009990003 está admitido y no es de nadie: es el celular nuevo del parche.
+-- prueba@ conserva su chat 123456789 con un phone sin admitir: cuenta como sin vincular.
+-- -----------------------------------------------------------------------------
+INSERT INTO finance.registration_allowlist (entry)
+VALUES ('+573009990001'), ('+573009990002'), ('+573009990003')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO finance.users
+    (id, email, password_hash, first_name, phone, base_currency_code, timezone)
+VALUES
+    (:'telegram'::uuid, 'telegram@financeapp.local',
+     '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy',
+     'Ana', '+573009990001', 'COP', 'America/Bogota'),
+    (:'telegram_par1'::uuid, 'telegram-par1@financeapp.local',
+     '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy',
+     'Par uno', '+573009990002', 'COP', 'America/Bogota'),
+    (:'telegram_par2'::uuid, 'telegram-par2@financeapp.local',
+     '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy',
+     'Par dos', '+573009990002', 'COP', 'America/Bogota');
 
 COMMIT;
 

@@ -1,0 +1,40 @@
+info:
+  name: Login de un usuario con el teléfono repetido
+  type: http
+  seq: 14
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/login"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "telegram-par1@financeapp.local",
+        "password": "{{testUserPassword}}"
+      }
+  auth:
+    type: basic
+    username: "{{basicUser}}"
+    password: "{{basicPass}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        bru.setVar("tokenTelegramPar1", res.getBody().accessToken);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Login de telegram-par1@financeapp.local (FIN-60)
+
+  Comparte `+573009990002`, admitido, con `telegram-par2@`: ninguno de los dos puede vincular.

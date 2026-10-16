@@ -1,0 +1,39 @@
+info:
+  name: Parche sin cambiar el celular
+  type: http
+  seq: 23
+
+http:
+  method: PATCH
+  url: "{{baseUrl}}/users/me"
+  body:
+    type: json
+    data: |-
+      {
+        "firstName": "Ana",
+        "phone": "+573009990001"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenTelegram}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.telegramLinked
+      operator: eq
+      value: "true"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Mandar el mismo celular no desvincula (FIN-60)
+
+  El parche trae el `phone` que ya tenía Ana: el `UPDATE` solo limpia el chat cuando el teléfono
+  cambia.

@@ -69,7 +69,7 @@ class PreviewInstallmentPurchaseUseCaseTest {
                 .thenReturn(Flux.fromIterable(TransactionMother.categoriasDelUsuario()));
         when(monedas.findActive()).thenReturn(Flux.just(CurrencyMother.cop(), CurrencyMother.usd()));
         when(usuarios.findActiveProfile(USER_ID)).thenReturn(Mono.just(new UserProfile(USER_ID, "ana@ejemplo.com",
-                "Ana", null, null, "COP", "America/Bogota", true, false)));
+                "Ana", null, null, "COP", "America/Bogota", true, false, false)));
     }
 
     private PreviewInstallmentPurchaseUseCase casoDeUso(Instant ahora) {

@@ -1,8 +1,12 @@
 package com.oscargabriel.financeapp.telegram.support;
 
+import java.util.UUID;
 import java.util.function.Consumer;
 
 import org.springframework.http.HttpHeaders;
+
+import com.oscargabriel.financeapp.telegram.domain.model.MensajeDeTelegram;
+import com.oscargabriel.financeapp.telegram.domain.model.UsuarioDelBot;
 
 /**
  * El secreto del webhook y los updates de Telegram para los tests. El secreto tiene que ser el mismo
@@ -19,7 +23,31 @@ public final class TelegramMother {
 
     public static final long CHAT = 123456L;
 
+    public static final long GRUPO = -100123456L;
+
+    /** El celular admitido de ana(), con el + que le agrega el caso de uso. */
+    public static final String TELEFONO = "+573009990001";
+
     private TelegramMother() {
+    }
+
+    public static UsuarioDelBot ana() {
+        return new UsuarioDelBot(UUID.fromString("10000000-0000-7000-8000-000000000006"), "Ana");
+    }
+
+    /** Un mensaje del chat privado CHAT, cuyo remitente es el mismo CHAT, con o sin contacto. */
+    public static MensajeDeTelegram privado(MensajeDeTelegram.Contacto contacto) {
+        return new MensajeDeTelegram(CHAT, true, CHAT, contacto);
+    }
+
+    /** Un mensaje del grupo GRUPO, escrito por CHAT. */
+    public static MensajeDeTelegram deGrupo(MensajeDeTelegram.Contacto contacto) {
+        return new MensajeDeTelegram(GRUPO, false, CHAT, contacto);
+    }
+
+    /** El contacto del propio remitente CHAT. */
+    public static MensajeDeTelegram.Contacto contactoPropio(String telefono) {
+        return new MensajeDeTelegram.Contacto(CHAT, telefono);
     }
 
     public static Consumer<HttpHeaders> cabecera() {
@@ -38,12 +66,32 @@ public final class TelegramMother {
                 .formatted(CHAT, CHAT);
     }
 
-    /** Un contacto: el mensaje llega sin text. */
+    /** Una foto: el mensaje llega sin text ni contacto. */
     public static String mensajeSinTexto() {
         return """
                 {"update_id":10002,"message":{"message_id":2,"date":1791590401,
+                 "from":{"id":%d,"is_bot":false,"first_name":"Prueba"},
                  "chat":{"id":%d,"type":"private"},
-                 "contact":{"phone_number":"+573001234567","first_name":"Prueba","user_id":%d}}}"""
+                 "photo":[{"file_id":"foto","file_unique_id":"foto","width":90,"height":90}]}}"""
+                .formatted(CHAT, CHAT);
+    }
+
+    /** El contacto propio del remitente, con el phone_number sin + como lo manda Telegram a veces. */
+    public static String mensajeConContactoPropio() {
+        return """
+                {"update_id":10006,"message":{"message_id":5,"date":1791590401,
+                 "from":{"id":%d,"is_bot":false,"first_name":"Ana"},
+                 "chat":{"id":%d,"type":"private","first_name":"Ana"},
+                 "contact":{"phone_number":"573009990001","first_name":"Ana","user_id":%d}}}"""
+                .formatted(CHAT, CHAT, CHAT);
+    }
+
+    /** Un chat que no dice su tipo: se trata como no privado. */
+    public static String mensajeDeChatSinTipo() {
+        return """
+                {"update_id":10007,"message":{"message_id":6,"date":1791590401,
+                 "from":{"id":%d,"is_bot":false,"first_name":"Prueba"},
+                 "chat":{"id":%d},"text":"hola"}}"""
                 .formatted(CHAT, CHAT);
     }
 

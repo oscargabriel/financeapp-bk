@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Profile;
 
+import com.oscargabriel.financeapp.telegram.domain.model.RespuestaDelBot;
+import com.oscargabriel.financeapp.telegram.domain.model.TecladoDelBot;
 import com.oscargabriel.financeapp.telegram.support.TelegramMother;
 
 import ch.qos.logback.classic.Logger;
@@ -32,12 +34,14 @@ class StubTelegramBotAdapterTest {
     }
 
     @Test
-    void dejaElEnvioEnElLogEnVezDeLlamarATelegram() {
-        StepVerifier.create(new StubTelegramBotAdapter().enviar(TelegramMother.CHAT, "hola"))
+    void dejaElEnvioEnElLogConSuTecladoEnVezDeLlamarATelegram() {
+        StepVerifier.create(new StubTelegramBotAdapter().enviar(TelegramMother.CHAT,
+                        new RespuestaDelBot("hola", TecladoDelBot.PEDIR_CONTACTO)))
                 .verifyComplete();
 
         assertThat(logs.list).singleElement().satisfies(evento ->
-                assertThat(evento.getFormattedMessage()).contains(String.valueOf(TelegramMother.CHAT), "hola"));
+                assertThat(evento.getFormattedMessage())
+                        .contains(String.valueOf(TelegramMother.CHAT), "hola", "PEDIR_CONTACTO"));
     }
 
     @Test

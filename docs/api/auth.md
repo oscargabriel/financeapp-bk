@@ -12,7 +12,8 @@ llamar a login.
 mantiene a mano el dueño del servicio. No hay endpoint para consultarla ni para modificarla. Una
 entrada admite un correo exacto o un dominio completo, y se compara sin distinguir mayúsculas. Un
 dominio admitido no admite sus subdominios. La restricción está encendida en producción, y en local
-la lista admite `@front.local`.
+la lista admite `@front.local`. La lista también guarda teléfonos, pero solo para vincular un chat de
+Telegram (FIN-60): el alta no los tiene en cuenta, ni por el correo ni por el `phone` que trae.
 
 **Cuerpo**
 

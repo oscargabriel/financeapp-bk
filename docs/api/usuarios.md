@@ -19,14 +19,20 @@ El perfil del usuario del token. **Bearer.**
   "baseCurrencyCode": "COP",
   "timezone": "America/Bogota",
   "hasPassword": true,
-  "googleLinked": false
+  "googleLinked": false,
+  "telegramLinked": false
 }
 ```
 
-`lastName` y `phone` pueden venir en `null`. La respuesta nunca trae la contraseña, su hash ni el
-identificador de la cuenta Google.
+`lastName` y `phone` pueden venir en `null`. La respuesta nunca trae la contraseña, su hash, el
+identificador de la cuenta Google ni el del chat de Telegram.
 
-Los dos últimos campos dicen con qué métodos entra el usuario (FIN-53):
+`telegramLinked` (FIN-60) es `true` si el usuario vinculó un chat del bot de Telegram compartiendo su
+contacto **y** su `phone` sigue en la lista de admitidos. Es el mismo criterio con el que el bot
+atiende cada mensaje: si el teléfono sale de la lista, el campo pasa a `false` y el bot trata el chat
+como sin vincular desde el siguiente mensaje. Cómo se vincula está en [telegram.md](telegram.md).
+
+`hasPassword` y `googleLinked` dicen con qué métodos entra el usuario (FIN-53):
 
 | `hasPassword` | `googleLinked` | El usuario | Qué ofrece el cliente |
 |---|---|---|---|
@@ -60,6 +66,10 @@ Modifica el perfil del usuario del token. **Bearer.** Se envían solo los campos
 - El correo cuenta como cambiado si difiere del guardado después de recortarlo y pasarlo a
   minúsculas. Mandar el mismo en otra caja no exige la contraseña.
 - Cambiar el correo no invalida el token: sigue sirviendo hasta que vence.
+- **Cambiar el `phone` desvincula el chat de Telegram** (FIN-60), porque el chat se verificó con el
+  teléfono anterior: la respuesta trae `telegramLinked` en `false`. Borrarlo también desvincula;
+  mandar el mismo `phone` no. Para volver a vincular, el usuario comparte otra vez su contacto en el
+  bot.
 
 **Cambiar la moneda base** (FIN-29). Es la moneda en que la persona ve todos sus totales: los
 reportes, el saldo, el gasto mensual con sus metas y el asistente pasan a darla desde la respuesta

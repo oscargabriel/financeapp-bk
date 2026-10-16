@@ -1,8 +1,11 @@
 package com.oscargabriel.financeapp.telegram.infrastructure.adapter.in.web;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -23,7 +26,10 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import com.oscargabriel.financeapp.compartido.support.BasicMother;
 import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.support.TokenMother;
+import com.oscargabriel.financeapp.telegram.domain.model.RespuestaDelBot;
+import com.oscargabriel.financeapp.telegram.domain.model.TecladoDelBot;
 import com.oscargabriel.financeapp.telegram.domain.port.out.BotDeTelegramPort;
+import com.oscargabriel.financeapp.telegram.domain.port.out.ChatsVinculadosPort;
 import com.oscargabriel.financeapp.telegram.support.TelegramMother;
 
 import reactor.core.publisher.Mono;
@@ -44,6 +50,10 @@ class TelegramWebhookIT {
     @MockitoBean
     private BotDeTelegramPort bot;
 
+    /** La suite no tiene base: los chats los resuelve TelegramChatR2dbcAdapter, que verifica bruno/telegram/. */
+    @MockitoBean
+    private ChatsVinculadosPort chats;
+
     private WebTestClient webTestClient;
 
     @BeforeEach
@@ -52,6 +62,7 @@ class TelegramWebhookIT {
                 .baseUrl("http://localhost:" + port)
                 .responseTimeout(Duration.ofSeconds(10))
                 .build();
+        when(chats.usuarioDelChat(anyLong())).thenReturn(Mono.empty());
     }
 
     private WebTestClient.ResponseSpec update(Consumer<HttpHeaders> credencial, String cuerpo) {
@@ -111,22 +122,47 @@ class TelegramWebhookIT {
 
     @Test
     void unMensajeDeTextoRespondeAlChatY200() {
-        when(bot.enviar(anyLong(), anyString())).thenReturn(Mono.empty());
+        when(bot.enviar(anyLong(), any())).thenReturn(Mono.empty());
 
         update(TelegramMother.cabecera(), TelegramMother.mensajeDeTexto())
                 .expectStatus().isOk();
 
-        verify(bot).enviar(eq(TelegramMother.CHAT), anyString());
+        verify(bot).enviar(eq(TelegramMother.CHAT), argThat(r -> r.teclado() == TecladoDelBot.PEDIR_CONTACTO));
     }
 
     @Test
     void unMensajeSinTextoTambienRespondeAlChat() {
-        when(bot.enviar(anyLong(), anyString())).thenReturn(Mono.empty());
+        when(bot.enviar(anyLong(), any())).thenReturn(Mono.empty());
 
         update(TelegramMother.cabecera(), TelegramMother.mensajeSinTexto())
                 .expectStatus().isOk();
 
-        verify(bot).enviar(eq(TelegramMother.CHAT), anyString());
+        verify(bot).enviar(eq(TelegramMother.CHAT), any());
+    }
+
+    /** FIN-60: from.id, el tipo del chat y el contacto llegan al caso de uso, que agrega el + al telefono. */
+    @Test
+    void unContactoPropioLlegaConSusCamposYVinculaElChat() {
+        when(bot.enviar(anyLong(), any())).thenReturn(Mono.empty());
+        when(chats.vincular(anyLong(), anyString())).thenReturn(Mono.just(TelegramMother.ana()));
+
+        update(TelegramMother.cabecera(), TelegramMother.mensajeConContactoPropio())
+                .expectStatus().isOk();
+
+        verify(chats).vincular(TelegramMother.CHAT, TelegramMother.TELEFONO);
+        verify(bot).enviar(eq(TelegramMother.CHAT), argThat(r -> r.teclado() == TecladoDelBot.QUITAR));
+    }
+
+    @Test
+    void unChatSinTipoLlegaComoNoPrivado() {
+        when(bot.enviar(anyLong(), any())).thenReturn(Mono.empty());
+
+        update(TelegramMother.cabecera(), TelegramMother.mensajeDeChatSinTipo())
+                .expectStatus().isOk();
+
+        verify(bot).enviar(TelegramMother.CHAT,
+                new RespuestaDelBot("Este bot solo atiende chats privados.", TecladoDelBot.NINGUNO));
+        verify(chats, never()).usuarioDelChat(anyLong());
     }
 
     /** Un mensaje editado o un callback: 200 para que Telegram no lo reintente, y nada al chat. */
@@ -176,7 +212,7 @@ class TelegramWebhookIT {
     /** Telegram reintenta lo que no recibe 2xx: un fallo al responder no puede repetir el update. */
     @Test
     void unFalloAlResponderDevuelve200Igual() {
-        when(bot.enviar(anyLong(), anyString())).thenReturn(Mono.error(new IllegalStateException("Telegram caido")));
+        when(bot.enviar(anyLong(), any())).thenReturn(Mono.error(new IllegalStateException("Telegram caido")));
 
         update(TelegramMother.cabecera(), TelegramMother.mensajeDeTexto())
                 .expectStatus().isOk();
