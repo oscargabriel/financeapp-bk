@@ -27,6 +27,11 @@ public final class MonthlySpendingMother {
                 new BigDecimal("5300000.00"));
     }
 
+    /** Un mes sin meta con los gastos y los ingresos dados. */
+    public static MonthlySpending unMes(YearMonth mes, String gastos, String ingresos) {
+        return new MonthlySpending(mes, "COP", new BigDecimal(gastos), null, null, null, 1L, new BigDecimal(ingresos));
+    }
+
     /** Mes sin meta: los tres campos que dependen del presupuesto viajan en null. */
     public static MonthlySpending unMesSinMeta(YearMonth mes) {
         return new MonthlySpending(mes, "COP", new BigDecimal("320000.00"), null, null, null, 4L,

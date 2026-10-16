@@ -1,7 +1,10 @@
 package com.oscargabriel.financeapp.core.infrastructure.adapter.out.persistence;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import lombok.AllArgsConstructor;
@@ -31,7 +34,7 @@ public class TransactionReportR2dbcAdapter implements TransactionReportQueryPort
      * Los pendientes quedan fuera hasta aprobarse (FA-76). La compra da el total de cuotas (FA-108).
      * amount_base sale en la moneda de la persona, no la columna, que esta en USD (FA-122).
      */
-    private static final String SQL_MOVIMIENTOS = """
+    private static final String SQL_CONFIRMADOS = """
             SELECT t.id, t.type, t.account_id, t.destination_account_id, t.category_id,
                    c.name AS category_name, t.amount, t.currency_code, %s AS amount_base, t.destination_amount,
                    t.description, t.notes, t.occurred_at, t.recurrence_id, %s
@@ -41,9 +44,27 @@ public class TransactionReportR2dbcAdapter implements TransactionReportQueryPort
               %s
              WHERE t.user_id = :userId
                AND t.status = 'CONFIRMED'
+            """.formatted(MontoDeLaPersona.DE_T, CuotaDeLaFila.COLUMNAS, CuotaDeLaFila.JOIN);
+
+    private static final String RANGO_DE_DIAS = """
                AND t.occurred_at >=(CAST(:from AS date)::timestamp AT TIME ZONE u.timezone)
                AND t.occurred_at < ((CAST(:to AS date) + 1)::timestamp AT TIME ZONE u.timezone)
-            """.formatted(MontoDeLaPersona.DE_T, CuotaDeLaFila.COLUMNAS, CuotaDeLaFila.JOIN);
+            """;
+
+    private static final String SQL_MOVIMIENTOS = SQL_CONFIRMADOS + RANGO_DE_DIAS;
+
+    /** Lo programado se deja fuera aqui y no despues: filtrarlo tras el LIMIT devolveria menos filas. */
+    private static final String GASTOS_OCURRIDOS = """
+               AND t.type = 'EXPENSE'
+               AND t.occurred_at <= :hasta
+            """;
+
+    private static final String SQL_ULTIMOS_GASTOS = SQL_CONFIRMADOS + GASTOS_OCURRIDOS
+            + " ORDER BY t.occurred_at DESC, t.id DESC LIMIT :limite";
+
+    /** amount_base es el alias de la moneda de la persona, no la columna en USD: un nombre suelto toma el alias. */
+    private static final String SQL_GASTOS_MAS_COSTOSOS = SQL_CONFIRMADOS + RANGO_DE_DIAS + GASTOS_OCURRIDOS
+            + " ORDER BY amount_base DESC, t.occurred_at DESC, t.id DESC LIMIT :limite";
 
     private static final String FILTRO_CATEGORIAS = "   AND t.category_id = ANY(:categoryIds)\n";
     /** Origen o destino en el mismo WHERE: una transferencia entre dos cuentas filtradas sale una vez. */
@@ -91,6 +112,29 @@ public class TransactionReportR2dbcAdapter implements TransactionReportQueryPort
             spec = spec.bind("types", filter.types().stream().map(Enum::name).toArray(String[]::new));
         }
         return spec.map((row, metadata) -> toDomain(row)).all();
+    }
+
+    @Override
+    public Flux<ReportedTransaction> findLatestExpenses(UUID userId, Instant hasta, int limite) {
+        return databaseClient.sql(SQL_ULTIMOS_GASTOS)
+                .bind("userId", userId)
+                .bind("hasta", OffsetDateTime.ofInstant(hasta, ZoneOffset.UTC))
+                .bind("limite", limite)
+                .map((row, metadata) -> toDomain(row))
+                .all();
+    }
+
+    @Override
+    public Flux<ReportedTransaction> findTopExpenses(UUID userId, LocalDate desde, LocalDate hastaDia, Instant hasta,
+            int limite) {
+        return databaseClient.sql(SQL_GASTOS_MAS_COSTOSOS)
+                .bind("userId", userId)
+                .bind("from", desde)
+                .bind("to", hastaDia)
+                .bind("hasta", OffsetDateTime.ofInstant(hasta, ZoneOffset.UTC))
+                .bind("limite", limite)
+                .map((row, metadata) -> toDomain(row))
+                .all();
     }
 
     private static ReportedTransaction toDomain(Row row) {

@@ -1,0 +1,55 @@
+info:
+  name: Resumen de saldo
+  type: http
+  seq: 4
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/home"
+  auth:
+    type: bearer
+    token: "{{tokenSaldo}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.debitBalance
+      operator: eq
+      value: "1551000"
+  scripts:
+    - type: tests
+      code: |-
+        const r = res.getBody();
+
+        test("solo los dos gastos confirmados y ya ocurridos", function() {
+          expect(r.latestExpenses.map(function (t) { return t.description; }))
+              .to.eql(["Mercado", "Compra en dólares"]);
+        });
+
+        test("el gasto en dolares trae su monto y el de la moneda base", function() {
+          const usd = r.latestExpenses[1];
+          expect(usd.currencyCode).to.equal("USD");
+          expect(usd.amount).to.equal(10);
+          expect(usd.amountBase).to.equal(39000);
+        });
+
+        test("las cuentas son las activas de la consulta de saldo, sin cupo", function() {
+          expect(r.accounts.map(function (a) { return a.name; }).sort())
+              .to.eql(["Débito dólares", "Débito pesos", "Efectivo saldo"]);
+          r.accounts.forEach(function (a) { expect(a.creditUsedPercent).to.equal(null); });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Pendientes y programados fuera
+
+  `saldo@` tiene un gasto pendiente de 50.000 y uno programado de 70.000 para el mes siguiente:
+  ninguno sale. El gasto de 10 USD de hace 40 dias vale 39.000 COP con la tasa de su fecha.
+  `debitBalance` es el de `reports/saldo-debito-cop.yml`.

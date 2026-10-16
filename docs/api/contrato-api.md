@@ -57,6 +57,7 @@ de su recurso en el mismo PR; aquí, solo su fila de la tabla.
 | `GET` | `/api/monthly-spending` | Bearer | Gasto e ingreso mensual, y el gasto contra la meta | [reportes.md](reportes.md) |
 | `GET` | `/api/reports/transactions` | Bearer | Movimientos y totales de un rango de días | [reportes.md](reportes.md) |
 | `GET` | `/api/reports/balance` | Bearer | Ingresos menos gastos de un rango y de siempre, el saldo débito total en la moneda base y las cuentas | [reportes.md](reportes.md) |
+| `GET` | `/api/reports/home` | Bearer | Lo que muestra la pantalla de Inicio, ya calculado: serie de 6 meses, variación del gasto, últimos y más costosos, saldo débito y cupo usado | [reportes.md](reportes.md) |
 | `POST` | `/api/assistant/messages` | Bearer | Registrar o consultar con un mensaje en lenguaje natural | [asistente.md](asistente.md) |
 | `GET` | `/api/affiliations` | Bearer | Solicitudes de afiliación abiertas y afiliaciones aceptadas | [afiliaciones.md](afiliaciones.md) |
 | `POST` | `/api/affiliations` | Bearer | Enviar una solicitud de afiliación a un correo | [afiliaciones.md](afiliaciones.md) |
@@ -83,7 +84,7 @@ de su recurso en el mismo PR; aquí, solo su fila de la tabla.
 | [compartidos.md](compartidos.md) | Gastos y transferencias compartidos con afiliados: cómo se piden en el alta de movimientos y cómo salen en la respuesta |
 | [recurrentes.md](recurrentes.md) | Las series recurrentes (`/api/recurrences`) |
 | [cuotas.md](cuotas.md) | Las compras con tarjeta en cuotas (`/api/installment-purchases`) |
-| [reportes.md](reportes.md) | El gasto mensual (`/api/monthly-spending`) y los reportes de movimientos y de balance (`/api/reports/*`) |
+| [reportes.md](reportes.md) | El gasto mensual (`/api/monthly-spending`), los reportes de movimientos y de balance, y el resumen de Inicio (`/api/reports/*`) |
 | [asistente.md](asistente.md) | El asistente en lenguaje natural (`/api/assistant/messages`) |
 | [afiliaciones.md](afiliaciones.md) | Las afiliaciones entre usuarios y lo que se deben (`/api/affiliations`) |
 | [telegram.md](telegram.md) | El webhook del bot de Telegram (`/api/telegram/webhook`) |
