@@ -351,9 +351,10 @@ JaCoCo mide sobre la suite de Gradle, sobre todos los módulos juntos. El report
 `build/reports/jacoco/test/html/index.html` (ábrelo en el navegador; el XML del mismo directorio
 es para herramientas). Se regenera solo: `test` lo produce como paso final.
 
-El umbral es **85 % de línea** y lo exige `jacocoTestCoverageVerification`, colgado de `check`.
-Es decir: `gradlew test` mide y deja el reporte, **`gradlew build` es el que falla** si se baja del
-umbral. El mensaje del fallo dice el ratio real y el mínimo esperado.
+Los umbrales son **85 % de línea y 90 % de rama**, globales, y los exige
+`jacocoTestCoverageVerification`, colgado de `check`. Es decir: `gradlew test` mide y deja el
+reporte, **`gradlew build` es el que falla** si se baja de cualquiera de los dos. El mensaje del
+fallo dice el contador (`lines` o `branches`), el ratio real y el mínimo esperado.
 
 Quedan fuera del cálculo dos patrones, listados en `build.gradle` con el porqué:
 `FinanceappBkApplication` (el `main`) y `*R2dbcAdapter` (los adapters R2DBC de cualquier módulo: los verifica
@@ -361,9 +362,9 @@ Quedan fuera del cálculo dos patrones, listados en `build.gradle` con el porqu�
 90 y el 100 %, y excluirlos, como suele hacerse por inercia, solo bajaría el número y escondería
 el dato.
 
-No leas el porcentaje de rama como si fuera el de línea: va por debajo, y `WebExceptionHandler` es
-la clase que más ramas deja sin cubrir. No hay umbral de rama a propósito, hasta que esa clase
-tenga tests.
+El de rama va por debajo del de línea y tiene menos margen: una clase nueva con muchas ramas sin
+test lo rompe aunque la línea siga holgada. `WebExceptionHandler` tiene un test unitario que
+ejercita cada `case` del switch; un `case` nuevo lleva el suyo.
 
 ## Base de datos
 

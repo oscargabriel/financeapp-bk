@@ -87,6 +87,13 @@ tasks.named('jacocoTestCoverageVerification') {
 				value = 'COVEREDRATIO'
 				minimum = 0.85
 			}
+			// Con margen bajo la rama real: una rama suelta sin test no rompe el build, una clase
+			// grande sin probar si.
+			limit {
+				counter = 'BRANCH'
+				value = 'COVEREDRATIO'
+				minimum = 0.90
+			}
 		}
 	}
 }

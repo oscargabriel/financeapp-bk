@@ -17,7 +17,7 @@ context: |
   Toda ruta del API se pide con el prefijo /api, y todo error sale como
   {"errors":[{code, description, field}]} con el code tomado del enum ErrorCodes.
   La verificación tiene dos capas que se exigen juntas: gradlew build (JUnit con mocks, cobertura
-  de línea >= 85 %) y bru run desde bruno/ contra la app y la base reales.
+  de línea >= 85 % y de rama >= 90 %) y bru run desde bruno/ contra la app y la base reales.
 
 rules:
   proposal:
