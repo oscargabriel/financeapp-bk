@@ -117,6 +117,22 @@ class ApprovePendingTransactionUseCaseTest {
         verify(repositorio).confirm(GASTO_GUARDADO_ID, USER_ID);
     }
 
+    /** FIN-101 */
+    @Test
+    void aprobarUnPendienteQueLlegoPorCorreoConservaSuOrigenYSuGrupo() {
+        UUID grupo = UUID.fromString("71000000-0000-7000-8000-000000000001");
+        Transaction pendiente = TransactionMother.enGrupo(
+                TransactionMother.conOrigen(TransactionMother.unGastoPendiente(), TransactionOrigin.EMAIL), grupo);
+        when(repositorio.findByIdAndUser(GASTO_GUARDADO_ID, USER_ID)).thenReturn(Mono.just(pendiente));
+        conCuenta(AccountMother.efectivo(), pendiente.accountId());
+        when(repositorio.confirm(GASTO_GUARDADO_ID, USER_ID)).thenReturn(Mono.just(true));
+
+        StepVerifier.create(casoDeUso.approve(USER_ID, GASTO_GUARDADO_ID, ApprovalChoice.NONE))
+                .assertNext(t -> assertThat(t).extracting(Transaction::status, Transaction::origin, Transaction::groupId)
+                        .containsExactly(TransactionStatus.CONFIRMED, TransactionOrigin.EMAIL, grupo))
+                .verifyComplete();
+    }
+
     @Test
     void unMovimientoInexistenteOAjenoEsNoEncontradoSinTocarNada() {
         when(repositorio.findByIdAndUser(GASTO_GUARDADO_ID, USER_ID)).thenReturn(Mono.empty());

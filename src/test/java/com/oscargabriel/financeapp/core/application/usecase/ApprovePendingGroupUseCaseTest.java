@@ -27,6 +27,7 @@ import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.compartido.support.RelojFijo;
 import com.oscargabriel.financeapp.core.domain.model.Account;
 import com.oscargabriel.financeapp.core.domain.model.Transaction;
+import com.oscargabriel.financeapp.core.domain.model.TransactionOrigin;
 import com.oscargabriel.financeapp.core.domain.model.TransactionStatus;
 import com.oscargabriel.financeapp.core.domain.port.out.AccountRepositoryPort;
 import com.oscargabriel.financeapp.core.domain.port.out.CategoryRepositoryPort;
@@ -77,6 +78,20 @@ class ApprovePendingGroupUseCaseTest {
                 .assertNext(t -> assertThat(t).isEqualTo(TransactionMother.conEstado(gasto, TransactionStatus.CONFIRMED)))
                 .assertNext(t -> assertThat(t).isEqualTo(
                         TransactionMother.conEstado(transferencia, TransactionStatus.CONFIRMED)))
+                .verifyComplete();
+    }
+
+    /** FIN-101 */
+    @Test
+    void aprobarUnGrupoQueLlegoPorCorreoConservaElOrigenYElGrupo() {
+        Transaction gasto = pendiente(
+                TransactionMother.conOrigen(TransactionMother.unGastoPendiente(), TransactionOrigin.EMAIL));
+        when(repositorio.findByGroup(GRUPO_ID, USER_ID)).thenReturn(Flux.just(gasto));
+        when(repositorio.confirmAll(List.of(GASTO_GUARDADO_ID), USER_ID)).thenReturn(Mono.just(true));
+
+        StepVerifier.create(casoDeUso.approve(USER_ID, GRUPO_ID))
+                .assertNext(t -> assertThat(t).extracting(Transaction::status, Transaction::origin, Transaction::groupId)
+                        .containsExactly(TransactionStatus.CONFIRMED, TransactionOrigin.EMAIL, GRUPO_ID))
                 .verifyComplete();
     }
 

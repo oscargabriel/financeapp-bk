@@ -30,6 +30,7 @@ runtime:
         bru.setVar("idPendienteGasto", "70000000-0000-7000-8000-000000000001");
         bru.setVar("idPendienteTraslado", "70000000-0000-7000-8000-000000000002");
         bru.setVar("idPendienteRechazo", "70000000-0000-7000-8000-000000000003");
+        bru.setVar("idPendienteCorreo", "70000000-0000-7000-8000-000000000004");
 
         const comoDia = function (d) {
           return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-"

@@ -7,5 +7,7 @@ package com.oscargabriel.financeapp.core.domain.model;
 public enum TransactionOrigin {
     WEB,
     TELEGRAM,
-    IMPORT
+    IMPORT,
+    /** Reservado para la ingesta desde correo (FIN-12): hoy ningun endpoint lo produce, solo los datos de demo y de prueba. */
+    EMAIL
 }

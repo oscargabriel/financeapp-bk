@@ -22,6 +22,7 @@ docs: |
 
   | Movimiento | Monto | Estado | Variable |
   |---|---|---|---|
+  | Gasto «Compra con tarjeta *4521» (origen `EMAIL`, FIN-101) | 35.000 | PENDING | `idPendienteCorreo` |
   | Gasto «Mercado confirmado» | 30.000 | CONFIRMED | |
   | Gasto «Gasto mal leído» | 20.000 | PENDING | `idPendienteRechazo` |
   | Transferencia «Al bolsillo» | 100.000 | PENDING | `idPendienteTraslado` |
@@ -30,6 +31,10 @@ docs: |
   Del 10 al 19 las dos cuentas del usuario están desactivadas (FA-102): aprobar responde 409 sobre la
   cuenta desactivada, el rechazo pasa y los saldos no se mueven. Al reactivarlas, las aprobaciones
   siguen como antes.
+
+  El de correo es el más antiguo y va en su propio grupo. Sigue pendiente hasta el final de la
+  carpeta, así que los saldos y reportes intermedios no lo cuentan: lo aprueban los dos últimos
+  requests (39 y 40).
 
   Saldos con solo el confirmado: Cuenta pendientes 970.000 y Bolsillo pendientes 0. Los requests
   de movimiento ajeno usan el `accessToken` de `auth/`: la carpeta sola, sin `auth/` antes, los

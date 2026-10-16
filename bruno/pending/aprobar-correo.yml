@@ -1,0 +1,38 @@
+info:
+  name: Aprobar el de correo
+  type: http
+  seq: 39
+
+http:
+  method: POST
+  url: "{{baseUrl}}/transactions/{{idPendienteCorreo}}/approve"
+  auth:
+    type: bearer
+    token: "{{tokenPendientes}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: eq
+      value: CONFIRMED
+    - expression: res.body.origin
+      operator: eq
+      value: EMAIL
+    - expression: res.body.groupId
+      operator: eq
+      value: 71000000-0000-7000-8000-000000000003
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un pendiente de correo se aprueba como cualquier otro (FIN-101)
+
+  Ningún endpoint produce `EMAIL` todavía: lo siembra `test-data.sql`. Aprobarlo conserva el origen
+  y el grupo. `check-saldos.sql`, que corre después de la colección, cubre el saldo que mueve.

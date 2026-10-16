@@ -32,6 +32,8 @@ SET search_path TO finance, public;
 \set pendiente_rechazo   '70000000-0000-7000-8000-000000000003'
 \set grupo_pendientes    '71000000-0000-7000-8000-000000000001'
 \set grupo_rechazo       '71000000-0000-7000-8000-000000000002'
+\set pendiente_correo    '70000000-0000-7000-8000-000000000004'
+\set grupo_correo        '71000000-0000-7000-8000-000000000003'
 \set series              '10000000-0000-7000-8000-000000000004'
 \set cuenta_atrasada     '20000000-0000-7000-8000-000000000009'
 \set cuenta_series       '20000000-0000-7000-8000-000000000010'
@@ -390,11 +392,12 @@ VALUES
     (:'cuenta_pendientes'::uuid,   :'pendientes'::uuid, 'Cuenta pendientes',   'DEBIT', 'COP', 1000000),
     (:'bolsillo_pendientes'::uuid, :'pendientes'::uuid, 'Bolsillo pendientes', 'CASH',  'COP',       0);
 
--- Del más antiguo al más reciente: el confirmado, el pendiente que se rechaza, la
--- transferencia y el gasto. GET /api/transactions/pending los devuelve al revés.
--- Los pendientes llevan origen TELEGRAM, como los que crea el asistente (FA-77).
--- La transferencia y el gasto entraron juntos, en un grupo (FIN-58); el que se
--- rechaza, en otro.
+-- Del más antiguo al más reciente: el confirmado, el pendiente de correo, el que
+-- se rechaza, la transferencia y el gasto. GET /api/transactions/pending los
+-- devuelve al revés. Los pendientes llevan origen TELEGRAM, como los que crea el
+-- asistente (FA-77), salvo el de correo, que lleva EMAIL (FIN-101): ningún
+-- endpoint lo produce todavía. La transferencia y el gasto entraron juntos, en
+-- un grupo (FIN-58); el que se rechaza y el de correo, cada uno en el suyo.
 INSERT INTO finance.transactions
     (id, user_id, account_id, destination_account_id, category_id, type, amount,
      currency_code, exchange_rate, amount_base, description, occurred_at, status, origin, group_id)
@@ -403,9 +406,11 @@ SELECT m.id, :'pendientes'::uuid, :'cuenta_pendientes'::uuid, m.destino,
          WHERE c.user_id = :'pendientes'::uuid AND c.name = m.category_name),
        m.type, m.amount, 'COP', 1, m.amount, m.description,
        pg_temp.en_el_mes(m.desfase), m.status,
-       CASE m.status WHEN 'PENDING' THEN 'TELEGRAM' ELSE 'WEB' END, m.grupo
+       CASE WHEN m.id = :'pendiente_correo'::uuid THEN 'EMAIL'
+            WHEN m.status = 'PENDING' THEN 'TELEGRAM' ELSE 'WEB' END, m.grupo
   FROM (VALUES
         (gen_random_uuid(),           NULL::uuid,                     'Mercado', 'EXPENSE',   30000::numeric, 'Mercado confirmado',  INTERVAL '0 day 10 hours', 'CONFIRMED', NULL::uuid),
+        (:'pendiente_correo'::uuid,   NULL::uuid,                     'Mercado', 'EXPENSE',   35000::numeric, 'Compra con tarjeta *4521', INTERVAL '0 day 10 hours 30 minutes', 'PENDING', :'grupo_correo'::uuid),
         (:'pendiente_rechazo'::uuid,  NULL::uuid,                     'Mercado', 'EXPENSE',   20000::numeric, 'Gasto mal leído',     INTERVAL '0 day 11 hours', 'PENDING',   :'grupo_rechazo'::uuid),
         (:'pendiente_traslado'::uuid, :'bolsillo_pendientes'::uuid,   NULL,      'TRANSFER', 100000::numeric, 'Al bolsillo',         INTERVAL '0 day 12 hours', 'PENDING',   :'grupo_pendientes'::uuid),
         (:'pendiente_gasto'::uuid,    NULL::uuid,                     'Mercado', 'EXPENSE',   45000::numeric, 'Mercado del asistente', INTERVAL '0 day 13 hours', 'PENDING', :'grupo_pendientes'::uuid)

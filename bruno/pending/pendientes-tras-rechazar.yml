@@ -19,7 +19,10 @@ runtime:
       operator: isArray
     - expression: res.body
       operator: length
-      value: "0"
+      value: "1"
+    - expression: res.body[0].id
+      operator: eq
+      value: "{{idPendienteCorreo}}"
 
 settings:
   encodeUrl: true
@@ -28,6 +31,7 @@ settings:
   maxRedirects: 5
 
 docs: |
-  # Ya no queda ninguno
+  # Solo queda el de correo
 
-  Dos aprobados y uno rechazado: la lista sale vacía, no en 404.
+  Dos aprobados y uno rechazado. El pendiente de correo (FIN-101) se aprueba al final de la
+  carpeta, para no mover los saldos y reportes que se verifican hasta aquí.
