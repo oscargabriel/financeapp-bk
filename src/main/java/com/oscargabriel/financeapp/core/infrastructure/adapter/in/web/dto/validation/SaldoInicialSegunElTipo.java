@@ -16,7 +16,7 @@ import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.Create
 
 /**
  * Solo una tarjeta de credito arranca en negativo: ahi es deuda. En cualquier otro tipo seria un saldo imposible
- * (FA-133). El error sale sobre initialBalance, no sobre la clase. El parche lo decide UpdateAccountUseCase con el tipo
+ * (FA-133). El error sale sobre initialBalance, no sobre la clase. El parche lo decide AccountUseCase con el tipo
  * guardado, porque no trae tipo.
  */
 @Retention(RUNTIME)

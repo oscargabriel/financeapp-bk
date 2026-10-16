@@ -21,10 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.compartido.infrastructure.adapter.in.web.UsuarioDelToken;
-import com.oscargabriel.financeapp.core.domain.port.in.CreateAccountPort;
-import com.oscargabriel.financeapp.core.domain.port.in.DeleteAccountPort;
-import com.oscargabriel.financeapp.core.domain.port.in.ListAccountsPort;
-import com.oscargabriel.financeapp.core.domain.port.in.UpdateAccountPort;
+import com.oscargabriel.financeapp.core.domain.port.in.AccountPort;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.AccountResponse;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.CreateAccountRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.UpdateAccountRequest;
@@ -37,16 +34,13 @@ import reactor.core.publisher.Mono;
 @AllArgsConstructor
 public class AccountController {
 
-    private final ListAccountsPort listAccounts;
-    private final CreateAccountPort createAccount;
-    private final UpdateAccountPort updateAccount;
-    private final DeleteAccountPort deleteAccount;
+    private final AccountPort cuentas;
 
     @GetMapping
     public Flux<AccountResponse> accounts(
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(required = false) String includeInactive) {
-        return Flux.defer(() -> listAccounts.list(UsuarioDelToken.de(jwt), parseIncludeInactive(includeInactive)))
+        return Flux.defer(() -> cuentas.list(UsuarioDelToken.de(jwt), parseIncludeInactive(includeInactive)))
                 .map(AccountResponse::from);
     }
 
@@ -55,7 +49,7 @@ public class AccountController {
     public Mono<AccountResponse> create(
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody CreateAccountRequest request) {
-        return Mono.defer(() -> createAccount.create(UsuarioDelToken.de(jwt), request.toCommand()))
+        return Mono.defer(() -> cuentas.create(UsuarioDelToken.de(jwt), request.toCommand()))
                 .map(AccountResponse::from);
     }
 
@@ -70,7 +64,7 @@ public class AccountController {
                         throw new BadRequestException(HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR,
                                 "El parche no trae ningun campo para modificar", "body");
                     }
-                    return updateAccount.update(UsuarioDelToken.de(jwt), cuenta, parche.toCommand());
+                    return cuentas.update(UsuarioDelToken.de(jwt), cuenta, parche.toCommand());
                 })
                 .map(AccountResponse::from);
     }
@@ -78,7 +72,7 @@ public class AccountController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public Mono<Void> delete(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
-        return Mono.defer(() -> deleteAccount.delete(UsuarioDelToken.de(jwt), parseId(id)));
+        return Mono.defer(() -> cuentas.delete(UsuarioDelToken.de(jwt), parseId(id)));
     }
 
     /** A mano y no como UUID de Spring: su conversion fallida saldria como JSON_PARSING_ERROR del cuerpo. */
