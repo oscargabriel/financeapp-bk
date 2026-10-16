@@ -27,6 +27,13 @@
 -- uno de tres movimientos y otro de uno, para la pantalla de pendientes del
 -- front y su filtro por persona, que los deja fuera (FIN-71, FIN-73).
 --
+-- Los casos en dolares (FIN-96): la cuenta en dolares con ingresos, gastos y una
+-- serie mensual; una tarjeta en USD con una compra en cuotas; transferencias
+-- entre la nomina y la cuenta en dolares en los dos sentidos, con
+-- destination_amount; y un gasto que llego en USD a la tarjeta en COP, ya
+-- aprobado, con original_amount. Los montos convertidos salen de la tasa USD->COP
+-- de la base para la fecha de cada movimiento, no de un valor fijo.
+--
 -- Front, back y desarrollador comparten la base local, separados por usuario:
 --   back : prueba@ e inactivo@financeapp.local, y los *@bruno.local  -> test-data.sql
 --   front: demo@financeapp.local, los *@demo.financeapp.local y los
@@ -74,10 +81,13 @@ SET search_path TO finance, public;
 \set cdt        '5000000' :u '-0000-7000-8000-000000000005'
 \set nequi      '5000000' :u '-0000-7000-8000-000000000006'
 \set dolares    '5000000' :u '-0000-7000-8000-000000000007'
+\set visa_usd   '5000000' :u '-0000-7000-8000-000000000008'
 \set gimnasio   '6000000' :u '-0000-7000-8000-000000000001'
 \set jardin     '6000000' :u '-0000-7000-8000-000000000002'
 \set club       '9000000' :u '-0000-7000-8000-000000000001'
+\set nube       '9000000' :u '-0000-7000-8000-000000000002'
 \set televisor  'a000000' :u '-0000-7000-8000-000000000001'
+\set celular    'a000000' :u '-0000-7000-8000-000000000002'
 
 -- Personas afiliadas (FIN-30): correos en <nombre>@<local del usuario>.financeapp.local,
 -- para que demo@ y dev@ tengan las suyas.
@@ -178,8 +188,9 @@ VALUES
 -- -----------------------------------------------------------------------------
 -- Cuentas
 --
--- La cuenta en dolares no tiene movimientos: el API solo acepta movimientos en
--- COP. Nequi queda en saldo cero, sin movimientos confirmados: solo la recarga
+-- Cada cuenta en su moneda. La Visa en dolares existe para la compra en cuotas
+-- en USD, que solo va sobre una tarjeta y queda en su moneda, y no tiene pagos.
+-- Nequi queda en saldo cero, sin movimientos confirmados: solo la recarga
 -- pendiente del asistente, hasta que se apruebe.
 -- -----------------------------------------------------------------------------
 INSERT INTO finance.accounts (id, user_id, name, type, currency_code, initial_balance)
@@ -195,7 +206,8 @@ INSERT INTO finance.accounts
     (id, user_id, name, type, currency_code, initial_balance,
      credit_limit, statement_day, payment_due_day, monthly_interest_rate)
 VALUES
-    (:'tarjeta'::uuid, :'uid'::uuid, 'Mastercard Oro', 'CREDIT', 'COP', 0, 8000000, 20, 5, 1.89);
+    (:'tarjeta'::uuid,  :'uid'::uuid, 'Mastercard Oro',  'CREDIT', 'COP', 0, 8000000, 20,  5, 1.89),
+    (:'visa_usd'::uuid, :'uid'::uuid, 'Visa en dólares', 'CREDIT', 'USD', 0,    2000, 25, 10, 1.5);
 
 
 -- -----------------------------------------------------------------------------
@@ -315,6 +327,45 @@ SELECT gen_random_uuid(), :'uid'::uuid, x.account_id, c.id, x.type, x.amount, 'C
 
 
 -- -----------------------------------------------------------------------------
+-- Gastos e ingresos en dolares (FIN-96), en la cuenta en dolares y en su moneda,
+-- con las mismas fechas por mes. La comision de manejo se repite en todos los
+-- meses menos el 3, que solo tiene el hotel de los tiquetes a Cartagena.
+-- -----------------------------------------------------------------------------
+INSERT INTO finance.transactions
+    (id, user_id, account_id, category_id, type, amount, currency_code,
+     exchange_rate, amount_base, description, occurred_at, origin)
+SELECT gen_random_uuid(), :'uid'::uuid, :'dolares'::uuid, c.id, x.type, x.amount, 'USD',
+       1, x.amount, x.description, t.occurred_at, 'WEB'
+  FROM (
+        SELECT meses.mes, 'Otros gastos', 'EXPENSE', 3.50::numeric, 'Comisión de manejo', INTERVAL '0 day 7 hours'
+          FROM (VALUES (0), (1), (2), (4), (5)) AS meses(mes)
+
+        UNION ALL
+
+        SELECT * FROM (VALUES
+                (5, 'Freelance',       'INCOME',  650.00::numeric, 'Pago de cliente del exterior',          INTERVAL '5 day 10 hours'),
+                (5, 'Educación',       'EXPENSE',  89.00::numeric, 'Curso en línea',                        INTERVAL '11 day 20 hours'),
+                (4, 'Freelance',       'INCOME',  720.00::numeric, 'Pago de cliente del exterior',          INTERVAL '6 day 10 hours'),
+                (4, 'Tecnología',      'EXPENSE',  59.99::numeric, 'Dominio y hosting',                     INTERVAL '13 day 9 hours'),
+                (3, 'Viajes',          'EXPENSE', 145.30::numeric, 'Hotel en Cartagena reservado en línea', INTERVAL '10 day 15 hours'),
+                (2, 'Freelance',       'INCOME',  650.00::numeric, 'Pago de cliente del exterior',          INTERVAL '5 day 10 hours'),
+                (2, 'Ropa',            'EXPENSE',  72.45::numeric, 'Compra en tienda en línea',             INTERVAL '17 day 21 hours'),
+                (1, 'Intereses',       'INCOME',    3.12::numeric, 'Intereses de la cuenta en dólares',     INTERVAL '27 day 6 hours'),
+                (1, 'Entretenimiento', 'EXPENSE',  24.99::numeric, 'Videojuego en línea',                   INTERVAL '13 day 22 hours'),
+                (0, 'Freelance',       'INCOME',  800.00::numeric, 'Pago de cliente del exterior',          INTERVAL '5 day 10 hours'),
+                (0, 'Tecnología',      'EXPENSE',  34.50::numeric, 'Accesorios en línea',                   INTERVAL '11 day 19 hours')
+               ) AS v
+       ) AS x(mes, category_name, type, amount, description, desfase)
+ CROSS JOIN LATERAL (
+        SELECT (date_trunc('month', now() AT TIME ZONE 'America/Bogota')
+                - make_interval(months => x.mes) + x.desfase) AT TIME ZONE 'America/Bogota' AS occurred_at
+       ) AS t
+  JOIN finance.categories c
+    ON c.user_id = :'uid'::uuid AND c.name = x.category_name
+ WHERE t.occurred_at <= now();
+
+
+-- -----------------------------------------------------------------------------
 -- Transferencias fijas de cada mes, menos el 3
 -- -----------------------------------------------------------------------------
 INSERT INTO finance.transactions
@@ -336,60 +387,139 @@ SELECT gen_random_uuid(), :'uid'::uuid, f.account_id, f.destination_id, 'TRANSFE
 
 
 -- -----------------------------------------------------------------------------
--- Serie recurrente (FA-107): club de lectura el 10 de cada mes, sin fin, desde
--- hace tres meses. Quedan creadas las ocurrencias hasta hoy y la siguiente,
--- programada, como las deja el API. El contador dice cuántas creó.
+-- Transferencias entre monedas (FIN-96), con destination_amount como las manda
+-- el front: lo convertido con la tasa de la base para la fecha, menos el 2 % que
+-- se queda el banco, a los decimales del destino. En Neon sale de la tasa real.
+-- -----------------------------------------------------------------------------
+INSERT INTO finance.transactions
+    (id, user_id, account_id, destination_account_id, type, amount, destination_amount,
+     currency_code, exchange_rate, amount_base, description, occurred_at, origin)
+SELECT gen_random_uuid(), :'uid'::uuid, f.account_id, f.destination_id, 'TRANSFER', f.amount,
+       round(finance.amount_in_currency(d.currency_code, o.currency_code, f.amount,
+                                        (t.occurred_at AT TIME ZONE 'America/Bogota')::date) * 0.98,
+             m.decimal_places),
+       o.currency_code, 1, f.amount, f.description, t.occurred_at, 'WEB'
+  FROM (VALUES
+        (4, :'nomina'::uuid,  :'dolares'::uuid, 1200000::numeric, 'Compra de dólares', INTERVAL '7 day 11 hours'),
+        (2, :'dolares'::uuid, :'nomina'::uuid,      300::numeric, 'Venta de dólares',  INTERVAL '20 day 12 hours'),
+        (1, :'nomina'::uuid,  :'dolares'::uuid,  800000::numeric, 'Compra de dólares', INTERVAL '18 day 11 hours')
+       ) AS f(mes, account_id, destination_id, amount, description, desfase)
+  JOIN finance.accounts o ON o.id = f.account_id
+  JOIN finance.accounts d ON d.id = f.destination_id
+  JOIN finance.currencies m ON m.code = d.currency_code
+ CROSS JOIN LATERAL (
+        SELECT (date_trunc('month', now() AT TIME ZONE 'America/Bogota')
+                - make_interval(months => f.mes) + f.desfase) AT TIME ZONE 'America/Bogota' AS occurred_at
+       ) AS t
+ WHERE t.occurred_at <= now();
+
+
+-- -----------------------------------------------------------------------------
+-- Series recurrentes (FA-107), sin fin y en la moneda de su cuenta: el club de
+-- lectura el 10 de cada mes desde hace tres meses en la tarjeta, y el
+-- almacenamiento en la nube el 12 desde hace cinco en la cuenta en dolares
+-- (FIN-96). Quedan creadas las ocurrencias hasta hoy y la siguiente, programada,
+-- como las deja el API. El contador dice cuántas creó.
 -- -----------------------------------------------------------------------------
 INSERT INTO finance.recurrences
     (id, user_id, account_id, category_id, type, amount, currency_code, description,
      frequency, interval_count, day_of_month, start_date, generated_count)
-SELECT :'club'::uuid, :'uid'::uuid, :'tarjeta'::uuid, c.id, 'EXPENSE', 35000, 'COP', 'Club de lectura',
-       'MONTHLY', 1, 10, d.inicio,
+SELECT s.id, :'uid'::uuid, s.account_id, c.id, 'EXPENSE', s.amount, a.currency_code, s.description,
+       'MONTHLY', 1, s.dia, d.inicio,
        (SELECT count(*) FROM generate_series(0, 12) k
          WHERE (d.inicio + make_interval(months => k))::date <= d.hoy) + 1
-  FROM (SELECT (date_trunc('month', now() AT TIME ZONE 'America/Bogota') - INTERVAL '3 months')::date + 9 AS inicio,
-               (now() AT TIME ZONE 'America/Bogota')::date AS hoy) d
+  FROM (VALUES
+        (:'club'::uuid, :'tarjeta'::uuid, 35000::numeric, 'Club de lectura',            10, 3),
+        (:'nube'::uuid, :'dolares'::uuid,  9.99::numeric, 'Almacenamiento en la nube', 12, 5)
+       ) AS s(id, account_id, amount, description, dia, meses)
+  JOIN finance.accounts a ON a.id = s.account_id
+ CROSS JOIN LATERAL (
+        SELECT (date_trunc('month', now() AT TIME ZONE 'America/Bogota')
+                - make_interval(months => s.meses))::date + (s.dia - 1) AS inicio,
+               (now() AT TIME ZONE 'America/Bogota')::date AS hoy
+       ) AS d
   JOIN finance.categories c
     ON c.user_id = :'uid'::uuid AND c.name = 'Suscripciones';
 
 INSERT INTO finance.transactions
     (id, user_id, account_id, category_id, type, amount, currency_code,
      exchange_rate, amount_base, description, occurred_at, origin, recurrence_id)
-SELECT gen_random_uuid(), s.user_id, s.account_id, s.category_id, s.type, s.amount, 'COP',
+SELECT gen_random_uuid(), s.user_id, s.account_id, s.category_id, s.type, s.amount, s.currency_code,
        1, s.amount, s.description,
        (s.start_date + make_interval(months => k)) AT TIME ZONE 'America/Bogota', 'WEB', s.id
   FROM finance.recurrences s
  CROSS JOIN generate_series(0, s.generated_count - 1) k
- WHERE s.id = :'club'::uuid;
+ WHERE s.id IN (:'club'::uuid, :'nube'::uuid);
 
 
 -- -----------------------------------------------------------------------------
--- Compra en cuotas (FA-108): televisor de 2.400.000 a 6 cuotas en la tarjeta,
--- comprado el 15 de hace dos meses. Con corte 20 y pago 5, la cuota k vence el
--- 5 del mes k después de la compra: capital fijo de 400.000 más el 1,89 % del
--- capital pendiente, como las calcula el API. Las vencidas ya cuentan.
+-- Compras en cuotas (FA-108), a 6 cuotas y en la moneda de su tarjeta:
+--   * Televisor de 2.400.000 en la Mastercard, del 15 de hace dos meses. Con
+--     corte 20 y pago 5, la cuota k vence el 5 del mes k despues de la compra.
+--   * Celular de 600 USD en la Visa en dolares, del 5 de hace tres meses
+--     (FIN-96). Con corte 25 y pago 10, la cuota k vence el 10 del mes k.
+-- Capital fijo de amount / 6 mas la tasa de la tarjeta sobre el capital
+-- pendiente, a los decimales de la moneda, como las calcula el API. Las
+-- vencidas ya cuentan.
 -- -----------------------------------------------------------------------------
 INSERT INTO finance.installment_purchases
     (id, user_id, account_id, category_id, amount, currency_code, description,
      purchase_date, installment_count, monthly_interest_rate)
-SELECT :'televisor'::uuid, :'uid'::uuid, :'tarjeta'::uuid, c.id, 2400000, 'COP', 'Televisor',
-       (date_trunc('month', now() AT TIME ZONE 'America/Bogota') - INTERVAL '2 months')::date + 14, 6, 1.89
-  FROM finance.categories c
- WHERE c.user_id = :'uid'::uuid AND c.name = 'Tecnología';
+SELECT p.id, :'uid'::uuid, p.account_id, c.id, p.amount, a.currency_code, p.description,
+       (date_trunc('month', now() AT TIME ZONE 'America/Bogota') - make_interval(months => p.meses))::date
+           + (p.dia - 1),
+       6, a.monthly_interest_rate
+  FROM (VALUES
+        (:'televisor'::uuid, :'tarjeta'::uuid,  2400000::numeric, 'Televisor', 2, 15),
+        (:'celular'::uuid,   :'visa_usd'::uuid,     600::numeric, 'Celular',   3,  5)
+       ) AS p(id, account_id, amount, description, meses, dia)
+  JOIN finance.accounts a ON a.id = p.account_id
+  JOIN finance.categories c
+    ON c.user_id = :'uid'::uuid AND c.name = 'Tecnología';
 
 INSERT INTO finance.transactions
     (id, user_id, account_id, category_id, type, amount, currency_code, exchange_rate, amount_base,
      description, occurred_at, origin, installment_purchase_id, installment_number, installment_principal)
-SELECT gen_random_uuid(), p.user_id, p.account_id, p.category_id, 'EXPENSE', c.monto, 'COP', 1, c.monto,
+SELECT gen_random_uuid(), p.user_id, p.account_id, p.category_id, 'EXPENSE', c.monto, p.currency_code, 1, c.monto,
        p.description,
-       (date_trunc('month', p.purchase_date) + make_interval(months => k) + INTERVAL '4 days')::timestamp
+       (date_trunc('month', p.purchase_date) + make_interval(months => k, days => a.payment_due_day - 1))::timestamp
            AT TIME ZONE 'America/Bogota',
-       'WEB', p.id, k, 400000
+       'WEB', p.id, k, p.amount / 6
   FROM finance.installment_purchases p
+  JOIN finance.accounts a ON a.id = p.account_id
+  JOIN finance.currencies m ON m.code = p.currency_code
  CROSS JOIN generate_series(1, 6) k
- CROSS JOIN LATERAL (SELECT 400000 + round(p.amount * p.monthly_interest_rate / 100
-                                           * (7 - k) / 6) AS monto) c
- WHERE p.id = :'televisor'::uuid;
+ CROSS JOIN LATERAL (SELECT p.amount / 6 + round(p.amount * p.monthly_interest_rate / 100
+                                                 * (7 - k) / 6, m.decimal_places) AS monto) c
+ WHERE p.id IN (:'televisor'::uuid, :'celular'::uuid);
+
+
+-- -----------------------------------------------------------------------------
+-- Gasto que llego en dolares a una cuenta en pesos (FIN-96): una compra en linea
+-- en la Mastercard, ya aprobada. amount es lo recibido llevado a COP con la tasa
+-- de la base para su fecha y redondeado a pesos; original_amount y
+-- original_currency_code guardan lo recibido, y conserva el grupo con que entro
+-- pendiente.
+-- -----------------------------------------------------------------------------
+INSERT INTO finance.transactions
+    (id, user_id, account_id, category_id, type, amount, currency_code, exchange_rate, amount_base,
+     original_amount, original_currency_code, description, occurred_at, status, origin, group_id)
+SELECT gen_random_uuid(), :'uid'::uuid, a.id, c.id, 'EXPENSE', v.monto, a.currency_code, 1, v.monto,
+       45.99, 'USD', 'Compra en tienda en línea', t.occurred_at, 'CONFIRMED', 'WEB', gen_random_uuid()
+  FROM finance.accounts a
+ CROSS JOIN LATERAL (
+        SELECT (date_trunc('month', now() AT TIME ZONE 'America/Bogota')
+                - INTERVAL '1 month' + INTERVAL '8 day 15 hours') AT TIME ZONE 'America/Bogota' AS occurred_at
+       ) AS t
+  JOIN finance.currencies m ON m.code = a.currency_code
+ CROSS JOIN LATERAL (
+        SELECT round(finance.amount_in_currency(a.currency_code, 'USD', 45.99,
+                                                (t.occurred_at AT TIME ZONE 'America/Bogota')::date),
+                     m.decimal_places) AS monto
+       ) AS v
+  JOIN finance.categories c
+    ON c.user_id = :'uid'::uuid AND c.name = 'Tecnología'
+ WHERE a.id = :'tarjeta'::uuid;
 
 
 -- -----------------------------------------------------------------------------
