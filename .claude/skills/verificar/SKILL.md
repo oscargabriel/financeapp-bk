@@ -68,6 +68,7 @@ Siempre en este formato, con números tomados de la salida:
 ```
 Tests: X pasados, Y fallidos, Z omitidos (total N)
 Cobertura de línea: P % (umbral 85 %)
+Cobertura de rama: Q % (umbral 90 %)
 Bruno: R/R requests, T/T tests, A/A aserciones
 Build: SUCCESS | FAILURE
 ```

@@ -256,7 +256,8 @@ con la conexión de arriba, sabiendo que el archivo contiene los datos financier
 pasos, y si uno falla los siguientes no corren:
 
 1. **imagen**: `docker build -f deployment/Dockerfile`. La etapa de compilación corre
-   `./gradlew build`: un test rojo o la cobertura bajo el 85 % terminan aquí.
+   `./gradlew build`: un test rojo o la cobertura bajo sus umbrales (85 % de línea,
+   90 % de rama) terminan aquí.
 2. **publicar**: sube la imagen a `europe-west1-docker.pkg.dev/<proyecto>/cloud-run-source-deploy/financeapp-bk-git`
    con dos etiquetas, el SHA corto del commit y `latest`.
 3. **desplegar**: `gcloud run deploy` con la imagen del SHA. Solo cambia la imagen: variables,
