@@ -56,7 +56,7 @@ de su recurso en el mismo PR; aquí, solo su fila de la tabla.
 | `DELETE` | `/api/installment-purchases/{id}` | Bearer | Cancelar las cuotas que faltan | [cuotas.md](cuotas.md) |
 | `GET` | `/api/monthly-spending` | Bearer | Gasto e ingreso mensual, y el gasto contra la meta | [reportes.md](reportes.md) |
 | `GET` | `/api/reports/transactions` | Bearer | Movimientos y totales de un rango de días | [reportes.md](reportes.md) |
-| `GET` | `/api/reports/balance` | Bearer | Ingresos menos gastos de un rango y de siempre, con las cuentas | [reportes.md](reportes.md) |
+| `GET` | `/api/reports/balance` | Bearer | Ingresos menos gastos de un rango y de siempre, el saldo débito total en la moneda base y las cuentas | [reportes.md](reportes.md) |
 | `POST` | `/api/assistant/messages` | Bearer | Registrar o consultar con un mensaje en lenguaje natural | [asistente.md](asistente.md) |
 | `GET` | `/api/affiliations` | Bearer | Solicitudes de afiliación abiertas y afiliaciones aceptadas | [afiliaciones.md](afiliaciones.md) |
 | `POST` | `/api/affiliations` | Bearer | Enviar una solicitud de afiliación a un correo | [afiliaciones.md](afiliaciones.md) |

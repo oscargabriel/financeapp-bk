@@ -22,7 +22,7 @@ runtime:
         };
 
         test("devuelve el contrato de la consulta de saldo", function() {
-          expect(r).to.have.all.keys("currencyCode", "period", "allTime", "accounts");
+          expect(r).to.have.all.keys("currencyCode", "period", "allTime", "debitBalance", "accounts");
           expect(r.currencyCode).to.equal("COP");
           expect(r.period).to.have.all.keys("from", "to", "income", "expense", "net");
           expect(r.allTime).to.have.all.keys("income", "expense", "net");
@@ -42,6 +42,10 @@ runtime:
         test("las cuentas activas por nombre, sin la desactivada ni la borrada", function() {
           const nombres = r.accounts.map(function (a) { return a.name; });
           expect(nombres).to.eql(["Ahorros USD", "Bancolombia", "Efectivo", "Visa"]);
+        });
+
+        test("el total debito es Bancolombia, la unica debito activa", function() {
+          expect(r.debitBalance).to.equal(porNombre("Bancolombia").currentBalance);
         });
 
         test("la tarjeta trae su cupo y lo que queda por gastar", function() {

@@ -494,6 +494,11 @@ del día 1 del mes de la meta (FIN-29): tal cual si ya está en esa moneda, si n
 `monto / tasa(moneda) * tasa(moneda_persona)`, con un solo redondeo a 4
 decimales. Así cambiar la moneda base tampoco reescribe las metas.
 
+El saldo de una cuenta en la moneda de la persona lo da la vista
+`v_account_balance_in_base` (FIN-104), que rehace el saldo vigente con esas dos
+funciones y la fecha de cada aporte en vez de convertir `current_balance` con la
+tasa de hoy.
+
 Un movimiento que llega en una moneda distinta a la de su cuenta lo convierte la
 aplicación, no la base (FA-51):
 
@@ -613,6 +618,41 @@ Una categoría borrada sigue apareciendo, con su nombre, icono y color, en los
 meses en que tuvo gasto: la vista no filtra `deleted_at`, y es a propósito
 (FA-21). Ocultarla haría que el desglose dejara de sumar el `total_spent` de
 `v_monthly_spending` y que `share_of_month` no llegara a 100.
+
+### `v_account_balance_in_base`
+
+El saldo vigente de cada cuenta no borrada en la moneda base de su dueño (FIN-104).
+
+```
+account_id | user_id | account_type | is_active | currency_code | balance
+```
+
+```sql
+SELECT COALESCE(SUM(balance), 0)
+  FROM finance.v_account_balance_in_base
+ WHERE user_id = $1
+   AND account_type = 'DEBIT'
+   AND is_active;
+```
+
+La vista no filtra por tipo ni por estado: lo hace quien la lee, para que se vea
+qué cuentas cuentan. `currency_code` es la moneda de la persona, no la de la cuenta.
+
+`balance` se rehace desde sus partes, cada una con la tasa de su propia fecha
+local (ver *Multi-moneda*):
+
+- el saldo inicial, con `finance.amount_in_currency` y la fecha en que se creó la
+  cuenta (`created_at`);
+- cada movimiento que sale de la cuenta, o entra si es `INCOME`, con
+  `finance.in_currency` y su fecha, con el signo de `finance.balance_delta`;
+- lo que entra por una transferencia: sin `destination_amount` está en la moneda
+  del movimiento y va por `finance.in_currency`; con él está en la moneda de la
+  cuenta y va por `finance.amount_in_currency` con la fecha del movimiento.
+
+Cuentan los mismos movimientos que el saldo vigente: confirmados y ya ocurridos.
+En una cuenta que ya está en la moneda de la persona, `balance` es exactamente
+`current_balance - finance.scheduled_balance_delta(id)`. Las dos copias de esa
+regla, el trigger y la vista, las compara `bruno/reports/saldo-mes`.
 
 ### Metas
 

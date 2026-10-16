@@ -18,9 +18,9 @@ public final class BalanceMother {
         return new Balance.Totals(new BigDecimal(ingresos), new BigDecimal(gastos));
     }
 
-    /** El mes en curso y el historico del usuario del escenario. */
+    /** El mes en curso y el historico del usuario del escenario; el total debito es el saldo de Bancolombia. */
     public static Balance.Sums sumasDelEscenario() {
         return new Balance.Sums("COP", totales("5300000.0000", "1905500.0000"),
-                totales("14300000.0000", "5170500.0000"));
+                totales("14300000.0000", "5170500.0000"), new BigDecimal("12375000.0000"));
     }
 }
