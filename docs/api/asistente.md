@@ -20,17 +20,22 @@ texto, una nota de voz o la foto de un recibo (FIN-57).
 { "data": "gaste 20000 en almuerzo con la Nequi" }
 ```
 
-**Cuerpo — con un audio o una imagen**, en `multipart/form-data`, por la misma ruta:
+**Cuerpo — con audio o imágenes**, en `multipart/form-data`, por la misma ruta:
 
 | Parte | Obligatoria | Reglas |
 |---|---|---|
-| `file` | no, si viene `data` | Un solo archivo, de 1 byte a 5 MB (5 242 880 bytes). Su `Content-Type` tiene que ser uno de los admitidos y coincidir con el contenido |
-| `data` | no, si viene `file` | El texto que acompaña al archivo, hasta 1000 caracteres. En blanco cuenta como ausente |
+| `file` | no, si viene `data` | Una parte por archivo, en cualquier orden: hasta N imágenes y como mucho un audio (FIN-113). N vale 3 por defecto y lo fija el servicio con `ASISTENTE_MAX_IMAGENES`. Cada archivo va de 1 byte a 5 MB (5 242 880 bytes), y entre todos no pasan de 10 MB (10 485 760 bytes). El `Content-Type` de cada uno tiene que ser uno de los admitidos y coincidir con el contenido |
+| `data` | no, si viene `file` | El texto que acompaña a los archivos, una sola vez, hasta 1000 caracteres. En blanco cuenta como ausente |
+
+En el navegador: `formData.append("file", archivo)` una vez por archivo.
 
 | Tipo | `Content-Type` admitidos |
 |---|---|
 | Imagen | `image/jpeg`, `image/png`, `image/webp`, `image/heic`, `image/heif` |
-| Audio | `audio/ogg`, `audio/mpeg` (MP3), `audio/wav`, `audio/aac`, `audio/flac` |
+| Audio | `audio/ogg`, `audio/mpeg` (MP3), `audio/wav`, `audio/aac`, `audio/flac`, `audio/webm` (el que graba Chrome o Firefox), `audio/mp4` (el que graba Safari) |
+
+Los parámetros del tipo no cuentan: `audio/webm;codecs=opus` vale como `audio/webm`. Un `audio/webm` o
+`audio/mp4` con una pista de video es 400: el contenedor es el mismo del video.
 
 ```
 POST /api/assistant/messages
@@ -43,13 +48,23 @@ Content-Type: image/jpeg
 
 <bytes de la imagen>
 --b
+Content-Disposition: form-data; name="file"; filename="factura.png"
+Content-Type: image/png
+
+<bytes de la otra imagen>
+--b
+Content-Disposition: form-data; name="file"; filename="nota.webm"
+Content-Type: audio/webm;codecs=opus
+
+<bytes del audio>
+--b
 Content-Disposition: form-data; name="data"
 
 con la Nequi
 --b--
 ```
 
-Con `curl`: `curl -H "Authorization: Bearer $TOKEN" -F "file=@recibo.jpg;type=image/jpeg" -F "data=con la Nequi" .../api/assistant/messages`.
+Con `curl`: `curl -H "Authorization: Bearer $TOKEN" -F "file=@recibo.jpg;type=image/jpeg" -F "file=@factura.png;type=image/png" -F "data=con la Nequi" .../api/assistant/messages`.
 
 - **La nota de voz** vale como si el usuario hubiera escrito lo que dice.
 - **De la foto de un recibo, factura o voucher** se toman el monto total, la fecha y una descripción
@@ -57,11 +72,14 @@ Con `curl`: `curl -H "Authorization: Bearer $TOKEN" -F "file=@recibo.jpg;type=im
   respuesta es `NEEDS_CLARIFICATION` pidiéndola. Una imagen que no es un comprobante es
   `UNSUPPORTED`.
 - Con imagen y texto se usan los dos ("con la Nequi" junto a la foto).
-- **El archivo no se guarda**: ni en la base ni en disco, y no aparece en los logs. Se manda al
-  modelo dentro de la misma petición y se descarta al responder. Lo registrado guarda los mismos
-  campos que con un texto.
-- Video, cualquier otro tipo, varios archivos o un audio grabado en un formato que no está en la
-  tabla (como el `audio/webm` del navegador) son 400.
+- **Con varios comprobantes, cada uno es un movimiento aparte**, y el texto y la nota de voz valen
+  para todos: tres recibos con "con la Nequi" dan un solo grupo con tres gastos en la Nequi.
+- **Los archivos no se guardan**: ni en la base ni en disco, y no aparecen en los logs. Van al
+  modelo en la misma petición que el texto, en el orden en que llegaron, y se descartan al
+  responder. Lo registrado guarda los mismos campos que con un texto.
+- Video, cualquier otro tipo, más de N imágenes, más de un audio o más de 10 MB entre todos son 400,
+  sin llamar al modelo. El back no reduce ni convierte nada: el front reduce las imágenes antes de
+  enviarlas.
 
 **200 OK** — también cuando el asistente no pudo hacer lo pedido: `intent` dice qué pasó.
 
@@ -145,7 +163,7 @@ no se compara: para decidir se usa `intent`.
 | HTTP | `code` | `field` | Cuándo |
 |---|---|---|---|
 | 400 | `VALIDATION_ERROR` | `data` | Falta, está en blanco o pasa de 1000 caracteres. En multipart: no vienen ni `data` ni `file`, `data` pasa de 1000 caracteres o viene dos veces |
-| 400 | `VALIDATION_ERROR` | `file` | Vacío, por encima de 5 MB, de un tipo que no está en la tabla, con un contenido que no corresponde a su `Content-Type`, o más de un archivo |
+| 400 | `VALIDATION_ERROR` | `file` | Un archivo vacío, por encima de 5 MB, de un tipo que no está en la tabla o con un contenido que no corresponde a su `Content-Type`; más de N imágenes, más de un audio, o más de 10 MB entre todos. Sale un error por vez, el primero que se encuentra. Con más de un archivo, la descripción dice cuál falló, contado desde 1 en el orden de las partes: `Archivo 2: el archivo tiene que ser…` |
 | 400 | `VALIDATION_ERROR` | el nombre de la parte | Una parte que no es `data` ni `file` |
 | 401 | `UNAUTHENTICATED` | `authorization` | Sin token, token inválido o la credencial Basic |
 | 415 | `VALIDATION_ERROR` | `request` | El cuerpo no es `application/json` ni `multipart/form-data` |

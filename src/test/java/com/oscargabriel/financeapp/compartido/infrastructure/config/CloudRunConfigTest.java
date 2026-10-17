@@ -106,6 +106,17 @@ class CloudRunConfigTest {
                 .isEqualTo("https://generativelanguage.googleapis.com");
     }
 
+    /** N se ajusta en el servicio tras probar con el usuario, sin recompilar (FIN-113). */
+    @Test
+    void elMaximoDeImagenesEsTresYLoCambiaLaVariable() throws IOException {
+        Map<String, Object> variables = variablesDelServicio();
+        assertThat(configuracion(variables).getRequiredProperty("asistente.max-imagenes", Integer.class)).isEqualTo(3);
+
+        variables.put("ASISTENTE_MAX_IMAGENES", "5");
+
+        assertThat(configuracion(variables).getRequiredProperty("asistente.max-imagenes", Integer.class)).isEqualTo(5);
+    }
+
     /** El stub solo existe fuera de prod; el servicio verifica contra las llaves de Google (FIN-52). */
     @Test
     void elLoginConGoogleVerificaContraLasLlavesDeGoogle() throws IOException {

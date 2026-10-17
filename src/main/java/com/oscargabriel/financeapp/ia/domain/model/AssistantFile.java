@@ -23,6 +23,10 @@ public record AssistantFile(AssistantFileType tipo, byte[] contenido) {
         return contenido.clone();
     }
 
+    public int tamano() {
+        return contenido.length;
+    }
+
     @Override
     public String toString() {
         return "AssistantFile[tipo=" + tipo + ", bytes=" + contenido.length + "]";

@@ -390,6 +390,7 @@ producción.
 | `CORS_ALLOWED_ORIGINS` | `*` | Provisional mientras no haya frontend (26-09-2026). Se reemplaza en FA-65 |
 | `GEMINI_MODEL` | `gemini-3.5-flash-lite` | Elegido en FA-100 (10-10-2026): el de la prueba contra Gemini real de FA-101. En local se usa `gemini-3.1-flash-lite`. El asistente solo elige una de tres funciones y extrae sus argumentos; `gemini-3.5-flash` quedó descartado por costo. Cambiarlo no requiere desplegar |
 | `GOOGLE_CLIENT_ID` | **pendiente de crear** | Client ID del OAuth Client de tipo Web de Google Cloud Console, el mismo que usa el front (FIN-52). Es público, pero va sin default: con uno ajeno la app aceptaría tokens de otro cliente. **Hay que crearlo en el servicio antes de llevar FIN-52 a `main`**, o la revisión no arranca |
+| `GEMINI_TIMEOUT` | `30s`, **pendiente de definir** | FIN-113: con varios archivos en un mensaje, el default de 20 s de `application.yaml` se queda corto. Medido el 17-10-2026 con `gemini-3.1-flash-lite`: casi todos responden entre 2 y 16 s, pero dos recibos con una nota de voz llegaron una vez a los 20 s (502), y una nota WebM sola tardó 25 s en el peor de tres intentos (`docs/verificaciones-manuales.md`). Cambiarlo no requiere desplegar |
 
 `GOOGLE_PROVEEDOR` no se define: vale `google` por defecto, y el stub de `bruno/auth-google/` no
 existe con el perfil `prod` aunque se pida (FIN-52).
@@ -404,8 +405,12 @@ existe con el perfil `prod` aunque se pida (FIN-89).
 restringido a la lista de *Correos admitidos* (FA-103). Para abrirlo a cualquiera, se define en
 `false` en el servicio, sin desplegar.
 
+`ASISTENTE_MAX_IMAGENES` tampoco se define: vale `3` por defecto, y es cuántas imágenes admite un
+mensaje del chat web, además de un audio (FIN-113). Se ajusta en el servicio tras probar con el
+usuario, sin desplegar. Un valor menor que 1 impide que la revisión arranque.
+
 El resto de propiedades (`DB_SSL_MODE`, `JWT_EXPIRATION`, `APP_TIMEZONE`, `STARTUP_DB_CHECK_*`,
-`GEMINI_BASE_URL`, `GEMINI_TIMEOUT`, `GOOGLE_JWKS_URI`, `GOOGLE_TIMEOUT`, `TELEGRAM_BASE_URL`,
+`GEMINI_BASE_URL`, `GOOGLE_JWKS_URI`, `GOOGLE_TIMEOUT`, `TELEGRAM_BASE_URL`,
 `TELEGRAM_TIMEOUT`…)
 usa el default de `application.yaml`.
 

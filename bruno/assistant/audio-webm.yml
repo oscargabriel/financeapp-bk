@@ -1,0 +1,43 @@
+info:
+  name: Audio WebM
+  type: http
+  seq: 81
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: multipart-form
+    data:
+      - name: data
+        type: text
+        value: hola
+      - name: file
+        type: file
+        value:
+          - assistant/archivos/nota.webm
+        contentType: audio/webm;codecs=opus
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.intent
+      operator: eq
+      value: UNSUPPORTED
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Audio de Chrome y Firefox (FIN-113)
+
+  `nota.webm` es un WebM hecho a mano: cabecera EBML con `DocType` `webm` y una sola pista de audio
+  (`TrackType` 2) antes del primer `Cluster`.

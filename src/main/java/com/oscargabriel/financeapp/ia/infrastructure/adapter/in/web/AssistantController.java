@@ -1,7 +1,7 @@
 package com.oscargabriel.financeapp.ia.infrastructure.adapter.in.web;
 
 import jakarta.validation.Valid;
-import lombok.AllArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.multipart.PartEvent;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -22,15 +22,23 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
- * El mismo mensaje en JSON (solo texto) o en multipart (un archivo y un texto opcional, FIN-57). Los dos son el chat
- * de la web (FIN-112).
+ * El mismo mensaje en JSON (solo texto) o en multipart (archivos y un texto opcional, FIN-57 y FIN-113). Los dos son
+ * el chat de la web (FIN-112). maxImagenes es solo del canal web: Telegram manda un archivo por mensaje.
  */
 @RestController
 @RequestMapping("/assistant")
-@AllArgsConstructor
 public class AssistantController {
 
     private final AssistantPort assistant;
+    private final int maxImagenes;
+
+    public AssistantController(AssistantPort assistant, @Value("${asistente.max-imagenes}") int maxImagenes) {
+        if (maxImagenes < 1) {
+            throw new IllegalStateException("asistente.max-imagenes tiene que ser 1 o mas, y vale " + maxImagenes);
+        }
+        this.assistant = assistant;
+        this.maxImagenes = maxImagenes;
+    }
 
     @PostMapping(path = "/messages", consumes = MediaType.APPLICATION_JSON_VALUE)
     public Mono<AssistantMessageResponse> message(@AuthenticationPrincipal Jwt jwt,
@@ -44,7 +52,7 @@ public class AssistantController {
     @PostMapping(path = "/messages", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Mono<AssistantMessageResponse> messageConArchivo(@AuthenticationPrincipal Jwt jwt,
             @RequestBody Flux<PartEvent> partes) {
-        return LectorDeMensajeMultipart.leer(partes)
+        return LectorDeMensajeMultipart.leer(partes, maxImagenes)
                 .flatMap(mensaje -> assistant.atender(UsuarioDelToken.de(jwt), AssistantChannel.WEB_CHAT, mensaje))
                 .map(AssistantMessageResponse::from);
     }

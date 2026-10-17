@@ -1,7 +1,7 @@
 info:
-  name: Dos archivos
+  name: Dos textos
   type: http
-  seq: 75
+  seq: 86
 
 http:
   method: POST
@@ -9,16 +9,12 @@ http:
   body:
     type: multipart-form
     data:
-      - name: file
-        type: file
-        value:
-          - assistant/archivos/recibo.png
-        contentType: image/png
-      - name: file
-        type: file
-        value:
-          - assistant/archivos/recibo.png
-        contentType: image/png
+      - name: data
+        type: text
+        value: hola
+      - name: data
+        type: text
+        value: hola
   auth:
     type: bearer
     token: "{{tokenAsistente}}"
@@ -33,7 +29,7 @@ runtime:
       value: VALIDATION_ERROR
     - expression: res.body.errors[0].field
       operator: eq
-      value: file
+      value: data
 
 settings:
   encodeUrl: true
