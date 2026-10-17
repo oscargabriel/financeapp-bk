@@ -18,13 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.compartido.infrastructure.adapter.in.web.UsuarioDelToken;
-import com.oscargabriel.financeapp.core.domain.model.AffiliationAction;
-import com.oscargabriel.financeapp.core.domain.model.AffiliationView;
-import com.oscargabriel.financeapp.core.domain.port.in.ChangeAffiliationPort;
-import com.oscargabriel.financeapp.core.domain.port.in.ListAffiliateBalancesPort;
-import com.oscargabriel.financeapp.core.domain.port.in.ListAffiliationsPort;
-import com.oscargabriel.financeapp.core.domain.port.in.ListSharesWithAffiliatePort;
-import com.oscargabriel.financeapp.core.domain.port.in.SendAffiliationRequestPort;
+import com.oscargabriel.financeapp.core.domain.port.in.AffiliationPort;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.AffiliateBalanceResponse;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.AffiliationResponse;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.SendAffiliationRequest;
@@ -39,27 +33,23 @@ import reactor.core.publisher.Mono;
 @AllArgsConstructor
 public class AffiliationController {
 
-    private final SendAffiliationRequestPort sendRequest;
-    private final ListAffiliationsPort listAffiliations;
-    private final ChangeAffiliationPort changeAffiliation;
-    private final ListAffiliateBalancesPort listBalances;
-    private final ListSharesWithAffiliatePort listShares;
+    private final AffiliationPort afiliaciones;
 
     @GetMapping
     public Flux<AffiliationResponse> list(@AuthenticationPrincipal Jwt jwt) {
-        return Flux.defer(() -> listAffiliations.list(UsuarioDelToken.de(jwt)))
+        return Flux.defer(() -> afiliaciones.list(UsuarioDelToken.de(jwt)))
                 .map(AffiliationResponse::from);
     }
 
     @GetMapping("/balances")
     public Flux<AffiliateBalanceResponse> balances(@AuthenticationPrincipal Jwt jwt) {
-        return Flux.defer(() -> listBalances.list(UsuarioDelToken.de(jwt)))
+        return Flux.defer(() -> afiliaciones.balances(UsuarioDelToken.de(jwt)))
                 .map(AffiliateBalanceResponse::from);
     }
 
     @GetMapping("/{id}/shares")
     public Flux<ShareWithAffiliateResponse> shares(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
-        return Flux.defer(() -> listShares.list(UsuarioDelToken.de(jwt), parseId(id)))
+        return Flux.defer(() -> afiliaciones.shares(UsuarioDelToken.de(jwt), parseId(id)))
                 .map(ShareWithAffiliateResponse::from);
     }
 
@@ -67,36 +57,33 @@ public class AffiliationController {
     @ResponseStatus(HttpStatus.CREATED)
     public Mono<AffiliationResponse> send(@AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody SendAffiliationRequest solicitud) {
-        return Mono.defer(() -> sendRequest.send(UsuarioDelToken.de(jwt), solicitud.email()))
+        return Mono.defer(() -> afiliaciones.send(UsuarioDelToken.de(jwt), solicitud.email()))
                 .map(AffiliationResponse::from);
     }
 
     /** Aceptar devuelve la relacion: sigue en el listado y ahora trae el nombre de la otra persona. */
     @PostMapping("/{id}/accept")
     public Mono<AffiliationResponse> accept(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
-        return cambiar(jwt, id, AffiliationAction.ACCEPT).map(AffiliationResponse::from);
+        return Mono.defer(() -> afiliaciones.accept(UsuarioDelToken.de(jwt), parseId(id)))
+                .map(AffiliationResponse::from);
     }
 
     @PostMapping("/{id}/reject")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public Mono<Void> reject(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
-        return cambiar(jwt, id, AffiliationAction.REJECT).then();
+        return Mono.defer(() -> afiliaciones.reject(UsuarioDelToken.de(jwt), parseId(id))).then();
     }
 
     @PostMapping("/{id}/cancel")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public Mono<Void> cancel(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
-        return cambiar(jwt, id, AffiliationAction.CANCEL).then();
+        return Mono.defer(() -> afiliaciones.cancel(UsuarioDelToken.de(jwt), parseId(id))).then();
     }
 
     @PostMapping("/{id}/unlink")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public Mono<Void> unlink(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
-        return cambiar(jwt, id, AffiliationAction.UNLINK).then();
-    }
-
-    private Mono<AffiliationView> cambiar(Jwt jwt, String id, AffiliationAction accion) {
-        return Mono.defer(() -> changeAffiliation.change(UsuarioDelToken.de(jwt), parseId(id), accion));
+        return Mono.defer(() -> afiliaciones.unlink(UsuarioDelToken.de(jwt), parseId(id))).then();
     }
 
     /** A mano y no como UUID de Spring: su conversion fallida saldria como JSON_PARSING_ERROR del cuerpo. */
