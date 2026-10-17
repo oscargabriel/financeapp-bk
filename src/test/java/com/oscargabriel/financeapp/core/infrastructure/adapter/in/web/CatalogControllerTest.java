@@ -19,8 +19,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.core.domain.model.CategoryScope;
-import com.oscargabriel.financeapp.core.domain.port.in.ListCategoriesPort;
-import com.oscargabriel.financeapp.core.domain.port.in.ListCurrenciesPort;
+import com.oscargabriel.financeapp.core.domain.port.in.CatalogPort;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
 import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.SecurityConfig;
@@ -40,10 +39,7 @@ class CatalogControllerTest {
     private WebTestClient webTestClient;
 
     @MockitoBean
-    private ListCurrenciesPort listCurrencies;
-
-    @MockitoBean
-    private ListCategoriesPort listCategories;
+    private CatalogPort catalogo;
 
     private static JwtMutator tokenDelUsuario() {
         return mockJwt().jwt(jwt -> jwt.subject(CategoryMother.USER_ID.toString()));
@@ -56,7 +52,7 @@ class CatalogControllerTest {
                 .exchange()
                 .expectStatus().isUnauthorized();
 
-        verifyNoInteractions(listCurrencies, listCategories);
+        verifyNoInteractions(catalogo);
     }
 
     @Test
@@ -88,7 +84,7 @@ class CatalogControllerTest {
 
     @Test
     void devuelveLasMonedasActivasConCodigoNombreYSimbolo() {
-        when(listCurrencies.listActive()).thenReturn(Flux.just(CurrencyMother.cop(), CurrencyMother.usd()));
+        when(catalogo.listCurrencies()).thenReturn(Flux.just(CurrencyMother.cop(), CurrencyMother.usd()));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "/currencies")
                 .exchange()
@@ -101,7 +97,7 @@ class CatalogControllerTest {
 
     @Test
     void devuelveLasCategoriasDelUsuarioDelTokenSoloConIdYNombre() {
-        when(listCategories.list(eq(CategoryMother.USER_ID), any()))
+        when(catalogo.listCategories(eq(CategoryMother.USER_ID), any()))
                 .thenReturn(Flux.just(CategoryMother.mercado(), CategoryMother.ajustes()));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "/categories")
@@ -115,24 +111,24 @@ class CatalogControllerTest {
 
     @Test
     void pasaNullAlCasoDeUsoCuandoNoLlegaElFiltro() {
-        when(listCategories.list(eq(CategoryMother.USER_ID), any())).thenReturn(Flux.empty());
+        when(catalogo.listCategories(eq(CategoryMother.USER_ID), any())).thenReturn(Flux.empty());
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "/categories")
                 .exchange()
                 .expectStatus().isOk();
 
-        verify(listCategories).list(CategoryMother.USER_ID, null);
+        verify(catalogo).listCategories(CategoryMother.USER_ID, null);
     }
 
     @Test
     void pasaAlCasoDeUsoElFiltroParseado() {
-        when(listCategories.list(eq(CategoryMother.USER_ID), any())).thenReturn(Flux.empty());
+        when(catalogo.listCategories(eq(CategoryMother.USER_ID), any())).thenReturn(Flux.empty());
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "/categories?appliesTo=EXPENSE")
                 .exchange()
                 .expectStatus().isOk();
 
-        verify(listCategories).list(CategoryMother.USER_ID, CategoryScope.EXPENSE);
+        verify(catalogo).listCategories(CategoryMother.USER_ID, CategoryScope.EXPENSE);
     }
 
     /** El mismo contrato que GET /categories: exacto y en mayusculas. */
@@ -147,7 +143,7 @@ class CatalogControllerTest {
                 .jsonPath("$.errors[0].description").isEqualTo("appliesTo debe ser EXPENSE, INCOME o BOTH")
                 .jsonPath("$.errors[0].field").isEqualTo("appliesTo");
 
-        verifyNoInteractions(listCategories);
+        verifyNoInteractions(catalogo);
     }
 
     @Test
@@ -160,6 +156,6 @@ class CatalogControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.UNAUTHENTICATED.getCode())
                 .jsonPath("$.errors[0].field").isEqualTo("authorization");
 
-        verifyNoInteractions(listCategories);
+        verifyNoInteractions(catalogo);
     }
 }
