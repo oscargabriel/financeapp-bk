@@ -1,0 +1,41 @@
+info:
+  name: Webhook que pide el saldo
+  type: http
+  seq: 41
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  headers:
+    - name: X-Telegram-Bot-Api-Secret-Token
+      value: "{{telegramSecret}}"
+  body:
+    type: json
+    data: |-
+      {
+        "update_id": 10209,
+        "message": {
+          "message_id": 209,
+          "date": 1791590407,
+          "from": {"id": 777001, "is_bot": false, "first_name": "Ana"},
+          "chat": {"id": 777001, "type": "private", "first_name": "Ana"},
+          "text": "consultar_saldo"
+        }
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # El saldo desde el chat (FIN-61)
+
+  El bot responde el saldo del mes y la Billetera de Ana en el log del stub (`455.000 COP`).

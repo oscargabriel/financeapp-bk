@@ -1,7 +1,7 @@
 info:
   name: Login del usuario que vincula el chat
   type: http
-  seq: 13
+  seq: 15
 
 http:
   method: POST

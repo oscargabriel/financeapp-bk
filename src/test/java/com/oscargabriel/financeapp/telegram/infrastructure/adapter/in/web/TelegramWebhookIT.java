@@ -30,6 +30,7 @@ import com.oscargabriel.financeapp.telegram.domain.model.RespuestaDelBot;
 import com.oscargabriel.financeapp.telegram.domain.model.TecladoDelBot;
 import com.oscargabriel.financeapp.telegram.domain.port.out.BotDeTelegramPort;
 import com.oscargabriel.financeapp.telegram.domain.port.out.ChatsVinculadosPort;
+import com.oscargabriel.financeapp.telegram.domain.port.out.UpdatesAtendidosPort;
 import com.oscargabriel.financeapp.telegram.support.TelegramMother;
 
 import reactor.core.publisher.Mono;
@@ -54,6 +55,10 @@ class TelegramWebhookIT {
     @MockitoBean
     private ChatsVinculadosPort chats;
 
+    /** Lo mismo con los updates atendidos: TelegramUpdateR2dbcAdapter lo verifica bruno/telegram/. */
+    @MockitoBean
+    private UpdatesAtendidosPort updates;
+
     private WebTestClient webTestClient;
 
     @BeforeEach
@@ -63,6 +68,7 @@ class TelegramWebhookIT {
                 .responseTimeout(Duration.ofSeconds(10))
                 .build();
         when(chats.usuarioDelChat(anyLong())).thenReturn(Mono.empty());
+        when(updates.primeraVez(anyLong())).thenReturn(Mono.just(true));
     }
 
     private WebTestClient.ResponseSpec update(Consumer<HttpHeaders> credencial, String cuerpo) {
@@ -205,6 +211,31 @@ class TelegramWebhookIT {
                 .expectBody()
                 .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
                 .jsonPath("$.errors[0].field").isEqualTo("message.chat.id");
+
+        verifyNoInteractions(bot);
+    }
+
+    /** Sin update_id no hay como saber si el update ya se atendio (FIN-61). */
+    @Test
+    void unUpdateSinUpdateIdDevuelve400SobreElUpdateId() {
+        update(TelegramMother.cabecera(), TelegramMother.sinUpdateId())
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors.length()").isEqualTo(1)
+                .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.errors[0].field").isEqualTo("updateId");
+
+        verifyNoInteractions(bot, chats);
+    }
+
+    @Test
+    void unBotonSinIdDevuelve400SobreElIdDelBoton() {
+        update(TelegramMother.cabecera(), TelegramMother.botonSinId())
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.errors.length()").isEqualTo(1)
+                .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.errors[0].field").isEqualTo("callbackQuery.id");
 
         verifyNoInteractions(bot);
     }

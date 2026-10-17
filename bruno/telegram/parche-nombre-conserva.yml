@@ -1,7 +1,7 @@
 info:
   name: Parche sin cambiar el celular
   type: http
-  seq: 23
+  seq: 45
 
 http:
   method: PATCH

@@ -1,0 +1,47 @@
+info:
+  name: Webhook con una foto y su pie
+  type: http
+  seq: 34
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  headers:
+    - name: X-Telegram-Bot-Api-Secret-Token
+      value: "{{telegramSecret}}"
+  body:
+    type: json
+    data: |-
+      {
+        "update_id": 10205,
+        "message": {
+          "message_id": 205,
+          "date": 1791590403,
+          "from": {"id": 777001, "is_bot": false, "first_name": "Ana"},
+          "chat": {"id": 777001, "type": "private", "first_name": "Ana"},
+          "photo": [
+            {"file_id": "stub-jpeg-chica", "file_unique_id": "f1", "width": 90, "height": 90, "file_size": 1200},
+            {"file_id": "stub-jpeg", "file_unique_id": "f2", "width": 1280, "height": 1280, "file_size": 90000}
+          ],
+          "caption": "crear_movimiento {\"tipo\":\"EXPENSE\",\"monto\":12000,\"cuenta\":\"Billetera\",\"categoria\":\"Mercado\",\"descripcion\":\"Pan\"}\ncrear_movimiento {\"tipo\":\"EXPENSE\",\"monto\":8000,\"cuenta\":\"Billetera\",\"categoria\":\"Transporte\",\"descripcion\":\"Bus\"}"
+        }
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Una foto con pie llega al asistente (FIN-61)
+
+  El bot descarga la foto más grande (`stub-jpeg`, que el stub de Telegram entrega con cabecera
+  JPEG); si eligiera la chica, el stub no la entregaría y no se registraría nada. El asistente stub
+  solo lee el pie: dos gastos en un mismo grupo, que observa `Pendientes tras la foto`.

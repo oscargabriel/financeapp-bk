@@ -48,7 +48,8 @@ a mano sin esa variable, esa carpeta falla. Lo mismo con `TASAS_PROVEEDOR=stub` 
 `bruno/exchange-rates/` recibe tasas fijas en vez de las de ExchangeRate-API. Y con
 `GOOGLE_PROVEEDOR=stub` (FIN-52): `bruno/auth-google/` presenta tokens `stub|<sub>|<email>|…` en vez
 de ID tokens de Google. Y con `TELEGRAM_PROVEEDOR=stub` (FIN-89): el bot de `bruno/telegram/` deja
-sus respuestas en el log en vez de mandarlas a Telegram. Ninguno de los cuatro stubs existe con el
+sus respuestas en el log en vez de mandarlas a Telegram, y solo entrega dos archivos, `stub-jpeg` y
+`stub-ogg`, con la cabecera de un JPEG y de un Ogg (FIN-61). Ninguno de los cuatro stubs existe con el
 perfil `prod`.
 
 `bru` sale en 0 aunque descarte un archivo de la colección que no puede leer, y lo cuenta solo como
@@ -106,15 +107,16 @@ Un solo proyecto de Gradle con un solo `src/main/resources`. Los módulos son pa
 | `ia/` | El asistente: modelo de lenguaje, sus lecturas y su endpoint | `compartido` |
 | `telegram/` | El bot de Telegram: el webhook y el cliente de la Bot API (FIN-89) | `compartido` |
 | `compartido/` | Errores (`ErrorCodes`, `BadRequestException`, `WebExceptionHandler`), las tres cadenas de seguridad, la trazabilidad, el `Clock` y la conexión R2DBC | nada de los otros |
-| `puente/` | Los adaptadores que conectan `ia` con el core | `core` e `ia` |
+| `puente/` | Los adaptadores que conectan `ia` y `telegram` con el core, y `telegram` con `ia` (FIN-61) | `core`, `ia` y `telegram` |
 
 El `main` (`FinanceappBkApplication`) queda en la raíz del paquete.
 
 Un módulo de negocio **no importa nada de otro**. Lo que `ia` necesita del core lo declara como
 puerto de salida propio, y el adaptador que lo cumple llamando a un puerto de entrada del core vive en
-`puente/`. **Es una convención: nada la verifica** (decidido en FA-149; FA-148 la hacía cumplir con
-subproyectos de Gradle). Un import de `core` dentro de `ia`, o de `ia` dentro de `core`, es un error
-de revisión. Los puentes solo traducen; si uno empieza a decidir algo, esa regla es de un módulo.
+`puente/`. El bot llega igual a `ia` y al core: `telegram` declara sus puertos (`AsistenteDelBotPort`,
+`GruposDelBotPort`) y los cumplen adapters de `puente/` (FIN-61). **Es una convención: nada la
+verifica** (decidido en FA-149; FA-148 la hacía cumplir con subproyectos de Gradle). Un import de
+`core` o de `ia` dentro de `telegram`, o entre `core` e `ia`, es un error de revisión. Los puentes solo traducen; si uno empieza a decidir algo, esa regla es de un módulo.
 
 `ia` lee con consultas propias (`Asistente*R2dbcAdapter`) que **copian reglas del core**: solo
 movimientos confirmados, el corte de días en la zona del usuario, lo programado fuera, y la

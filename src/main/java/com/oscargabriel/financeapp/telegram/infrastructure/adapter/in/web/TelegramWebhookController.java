@@ -26,7 +26,7 @@ public class TelegramWebhookController {
 
     @PostMapping("/webhook")
     public Mono<Void> webhook(@Valid @RequestBody TelegramUpdateRequest update) {
-        return Mono.justOrEmpty(update.mensaje())
-                .flatMap(atenderUpdate::atender);
+        return Mono.justOrEmpty(update.evento())
+                .flatMap(evento -> atenderUpdate.atender(update.updateId(), evento));
     }
 }

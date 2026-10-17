@@ -1,0 +1,46 @@
+info:
+  name: Webhook con un boton sin id
+  type: http
+  seq: 13
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  headers:
+    - name: X-Telegram-Bot-Api-Secret-Token
+      value: "{{telegramSecret}}"
+  body:
+    type: json
+    data: |-
+      {
+        "update_id": 10005,
+        "callback_query": {
+          "from": {"id": 123456, "is_bot": false, "first_name": "Prueba"},
+          "message": {"message_id": 1, "date": 1791590401, "chat": {"id": 123456, "type": "private"}},
+          "data": "confirmar:00000000-0000-7000-8000-000000000000"
+        }
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: callbackQuery.id
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un boton sin id (FIN-61)
+
+  Sin el `id` del `callback_query` el bot no puede cerrar la espera del boton: 400 sobre
+  `callbackQuery.id` y no se toca nada.

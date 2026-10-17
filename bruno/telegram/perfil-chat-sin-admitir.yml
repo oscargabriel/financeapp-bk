@@ -1,7 +1,7 @@
 info:
   name: Perfil con un chat guardado sin teléfono admitido
   type: http
-  seq: 12
+  seq: 14
 
 http:
   method: GET

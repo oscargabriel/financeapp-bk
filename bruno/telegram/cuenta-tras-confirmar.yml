@@ -1,0 +1,36 @@
+info:
+  name: Cuenta tras confirmar
+  type: http
+  seq: 30
+
+http:
+  method: GET
+  url: "{{baseUrl}}/accounts"
+  auth:
+    type: bearer
+    token: "{{tokenTelegram}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        const billetera = res.getBody().find(function (c) { return c.name === "Billetera"; });
+
+        test("el gasto confirmado movió la Billetera", function() {
+          expect(billetera.currentBalance).to.equal(455000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Confirmar movió el saldo (FIN-61)
+
+  La Billetera de Ana arranca en 500.000 en `test-data.sql`.

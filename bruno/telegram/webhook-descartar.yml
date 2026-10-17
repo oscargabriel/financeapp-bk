@@ -1,0 +1,46 @@
+info:
+  name: Webhook con el botón Descartar
+  type: http
+  seq: 36
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  headers:
+    - name: X-Telegram-Bot-Api-Secret-Token
+      value: "{{telegramSecret}}"
+  body:
+    type: json
+    data: |-
+      {
+        "update_id": 10206,
+        "callback_query": {
+          "id": "cb-10206",
+          "from": {"id": 777001, "is_bot": false, "first_name": "Ana"},
+          "message": {
+            "message_id": 206,
+            "date": 1791590404,
+            "chat": {"id": 777001, "type": "private", "first_name": "Ana"},
+            "text": "Registré 2 movimientos sin confirmar:"
+          },
+          "chat_instance": "777001",
+          "data": "descartar:{{grupoFoto}}"
+        }
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Descartar el grupo desde el chat (FIN-61)
+
+  Los dos gastos de la foto dejan de existir: lo comprueba `Pendientes tras descartar`.

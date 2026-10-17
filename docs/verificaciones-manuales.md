@@ -342,3 +342,76 @@ Después, descartar los grupos creados y buscar en el log de la app el texto de 
 (`RESTAURANTE EL BUEN SABOR`, `DROGUERIA LA SALUD`), el comienzo del base64 del PNG (`iVBORw0`), del
 WebM (`GkXfo`) y del MP4 de Chrome (`AAAAJGZ0eXBpc29t`), e `inlineData`: ninguno debe dar una línea.
 El 17-10-2026 no dio ninguna.
+
+## El bot de Telegram con un bot real y Gemini
+
+`bruno/telegram/` corre con dos stubs: el de Telegram, que solo deja las respuestas en el log y
+entrega dos archivos fijos, y el del asistente, que solo lee el texto (FIN-61). Ninguno descarga de
+la Bot API, dibuja los botones ni oye una nota de voz. Eso solo se ve con un bot real.
+
+**Correr esto al tocar `TelegramBotApiAdapter`, `AtenderUpdateUseCase`, `TextosDelBot`, los puentes
+`AsistenteDelBotAdapter` y `GruposDelBotAdapter`, o lo que se cita en *El asistente con audio e
+imagen contra Gemini*.** Todavía no se ha corrido: FIN-61 cerró con la verificación de Bruno.
+
+### Preparación
+
+1. Un bot de prueba creado con @BotFather, distinto del de producción: su token va en
+   `TELEGRAM_BOT_TOKEN`, y `TELEGRAM_WEBHOOK_SECRET` es un texto propio de 32 a 256 caracteres
+   `A-Za-z0-9_-`.
+2. La app de la rama con Telegram y Gemini reales, en un puerto libre:
+
+   ```powershell
+   $env:SPRING_PROFILES_ACTIVE = 'local'; $env:SERVER_PORT = '8082'
+   $env:ASISTENTE_PROVEEDOR = 'gemini'; $env:TELEGRAM_PROVEEDOR = 'telegram'
+   $env:TELEGRAM_BOT_TOKEN = '<token>'; $env:TELEGRAM_WEBHOOK_SECRET = '<secreto>'
+   .\gradlew.bat bootRun
+   ```
+
+3. Un túnel HTTPS hacia el 8082 (Telegram solo entrega a HTTPS), por ejemplo
+   `cloudflared tunnel --url http://localhost:8082`, y el webhook apuntando a él:
+
+   ```bash
+   curl -s "https://api.telegram.org/bot$TOKEN/setWebhook" \
+     -d "url=https://<tunel>/api/telegram/webhook" -d "secret_token=$SECRETO"
+   ```
+
+4. `dev@financeapp.local` con el celular propio en E.164 como `phone` (`PATCH /api/users/me`) y ese
+   número en la lista de admitidos:
+   `psql -U postgres -d financeapp -c "INSERT INTO finance.registration_allowlist (entry) VALUES ('+57…')"`.
+   Desde el celular, `/start` al bot y «Compartir mi número»: el bot responde que el chat quedó
+   vinculado.
+
+### La corrida
+
+Con los archivos de *El asistente con audio e imagen contra Gemini* (`nota.wav` no sirve como nota
+de voz: se graba una en el celular diciendo «gasté veinte mil en almuerzo con la Nequi», y el
+`recibo.png` se manda como foto):
+
+| Envío | Esperado |
+|---|---|
+| Nota de voz | El registro de un gasto de 20.000 en Nequi, categoría Restaurantes, con los botones Confirmar y Descartar. En la web aparece en Pendientes con origen Telegram |
+| Confirmar | Los botones desaparecen, «Listo, guardé 1 movimiento.», y el saldo de Nequi bajó 20.000 |
+| Confirmar otra vez, desde un mensaje viejo que conserve los botones | «Esos movimientos ya no están pendientes.» y el saldo no cambia |
+| Foto del recibo con el pie «con la Nequi» | El registro de 38.500 con la fecha y la descripción del recibo |
+| Descartar | Los botones desaparecen, «Descarté los movimientos. No se guardó nada.», y Pendientes queda sin ese gasto |
+| «cuál es mi saldo» | Los totales del mes y una línea por cuenta |
+| Un video o un sticker | «Solo entiendo texto, notas de voz, audios y fotos.» |
+
+**El reenvío del mismo update.** Telegram solo reenvía un update que no recibió 2xx, así que el
+reenvío se hace a mano: el mismo cuerpo dos veces contra el túnel, con un `update_id` que Telegram
+no haya usado y el chat de `dev@`
+(`SELECT telegram_chat_id FROM finance.users WHERE email = 'dev@financeapp.local'`):
+
+```bash
+B='{"update_id":990000001,"message":{"message_id":1,"date":1791590401,"chat":{"id":<chat>,"type":"private"},"text":"gasté 5 mil en tinto con la Nequi"}}'
+for i in 1 2; do curl -s -o /dev/null -w "%{http_code}\n" -H "Content-Type: application/json" \
+  -H "X-Telegram-Bot-Api-Secret-Token: $SECRETO" -d "$B" https://<tunel>/api/telegram/webhook; done
+```
+
+Las dos dan 200, pero llega un solo registro al chat y Pendientes gana un solo movimiento.
+
+### Al terminar
+
+`deleteWebhook` del bot de prueba, quitar el número de `finance.registration_allowlist` y descartar
+en la web lo que haya quedado pendiente. En el log de la app, buscar el texto de la nota, el del
+recibo, el token del bot y el número de celular: ninguno debe dar una línea.

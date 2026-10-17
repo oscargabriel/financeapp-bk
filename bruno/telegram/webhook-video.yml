@@ -1,0 +1,41 @@
+info:
+  name: Webhook con un video
+  type: http
+  seq: 40
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  headers:
+    - name: X-Telegram-Bot-Api-Secret-Token
+      value: "{{telegramSecret}}"
+  body:
+    type: json
+    data: |-
+      {
+        "update_id": 10208,
+        "message": {
+          "message_id": 208,
+          "date": 1791590406,
+          "from": {"id": 777001, "is_bot": false, "first_name": "Ana"},
+          "chat": {"id": 777001, "type": "private", "first_name": "Ana"},
+          "video": {"file_id": "video-1", "file_unique_id": "vd1", "width": 640, "height": 360, "duration": 5, "mime_type": "video/mp4", "file_size": 200000}
+        }
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un video recibe el texto de contenido no aceptado (FIN-61)
+
+  Sin llamar al asistente ni descargar nada: el stub de Telegram no entregaría `video-1`.

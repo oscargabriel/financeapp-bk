@@ -1,0 +1,47 @@
+info:
+  name: Webhook con Confirmar en un grupo ya confirmado
+  type: http
+  seq: 32
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  headers:
+    - name: X-Telegram-Bot-Api-Secret-Token
+      value: "{{telegramSecret}}"
+  body:
+    type: json
+    data: |-
+      {
+        "update_id": 10204,
+        "callback_query": {
+          "id": "cb-10204",
+          "from": {"id": 777001, "is_bot": false, "first_name": "Ana"},
+          "message": {
+            "message_id": 203,
+            "date": 1791590402,
+            "chat": {"id": 777001, "type": "private", "first_name": "Ana"},
+            "text": "Registré 1 movimiento sin confirmar:"
+          },
+          "chat_instance": "777001",
+          "data": "confirmar:{{grupoTelegram}}"
+        }
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un segundo toque no confirma dos veces (FIN-61)
+
+  Otro `update_id`: llega hasta el core, que responde 409 sobre `status`, y el bot contesta «ya no
+  están pendientes». Lo comprueba `Cuenta sin doble confirmación`.

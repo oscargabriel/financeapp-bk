@@ -1,5 +1,6 @@
 package com.oscargabriel.financeapp.telegram.infrastructure.adapter.out.persistence;
 
+import java.time.ZoneId;
 import java.util.UUID;
 
 import org.springframework.r2dbc.core.DatabaseClient;
@@ -28,7 +29,7 @@ public class TelegramChatR2dbcAdapter implements ChatsVinculadosPort {
      * regla que telegram_linked en UserR2dbcAdapter (PERFIL_ACTIVO): si cambia aqui, cambia alli.
      */
     private static final String USUARIO_DEL_CHAT = """
-            SELECT u.id, u.first_name
+            SELECT u.id, u.first_name, u.timezone
               FROM finance.users u
              WHERE u.telegram_chat_id = :chatId
                AND u.deleted_at IS NULL
@@ -38,7 +39,7 @@ public class TelegramChatR2dbcAdapter implements ChatsVinculadosPort {
 
     /** LIMIT 2: basta para saber si hay mas de uno, y con mas de uno no se vincula a ninguno. */
     private static final String USUARIOS_CON_EL_TELEFONO = """
-            SELECT u.id, u.first_name
+            SELECT u.id, u.first_name, u.timezone
               FROM finance.users u
              WHERE u.phone = :telefono
                AND u.deleted_at IS NULL
@@ -117,6 +118,7 @@ public class TelegramChatR2dbcAdapter implements ChatsVinculadosPort {
     }
 
     private static UsuarioDelBot usuario(Row row) {
-        return new UsuarioDelBot(row.get("id", UUID.class), row.get("first_name", String.class));
+        return new UsuarioDelBot(row.get("id", UUID.class), row.get("first_name", String.class),
+                ZoneId.of(row.get("timezone", String.class)));
     }
 }

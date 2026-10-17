@@ -1,0 +1,43 @@
+info:
+  name: Pendientes tras la foto
+  type: http
+  seq: 35
+
+http:
+  method: GET
+  url: "{{baseUrl}}/transactions/pending"
+  auth:
+    type: bearer
+    token: "{{tokenTelegram}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: length
+      value: "2"
+  scripts:
+    - type: tests
+      code: |-
+        const lista = res.getBody();
+        bru.setVar("grupoFoto", lista[0].groupId);
+
+        test("los dos gastos del pie entraron en un solo grupo de Telegram", function() {
+          expect(lista[1].groupId).to.equal(lista[0].groupId);
+          expect(lista[0].groupId).to.not.equal(bru.getVar("grupoTelegram"));
+          lista.forEach(function (t) { expect(t.origin).to.equal("TELEGRAM"); });
+          expect(lista.map(function (t) { return t.description; }).sort()).to.eql(["Bus", "Pan"]);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Lo que registró la foto (FIN-61)
+
+  Guarda el grupo en `grupoFoto` para el botón Descartar.

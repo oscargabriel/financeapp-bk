@@ -1,0 +1,42 @@
+info:
+  name: Webhook cuando el modelo falla
+  type: http
+  seq: 42
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  headers:
+    - name: X-Telegram-Bot-Api-Secret-Token
+      value: "{{telegramSecret}}"
+  body:
+    type: json
+    data: |-
+      {
+        "update_id": 10210,
+        "message": {
+          "message_id": 210,
+          "date": 1791590408,
+          "from": {"id": 777001, "is_bot": false, "first_name": "Ana"},
+          "chat": {"id": 777001, "type": "private", "first_name": "Ana"},
+          "text": "crear_movimiento {\"tipo\":\"EXPENSE\",\"monto\":"
+        }
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un fallo del modelo pide reintentar (FIN-61)
+
+  El json roto hace fallar al asistente stub como falla Gemini (502). El webhook responde 200 para
+  que Telegram no reintente, y no se crea nada (`Pendientes tras el fallo del modelo`).
