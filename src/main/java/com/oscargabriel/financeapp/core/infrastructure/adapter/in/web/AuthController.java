@@ -9,12 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.oscargabriel.financeapp.core.domain.port.in.GoogleLoginPort;
-import com.oscargabriel.financeapp.core.domain.port.in.GoogleRegisterPort;
-import com.oscargabriel.financeapp.core.domain.port.in.LoginPort;
-import com.oscargabriel.financeapp.core.domain.port.in.LogoutPort;
-import com.oscargabriel.financeapp.core.domain.port.in.RefreshSessionPort;
-import com.oscargabriel.financeapp.core.domain.port.in.RegisterUserPort;
+import com.oscargabriel.financeapp.core.domain.port.in.AuthPort;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.GoogleLoginRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.GoogleRegisterRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.LoginRequest;
@@ -30,23 +25,18 @@ import reactor.core.publisher.Mono;
 @AllArgsConstructor
 public class AuthController {
 
-    private final RegisterUserPort registerUser;
-    private final LoginPort login;
-    private final RefreshSessionPort refreshSession;
-    private final LogoutPort logout;
-    private final GoogleRegisterPort googleRegister;
-    private final GoogleLoginPort googleLogin;
+    private final AuthPort autenticacion;
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
     public Mono<RegisterUserResponse> register(@Valid @RequestBody RegisterUserRequest request) {
-        return registerUser.register(request.toCommand())
+        return autenticacion.register(request.toCommand())
                 .map(RegisterUserResponse::from);
     }
 
     @PostMapping("/login")
     public Mono<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
-        return login.login(request.toCommand())
+        return autenticacion.login(request.toCommand())
                 .map(TokenResponse::from);
     }
 
@@ -54,25 +44,25 @@ public class AuthController {
     @PostMapping("/google/register")
     @ResponseStatus(HttpStatus.CREATED)
     public Mono<TokenResponse> googleRegister(@Valid @RequestBody GoogleRegisterRequest request) {
-        return googleRegister.register(request.toCommand())
+        return autenticacion.googleRegister(request.toCommand())
                 .map(TokenResponse::from);
     }
 
     @PostMapping("/google/login")
     public Mono<TokenResponse> googleLogin(@Valid @RequestBody GoogleLoginRequest request) {
-        return googleLogin.login(request.idToken())
+        return autenticacion.googleLogin(request.idToken())
                 .map(TokenResponse::from);
     }
 
     @PostMapping("/refresh")
     public Mono<TokenResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
-        return refreshSession.refresh(request.refreshToken())
+        return autenticacion.refresh(request.refreshToken())
                 .map(TokenResponse::from);
     }
 
     @PostMapping("/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public Mono<Void> logout(@Valid @RequestBody RefreshTokenRequest request) {
-        return logout.logout(request.refreshToken());
+        return autenticacion.logout(request.refreshToken());
     }
 }

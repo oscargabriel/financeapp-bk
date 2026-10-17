@@ -31,12 +31,7 @@ import com.oscargabriel.financeapp.core.domain.model.RegisteredUser;
 import com.oscargabriel.financeapp.core.domain.model.SessionTokens;
 import com.oscargabriel.financeapp.core.domain.model.RegistrationCommand;
 import com.oscargabriel.financeapp.core.domain.model.User;
-import com.oscargabriel.financeapp.core.domain.port.in.GoogleLoginPort;
-import com.oscargabriel.financeapp.core.domain.port.in.GoogleRegisterPort;
-import com.oscargabriel.financeapp.core.domain.port.in.LoginPort;
-import com.oscargabriel.financeapp.core.domain.port.in.LogoutPort;
-import com.oscargabriel.financeapp.core.domain.port.in.RefreshSessionPort;
-import com.oscargabriel.financeapp.core.domain.port.in.RegisterUserPort;
+import com.oscargabriel.financeapp.core.domain.port.in.AuthPort;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
 import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.SecurityConfig;
@@ -76,22 +71,7 @@ class AuthControllerTest {
     private WebTestClient webTestClient;
 
     @MockitoBean
-    private RegisterUserPort registerUser;
-
-    @MockitoBean
-    private LoginPort login;
-
-    @MockitoBean
-    private RefreshSessionPort refreshSession;
-
-    @MockitoBean
-    private LogoutPort logout;
-
-    @MockitoBean
-    private GoogleRegisterPort googleRegister;
-
-    @MockitoBean
-    private GoogleLoginPort googleLogin;
+    private AuthPort autenticacion;
 
     /**
      * FA-43 cerro el alta detras del Basic: ya no hay ninguna ruta publica, asi que un cliente sin
@@ -108,12 +88,12 @@ class AuthControllerTest {
                 .expectBody()
                 .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED");
 
-        verifyNoInteractions(registerUser);
+        verifyNoInteractions(autenticacion);
     }
 
     @Test
     void devuelve201ConElUsuarioCreado() {
-        when(registerUser.register(any())).thenReturn(Mono.just(unRegistro()));
+        when(autenticacion.register(any())).thenReturn(Mono.just(unRegistro()));
 
         webTestClient.post().uri(URI_REGISTRO)
                 .headers(BasicMother.cabecera())
@@ -134,7 +114,7 @@ class AuthControllerTest {
 
     @Test
     void devuelveElCelularDelAltaYLoTrasladaAlCasoDeUso() {
-        when(registerUser.register(any())).thenReturn(Mono.just(new RegisteredUser(
+        when(autenticacion.register(any())).thenReturn(Mono.just(new RegisteredUser(
                 new User(ID, UserMother.EMAIL, UserMother.HASH, "Ana", "Gomez", "USD", "America/Lima",
                         "+573001234567", null),
                 22L)));
@@ -155,7 +135,7 @@ class AuthControllerTest {
                 .expectBody()
                 .jsonPath("$.phone").isEqualTo("+573001234567");
 
-        verify(registerUser).register(UserMother.unAltaConCelular(" +573001234567 "));
+        verify(autenticacion).register(UserMother.unAltaConCelular(" +573001234567 "));
     }
 
     @Test
@@ -174,13 +154,13 @@ class AuthControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
                 .jsonPath("$.errors[0].field").isEqualTo("phone");
 
-        verifyNoInteractions(registerUser);
+        verifyNoInteractions(autenticacion);
     }
 
     /** OWASP A02: ni el hash ni la clave pueden asomar en la respuesta del alta. */
     @Test
     void nuncaDevuelveLaContrasenaNiSuHash() {
-        when(registerUser.register(any())).thenReturn(Mono.just(unRegistro()));
+        when(autenticacion.register(any())).thenReturn(Mono.just(unRegistro()));
 
         byte[] cuerpo = webTestClient.post().uri(URI_REGISTRO)
                 .headers(BasicMother.cabecera())
@@ -198,7 +178,7 @@ class AuthControllerTest {
 
     @Test
     void trasladaElPayloadTalCualAlCasoDeUso() {
-        when(registerUser.register(any())).thenReturn(Mono.just(unRegistro()));
+        when(autenticacion.register(any())).thenReturn(Mono.just(unRegistro()));
 
         webTestClient.post().uri(URI_REGISTRO)
                 .headers(BasicMother.cabecera())
@@ -207,13 +187,13 @@ class AuthControllerTest {
                 .exchange()
                 .expectStatus().isCreated();
 
-        verify(registerUser).register(new RegistrationCommand(
+        verify(autenticacion).register(new RegistrationCommand(
                 UserMother.EMAIL, UserMother.PASSWORD, "Ana", "Gomez", "USD", "America/Lima", null));
     }
 
     @Test
     void devuelve409ConElFormatoDeErrorDelProyectoCuandoElEmailYaExiste() {
-        when(registerUser.register(any())).thenReturn(Mono.error(new BadRequestException(
+        when(autenticacion.register(any())).thenReturn(Mono.error(new BadRequestException(
                 HttpStatus.CONFLICT, ErrorCodes.DUPLICATE_RESOURCE,
                 "Ya hay una cuenta registrada con ese correo", "email")));
 
@@ -231,7 +211,7 @@ class AuthControllerTest {
     /** FA-103: el handler responde con el status que trae la excepcion, sin un case propio. */
     @Test
     void devuelve403ConElFormatoDeErrorDelProyectoCuandoElCorreoNoEstaAdmitido() {
-        when(registerUser.register(any())).thenReturn(Mono.error(new BadRequestException(
+        when(autenticacion.register(any())).thenReturn(Mono.error(new BadRequestException(
                 HttpStatus.FORBIDDEN, ErrorCodes.REGISTRATION_NOT_ALLOWED,
                 "El correo no esta admitido para registrarse", "email")));
 
@@ -271,7 +251,7 @@ class AuthControllerTest {
                 .jsonPath("$.errors[?(@.field == 'firstName')].description")
                 .isEqualTo("El nombre es obligatorio");
 
-        verifyNoInteractions(registerUser);
+        verifyNoInteractions(autenticacion);
     }
 
     @Test
@@ -288,7 +268,7 @@ class AuthControllerTest {
                 .jsonPath("$.errors[?(@.field == 'password')].description")
                 .isEqualTo("La contrasena es obligatoria");
 
-        verifyNoInteractions(login);
+        verifyNoInteractions(autenticacion);
     }
 
     @Test
@@ -300,12 +280,12 @@ class AuthControllerTest {
                 .exchange()
                 .expectStatus().isBadRequest();
 
-        verifyNoInteractions(registerUser);
+        verifyNoInteractions(autenticacion);
     }
 
     @Test
     void devuelve200ConLosDosTokensYSusVigenciasEnSegundos() {
-        when(login.login(any()))
+        when(autenticacion.login(any()))
                 .thenReturn(Mono.just(SESION));
 
         webTestClient.post().uri(URI_LOGIN)
@@ -324,7 +304,7 @@ class AuthControllerTest {
 
     @Test
     void trasladaLasCredencialesTalCualAlCasoDeUso() {
-        when(login.login(any()))
+        when(autenticacion.login(any()))
                 .thenReturn(Mono.just(SESION));
 
         webTestClient.post().uri(URI_LOGIN)
@@ -334,12 +314,12 @@ class AuthControllerTest {
                 .exchange()
                 .expectStatus().isOk();
 
-        verify(login).login(new LoginCommand(UserMother.EMAIL, UserMother.PASSWORD));
+        verify(autenticacion).login(new LoginCommand(UserMother.EMAIL, UserMother.PASSWORD));
     }
 
     @Test
     void devuelve401ConElFormatoDeErrorDelProyectoCuandoLasCredencialesNoSirven() {
-        when(login.login(any())).thenReturn(Mono.error(new BadRequestException(
+        when(autenticacion.login(any())).thenReturn(Mono.error(new BadRequestException(
                 HttpStatus.UNAUTHORIZED, ErrorCodes.INVALID_CREDENTIALS,
                 "Correo o contrasena incorrectos", "credentials")));
 
@@ -357,7 +337,7 @@ class AuthControllerTest {
     /** El token es una credencial: no puede acabar en un log ni en el eco de la peticion. */
     @Test
     void laRespuestaDelLoginNoDevuelveLaClaveQueSeMando() {
-        when(login.login(any()))
+        when(autenticacion.login(any()))
                 .thenReturn(Mono.just(SESION));
 
         byte[] cuerpo = webTestClient.post().uri(URI_LOGIN)
@@ -381,7 +361,7 @@ class AuthControllerTest {
                 .expectBody()
                 .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED");
 
-        verifyNoInteractions(login);
+        verifyNoInteractions(autenticacion);
     }
 
     /** El Basic abre estas dos rutas y nada mas: el JWT no entra por aqui. */
@@ -394,7 +374,7 @@ class AuthControllerTest {
                 .exchange()
                 .expectStatus().isUnauthorized();
 
-        verifyNoInteractions(login);
+        verifyNoInteractions(autenticacion);
     }
 
     @Test
@@ -408,12 +388,12 @@ class AuthControllerTest {
                 .expectBody()
                 .jsonPath("$.errors[0].code").isEqualTo("UNAUTHENTICATED");
 
-        verifyNoInteractions(registerUser);
+        verifyNoInteractions(autenticacion);
     }
 
     @Test
     void elRefrescoDevuelve200ConLaMismaFormaDelLogin() {
-        when(refreshSession.refresh("un-refresh-vigente")).thenReturn(Mono.just(SESION));
+        when(autenticacion.refresh("un-refresh-vigente")).thenReturn(Mono.just(SESION));
 
         webTestClient.post().uri(URI_REFRESCO)
                 .headers(BasicMother.cabecera())
@@ -431,7 +411,7 @@ class AuthControllerTest {
 
     @Test
     void elRefrescoDevuelve401ConElCampoDelRefreshCuandoNoSirve() {
-        when(refreshSession.refresh(any())).thenReturn(Mono.error(new BadRequestException(
+        when(autenticacion.refresh(any())).thenReturn(Mono.error(new BadRequestException(
                 HttpStatus.UNAUTHORIZED, ErrorCodes.UNAUTHENTICATED, "Autenticacion requerida",
                 "refreshToken")));
 
@@ -448,7 +428,7 @@ class AuthControllerTest {
 
     @Test
     void elLogoutDevuelve204SinCuerpo() {
-        when(logout.logout("un-refresh-vigente")).thenReturn(Mono.empty());
+        when(autenticacion.logout("un-refresh-vigente")).thenReturn(Mono.empty());
 
         webTestClient.post().uri(URI_LOGOUT)
                 .headers(BasicMother.cabecera())
@@ -458,7 +438,7 @@ class AuthControllerTest {
                 .expectStatus().isNoContent()
                 .expectBody().isEmpty();
 
-        verify(logout).logout("un-refresh-vigente");
+        verify(autenticacion).logout("un-refresh-vigente");
     }
 
     @ParameterizedTest
@@ -475,7 +455,7 @@ class AuthControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
                 .jsonPath("$.errors[0].field").isEqualTo("refreshToken");
 
-        verifyNoInteractions(refreshSession, logout);
+        verifyNoInteractions(autenticacion);
     }
 
     @ParameterizedTest
@@ -490,7 +470,7 @@ class AuthControllerTest {
                 .expectBody()
                 .jsonPath("$.errors[0].field").isEqualTo("authorization");
 
-        verifyNoInteractions(refreshSession, logout);
+        verifyNoInteractions(autenticacion);
     }
 
     /** El refresh no es un Bearer: con un access valido en vez del Basic, la cadena lo rechaza. */
@@ -505,7 +485,7 @@ class AuthControllerTest {
                 .expectStatus().isUnauthorized()
                 .expectHeader().valueEquals("WWW-Authenticate", "Basic");
 
-        verifyNoInteractions(refreshSession, logout);
+        verifyNoInteractions(autenticacion);
     }
 
     /**
@@ -532,13 +512,13 @@ class AuthControllerTest {
                 .exchange()
                 .expectStatus().isUnauthorized();
 
-        verifyNoInteractions(registerUser);
+        verifyNoInteractions(autenticacion);
     }
 
     /** FIN-52: el registro con Google crea un recurso, como el alta, pero responde con la sesion. */
     @Test
     void elRegistroConGoogleDevuelve201ConLaFormaDelLogin() {
-        when(googleRegister.register(any())).thenReturn(Mono.just(SESION));
+        when(autenticacion.googleRegister(any())).thenReturn(Mono.just(SESION));
 
         webTestClient.post().uri(URI_GOOGLE_REGISTRO)
                 .headers(BasicMother.cabecera())
@@ -553,12 +533,12 @@ class AuthControllerTest {
                 .jsonPath("$.refreshToken").isEqualTo("un-refresh-opaco")
                 .jsonPath("$.refreshExpiresIn").isEqualTo(86400);
 
-        verify(googleRegister).register(new GoogleRegistrationCommand("un.id-token", "Europe/Madrid"));
+        verify(autenticacion).googleRegister(new GoogleRegistrationCommand("un.id-token", "Europe/Madrid"));
     }
 
     @Test
     void elLoginConGoogleDevuelve200ConLaFormaDelLogin() {
-        when(googleLogin.login("un.id-token")).thenReturn(Mono.just(SESION));
+        when(autenticacion.googleLogin("un.id-token")).thenReturn(Mono.just(SESION));
 
         webTestClient.post().uri(URI_GOOGLE_LOGIN)
                 .headers(BasicMother.cabecera())
@@ -585,7 +565,7 @@ class AuthControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
                 .jsonPath("$.errors[0].field").isEqualTo("idToken");
 
-        verifyNoInteractions(googleRegister, googleLogin);
+        verifyNoInteractions(autenticacion);
     }
 
     @Test
@@ -600,12 +580,12 @@ class AuthControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
                 .jsonPath("$.errors[0].field").isEqualTo("timezone");
 
-        verifyNoInteractions(googleRegister);
+        verifyNoInteractions(autenticacion);
     }
 
     @Test
     void elRegistroConGoogleDevuelveLosErroresDelCasoDeUsoConSuStatus() {
-        when(googleRegister.register(any())).thenReturn(Mono.error(new BadRequestException(
+        when(autenticacion.googleRegister(any())).thenReturn(Mono.error(new BadRequestException(
                 HttpStatus.FORBIDDEN, ErrorCodes.REGISTRATION_NOT_ALLOWED,
                 "El correo no esta admitido para registrarse", "email")));
 
@@ -623,7 +603,7 @@ class AuthControllerTest {
     /** El front ofrece el registro solo con este codigo: tiene que llegar tal cual. */
     @Test
     void elLoginConGoogleDevuelve404SiNoHayCuenta() {
-        when(googleLogin.login(any())).thenReturn(Mono.error(new BadRequestException(
+        when(autenticacion.googleLogin(any())).thenReturn(Mono.error(new BadRequestException(
                 HttpStatus.NOT_FOUND, ErrorCodes.ACCOUNT_NOT_REGISTERED,
                 "No hay una cuenta registrada con esta cuenta de Google", "idToken")));
 
@@ -650,7 +630,7 @@ class AuthControllerTest {
                 .expectBody()
                 .jsonPath("$.errors[0].field").isEqualTo("authorization");
 
-        verifyNoInteractions(googleRegister, googleLogin);
+        verifyNoInteractions(autenticacion);
     }
 
     @ParameterizedTest
@@ -664,7 +644,7 @@ class AuthControllerTest {
                 .expectStatus().isUnauthorized()
                 .expectHeader().valueEquals("WWW-Authenticate", "Basic");
 
-        verifyNoInteractions(googleRegister, googleLogin);
+        verifyNoInteractions(autenticacion);
     }
 
     private static Map<String, String> unasCredenciales() {

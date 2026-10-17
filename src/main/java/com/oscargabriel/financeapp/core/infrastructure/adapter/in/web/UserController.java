@@ -18,10 +18,7 @@ import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestExcept
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.compartido.infrastructure.adapter.in.web.UsuarioDelToken;
 import com.oscargabriel.financeapp.core.domain.model.ChangePasswordCommand;
-import com.oscargabriel.financeapp.core.domain.port.in.ChangePasswordPort;
-import com.oscargabriel.financeapp.core.domain.port.in.GetUserProfilePort;
-import com.oscargabriel.financeapp.core.domain.port.in.SetFirstPasswordPort;
-import com.oscargabriel.financeapp.core.domain.port.in.UpdateUserProfilePort;
+import com.oscargabriel.financeapp.core.domain.port.in.UserPort;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.ChangePasswordRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.FirstPasswordRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.UpdateUserProfileRequest;
@@ -35,14 +32,11 @@ import reactor.core.publisher.Mono;
 @AllArgsConstructor
 public class UserController {
 
-    private final GetUserProfilePort getProfile;
-    private final UpdateUserProfilePort updateProfile;
-    private final ChangePasswordPort changePassword;
-    private final SetFirstPasswordPort setFirstPassword;
+    private final UserPort usuarios;
 
     @GetMapping
     public Mono<UserProfileResponse> profile(@AuthenticationPrincipal Jwt jwt) {
-        return Mono.defer(() -> getProfile.get(UsuarioDelToken.de(jwt)))
+        return Mono.defer(() -> usuarios.get(UsuarioDelToken.de(jwt)))
                 .map(UserProfileResponse::from);
     }
 
@@ -55,7 +49,7 @@ public class UserController {
                         throw new BadRequestException(HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR,
                                 "El parche no trae ningun campo para modificar", "body");
                     }
-                    return updateProfile.update(UsuarioDelToken.de(jwt), parche.toCommand());
+                    return usuarios.update(UsuarioDelToken.de(jwt), parche.toCommand());
                 })
                 .map(UserProfileResponse::from);
     }
@@ -66,7 +60,7 @@ public class UserController {
     public Mono<Void> changePassword(
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody ChangePasswordRequest request) {
-        return Mono.defer(() -> changePassword.change(UsuarioDelToken.de(jwt),
+        return Mono.defer(() -> usuarios.changePassword(UsuarioDelToken.de(jwt),
                 new ChangePasswordCommand(request.currentPassword(), request.newPassword())));
     }
 
@@ -76,6 +70,6 @@ public class UserController {
     public Mono<Void> setFirstPassword(
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody FirstPasswordRequest request) {
-        return Mono.defer(() -> setFirstPassword.define(UsuarioDelToken.de(jwt), request.toCommand()));
+        return Mono.defer(() -> usuarios.setFirstPassword(UsuarioDelToken.de(jwt), request.toCommand()));
     }
 }
