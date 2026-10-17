@@ -30,10 +30,7 @@ import com.oscargabriel.financeapp.core.domain.model.GroupScope;
 import com.oscargabriel.financeapp.core.domain.model.RecurrenceView;
 import com.oscargabriel.financeapp.core.domain.model.TransactionType;
 import com.oscargabriel.financeapp.core.domain.model.UpdateRecurrenceCommand;
-import com.oscargabriel.financeapp.core.domain.port.in.CancelRecurrencePort;
-import com.oscargabriel.financeapp.core.domain.port.in.CreateRecurrencePort;
-import com.oscargabriel.financeapp.core.domain.port.in.ListRecurrencesPort;
-import com.oscargabriel.financeapp.core.domain.port.in.UpdateRecurrencePort;
+import com.oscargabriel.financeapp.core.domain.port.in.RecurrencePort;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
 import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.SecurityConfig;
@@ -61,16 +58,7 @@ class RecurrenceControllerTest {
     private WebTestClient webTestClient;
 
     @MockitoBean
-    private CreateRecurrencePort createRecurrence;
-
-    @MockitoBean
-    private ListRecurrencesPort listRecurrences;
-
-    @MockitoBean
-    private UpdateRecurrencePort updateRecurrence;
-
-    @MockitoBean
-    private CancelRecurrencePort cancelRecurrence;
+    private RecurrencePort series;
 
     private static JwtMutator tokenDelUsuario() {
         return mockJwt().jwt(jwt -> jwt.subject(TransactionMother.USER_ID.toString()));
@@ -82,7 +70,7 @@ class RecurrenceControllerTest {
 
     @Test
     void elAltaRespondeCreadaConLaSerie() {
-        when(createRecurrence.create(eq(TransactionMother.USER_ID), any())).thenReturn(Mono.just(mensual()));
+        when(series.create(eq(TransactionMother.USER_ID), any())).thenReturn(Mono.just(mensual()));
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -109,7 +97,7 @@ class RecurrenceControllerTest {
                 .jsonPath("$.generatedCount").doesNotExist();
 
         ArgumentCaptor<CreateRecurrenceCommand> alta = ArgumentCaptor.forClass(CreateRecurrenceCommand.class);
-        verify(createRecurrence).create(eq(TransactionMother.USER_ID), alta.capture());
+        verify(series).create(eq(TransactionMother.USER_ID), alta.capture());
         assertThat(alta.getValue().type()).isEqualTo(TransactionType.EXPENSE);
         assertThat(alta.getValue().startDate()).isEqualTo(LocalDate.of(2026, 10, 15));
         assertThat(alta.getValue().interval()).isEqualTo(1);
@@ -126,14 +114,14 @@ class RecurrenceControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
                 .jsonPath("$.errors[0].field").isEqualTo("dayOfMonth");
 
-        verifyNoInteractions(createRecurrence);
+        verifyNoInteractions(series);
     }
 
     @Test
     void unaSemanalDevuelveElDiaDeLaSemana() {
         RecurrenceView semanal = new RecurrenceView(
                 unaSerie().semanal(2, DayOfWeek.FRIDAY, LocalDate.of(2026, 10, 9)).build(), null);
-        when(listRecurrences.list(TransactionMother.USER_ID)).thenReturn(Flux.just(semanal, mensual()));
+        when(series.list(TransactionMother.USER_ID)).thenReturn(Flux.just(semanal, mensual()));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE)
                 .exchange()
@@ -150,7 +138,7 @@ class RecurrenceControllerTest {
 
     @Test
     void sinSeriesActivasDevuelveUnaListaVacia() {
-        when(listRecurrences.list(TransactionMother.USER_ID)).thenReturn(Flux.empty());
+        when(series.list(TransactionMother.USER_ID)).thenReturn(Flux.empty());
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE)
                 .exchange()
@@ -160,7 +148,7 @@ class RecurrenceControllerTest {
 
     @Test
     void laEdicionPasaElParcheConvertido() {
-        when(updateRecurrence.update(eq(TransactionMother.USER_ID), eq(SERIE_ID), any()))
+        when(series.update(eq(TransactionMother.USER_ID), eq(SERIE_ID), any()))
                 .thenReturn(Mono.just(mensual()));
 
         webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/" + SERIE_ID)
@@ -172,7 +160,7 @@ class RecurrenceControllerTest {
                 .jsonPath("$.id").isEqualTo(SERIE_ID.toString());
 
         ArgumentCaptor<UpdateRecurrenceCommand> parche = ArgumentCaptor.forClass(UpdateRecurrenceCommand.class);
-        verify(updateRecurrence).update(eq(TransactionMother.USER_ID), eq(SERIE_ID), parche.capture());
+        verify(series).update(eq(TransactionMother.USER_ID), eq(SERIE_ID), parche.capture());
         assertThat(parche.getValue().scope()).isEqualTo(GroupScope.FUTURE);
         assertThat(parche.getValue().frequency()).isEqualTo(Frequency.WEEKLY);
         assertThat(parche.getValue().dayOfWeek()).isEqualTo(DayOfWeek.FRIDAY);
@@ -189,7 +177,7 @@ class RecurrenceControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
                 .jsonPath("$.errors[0].field").isEqualTo("body");
 
-        verifyNoInteractions(updateRecurrence);
+        verifyNoInteractions(series);
     }
 
     @Test
@@ -202,7 +190,7 @@ class RecurrenceControllerTest {
                 .expectBody()
                 .jsonPath("$.errors[0].field").isEqualTo("scope");
 
-        verifyNoInteractions(updateRecurrence);
+        verifyNoInteractions(series);
     }
 
     @Test
@@ -219,13 +207,13 @@ class RecurrenceControllerTest {
 
     @Test
     void laCancelacionRespondeSinContenido() {
-        when(cancelRecurrence.cancel(TransactionMother.USER_ID, SERIE_ID)).thenReturn(Mono.empty());
+        when(series.cancel(TransactionMother.USER_ID, SERIE_ID)).thenReturn(Mono.empty());
 
         webTestClient.mutateWith(tokenDelUsuario()).delete().uri(URI_BASE + "/" + SERIE_ID)
                 .exchange()
                 .expectStatus().isNoContent();
 
-        verify(cancelRecurrence).cancel(TransactionMother.USER_ID, SERIE_ID);
+        verify(series).cancel(TransactionMother.USER_ID, SERIE_ID);
     }
 
     @Test
@@ -236,7 +224,7 @@ class RecurrenceControllerTest {
                 .expectBody()
                 .jsonPath("$.errors[0].field").isEqualTo("id");
 
-        verifyNoInteractions(cancelRecurrence);
+        verifyNoInteractions(series);
     }
 
     @Test
@@ -245,6 +233,6 @@ class RecurrenceControllerTest {
                 .exchange()
                 .expectStatus().isUnauthorized();
 
-        verifyNoInteractions(listRecurrences);
+        verifyNoInteractions(series);
     }
 }

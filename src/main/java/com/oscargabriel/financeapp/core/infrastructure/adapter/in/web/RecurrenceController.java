@@ -20,10 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.compartido.infrastructure.adapter.in.web.UsuarioDelToken;
-import com.oscargabriel.financeapp.core.domain.port.in.CancelRecurrencePort;
-import com.oscargabriel.financeapp.core.domain.port.in.CreateRecurrencePort;
-import com.oscargabriel.financeapp.core.domain.port.in.ListRecurrencesPort;
-import com.oscargabriel.financeapp.core.domain.port.in.UpdateRecurrencePort;
+import com.oscargabriel.financeapp.core.domain.port.in.RecurrencePort;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.CreateRecurrenceRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.RecurrenceResponse;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.UpdateRecurrenceRequest;
@@ -37,22 +34,19 @@ import reactor.core.publisher.Mono;
 @AllArgsConstructor
 public class RecurrenceController {
 
-    private final CreateRecurrencePort createRecurrence;
-    private final ListRecurrencesPort listRecurrences;
-    private final UpdateRecurrencePort updateRecurrence;
-    private final CancelRecurrencePort cancelRecurrence;
+    private final RecurrencePort series;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Mono<RecurrenceResponse> create(@AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody CreateRecurrenceRequest alta) {
-        return Mono.defer(() -> createRecurrence.create(UsuarioDelToken.de(jwt), alta.toCommand()))
+        return Mono.defer(() -> series.create(UsuarioDelToken.de(jwt), alta.toCommand()))
                 .map(RecurrenceResponse::from);
     }
 
     @GetMapping
     public Flux<RecurrenceResponse> list(@AuthenticationPrincipal Jwt jwt) {
-        return Flux.defer(() -> listRecurrences.list(UsuarioDelToken.de(jwt)))
+        return Flux.defer(() -> series.list(UsuarioDelToken.de(jwt)))
                 .map(RecurrenceResponse::from);
     }
 
@@ -65,7 +59,7 @@ public class RecurrenceController {
                         throw new BadRequestException(HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR,
                                 "El parche no trae ningun campo para modificar, ademas del alcance", "body");
                     }
-                    return updateRecurrence.update(UsuarioDelToken.de(jwt), serie, parche.toCommand());
+                    return series.update(UsuarioDelToken.de(jwt), serie, parche.toCommand());
                 })
                 .map(RecurrenceResponse::from);
     }
@@ -74,7 +68,7 @@ public class RecurrenceController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public Mono<Void> cancel(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
-        return Mono.defer(() -> cancelRecurrence.cancel(UsuarioDelToken.de(jwt), parseId(id)));
+        return Mono.defer(() -> series.cancel(UsuarioDelToken.de(jwt), parseId(id)));
     }
 
     /** A mano y no como UUID de Spring: su conversion fallida saldria como JSON_PARSING_ERROR del cuerpo. */

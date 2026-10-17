@@ -20,11 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.compartido.infrastructure.adapter.in.web.UsuarioDelToken;
-import com.oscargabriel.financeapp.core.domain.port.in.CancelInstallmentPurchasePort;
-import com.oscargabriel.financeapp.core.domain.port.in.CreateInstallmentPurchasePort;
-import com.oscargabriel.financeapp.core.domain.port.in.ListInstallmentPurchasesPort;
-import com.oscargabriel.financeapp.core.domain.port.in.PreviewInstallmentPurchasePort;
-import com.oscargabriel.financeapp.core.domain.port.in.UpdateInstallmentPurchasePort;
+import com.oscargabriel.financeapp.core.domain.port.in.InstallmentPurchasePort;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.CreateInstallmentPurchaseRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.InstallmentPreviewResponse;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.InstallmentPurchaseResponse;
@@ -39,17 +35,13 @@ import reactor.core.publisher.Mono;
 @AllArgsConstructor
 public class InstallmentPurchaseController {
 
-    private final PreviewInstallmentPurchasePort previewPurchase;
-    private final CreateInstallmentPurchasePort createPurchase;
-    private final ListInstallmentPurchasesPort listPurchases;
-    private final UpdateInstallmentPurchasePort updatePurchase;
-    private final CancelInstallmentPurchasePort cancelPurchase;
+    private final InstallmentPurchasePort compras;
 
     /** 200 y no 201: no crea nada. */
     @PostMapping("/preview")
     public Mono<InstallmentPreviewResponse> preview(@AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody CreateInstallmentPurchaseRequest compra) {
-        return Mono.defer(() -> previewPurchase.preview(UsuarioDelToken.de(jwt), compra.toCommand()))
+        return Mono.defer(() -> compras.preview(UsuarioDelToken.de(jwt), compra.toCommand()))
                 .map(InstallmentPreviewResponse::from);
     }
 
@@ -57,13 +49,13 @@ public class InstallmentPurchaseController {
     @ResponseStatus(HttpStatus.CREATED)
     public Mono<InstallmentPurchaseResponse> create(@AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody CreateInstallmentPurchaseRequest compra) {
-        return Mono.defer(() -> createPurchase.create(UsuarioDelToken.de(jwt), compra.toCommand()))
+        return Mono.defer(() -> compras.create(UsuarioDelToken.de(jwt), compra.toCommand()))
                 .map(InstallmentPurchaseResponse::from);
     }
 
     @GetMapping
     public Flux<InstallmentPurchaseResponse> list(@AuthenticationPrincipal Jwt jwt) {
-        return Flux.defer(() -> listPurchases.list(UsuarioDelToken.de(jwt)))
+        return Flux.defer(() -> compras.list(UsuarioDelToken.de(jwt)))
                 .map(InstallmentPurchaseResponse::from);
     }
 
@@ -76,7 +68,7 @@ public class InstallmentPurchaseController {
                         throw new BadRequestException(HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR,
                                 "El parche no trae ningun campo para modificar, ademas del alcance", "body");
                     }
-                    return updatePurchase.update(UsuarioDelToken.de(jwt), compra, parche.toCommand());
+                    return compras.update(UsuarioDelToken.de(jwt), compra, parche.toCommand());
                 })
                 .map(InstallmentPurchaseResponse::from);
     }
@@ -85,7 +77,7 @@ public class InstallmentPurchaseController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public Mono<Void> cancel(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
-        return Mono.defer(() -> cancelPurchase.cancel(UsuarioDelToken.de(jwt), parseId(id)));
+        return Mono.defer(() -> compras.cancel(UsuarioDelToken.de(jwt), parseId(id)));
     }
 
     /** A mano y no como UUID de Spring: su conversion fallida saldria como JSON_PARSING_ERROR del cuerpo. */

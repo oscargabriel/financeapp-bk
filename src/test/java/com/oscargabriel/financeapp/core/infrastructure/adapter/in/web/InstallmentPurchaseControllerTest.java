@@ -32,11 +32,7 @@ import com.oscargabriel.financeapp.core.domain.model.InstallmentPreview;
 import com.oscargabriel.financeapp.core.domain.model.InstallmentPurchaseView;
 import com.oscargabriel.financeapp.core.domain.model.ScheduledInstallment;
 import com.oscargabriel.financeapp.core.domain.model.UpdateInstallmentPurchaseCommand;
-import com.oscargabriel.financeapp.core.domain.port.in.CancelInstallmentPurchasePort;
-import com.oscargabriel.financeapp.core.domain.port.in.CreateInstallmentPurchasePort;
-import com.oscargabriel.financeapp.core.domain.port.in.ListInstallmentPurchasesPort;
-import com.oscargabriel.financeapp.core.domain.port.in.PreviewInstallmentPurchasePort;
-import com.oscargabriel.financeapp.core.domain.port.in.UpdateInstallmentPurchasePort;
+import com.oscargabriel.financeapp.core.domain.port.in.InstallmentPurchasePort;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
 import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.SecurityConfig;
@@ -65,19 +61,7 @@ class InstallmentPurchaseControllerTest {
     private WebTestClient webTestClient;
 
     @MockitoBean
-    private PreviewInstallmentPurchasePort previewPurchase;
-
-    @MockitoBean
-    private CreateInstallmentPurchasePort createPurchase;
-
-    @MockitoBean
-    private ListInstallmentPurchasesPort listPurchases;
-
-    @MockitoBean
-    private UpdateInstallmentPurchasePort updatePurchase;
-
-    @MockitoBean
-    private CancelInstallmentPurchasePort cancelPurchase;
+    private InstallmentPurchasePort compras;
 
     private static JwtMutator tokenDelUsuario() {
         return mockJwt().jwt(jwt -> jwt.subject(TransactionMother.USER_ID.toString()));
@@ -96,7 +80,7 @@ class InstallmentPurchaseControllerTest {
 
     @Test
     void laSimulacionDevuelveElPlan() {
-        when(previewPurchase.preview(eq(TransactionMother.USER_ID), any())).thenReturn(Mono.just(new InstallmentPreview(
+        when(compras.preview(eq(TransactionMother.USER_ID), any())).thenReturn(Mono.just(new InstallmentPreview(
                 InstallmentMother.VISA_ID, new BigDecimal("1200000"), "COP", LocalDate.of(2026, 10, 9), 3,
                 new BigDecimal("2.0000"), plan(null))));
 
@@ -124,7 +108,7 @@ class InstallmentPurchaseControllerTest {
 
         ArgumentCaptor<CreateInstallmentPurchaseCommand> compra =
                 ArgumentCaptor.forClass(CreateInstallmentPurchaseCommand.class);
-        verify(previewPurchase).preview(eq(TransactionMother.USER_ID), compra.capture());
+        verify(compras).preview(eq(TransactionMother.USER_ID), compra.capture());
         assertThat(compra.getValue().purchaseDate()).isEqualTo(LocalDate.of(2026, 10, 9));
         assertThat(compra.getValue().installmentCount()).isEqualTo(3);
     }
@@ -140,12 +124,12 @@ class InstallmentPurchaseControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
                 .jsonPath("$.errors[0].field").isEqualTo("installmentCount");
 
-        verifyNoInteractions(previewPurchase);
+        verifyNoInteractions(compras);
     }
 
     @Test
     void elAltaRespondeCreadaConLaCompraYSuPlan() {
-        when(createPurchase.create(eq(TransactionMother.USER_ID), any())).thenReturn(Mono.just(
+        when(compras.create(eq(TransactionMother.USER_ID), any())).thenReturn(Mono.just(
                 new CreatedInstallmentPurchase(InstallmentMother.televisorSinPagar(), plan(CUOTA_1))));
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
@@ -178,7 +162,7 @@ class InstallmentPurchaseControllerTest {
 
     @Test
     void elListadoDevuelveElResumenSinElPlan() {
-        when(listPurchases.list(TransactionMother.USER_ID)).thenReturn(Flux.just(InstallmentMother.televisorSinPagar()));
+        when(compras.list(TransactionMother.USER_ID)).thenReturn(Flux.just(InstallmentMother.televisorSinPagar()));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE)
                 .exchange()
@@ -194,7 +178,7 @@ class InstallmentPurchaseControllerTest {
     void unaCompraSinCuotasPorVenirTraeLaProximaEnNull() {
         InstallmentPurchaseView pagada = new InstallmentPurchaseView(
                 InstallmentMother.televisor(), 3, BigDecimal.ZERO, BigDecimal.ZERO, null);
-        when(updatePurchase.update(eq(TransactionMother.USER_ID), eq(COMPRA_ID), any())).thenReturn(Mono.just(pagada));
+        when(compras.update(eq(TransactionMother.USER_ID), eq(COMPRA_ID), any())).thenReturn(Mono.just(pagada));
 
         webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/" + COMPRA_ID)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -208,7 +192,7 @@ class InstallmentPurchaseControllerTest {
 
     @Test
     void sinComprasActivasDevuelveUnaListaVacia() {
-        when(listPurchases.list(TransactionMother.USER_ID)).thenReturn(Flux.empty());
+        when(compras.list(TransactionMother.USER_ID)).thenReturn(Flux.empty());
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE)
                 .exchange()
@@ -218,7 +202,7 @@ class InstallmentPurchaseControllerTest {
 
     @Test
     void laEdicionPasaElParcheConvertido() {
-        when(updatePurchase.update(eq(TransactionMother.USER_ID), eq(COMPRA_ID), any()))
+        when(compras.update(eq(TransactionMother.USER_ID), eq(COMPRA_ID), any()))
                 .thenReturn(Mono.just(InstallmentMother.televisorSinPagar()));
 
         webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_BASE + "/" + COMPRA_ID)
@@ -232,7 +216,7 @@ class InstallmentPurchaseControllerTest {
 
         ArgumentCaptor<UpdateInstallmentPurchaseCommand> parche =
                 ArgumentCaptor.forClass(UpdateInstallmentPurchaseCommand.class);
-        verify(updatePurchase).update(eq(TransactionMother.USER_ID), eq(COMPRA_ID), parche.capture());
+        verify(compras).update(eq(TransactionMother.USER_ID), eq(COMPRA_ID), parche.capture());
         assertThat(parche.getValue().scope()).isEqualTo(GroupScope.FUTURE);
         assertThat(parche.getValue().categoryId()).isEqualTo(TransactionMother.AMBAS_ID.toString());
     }
@@ -248,7 +232,7 @@ class InstallmentPurchaseControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
                 .jsonPath("$.errors[0].field").isEqualTo("body");
 
-        verifyNoInteractions(updatePurchase);
+        verifyNoInteractions(compras);
     }
 
     @Test
@@ -261,7 +245,7 @@ class InstallmentPurchaseControllerTest {
                 .expectBody()
                 .jsonPath("$.errors[0].field").isEqualTo("scope");
 
-        verifyNoInteractions(updatePurchase);
+        verifyNoInteractions(compras);
     }
 
     @Test
@@ -278,13 +262,13 @@ class InstallmentPurchaseControllerTest {
 
     @Test
     void laCancelacionRespondeSinContenido() {
-        when(cancelPurchase.cancel(TransactionMother.USER_ID, COMPRA_ID)).thenReturn(Mono.empty());
+        when(compras.cancel(TransactionMother.USER_ID, COMPRA_ID)).thenReturn(Mono.empty());
 
         webTestClient.mutateWith(tokenDelUsuario()).delete().uri(URI_BASE + "/" + COMPRA_ID)
                 .exchange()
                 .expectStatus().isNoContent();
 
-        verify(cancelPurchase).cancel(TransactionMother.USER_ID, COMPRA_ID);
+        verify(compras).cancel(TransactionMother.USER_ID, COMPRA_ID);
     }
 
     @Test
@@ -295,7 +279,7 @@ class InstallmentPurchaseControllerTest {
                 .expectBody()
                 .jsonPath("$.errors[0].field").isEqualTo("id");
 
-        verifyNoInteractions(cancelPurchase);
+        verifyNoInteractions(compras);
     }
 
     @Test
@@ -304,6 +288,6 @@ class InstallmentPurchaseControllerTest {
                 .exchange()
                 .expectStatus().isUnauthorized();
 
-        verifyNoInteractions(listPurchases);
+        verifyNoInteractions(compras);
     }
 }
