@@ -636,7 +636,7 @@ VALUES
 -- Lo compartido (FIN-30)
 --
 -- Las filas que el API habria dejado (TransactionR2dbcAdapter, PartesDelAlta,
--- ApprovePendingTransactionUseCase): si cambia como las escribe, esto se queda
+-- TransactionUseCase): si cambia como las escribe, esto se queda
 -- viejo sin que nada falle. Todo en COP.
 --   G7 hace 240 d el usuario paga el hostal; Carlos y Valentina pagan su parte,
 --                 y los dos ingresos estan aprobados
