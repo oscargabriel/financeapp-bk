@@ -1,8 +1,12 @@
 {
   "enabledMcpjsonServers": ["atlassian"],
   "enabledPlugins": {
-    "superpowers@superpowers-marketplace": false
+    "superpowers@superpowers-marketplace": false,
+    "engineering@synced": false,
+    "cowork-plugin-management@synced": false
   },
+  "disableClaudeAiConnectors": true,
+  "enableArtifact": false,
   "permissions": {
     "allow": [
       "mcp__notion__notion-search",
@@ -21,10 +25,13 @@
       "PowerShell(pwsh -NoProfile -File .claude/scripts/merge-pr-dev.ps1 *)",
       "Bash(pwsh -NoProfile -File ../.claude/scripts/jira.ps1 *)",
       "PowerShell(pwsh -NoProfile -File ../.claude/scripts/jira.ps1 *)",
+      "Bash(pwsh -NoProfile -File ../.claude/scripts/entregar.ps1 *)",
+      "PowerShell(pwsh -NoProfile -File ../.claude/scripts/entregar.ps1 *)",
       "Bash(openspec *)",
       "PowerShell(openspec *)"
     ],
     "deny": [
+      "NotebookEdit",
       "mcp__notion__notion-create-pages",
       "mcp__notion__notion-create-comment",
       "mcp__notion__notion-update-page"

@@ -33,18 +33,22 @@ rules:
     - Si la decisión contradice algo de AGENTS.md, dilo explícitamente y propón el cambio a AGENTS.md como tarea del change.
   tasks:
     - "Cada tarea nombra cómo se verifica: la clase de test (y el método si aplica) o el request de bruno/ que la prueba."
+    - "Cada tarea nombra los archivos y los métodos que crea o toca, con lo que la propuesta ya exploró: la implementación parte de ese mapa y no vuelve a explorar. Si dos clases parecidas se juntan, dice cuál se mueve con git mv."
     - El request de Bruno de un endpoint nuevo o cambiado va en el mismo grupo que el endpoint y se escribe antes, fallando.
     - "Si el change agrega o cambia un request de bruno/, una tarea lo replica en bruno-personal/ (ruta, cuerpo, autenticación) sin ejecutarlo: esa colección apunta a Neon y está fuera de git, así que el PR no muestra si se hizo."
-    - "Indica en cada grupo qué skills de dominio cargar según la tabla del paso 5 de tareas-jira (java-architect, java-exceptions, java-security, java-logging, java-debugging, bruno-cli)."
+    - "Indica en cada grupo qué skills de dominio cargar según la tabla Skills de dominio por grupo de tareas-jira (references/proponer.md: java-architect, java-exceptions, java-security, java-logging, java-debugging, bruno-cli). Un grupo que solo mueve, renombra o junta lo existente siguiendo una regla de AGENTS.md no nombra ninguna."
     - "El último grupo es de verificación: gradlew build y bru run . -r --env local, con los conteos reales."
 
 operations:
   apply:
     guidance:
-      - Antes de la primera tarea, carga las skills de dominio que indiquen los grupos de tasks.md.
+      - Antes de la primera tarea de cada grupo, carga solo las skills de dominio que ese grupo nombra en tasks.md.
       - Cada tarea se hace con TDD siguiendo java-testing; el test se ve fallar por la razón correcta antes de escribir el código.
       - No marques una tarea sin haber corrido su verificación; el último grupo exige gradlew build y bru run en verde.
-      - "Las ediciones independientes (el test, el DTO, el request, el contrato) van juntas en una sola respuesta. Edita con Edit, o con Write si reescribes la mayor parte del archivo; nunca con ReadAllText().Replace() de PowerShell ni con sed -i en serie."
+      - "Ubica antes de leer: grep -n del símbolo y Read con offset y limit sobre ese rango. Nunca cat -n ni Get-Content de un archivo entero para mirar un método, ni releer completo un archivo que ya está en el contexto."
+      - "Las ediciones independientes (el test, el DTO, el request, el contrato) van juntas en una sola respuesta. Edita con Edit, o con Write si reescribes la mayor parte del archivo; nunca con ReadAllText().Replace() de PowerShell, ni con sed o perl, que además cambian los finales de línea."
+      - "Un archivo nuevo se escribe con un solo Write y se corrige con Edit. Para juntar clases parecidas: git mv de la más parecida y Edit, no Write desde cero. Para partir una clase: el bloque va con Write al archivo nuevo y sale del original con un Edit anclado en texto único; nunca recortes por índice de líneas."
+      - "Corre los tests de la tarea filtrados con --tests y la salida recortada (Select-Object -Last 30). Los de tareas independientes del mismo grupo van en una sola corrida; no repitas una corrida sin cambiar nada entre medias."
       - "Marca las casillas de tasks.md con Edit en la misma respuesta que cierra el grupo, sin imprimir el archivo ni el status después."
       - "No agregues al commit cambios del working tree que no sean de la tarea: el usuario suele tener archivos propios sin commitear."
   archive:
