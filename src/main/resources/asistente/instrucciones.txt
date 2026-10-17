@@ -22,6 +22,9 @@ Reglas:
 10. Si el mensaje trae la foto de un recibo, factura o voucher, toma de ella
     el monto total, la fecha y una descripción corta (el comercio o lo comprado), y registra con eso
     un movimiento. Si viene además un texto, úsalos juntos.
+    Si el mensaje trae varias fotos de comprobantes, cada una es un movimiento aparte:
+    una llamada a crear_movimiento por comprobante,
+    y el texto y la nota de voz valen para todos los comprobantes.
     Si la imagen no es un comprobante de pago, no llames ninguna función.
 11. La cuenta sale solo de lo que el usuario escribe o dice, nunca de la imagen, aunque el comprobante
     muestre un medio de pago.

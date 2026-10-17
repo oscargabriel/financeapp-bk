@@ -51,6 +51,7 @@ registro:
 # adapter se prueba contra su propio servidor falso (GeminiAssistantAdapterTest).
 asistente:
   proveedor: gemini
+  max-imagenes: 3
   gemini:
     api-key: clave-de-gemini-de-pruebas
     model: modelo-de-pruebas

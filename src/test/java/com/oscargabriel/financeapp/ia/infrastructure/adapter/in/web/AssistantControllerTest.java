@@ -1,6 +1,7 @@
 package com.oscargabriel.financeapp.ia.infrastructure.adapter.in.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -266,13 +267,24 @@ class AssistantControllerTest {
         }
 
         private static MultipartBodyBuilder conArchivo(byte[] contenido, MediaType tipo) {
-            MultipartBodyBuilder cuerpo = new MultipartBodyBuilder();
+            return agrega(new MultipartBodyBuilder(), contenido, tipo);
+        }
+
+        private static MultipartBodyBuilder agrega(MultipartBodyBuilder cuerpo, byte[] contenido, MediaType tipo) {
             cuerpo.part("file", new ByteArrayResource(contenido) {
                 @Override
                 public String getFilename() {
                     return "recibo.jpg";
                 }
             }).contentType(tipo);
+            return cuerpo;
+        }
+
+        private static MultipartBodyBuilder imagenes(int cuantas, int tamano) {
+            MultipartBodyBuilder cuerpo = new MultipartBodyBuilder();
+            for (int i = 0; i < cuantas; i++) {
+                agrega(cuerpo, jpeg(tamano, "x"), MediaType.IMAGE_JPEG);
+            }
             return cuerpo;
         }
 
@@ -301,8 +313,10 @@ class AssistantControllerTest {
 
             verify(assistant).atender(eq(AsistenteMother.USER_ID), eq(AssistantChannel.WEB_CHAT), recibido.capture());
             assertThat(recibido.getValue().texto()).isEqualTo("con la Nequi");
-            assertThat(recibido.getValue().archivo().tipo()).isEqualTo(AssistantFileType.JPEG);
-            assertThat(recibido.getValue().archivo().contenido()).containsExactly(recibo);
+            assertThat(recibido.getValue().archivos()).singleElement().satisfies(archivo -> {
+                assertThat(archivo.tipo()).isEqualTo(AssistantFileType.JPEG);
+                assertThat(archivo.contenido()).containsExactly(recibo);
+            });
         }
 
         @Test
@@ -363,6 +377,61 @@ class AssistantControllerTest {
                     .expectStatus().isUnauthorized();
 
             verifyNoInteractions(assistant);
+        }
+
+        /** FIN-113: dos partes grandes seguidas tampoco tocan el tope del codec. */
+        @Test
+        void dosImagenesDeCincoMegasPasan() {
+            responde(AssistantReply.noSoportado("No soportado"));
+            ArgumentCaptor<AssistantMessage> recibido = ArgumentCaptor.forClass(AssistantMessage.class);
+
+            envia(imagenes(2, AssistantFile.TOPE_BYTES)).expectStatus().isOk();
+
+            verify(assistant).atender(eq(AsistenteMother.USER_ID), eq(AssistantChannel.WEB_CHAT), recibido.capture());
+            assertThat(recibido.getValue().archivos()).extracting(AssistantFile::tamano)
+                    .containsExactly(AssistantFile.TOPE_BYTES, AssistantFile.TOPE_BYTES);
+        }
+
+        @Test
+        void porEncimaDelTotalEsUn400SinLlamarAlAsistente() {
+            envia(imagenes(3, 4 * 1024 * 1024))
+                    .expectStatus().isBadRequest()
+                    .expectBody()
+                    .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
+                    .jsonPath("$.errors[0].field").isEqualTo("file");
+
+            verifyNoInteractions(assistant);
+        }
+
+        /** Con el max-imagenes de 3 del application.yaml de test. */
+        @Test
+        void unaImagenDeMasEsUn400SinLlamarAlAsistente() {
+            envia(imagenes(4, 64))
+                    .expectStatus().isBadRequest()
+                    .expectBody()
+                    .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
+                    .jsonPath("$.errors[0].field").isEqualTo("file");
+
+            verifyNoInteractions(assistant);
+        }
+
+        @Test
+        void variasSinTokenEsUn401() {
+            MultipartBodyBuilder cuerpo = imagenes(2, 64);
+            agrega(cuerpo, "OggS\0\2\0\0".getBytes(StandardCharsets.ISO_8859_1), MediaType.parseMediaType("audio/ogg"));
+
+            peticion(cuerpo).exchange()
+                    .expectStatus().isUnauthorized()
+                    .expectHeader().valueEquals("WWW-Authenticate", "Bearer");
+
+            verifyNoInteractions(assistant);
+        }
+
+        @Test
+        void unMaximoMenorQueUnoNoDejaConstruirElControlador() {
+            assertThatThrownBy(() -> new AssistantController(assistant, 0))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("1 o mas");
         }
 
         @Test

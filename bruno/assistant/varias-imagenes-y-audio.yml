@@ -1,0 +1,58 @@
+info:
+  name: Varias imagenes y un audio
+  type: http
+  seq: 80
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: multipart-form
+    data:
+      - name: data
+        type: text
+        value: hola
+      - name: file
+        type: file
+        value:
+          - assistant/archivos/recibo.png
+        contentType: image/png
+      - name: file
+        type: file
+        value:
+          - assistant/archivos/recibo.png
+        contentType: image/png
+      - name: file
+        type: file
+        value:
+          - assistant/archivos/recibo.png
+        contentType: image/png
+      - name: file
+        type: file
+        value:
+          - assistant/archivos/nota.ogg
+        contentType: audio/ogg
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.intent
+      operator: eq
+      value: UNSUPPORTED
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Tres imagenes, un audio y un texto (FIN-113)
+
+  `hola` hace que el stub responda sin funcion, para no crear un grupo que cambie los pendientes de
+  la coleccion. Lo que se prueba es que el multipart pasa la validacion.

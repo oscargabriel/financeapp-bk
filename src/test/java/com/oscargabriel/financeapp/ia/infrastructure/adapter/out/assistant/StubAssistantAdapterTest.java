@@ -74,7 +74,7 @@ class StubAssistantAdapterTest {
         AssistantFile recibo = new AssistantFile(AssistantFileType.JPEG,
                 new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x01});
 
-        StepVerifier.create(stub.interpretar(new AssistantMessage(null, recibo), CONTEXTO))
+        StepVerifier.create(stub.interpretar(new AssistantMessage(null, List.of(recibo)), CONTEXTO))
                 .expectNext(new AssistantDecision.SinFuncion())
                 .verifyComplete();
     }
@@ -84,7 +84,7 @@ class StubAssistantAdapterTest {
         AssistantFile recibo = new AssistantFile(AssistantFileType.JPEG,
                 new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x01});
 
-        StepVerifier.create(stub.interpretar(new AssistantMessage("consultar_saldo", recibo), CONTEXTO))
+        StepVerifier.create(stub.interpretar(new AssistantMessage("consultar_saldo", List.of(recibo)), CONTEXTO))
                 .expectNext(new AssistantDecision.ConsultarSaldo(null, null))
                 .verifyComplete();
     }

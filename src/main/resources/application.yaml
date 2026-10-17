@@ -92,6 +92,8 @@ registro:
 # decidido y el despliegue lo elige a sabiendas. El stub solo existe fuera de prod (design.md de FA-77).
 asistente:
   proveedor: ${ASISTENTE_PROVEEDOR:gemini}
+  # Imagenes por mensaje del chat web (FIN-113), ademas de un audio. Se ajusta en el servicio tras probar.
+  max-imagenes: ${ASISTENTE_MAX_IMAGENES:3}
   gemini:
     api-key: ${GEMINI_API_KEY}
     model: ${GEMINI_MODEL}

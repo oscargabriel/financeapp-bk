@@ -1,0 +1,49 @@
+info:
+  name: Varios archivos sin credenciales
+  type: http
+  seq: 87
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: multipart-form
+    data:
+      - name: file
+        type: file
+        value:
+          - assistant/archivos/recibo.png
+        contentType: image/png
+      - name: file
+        type: file
+        value:
+          - assistant/archivos/recibo.png
+        contentType: image/png
+      - name: file
+        type: file
+        value:
+          - assistant/archivos/nota.ogg
+        contentType: audio/ogg
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "401"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: UNAUTHENTICATED
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: authorization
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Sin Authorization
+
+  Sin la clave `http.auth` a proposito, para romper la herencia del Bearer de la coleccion.

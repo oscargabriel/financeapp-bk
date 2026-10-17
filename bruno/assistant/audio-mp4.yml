@@ -1,0 +1,42 @@
+info:
+  name: Audio MP4
+  type: http
+  seq: 82
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: multipart-form
+    data:
+      - name: data
+        type: text
+        value: hola
+      - name: file
+        type: file
+        value:
+          - assistant/archivos/nota.m4a
+        contentType: audio/mp4
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.intent
+      operator: eq
+      value: UNSUPPORTED
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Audio de Safari (FIN-113)
+
+  `nota.m4a` es un MP4 hecho a mano con marca `M4A ` y un `hdlr` de tipo `soun`.

@@ -24,6 +24,7 @@ import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestExcept
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantContext;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantDecision;
+import com.oscargabriel.financeapp.ia.domain.model.AssistantFile;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantMessage;
 import com.oscargabriel.financeapp.ia.domain.port.out.AssistantModelPort;
 
@@ -93,18 +94,19 @@ public class GeminiAssistantAdapter implements AssistantModelPort {
     }
 
     /**
-     * El texto, si lo hay, y despues el archivo en base64 dentro del mismo turno (design.md de FIN-57, decision 5).
-     * inlineData y no la Files API, que guardaria el archivo en Google.
+     * El texto, si lo hay, y despues cada archivo en base64 dentro del mismo turno, en el orden en que llegaron
+     * (design.md de FIN-57, decision 5, y de FIN-113, decision 6). inlineData y no la Files API, que guardaria el
+     * archivo en Google.
      */
     private static List<Map<String, Object>> partes(AssistantMessage mensaje) {
-        List<Map<String, Object>> partes = new ArrayList<>(2);
+        List<Map<String, Object>> partes = new ArrayList<>(mensaje.archivos().size() + 1);
         if (mensaje.texto() != null) {
             partes.add(Map.of("text", mensaje.texto()));
         }
-        if (mensaje.archivo() != null) {
+        for (AssistantFile archivo : mensaje.archivos()) {
             partes.add(Map.of("inlineData", Map.of(
-                    "mimeType", mensaje.archivo().tipo().mime(),
-                    "data", Base64.getEncoder().encodeToString(mensaje.archivo().contenido()))));
+                    "mimeType", archivo.tipo().mime(),
+                    "data", Base64.getEncoder().encodeToString(archivo.contenido()))));
         }
         return partes;
     }

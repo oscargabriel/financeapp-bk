@@ -176,7 +176,7 @@ class AssistantUseCaseTest {
     @Test
     void unMensajeConArchivoLlegaEnteroAlModeloYSuDecisionSeResuelveIgual() {
         AssistantMessage conRecibo = new AssistantMessage("con la efectivo",
-                new AssistantFile(AssistantFileType.JPEG, new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x01}));
+                List.of(new AssistantFile(AssistantFileType.JPEG, new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x01})));
         when(modelo.interpretar(any(), any())).thenReturn(Mono.just(new AssistantDecision.CrearMovimientos(
                 List.of(gasto("20000", "efectivo", "mercado", "Almuerzo", null)))));
         ArgumentCaptor<AssistantMessage> recibido = ArgumentCaptor.forClass(AssistantMessage.class);

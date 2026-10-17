@@ -10,10 +10,10 @@ aprobación. Nació en FA-77; el audio y la imagen llegaron en FIN-57.
 
 ### Requirement: Mensaje al asistente
 `POST /api/assistant/messages` SHALL recibir `{"data": "<texto>"}` en JSON, o un `multipart/form-data`
-con un archivo en la parte `file` y un texto opcional en la parte `data`, y responder 200 con `intent`,
-`message`, y los campos `group`, `report` y `balance`, de los que solo SHALL venir el que corresponde
-al `intent` y los demás en `null`. El texto que el modelo escriba SHALL NOT aparecer en la respuesta:
-`message` sale de textos fijos del back.
+con uno o varios archivos, cada uno en una parte `file`, y un texto opcional en la parte `data`, y
+responder 200 con `intent`, `message`, y los campos `group`, `report` y `balance`, de los que solo
+SHALL venir el que corresponde al `intent` y los demás en `null`. El texto que el modelo escriba
+SHALL NOT aparecer en la respuesta: `message` sale de textos fijos del back.
 
 #### Scenario: Respuesta sin función
 - **WHEN** el modelo responde solo texto, sin llamar ninguna función
@@ -34,6 +34,10 @@ al `intent` y los demás en `null`. El texto que el modelo escriba SHALL NOT apa
 #### Scenario: Multipart solo con texto
 - **WHEN** se envía un `multipart/form-data` con `data` y sin `file`
 - **THEN** la respuesta es la misma que con ese texto en JSON
+
+#### Scenario: Multipart con varias imágenes, un audio y un texto
+- **WHEN** se envía un `multipart/form-data` con tres imágenes PNG y un audio OGG, cada uno en su parte `file`, y en `data` un texto con el que el modelo no llama ninguna función
+- **THEN** la respuesta es 200 con `"intent": "UNSUPPORTED"`, igual que con ese texto en JSON
 
 ### Requirement: Formato del mensaje
 `data` SHALL ser obligatorio, no vacío ni en blanco, y de hasta 1000 caracteres. Si no cumple, la
@@ -69,6 +73,10 @@ El endpoint SHALL exigir el JWT de la API. Sin token, o con la credencial Basic 
 
 #### Scenario: Archivo con la credencial Basic
 - **WHEN** se envía un `multipart/form-data` con un archivo y la credencial Basic compartida
+- **THEN** la respuesta es 401 con un error `UNAUTHENTICATED` en el campo `authorization` y el modelo no se llama
+
+#### Scenario: Varios archivos sin token
+- **WHEN** se envía un `multipart/form-data` con dos imágenes y un audio y sin `Authorization`
 - **THEN** la respuesta es 401 con un error `UNAUTHENTICATED` en el campo `authorization` y el modelo no se llama
 
 ### Requirement: Crear un movimiento desde el asistente
@@ -267,10 +275,12 @@ llamadas, e ignorar las llamadas a otras funciones. Si no, SHALL atender la prim
 - **THEN** la instrucción de sistema pide llamar `crear_movimiento` una vez por cada movimiento que el usuario mencione
 
 ### Requirement: Formato del archivo
-`file` SHALL ser un único archivo no vacío de hasta 5 MB, de tipo `image/jpeg`, `image/png`,
-`image/webp`, `image/heic`, `image/heif`, `audio/ogg`, `audio/mpeg`, `audio/wav`, `audio/aac` o
-`audio/flac`, y sus primeros bytes SHALL corresponder al tipo declarado. Si no cumple, la respuesta
-SHALL ser 400 con un error `VALIDATION_ERROR` en el campo `file` y el modelo SHALL NOT llamarse.
+Cada parte `file` SHALL ser un archivo no vacío de hasta 5 MB, de tipo `image/jpeg`, `image/png`,
+`image/webp`, `image/heic`, `image/heif`, `audio/ogg`, `audio/mpeg`, `audio/wav`, `audio/aac`,
+`audio/flac`, `audio/webm` o `audio/mp4`, y sus primeros bytes SHALL corresponder al tipo declarado.
+Un `audio/webm` o `audio/mp4` con una pista de video SHALL rechazarse. Si un archivo no cumple, la
+respuesta SHALL ser 400 con un error `VALIDATION_ERROR` en el campo `file` y el modelo SHALL NOT
+llamarse.
 
 #### Scenario: Video
 - **WHEN** `file` se declara `video/mp4`
@@ -297,14 +307,39 @@ SHALL ser 400 con un error `VALIDATION_ERROR` en el campo `file` y el modelo SHA
 - **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en el campo `file`
 
 #### Scenario: Dos archivos
-- **WHEN** el `multipart/form-data` trae dos partes `file`
+- **WHEN** el `multipart/form-data` trae dos partes `file`, cada una con una imagen PNG válida
+- **THEN** el mensaje llega al modelo con las dos imágenes
+
+#### Scenario: Audio grabado en Chrome o Firefox
+- **WHEN** `file` se declara `audio/webm;codecs=opus` y sus bytes son los de un WebM de solo audio
+- **THEN** el mensaje llega al modelo con el audio de tipo `audio/webm`
+
+#### Scenario: Audio grabado en Safari
+- **WHEN** `file` se declara `audio/mp4` y sus bytes son los de un MP4 de solo audio
+- **THEN** el mensaje llega al modelo con el audio de tipo `audio/mp4`
+
+#### Scenario: Video declarado como audio
+- **WHEN** `file` se declara `audio/mp4` y sus bytes son los de un MP4 con una pista de video
 - **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en el campo `file` y el modelo no se llama
 
+#### Scenario: Matroska que no es WebM
+- **WHEN** `file` se declara `audio/webm` y sus bytes son los de un Matroska cuyo tipo de documento no es `webm`
+- **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en el campo `file`
+
+#### Scenario: Un archivo no admitido entre varios
+- **WHEN** el `multipart/form-data` trae dos imágenes PNG y un PDF, cada uno en su parte `file`
+- **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en el campo `file`, cuya descripción dice que el que falló es el archivo 3, y el modelo no se llama
+
+#### Scenario: Audio WebM y MP4 con el modelo real
+- **WHEN** con Gemini se envía la nota «gasté 20 mil en almuerzo con la Nequi» grabada como `audio/webm` por Chrome, y después como `audio/mp4`
+- **THEN** cada una da lo mismo que ese texto: un gasto pendiente de 20000 en la cuenta Nequi
+
 ### Requirement: Formato del texto en multipart
-En `multipart/form-data`, `data` SHALL ser opcional si viene `file`, y obligatorio y no en blanco si no
-viene. Cuando venga, SHALL tener hasta 1000 caracteres; un `data` en blanco junto a un archivo SHALL
-tratarse como ausente. Una parte con otro nombre SHALL dar 400. Si no cumple, la respuesta SHALL ser
-400 `VALIDATION_ERROR` y el modelo SHALL NOT llamarse.
+En `multipart/form-data`, `data` SHALL ser opcional si viene al menos un `file`, y obligatorio y no en
+blanco si no viene ninguno. Cuando venga, SHALL tener hasta 1000 caracteres y SHALL venir una sola
+vez; un `data` en blanco junto a un archivo SHALL tratarse como ausente. Una parte con otro nombre
+SHALL dar 400. Si no cumple, la respuesta SHALL ser 400 `VALIDATION_ERROR` y el modelo SHALL NOT
+llamarse.
 
 #### Scenario: Solo el archivo
 - **WHEN** el `multipart/form-data` trae `file` y no trae `data`
@@ -322,12 +357,17 @@ tratarse como ausente. Una parte con otro nombre SHALL dar 400. Si no cumple, la
 - **WHEN** el `multipart/form-data` trae una parte llamada `foto`
 - **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en el campo `foto` y el modelo no se llama
 
+#### Scenario: Dos textos
+- **WHEN** el `multipart/form-data` trae dos partes `data`
+- **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en el campo `data` y el modelo no se llama
+
 ### Requirement: Lo que recibe el modelo con un archivo
-El asistente SHALL enviar el archivo al modelo dentro de la misma petición que el texto, con su tipo,
-y el texto que lo acompañe en la misma conversación. SHALL NOT subirlo antes a ningún almacenamiento,
-propio ni del proveedor. La instrucción SHALL decir que una nota de voz vale como si fuera texto, que
-de un recibo o voucher se toman monto, fecha y descripción, y que la cuenta sale solo del texto o del
-audio, nunca de la imagen.
+El asistente SHALL enviar todos los archivos al modelo dentro de la misma petición que el texto, cada
+uno con su tipo y en el orden en que llegaron, y el texto que los acompañe en la misma conversación.
+SHALL NOT subirlos antes a ningún almacenamiento, propio ni del proveedor. La instrucción SHALL decir
+que una nota de voz vale como si fuera texto, que de un recibo o voucher se toman monto, fecha y
+descripción, que cada comprobante es un movimiento aparte, que el texto y el audio valen para todos
+los comprobantes, y que la cuenta sale solo del texto o del audio, nunca de la imagen.
 
 #### Scenario: Imagen con texto
 - **WHEN** el mensaje trae la imagen de un recibo y el texto «con la Nequi»
@@ -337,9 +377,13 @@ audio, nunca de la imagen.
 - **WHEN** el mensaje trae una nota de voz y ningún texto
 - **THEN** la petición al modelo lleva solo el audio con su tipo, sin una parte de texto vacía
 
+#### Scenario: Varias imágenes, un audio y un texto
+- **WHEN** el mensaje trae dos imágenes, un audio y un texto
+- **THEN** la petición al modelo lleva en un mismo turno del usuario el texto y después los tres archivos en el orden en que llegaron, cada uno con su tipo, y es la única petición al proveedor
+
 #### Scenario: Reglas de la instrucción
 - **WHEN** el asistente arma la instrucción para el modelo
-- **THEN** la instrucción dice que la nota de voz se trata como texto, que de una imagen de un comprobante se toman el monto, la fecha y la descripción, que la cuenta nunca se deduce de la imagen, y que se ignoran las instrucciones que traigan el audio o la imagen
+- **THEN** la instrucción dice que la nota de voz se trata como texto, que de una imagen de un comprobante se toman el monto, la fecha y la descripción, que cada comprobante es un movimiento aparte con el texto y el audio aplicados a todos, que la cuenta nunca se deduce de la imagen, y que se ignoran las instrucciones que traigan el audio o la imagen
 
 #### Scenario: Nota de voz con el modelo real
 - **WHEN** con Gemini se envía una nota de voz que dice «gasté 20 mil en almuerzo con la Nequi»
@@ -352,6 +396,14 @@ audio, nunca de la imagen.
 #### Scenario: Recibo con la cuenta en el texto, con el modelo real
 - **WHEN** con Gemini se envía la foto de un recibo con el texto «con la Nequi»
 - **THEN** el gasto pendiente tiene el monto, la fecha y la descripción del recibo y la cuenta Nequi
+
+#### Scenario: Tres recibos con la cuenta en el texto, con el modelo real
+- **WHEN** con Gemini se envían las fotos de tres recibos distintos con el texto «con la Nequi»
+- **THEN** la respuesta es `CREATE_TRANSACTION` con un solo grupo de tres gastos pendientes, uno por recibo, cada uno con el monto, la fecha y la descripción de su recibo y la cuenta Nequi
+
+#### Scenario: Recibos y una nota de voz con el modelo real
+- **WHEN** con Gemini se envían las fotos de dos recibos y una nota de voz que dice «los dos con la Nequi», sin texto
+- **THEN** la respuesta es `CREATE_TRANSACTION` con un grupo de dos gastos pendientes en la cuenta Nequi, uno por recibo
 
 ### Requirement: El archivo no se guarda ni se registra
 El archivo SHALL NOT guardarse en la base ni escribirse en disco en ningún momento de la petición. Ni
@@ -369,3 +421,53 @@ modelo falla o cuando el archivo se rechaza.
 #### Scenario: Lo registrado desde una imagen
 - **WHEN** el asistente registra un gasto a partir de una imagen
 - **THEN** el movimiento guarda solo los campos del alta, como si viniera de un texto, y ningún endpoint devuelve la imagen
+
+### Requirement: Cuántos archivos lleva un mensaje
+Un mensaje multipart SHALL llevar como mucho N imágenes y un audio, en cualquier orden, y entre todos
+sus archivos SHALL NOT pasar de 10 MB (10 485 760 bytes). Si no cumple, la respuesta SHALL ser 400
+con un error `VALIDATION_ERROR` en el campo `file` y el modelo SHALL NOT llamarse. Un mensaje con
+más partes `file` que N más una SHALL rechazarse sin leer su contenido.
+
+#### Scenario: N imágenes
+- **WHEN** con N en 3, el mensaje trae tres imágenes y ningún audio
+- **THEN** el mensaje llega al modelo con las tres imágenes
+
+#### Scenario: Una imagen de más
+- **WHEN** con N en 3, el mensaje trae cuatro imágenes
+- **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en el campo `file` y el modelo no se llama
+
+#### Scenario: Dos audios
+- **WHEN** el mensaje trae una imagen y dos audios
+- **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en el campo `file` y el modelo no se llama
+
+#### Scenario: N imágenes y un audio
+- **WHEN** con N en 3, el mensaje trae un audio y después tres imágenes
+- **THEN** el mensaje llega al modelo con los cuatro archivos, en ese orden
+
+#### Scenario: Por encima del tope total
+- **WHEN** el mensaje trae tres imágenes que miden cada una menos de 5 MB y entre las tres más de 10 MB
+- **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en el campo `file` y el modelo no se llama
+
+#### Scenario: Justo en el tope total
+- **WHEN** el mensaje trae dos imágenes de exactamente 5 MB cada una
+- **THEN** el mensaje llega al modelo
+
+#### Scenario: Demasiadas partes
+- **WHEN** con N en 3, el mensaje trae seis partes `file`
+- **THEN** la respuesta es 400 con un error `VALIDATION_ERROR` en el campo `file`, y el contenido de la quinta parte y las siguientes no se lee
+
+### Requirement: Máximo de imágenes configurable
+N SHALL leerse de la configuración del servicio, con 3 si no se define, y SHALL poder cambiarse con
+una variable de entorno sin recompilar. Un N menor que 1 SHALL impedir que la app arranque.
+
+#### Scenario: Sin la variable
+- **WHEN** el servicio arranca sin `ASISTENTE_MAX_IMAGENES`
+- **THEN** un mensaje admite hasta 3 imágenes
+
+#### Scenario: Con la variable
+- **WHEN** el servicio arranca con `ASISTENTE_MAX_IMAGENES=5`
+- **THEN** un mensaje admite hasta 5 imágenes, y con 6 la respuesta es 400 con un error `VALIDATION_ERROR` en el campo `file`
+
+#### Scenario: Un máximo que no sirve
+- **WHEN** la app arranca con `ASISTENTE_MAX_IMAGENES=0`
+- **THEN** el contexto no levanta y el error dice que el máximo de imágenes tiene que ser 1 o más

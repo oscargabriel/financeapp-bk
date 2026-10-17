@@ -90,8 +90,9 @@ instrucción (`asistente/instrucciones.txt`) que el modelo deja de seguir, o un 
 Gemini rechaza.
 
 **Correr esto al tocar `instrucciones.txt`, `GeminiAssistantAdapter`, el modelo
-(`GEMINI_MODEL`) o los tipos de `AssistantFileType`.** Verificado por última vez el 14-10-2026 con
-`gemini-3.1-flash-lite`.
+(`GEMINI_MODEL`) o los tipos de `AssistantFileType`.** Verificado por última vez el 17-10-2026 con
+`gemini-3.1-flash-lite`: un archivo el 14-10-2026 (FIN-57), y varios archivos y el audio del
+navegador el 17-10-2026 (FIN-113, *Varios archivos y el audio del navegador*).
 
 ### Los archivos
 
@@ -154,5 +155,190 @@ Después, descartar los grupos creados (`POST /api/transactions/groups/{id}/reje
 el log de la app no tiene el contenido de los archivos: buscar el texto del recibo y el comienzo de
 su base64 (`iVBORw0`, y `UklGR` del WAV) no debe dar ninguna línea.
 
-Los tiempos son lo que más hay que vigilar: el límite es `GEMINI_TIMEOUT` (20 s), y el recibo con
-texto ya usa dos tercios. Si una corrida se acerca al límite, subir la variable en el servicio.
+Los tiempos son lo que más hay que vigilar: el límite es `GEMINI_TIMEOUT` (20 s por defecto; 30 s
+en el servicio desde FIN-113, ver `docs/despliegue.md`). Si una corrida se acerca al límite, subir
+la variable en el servicio.
+
+### Varios archivos y el audio del navegador
+
+FIN-113 agregó varias partes `file` por mensaje y los tipos `audio/webm` y `audio/mp4`, los que
+graba `MediaRecorder`. En la máquina no hay `ffmpeg`, y el WAV de la síntesis de Windows no sirve
+como WebM ni MP4: las notas se graban en Chrome, reproduciendo el WAV por Web Audio hacia un
+`MediaStreamDestination`. Todo va en `build/verificacion-fin-113/`, que git ignora.
+
+**Los archivos.** Las notas «los dos con la Nequi» y «los tres con la Nequi» y tres recibos
+distintos, con el mismo método que *Los archivos* de arriba. Se corre con `powershell.exe` (5.1),
+guardado como `generar.ps1` fuera del repo y llamado con `-d <ruta absoluta de la carpeta>`:
+
+```powershell
+param([string]$d)
+Add-Type -AssemblyName System.Speech
+$s = New-Object System.Speech.Synthesis.SpeechSynthesizer
+$v = $s.GetInstalledVoices() | Where-Object { $_.VoiceInfo.Culture.Name -like 'es*' } | Select-Object -First 1
+if ($v) { $s.SelectVoice($v.VoiceInfo.Name) }
+$s.SetOutputToWaveFile("$d\nota-dos.wav"); $s.Speak('los dos con la Nequi'); $s.SetOutputToNull()
+$s.SetOutputToWaveFile("$d\nota-tres.wav"); $s.Speak('los tres con la Nequi'); $s.Dispose()
+Add-Type -AssemblyName System.Drawing
+$recibos = @(
+  @('RESTAURANTE EL BUEN SABOR','NIT 900.123.456-7','Calle 10 # 5-20, Bogota','','Fecha: 13/10/2026  Hora: 12:45','Factura No. 004512','----------------------------------','1 Bandeja paisa        28.000','1 Limonada natural      6.000','1 Postre del dia        4.500','----------------------------------','TOTAL A PAGAR    38.500','Medio de pago: TARJETA DEBITO','Gracias por su compra'),
+  @('DROGUERIA LA SALUD','NIT 800.456.789-1','Carrera 7 # 45-10, Bogota','','Fecha: 14/10/2026  Hora: 09:10','Factura No. 118230','----------------------------------','1 Acetaminofen 500mg    7.900','1 Vitamina C            15.600','----------------------------------','TOTAL A PAGAR    23.500','Medio de pago: TARJETA CREDITO','Gracias por su compra'),
+  @('PARQUEADERO CENTRAL','NIT 901.222.333-4','Avenida 19 # 100-05, Bogota','','Fecha: 15/10/2026  Hora: 18:30','Recibo No. 77231','----------------------------------','Entrada 15:02  Salida 18:28','Tiempo: 3 h 26 min','----------------------------------','TOTAL A PAGAR    12.000','Medio de pago: EFECTIVO','Gracias por su visita')
+)
+for ($i = 0; $i -lt 3; $i++) {
+  $b = New-Object System.Drawing.Bitmap 420, 560; $g = [System.Drawing.Graphics]::FromImage($b)
+  $g.Clear([System.Drawing.Color]::White); $f = New-Object System.Drawing.Font 'Consolas', 14; $y = 20
+  foreach ($l in $recibos[$i]) { $g.DrawString($l, $f, [System.Drawing.Brushes]::Black, 20, $y); $y += 28 }
+  $b.Save("$d\recibo-$($i + 1).png", [System.Drawing.Imaging.ImageFormat]::Png); $g.Dispose(); $b.Dispose()
+}
+```
+
+Ningún recibo dice Nequi: la cuenta sale del texto o de la nota. La `nota.wav` de FIN-57 se copia a
+la carpeta para grabarla también.
+
+**La grabación.** `grabar.html?nota=<nombre>` carga `<nombre>.wav` y lo graba como
+`audio/webm;codecs=opus` y como `audio/mp4`, si el navegador los admite. Abierta a mano descarga
+`<nombre>.webm` y `<nombre>.m4a`; con `&auto` graba sola y los sube por `PUT` a `servidor.py`, que
+además sirve la carpeta:
+
+```html
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<title>Grabar nota FIN-113</title>
+<button id="grabar">Grabar</button>
+<pre id="estado"></pre>
+<script>
+const estado = document.getElementById('estado');
+const log = t => { estado.textContent += t + '\n'; };
+const nota = new URLSearchParams(location.search).get('nota') || 'nota';
+const tipos = [['audio/webm;codecs=opus', nota + '.webm'], ['audio/mp4', nota + '.m4a']];
+tipos.forEach(([t]) => log(t + ' soportado: ' + MediaRecorder.isTypeSupported(t)));
+
+async function grabar(ctx, buffer, tipo, nombre) {
+  const destino = ctx.createMediaStreamDestination();
+  const fuente = ctx.createBufferSource();
+  fuente.buffer = buffer;
+  fuente.connect(destino);
+  const rec = new MediaRecorder(destino.stream, { mimeType: tipo });
+  const trozos = [];
+  rec.ondataavailable = e => trozos.push(e.data);
+  const fin = new Promise(r => rec.onstop = r);
+  rec.start();
+  fuente.start();
+  await new Promise(r => fuente.onended = r);
+  await new Promise(r => setTimeout(r, 300));
+  rec.stop();
+  await fin;
+  const blob = new Blob(trozos, { type: rec.mimeType });
+  const cabecera = [...new Uint8Array(await blob.slice(0, 12).arrayBuffer())]
+    .map(b => b.toString(16).padStart(2, '0')).join(' ');
+  log(nombre + ': ' + rec.mimeType + ', ' + blob.size + ' bytes, cabecera ' + cabecera);
+  if (auto) {
+    await fetch(nombre, { method: 'PUT', body: blob });
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = nombre;
+  a.click();
+}
+
+const auto = location.search.includes('auto');
+const correr = async () => {
+  try {
+    const ctx = new AudioContext();
+    await ctx.resume();
+    const buffer = await ctx.decodeAudioData(await (await fetch(nota + '.wav')).arrayBuffer());
+    for (const [tipo, nombre] of tipos) {
+      if (MediaRecorder.isTypeSupported(tipo)) await grabar(ctx, buffer, tipo, nombre);
+    }
+    log('listo');
+  } catch (e) {
+    log('error: ' + e);
+  }
+  if (auto) await fetch('estado.txt', { method: 'PUT', body: estado.textContent });
+};
+document.getElementById('grabar').onclick = correr;
+if (auto) correr();
+</script>
+</html>
+```
+
+```python
+import functools
+import http.server
+import pathlib
+import re
+import sys
+
+DIR = pathlib.Path(__file__).parent
+PERMITIDOS = re.compile(r"^(nota[a-z-]*\.(webm|m4a)|estado\.txt)$")
+
+
+class Handler(http.server.SimpleHTTPRequestHandler):
+    def do_PUT(self):
+        nombre = self.path.lstrip("/")
+        if not PERMITIDOS.match(nombre):
+            self.send_error(400)
+            return
+        largo = int(self.headers["Content-Length"])
+        (DIR / nombre).write_bytes(self.rfile.read(largo))
+        self.send_response(204)
+        self.end_headers()
+
+
+puerto = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
+http.server.ThreadingHTTPServer(
+    ("127.0.0.1", puerto), functools.partial(Handler, directory=str(DIR))
+).serve_forever()
+```
+
+Con `python servidor.py 8765` corriendo en la carpeta, cada nota se graba con Chrome headless, que
+no necesita la extensión ni un clic:
+
+```powershell
+$chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+foreach ($n in 'nota', 'nota-dos', 'nota-tres') {
+  & $chrome --headless=new --autoplay-policy=no-user-gesture-required --user-data-dir="$env:TEMP\chrome-fin113-$n" `
+    --no-first-run "http://127.0.0.1:8765/grabar.html?auto&nota=$n"
+}
+```
+
+`estado.txt` dice qué grabó. Chrome admite los dos tipos; su `audio/mp4` es Opus en MP4 (marca
+`isom`, declarado `audio/mp4;codecs=opus`), no el AAC de Safari. Si el Chrome de la máquina no admite
+`audio/mp4`, la nota MP4 se pide grabada en Safari.
+
+**La corrida.** La app y el token, como en *La corrida* de arriba. Desde Git Bash, en
+`build/verificacion-fin-113`:
+
+```bash
+U=http://localhost:8082/api/assistant/messages; C=(-s -w "\n%{time_total}s\n" -H "Authorization: Bearer $T")
+curl "${C[@]}" -F "file=@nota.webm;type=audio/webm" $U
+curl "${C[@]}" -F "file=@nota.m4a;type=audio/mp4" $U
+curl "${C[@]}" -F "data=con la Nequi" -F "file=@recibo-1.png;type=image/png" -F "file=@recibo-2.png;type=image/png" -F "file=@recibo-3.png;type=image/png" $U
+curl "${C[@]}" -F "file=@recibo-1.png;type=image/png" -F "file=@recibo-2.png;type=image/png" -F "file=@nota-dos.webm;type=audio/webm" $U
+curl "${C[@]}" -F "file=@recibo-1.png;type=image/png" -F "file=@recibo-2.png;type=image/png" -F "file=@recibo-3.png;type=image/png" -F "file=@nota-tres.webm;type=audio/webm" $U
+```
+
+Antes de la app, la tarea 1.1 de FIN-113 mandó `nota.webm` y `nota.m4a` directo a `generateContent`
+con «transcribe el audio»: las dos dieron «Gasté 20.000 en almuerzo con la Nequi.» en tres corridas,
+en 25,4, 9,2 y 14,8 s el WebM y 1,4, 9,3 y 9,8 s el MP4.
+
+Lo esperado, y lo que dio el 17-10-2026 con `gemini-3.1-flash-lite`:
+
+| Envío | Esperado | Resultado | Tiempos |
+|---|---|---|---|
+| `nota.webm` | Lo mismo que el texto: un gasto pendiente de 20.000 en Nequi, Restaurantes | `CREATE_TRANSACTION`, 20.000, Nequi, Restaurantes, «Almuerzo» | 1,4 s |
+| `nota.m4a` | Lo mismo | `CREATE_TRANSACTION`, 20.000, Nequi, Restaurantes, «almuerzo» | 1,3 s |
+| Tres recibos con «con la Nequi» | Un grupo con un gasto por recibo, cada uno con su monto, fecha y descripción, en Nequi | `CREATE_TRANSACTION`, un grupo: 38.500 el 13-10 «Restaurante El Buen Sabor» (Restaurantes), 23.500 el 14-10 «Drogueria La Salud» (Salud), 12.000 el 15-10 «Parqueadero Central» (Transporte), los tres en Nequi | 502 a los 18,3 s (Gemini respondió 503), 15,6 s, 3,7 s |
+| Dos recibos y `nota-dos.webm`, sin texto | Un grupo con dos gastos en Nequi | `CREATE_TRANSACTION`, 38.500 y 23.500 en Nequi | 502 a los 20 s (`TimeoutException`), 2,9 s, 6,2 s |
+| Tres recibos y `nota-tres.webm` | Un grupo con tres gastos en Nequi | `CREATE_TRANSACTION`, los mismos tres gastos que con el texto | 2,2 s, 9,0 s, 1,7 s |
+
+Los resultados correctos fueron iguales en todas las corridas que respondieron. La fecha queda a las
+12:00 de Bogotá, como en FIN-57. Una de nueve corridas con varios archivos llegó al timeout de 20 s:
+por eso el servicio pasa a `GEMINI_TIMEOUT=30s`.
+
+Después, descartar los grupos creados y buscar en el log de la app el texto de los recibos
+(`RESTAURANTE EL BUEN SABOR`, `DROGUERIA LA SALUD`), el comienzo del base64 del PNG (`iVBORw0`), del
+WebM (`GkXfo`) y del MP4 de Chrome (`AAAAJGZ0eXBpc29t`), e `inlineData`: ninguno debe dar una línea.
+El 17-10-2026 no dio ninguna.

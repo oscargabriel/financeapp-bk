@@ -1,0 +1,43 @@
+info:
+  name: Video declarado como audio
+  type: http
+  seq: 83
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: multipart-form
+    data:
+      - name: file
+        type: file
+        value:
+          - assistant/archivos/video-con-pista.mp4
+        contentType: audio/mp4
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: file
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Video declarado como audio (FIN-113)
+
+  `audio/mp4` y `video/mp4` son el mismo contenedor: `video-con-pista.mp4` tiene un `hdlr` de tipo
+  `vide` y se rechaza aunque se declare audio.

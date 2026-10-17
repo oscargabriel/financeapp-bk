@@ -1,0 +1,50 @@
+info:
+  name: Un archivo no admitido entre varios
+  type: http
+  seq: 85
+
+http:
+  method: POST
+  url: "{{baseUrl}}/assistant/messages"
+  body:
+    type: multipart-form
+    data:
+      - name: file
+        type: file
+        value:
+          - assistant/archivos/recibo.png
+        contentType: image/png
+      - name: file
+        type: file
+        value:
+          - assistant/archivos/recibo.png
+        contentType: image/png
+      - name: file
+        type: file
+        value:
+          - assistant/archivos/documento.pdf
+        contentType: application/pdf
+  auth:
+    type: bearer
+    token: "{{tokenAsistente}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: file
+    - expression: res.body.errors[0].description
+      operator: contains
+      value: "Archivo 3:"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
