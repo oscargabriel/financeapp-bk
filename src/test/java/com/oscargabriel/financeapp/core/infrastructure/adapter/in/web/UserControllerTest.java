@@ -28,10 +28,7 @@ import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.core.domain.model.ChangePasswordCommand;
 import com.oscargabriel.financeapp.core.domain.model.FirstPasswordCommand;
 import com.oscargabriel.financeapp.core.domain.model.UpdateUserProfileCommand;
-import com.oscargabriel.financeapp.core.domain.port.in.ChangePasswordPort;
-import com.oscargabriel.financeapp.core.domain.port.in.GetUserProfilePort;
-import com.oscargabriel.financeapp.core.domain.port.in.SetFirstPasswordPort;
-import com.oscargabriel.financeapp.core.domain.port.in.UpdateUserProfilePort;
+import com.oscargabriel.financeapp.core.domain.port.in.UserPort;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
 import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.SecurityConfig;
@@ -52,16 +49,7 @@ class UserControllerTest {
     private WebTestClient webTestClient;
 
     @MockitoBean
-    private GetUserProfilePort getProfile;
-
-    @MockitoBean
-    private UpdateUserProfilePort updateProfile;
-
-    @MockitoBean
-    private ChangePasswordPort changePassword;
-
-    @MockitoBean
-    private SetFirstPasswordPort setFirstPassword;
+    private UserPort usuarios;
 
     private static JwtMutator tokenDelUsuario() {
         return mockJwt().jwt(jwt -> jwt.subject(UserMother.ID.toString()));
@@ -73,12 +61,12 @@ class UserControllerTest {
                 .exchange()
                 .expectStatus().isUnauthorized();
 
-        verifyNoInteractions(getProfile);
+        verifyNoInteractions(usuarios);
     }
 
     @Test
     void devuelveElPerfilDelUsuarioDelTokenConElFormatoDelContrato() {
-        when(getProfile.get(UserMother.ID)).thenReturn(Mono.just(UserMother.unPerfil()));
+        when(usuarios.get(UserMother.ID)).thenReturn(Mono.just(UserMother.unPerfil()));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_PERFIL)
                 .exchange()
@@ -99,7 +87,7 @@ class UserControllerTest {
     /** FIN-60: telegramLinked es un booleano; el id del chat no sale. */
     @Test
     void elPerfilTraeExactamenteLasClavesDelContrato() {
-        when(getProfile.get(UserMother.ID)).thenReturn(Mono.just(UserMother.unPerfilConTelegram()));
+        when(usuarios.get(UserMother.ID)).thenReturn(Mono.just(UserMother.unPerfilConTelegram()));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_PERFIL)
                 .exchange()
@@ -115,7 +103,7 @@ class UserControllerTest {
     /** FIN-53: el front decide con estos dos campos si ofrece definir la primera contrasena. */
     @Test
     void elPerfilDeUnUsuarioDeGoogleDiceQueNoTieneContrasena() {
-        when(getProfile.get(UserMother.ID)).thenReturn(Mono.just(UserMother.unPerfilDeGoogle()));
+        when(usuarios.get(UserMother.ID)).thenReturn(Mono.just(UserMother.unPerfilDeGoogle()));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_PERFIL)
                 .exchange()
@@ -128,7 +116,7 @@ class UserControllerTest {
     /** OWASP A02: el perfil nunca lleva la contrasena ni su hash, ni bajo otro nombre. */
     @Test
     void nuncaDevuelveLaContrasenaNiSuHash() {
-        when(getProfile.get(UserMother.ID)).thenReturn(Mono.just(UserMother.unPerfil()));
+        when(usuarios.get(UserMother.ID)).thenReturn(Mono.just(UserMother.unPerfil()));
 
         byte[] cuerpo = webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_PERFIL)
                 .exchange()
@@ -140,7 +128,7 @@ class UserControllerTest {
 
     @Test
     void elPatchDevuelveElPerfilYTrasladaElParcheTalCual() {
-        when(updateProfile.update(any(), any())).thenReturn(Mono.just(UserMother.unPerfil()));
+        when(usuarios.update(any(), any())).thenReturn(Mono.just(UserMother.unPerfil()));
 
         webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_PERFIL)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -156,7 +144,7 @@ class UserControllerTest {
                 .jsonPath("$.hasPassword").isEqualTo(true)
                 .jsonPath("$.googleLinked").isEqualTo(false);
 
-        verify(updateProfile).update(UserMother.ID, new UpdateUserProfileCommand(
+        verify(usuarios).update(UserMother.ID, new UpdateUserProfileCommand(
                 " Ana ", "", "Ana@Ejemplo.com", "+573001234567", "America/Bogota", " usd ", "unaClaveLarga"));
     }
 
@@ -172,13 +160,13 @@ class UserControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
                 .jsonPath("$.errors[0].field").isEqualTo("body");
 
-        verifyNoInteractions(updateProfile);
+        verifyNoInteractions(usuarios);
     }
 
     /** La moneda cuenta como campo modificable (FIN-29): sola no es un parche vacio. */
     @Test
     void laMonedaBaseSolaLlegaAlCasoDeUso() {
-        when(updateProfile.update(any(), any())).thenReturn(Mono.just(UserMother.unPerfil()));
+        when(usuarios.update(any(), any())).thenReturn(Mono.just(UserMother.unPerfil()));
 
         webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_PERFIL)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -186,7 +174,7 @@ class UserControllerTest {
                 .exchange()
                 .expectStatus().isOk();
 
-        verify(updateProfile).update(UserMother.ID,
+        verify(usuarios).update(UserMother.ID,
                 new UpdateUserProfileCommand(null, null, null, null, null, "USD", null));
     }
 
@@ -203,7 +191,7 @@ class UserControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
                 .jsonPath("$.errors[0].field").isEqualTo("baseCurrencyCode");
 
-        verifyNoInteractions(updateProfile);
+        verifyNoInteractions(usuarios);
     }
 
     @Test
@@ -217,7 +205,7 @@ class UserControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
                 .jsonPath("$.errors[0].field").isEqualTo("phone");
 
-        verifyNoInteractions(updateProfile);
+        verifyNoInteractions(usuarios);
     }
 
     @Test
@@ -228,12 +216,12 @@ class UserControllerTest {
                 .exchange()
                 .expectStatus().isUnauthorized();
 
-        verifyNoInteractions(updateProfile);
+        verifyNoInteractions(usuarios);
     }
 
     @Test
     void cambiarLaClaveEsUn204SinCuerpo() {
-        when(changePassword.change(any(), any())).thenReturn(Mono.empty());
+        when(usuarios.changePassword(any(), any())).thenReturn(Mono.empty());
 
         webTestClient.mutateWith(tokenDelUsuario()).put().uri(URI_CLAVE)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -242,7 +230,7 @@ class UserControllerTest {
                 .expectStatus().isNoContent()
                 .expectBody().isEmpty();
 
-        verify(changePassword).change(UserMother.ID, new ChangePasswordCommand("unaClaveLarga", "otraClaveLarga"));
+        verify(usuarios).changePassword(UserMother.ID, new ChangePasswordCommand("unaClaveLarga", "otraClaveLarga"));
     }
 
     @Test
@@ -256,13 +244,13 @@ class UserControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
                 .jsonPath("$.errors[0].field").isEqualTo("newPassword");
 
-        verifyNoInteractions(changePassword);
+        verifyNoInteractions(usuarios);
     }
 
     /** 400 y no 401: un 401 haria que el front cerrara una sesion que sigue siendo valida. */
     @Test
     void laClaveActualEquivocadaSaleComo400() {
-        when(changePassword.change(any(), any())).thenReturn(Mono.error(new BadRequestException(
+        when(usuarios.changePassword(any(), any())).thenReturn(Mono.error(new BadRequestException(
                 HttpStatus.BAD_REQUEST, ErrorCodes.INVALID_CREDENTIALS, "La contrasena actual no es correcta",
                 "currentPassword")));
 
@@ -284,12 +272,12 @@ class UserControllerTest {
                 .exchange()
                 .expectStatus().isUnauthorized();
 
-        verifyNoInteractions(changePassword);
+        verifyNoInteractions(usuarios);
     }
 
     @Test
     void definirLaPrimeraClaveEsUn204SinCuerpo() {
-        when(setFirstPassword.define(any(), any())).thenReturn(Mono.empty());
+        when(usuarios.setFirstPassword(any(), any())).thenReturn(Mono.empty());
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_CLAVE)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -298,7 +286,7 @@ class UserControllerTest {
                 .expectStatus().isNoContent()
                 .expectBody().isEmpty();
 
-        verify(setFirstPassword).define(UserMother.ID,
+        verify(usuarios).setFirstPassword(UserMother.ID,
                 new FirstPasswordCommand("un.id-token.de-google", "primeraClaveLarga"));
     }
 
@@ -313,7 +301,7 @@ class UserControllerTest {
                 .jsonPath("$.errors[?(@.field == 'idToken')].code").isEqualTo("VALIDATION_ERROR")
                 .jsonPath("$.errors[?(@.field == 'newPassword')].code").isEqualTo("VALIDATION_ERROR");
 
-        verifyNoInteractions(setFirstPassword);
+        verifyNoInteractions(usuarios);
     }
 
     @ParameterizedTest
@@ -328,7 +316,7 @@ class UserControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
                 .jsonPath("$.errors[0].field").isEqualTo("newPassword");
 
-        verifyNoInteractions(setFirstPassword);
+        verifyNoInteractions(usuarios);
     }
 
     /** Los errores del caso de uso salen con su status: 400 y no 401 para el token (decision 3 de FIN-53). */
@@ -339,7 +327,7 @@ class UserControllerTest {
         "BAD_GATEWAY, EXTERNAL_SERVICE_ERROR, idToken"
     })
     void losErroresDeLaPrimeraClaveSalenConSuStatus(HttpStatus status, ErrorCodes codigo, String campo) {
-        when(setFirstPassword.define(any(), any())).thenReturn(Mono.error(
+        when(usuarios.setFirstPassword(any(), any())).thenReturn(Mono.error(
                 new BadRequestException(status, codigo, "rechazado", campo)));
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_CLAVE)
@@ -354,7 +342,7 @@ class UserControllerTest {
 
     @Test
     void elUsuarioInactivoSaleComo401ConElFormatoDelProyecto() {
-        when(getProfile.get(UserMother.ID)).thenReturn(Mono.error(new BadRequestException(
+        when(usuarios.get(UserMother.ID)).thenReturn(Mono.error(new BadRequestException(
                 HttpStatus.UNAUTHORIZED, ErrorCodes.UNAUTHENTICATED, "Autenticacion requerida", "authorization")));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_PERFIL)

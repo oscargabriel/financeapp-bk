@@ -27,7 +27,7 @@ import com.oscargabriel.financeapp.compartido.support.BasicMother;
 import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.support.TokenMother;
 import com.oscargabriel.financeapp.core.domain.model.UpdateUserProfileCommand;
-import com.oscargabriel.financeapp.core.domain.port.in.UpdateUserProfilePort;
+import com.oscargabriel.financeapp.core.domain.port.in.UserPort;
 import com.oscargabriel.financeapp.core.support.UserMother;
 
 import reactor.core.publisher.Mono;
@@ -45,7 +45,7 @@ class UsersIT {
     private int port;
 
     @MockitoBean
-    private UpdateUserProfilePort updateProfile;
+    private UserPort usuarios;
 
     private WebTestClient webTestClient;
 
@@ -83,21 +83,21 @@ class UsersIT {
 
     @Test
     void laMonedaSolaLlegaAlCasoDeUsoTalComoVino() {
-        when(updateProfile.update(any(), any())).thenReturn(Mono.just(UserMother.unPerfil()));
+        when(usuarios.update(any(), any())).thenReturn(Mono.just(UserMother.unPerfil()));
 
         parcheDeMoneda()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.baseCurrencyCode").isEqualTo("COP");
 
-        verify(updateProfile).update(TokenMother.USUARIO,
+        verify(usuarios).update(TokenMother.USUARIO,
                 new UpdateUserProfileCommand(null, null, null, null, null, " eur ", null));
     }
 
     /** El 502 del caso de uso pasa por el WebExceptionHandler con la forma de error del proyecto. */
     @Test
     void laMonedaSinTasaSaleComo502EnServer() {
-        when(updateProfile.update(any(), any())).thenReturn(Mono.error(new BadRequestException(
+        when(usuarios.update(any(), any())).thenReturn(Mono.error(new BadRequestException(
                 HttpStatus.BAD_GATEWAY, ErrorCodes.EXTERNAL_SERVICE_ERROR,
                 "No hay tasa de cambio para la moneda nueva; intenta de nuevo", "server")));
 
