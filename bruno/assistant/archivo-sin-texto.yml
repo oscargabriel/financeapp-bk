@@ -1,7 +1,7 @@
 info:
   name: Solo el archivo
   type: http
-  seq: 70
+  seq: 71
 
 http:
   method: POST

@@ -118,10 +118,13 @@ no se compara: para decidir se usa `intent`.
 **A tener en cuenta**
 
 - **Lo que registra queda sin confirmar, en un grupo** (FIN-58). Entra con `"status": "PENDING"` y
-  `"origin": "TELEGRAM"`, y no mueve saldos hasta confirmarse. Se confirma o se descarta todo junto con
+  `"origin": "WEB_CHAT"`, y no mueve saldos hasta confirmarse. Se confirma o se descarta todo junto con
   `POST /api/transactions/groups/{group.id}/approve` o `/reject`, y lo que no se confirme queda en
   `GET /api/transactions/pending`, donde se aprueba o se rechaza uno a uno (ver
   [Movimientos pendientes](transacciones.md#movimientos-pendientes)). `message` pide confirmar o descartar.
+- **El origen dice el canal** (FIN-112): lo que entra por este endpoint, en JSON o en multipart, es
+  `WEB_CHAT`; lo que registre el bot de Telegram (FIN-61) será `TELEGRAM`
+  (ver [`origin`](transacciones.md#post-apitransactions)).
 - **Varios movimientos en un mensaje** ("almuerzo 20 mil y taxi 15 mil con la Nequi") se registran
   todos o ninguno: si uno no se puede resolver, es `NEEDS_CLARIFICATION`, `message` dice cuál
   ("Movimiento 2: …") y no se crea nada. Si el mensaje pide registrar y además consultar, solo se

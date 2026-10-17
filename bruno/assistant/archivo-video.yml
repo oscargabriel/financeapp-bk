@@ -1,7 +1,7 @@
 info:
   name: Archivo de video
   type: http
-  seq: 71
+  seq: 72
 
 http:
   method: POST

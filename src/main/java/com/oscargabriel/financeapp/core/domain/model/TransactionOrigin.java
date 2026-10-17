@@ -6,8 +6,11 @@ package com.oscargabriel.financeapp.core.domain.model;
  */
 public enum TransactionOrigin {
     WEB,
+    /** Lo pone el bot de Telegram (FIN-61): hoy ningun endpoint lo produce. */
     TELEGRAM,
     IMPORT,
     /** Reservado para la ingesta desde correo (FIN-12): hoy ningun endpoint lo produce, solo los datos de demo y de prueba. */
-    EMAIL
+    EMAIL,
+    /** Lo pone el asistente cuando la peticion llega por {@code POST /api/assistant/messages} (FIN-112). */
+    WEB_CHAT
 }

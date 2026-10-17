@@ -407,9 +407,10 @@ credencial Basic compartida, SHALL responder 401 sin cambiar nada.
 - **THEN** la respuesta es 401 con un error `UNAUTHENTICATED` en el campo `authorization`
 
 ### Requirement: Origen de un movimiento
-Todo movimiento SHALL tener un origen: `WEB`, `TELEGRAM`, `IMPORT` o `EMAIL`. Los que entran por
-`POST /api/transactions` SHALL tener origen `WEB`, y los que registra el asistente, `TELEGRAM`.
-Ningún endpoint SHALL producir `IMPORT` ni `EMAIL`, reservado este para la ingesta desde correo. El
+Todo movimiento SHALL tener un origen: `WEB`, `TELEGRAM`, `IMPORT`, `EMAIL` o `WEB_CHAT`. Los que
+entran por `POST /api/transactions` SHALL tener origen `WEB`, y los que registra el asistente por
+`POST /api/assistant/messages`, `WEB_CHAT`. `TELEGRAM` queda para lo que registre el bot. Ningún
+endpoint SHALL producir `TELEGRAM`, `IMPORT` ni `EMAIL`, reservado este para la ingesta desde correo. El
 origen SHALL NOT decidir el estado: solo dice por dónde entró el movimiento. La respuesta de un
 movimiento SHALL incluir el campo `origin` en el alta, la modificación, la aprobación y la lista de
 pendientes.
@@ -427,7 +428,15 @@ pendientes.
 - **THEN** la respuesta es 201 y el movimiento devuelve `"origin": "WEB"`
 
 #### Scenario: El origen se conserva al aprobar
-- **WHEN** el usuario aprueba un pendiente creado por el asistente
+- **WHEN** el usuario aprueba un pendiente creado por el asistente desde `POST /api/assistant/messages`
+- **THEN** la respuesta es 200 con `"status": "CONFIRMED"` y `"origin": "WEB_CHAT"`
+
+#### Scenario: El cliente no puede declarar el chat web
+- **WHEN** un elemento del lote de `POST /api/transactions` trae `"origin": "WEB_CHAT"`
+- **THEN** la respuesta es 201 y el movimiento devuelve `"origin": "WEB"`
+
+#### Scenario: Un pendiente que llegó por Telegram
+- **WHEN** el usuario tiene un gasto pendiente guardado con origen `TELEGRAM` y lo aprueba
 - **THEN** la respuesta es 200 con `"status": "CONFIRMED"` y `"origin": "TELEGRAM"`
 
 #### Scenario: Un pendiente WEB

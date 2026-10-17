@@ -27,7 +27,7 @@ runtime:
           expect(lista.map(function (t) { return t.amount; })).to.eql([20000, 15000]);
           lista.forEach(function (t) {
             expect(t.status).to.equal("CONFIRMED");
-            expect(t.origin).to.equal("TELEGRAM");
+            expect(t.origin).to.equal("WEB_CHAT");
             expect(t.groupId).to.equal(bru.getVar("grupoAsistente"));
           });
         });

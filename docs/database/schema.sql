@@ -525,7 +525,7 @@ CREATE TABLE finance.transactions (
     share_id                UUID,
     group_id                UUID,
     CONSTRAINT ck_transactions_type      CHECK (type IN ('EXPENSE', 'INCOME', 'TRANSFER')),
-    CONSTRAINT ck_transactions_origin      CHECK (origin IN ('WEB', 'TELEGRAM', 'IMPORT', 'EMAIL')),
+    CONSTRAINT ck_transactions_origin      CHECK (origin IN ('WEB', 'TELEGRAM', 'IMPORT', 'EMAIL', 'WEB_CHAT')),
     CONSTRAINT ck_transactions_status      CHECK (status IN ('PENDING', 'CONFIRMED')),
     CONSTRAINT ck_transactions_amount      CHECK (amount > 0),
     CONSTRAINT ck_transactions_amount_base CHECK (amount_base > 0),

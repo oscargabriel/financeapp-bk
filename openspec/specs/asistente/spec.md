@@ -73,7 +73,7 @@ El endpoint SHALL exigir el JWT de la API. Sin token, o con la credencial Basic 
 
 ### Requirement: Crear un movimiento desde el asistente
 Con `crear_movimiento`, el asistente SHALL registrar el movimiento del usuario del token sin
-confirmar, con `"status": "PENDING"` y `"origin": "TELEGRAM"`, en la moneda de su cuenta, y responder
+confirmar, con `"status": "PENDING"` y `"origin": "WEB_CHAT"`, en la moneda de su cuenta, y responder
 `"intent": "CREATE_TRANSACTION"` con `group`: el `id` de su grupo de pendientes y `transactions`, la
 lista de lo registrado. Cada elemento SHALL traer solo `id`, `type`, `status`, `amount`,
 `currencyCode`, `description`, `occurredAt` en UTC, y los nombres `account`, `destinationAccount` y
@@ -83,7 +83,7 @@ pedir confirmar o descartar. El movimiento SHALL NOT mover saldos hasta confirma
 
 #### Scenario: Gasto con cuenta y categoría propias
 - **WHEN** el modelo llama `crear_movimiento` con `tipo` `EXPENSE`, `monto` 20000, una cuenta y una categoría de gasto del usuario escritas en minúsculas
-- **THEN** la respuesta es 200 con `"intent": "CREATE_TRANSACTION"` y un `group` con un `id` y un único elemento en `transactions`, con `"status": "PENDING"`, `amount` 20000, y en `account` y `category` los nombres tal como los guardó el usuario; el movimiento aparece en `GET /api/transactions/pending` con `"origin": "TELEGRAM"` y el `groupId` de `group.id`
+- **THEN** la respuesta es 200 con `"intent": "CREATE_TRANSACTION"` y un `group` con un `id` y un único elemento en `transactions`, con `"status": "PENDING"`, `amount` 20000, y en `account` y `category` los nombres tal como los guardó el usuario; el movimiento aparece en `GET /api/transactions/pending` con `"origin": "WEB_CHAT"` y el `groupId` de `group.id`
 
 #### Scenario: Solo los campos livianos
 - **WHEN** el asistente registra un gasto
@@ -111,7 +111,11 @@ pedir confirmar o descartar. El movimiento SHALL NOT mover saldos hasta confirma
 
 #### Scenario: Confirmar lo que registró el asistente
 - **WHEN** el usuario envía `POST /api/transactions/groups/{groupId}/approve` con el `group.id` de la respuesta
-- **THEN** la respuesta es 200 con el movimiento `CONFIRMED` y el saldo de su cuenta se mueve
+- **THEN** la respuesta es 200 con el movimiento `CONFIRMED`, `"origin": "WEB_CHAT"`, y el saldo de su cuenta se mueve
+
+#### Scenario: Con un archivo también es el chat web
+- **WHEN** el asistente registra un gasto a partir de un mensaje `multipart/form-data` con un archivo
+- **THEN** el movimiento aparece en `GET /api/transactions/pending` con `"origin": "WEB_CHAT"`
 
 ### Requirement: Lo que el asistente no puede resolver
 Si un nombre de cuenta o de categoría no coincide con ninguno del usuario, o coincide con más de

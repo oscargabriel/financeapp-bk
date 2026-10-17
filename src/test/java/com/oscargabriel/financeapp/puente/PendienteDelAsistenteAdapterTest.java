@@ -15,6 +15,8 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -28,6 +30,7 @@ import com.oscargabriel.financeapp.core.domain.model.Transaction;
 import com.oscargabriel.financeapp.core.domain.model.TransactionOrigin;
 import com.oscargabriel.financeapp.core.domain.model.TransactionStatus;
 import com.oscargabriel.financeapp.core.domain.port.in.CreateTransactionsPort;
+import com.oscargabriel.financeapp.ia.domain.model.AssistantChannel;
 import com.oscargabriel.financeapp.ia.domain.model.NewMovement;
 import com.oscargabriel.financeapp.ia.domain.model.RegisteredGroup;
 import com.oscargabriel.financeapp.ia.domain.model.RegisteredMovement;
@@ -63,19 +66,22 @@ class PendienteDelAsistenteAdapterTest {
     private static Transaction guardado() {
         return new Transaction(GUARDADO, USUARIO, com.oscargabriel.financeapp.core.domain.model.TransactionType.EXPENSE,
                 CUENTA, null, CATEGORIA, new BigDecimal("20000"), "COP", "Almuerzo", null, CUANDO,
-                TransactionStatus.PENDING, TransactionOrigin.TELEGRAM, null, null, null, null, GRUPO, null, null);
+                TransactionStatus.PENDING, TransactionOrigin.WEB_CHAT, null, null, null, null, GRUPO, null, null);
     }
 
-    @Test
-    void registraElLotePendienteConElOrigenDelAsistenteYDevuelveElGrupoConIdEstadoYFecha() {
-        when(alta.create(eq(USUARIO), eq(TransactionOrigin.TELEGRAM), eq(TransactionStatus.PENDING), anyList())).thenReturn(Flux.just(guardado()));
+    /** FIN-112: cada canal del asistente entra con su origen. */
+    @ParameterizedTest
+    @CsvSource({"WEB_CHAT, WEB_CHAT", "TELEGRAM, TELEGRAM"})
+    void registraElLotePendienteConElOrigenDelCanalYDevuelveElGrupoConIdEstadoYFecha(AssistantChannel canal,
+            TransactionOrigin origen) {
+        when(alta.create(eq(USUARIO), eq(origen), eq(TransactionStatus.PENDING), anyList())).thenReturn(Flux.just(guardado()));
 
-        StepVerifier.create(puente.register(USUARIO, List.of(new NewMovement(TransactionType.EXPENSE, CUENTA, null,
+        StepVerifier.create(puente.register(USUARIO, canal, List.of(new NewMovement(TransactionType.EXPENSE, CUENTA, null,
                         CATEGORIA, new BigDecimal("20000"), "COP", "Almuerzo", "2026-10-05T12:00-05:00"))))
                 .expectNext(new RegisteredGroup(GRUPO, List.of(new RegisteredMovement(GUARDADO, "PENDING", CUANDO))))
                 .verifyComplete();
 
-        verify(alta).create(eq(USUARIO), eq(TransactionOrigin.TELEGRAM), eq(TransactionStatus.PENDING), lote.capture());
+        verify(alta).create(eq(USUARIO), eq(origen), eq(TransactionStatus.PENDING), lote.capture());
         assertThat(lote.getValue()).containsExactly(new CreateTransactionCommand("EXPENSE", CUENTA.toString(), null,
                 CATEGORIA.toString(), new BigDecimal("20000"), null, "COP", "Almuerzo", null,
                 "2026-10-05T12:00-05:00", null));
@@ -83,10 +89,10 @@ class PendienteDelAsistenteAdapterTest {
 
     @Test
     void registraVariosMovimientosEnUnSoloLoteYEnOrden() {
-        when(alta.create(eq(USUARIO), eq(TransactionOrigin.TELEGRAM), eq(TransactionStatus.PENDING), anyList()))
+        when(alta.create(eq(USUARIO), eq(TransactionOrigin.WEB_CHAT), eq(TransactionStatus.PENDING), anyList()))
                 .thenReturn(Flux.just(guardado(), guardado()));
 
-        StepVerifier.create(puente.register(USUARIO, List.of(
+        StepVerifier.create(puente.register(USUARIO, AssistantChannel.WEB_CHAT, List.of(
                         new NewMovement(TransactionType.EXPENSE, CUENTA, null, CATEGORIA, new BigDecimal("20000"), "COP",
                                 "Almuerzo", null),
                         new NewMovement(TransactionType.EXPENSE, CUENTA, null, CATEGORIA, new BigDecimal("15000"), "COP",
@@ -94,20 +100,20 @@ class PendienteDelAsistenteAdapterTest {
                 .assertNext(grupo -> assertThat(grupo.movements()).hasSize(2))
                 .verifyComplete();
 
-        verify(alta).create(eq(USUARIO), eq(TransactionOrigin.TELEGRAM), eq(TransactionStatus.PENDING), lote.capture());
+        verify(alta).create(eq(USUARIO), eq(TransactionOrigin.WEB_CHAT), eq(TransactionStatus.PENDING), lote.capture());
         assertThat(lote.getValue()).extracting(CreateTransactionCommand::description).containsExactly("Almuerzo", "Taxi");
     }
 
     @Test
     void unaTransferenciaLlevaLaCuentaDestinoYNoLaCategoria() {
-        when(alta.create(eq(USUARIO), eq(TransactionOrigin.TELEGRAM), eq(TransactionStatus.PENDING), anyList())).thenReturn(Flux.just(guardado()));
+        when(alta.create(eq(USUARIO), eq(TransactionOrigin.WEB_CHAT), eq(TransactionStatus.PENDING), anyList())).thenReturn(Flux.just(guardado()));
 
-        StepVerifier.create(puente.register(USUARIO, List.of(new NewMovement(TransactionType.TRANSFER, CUENTA, DESTINO,
+        StepVerifier.create(puente.register(USUARIO, AssistantChannel.WEB_CHAT, List.of(new NewMovement(TransactionType.TRANSFER, CUENTA, DESTINO,
                         null, new BigDecimal("100000"), "COP", "Al ahorro", null))))
                 .expectNextCount(1)
                 .verifyComplete();
 
-        verify(alta).create(eq(USUARIO), eq(TransactionOrigin.TELEGRAM), eq(TransactionStatus.PENDING), lote.capture());
+        verify(alta).create(eq(USUARIO), eq(TransactionOrigin.WEB_CHAT), eq(TransactionStatus.PENDING), lote.capture());
         assertThat(lote.getValue().getFirst()).extracting(CreateTransactionCommand::type,
                         CreateTransactionCommand::destinationAccountId, CreateTransactionCommand::categoryId,
                         CreateTransactionCommand::occurredAt)
@@ -120,7 +126,7 @@ class PendienteDelAsistenteAdapterTest {
                 "La cuenta esta desactivada", "[0].accountId");
         when(alta.create(eq(USUARIO), any(), any(), anyList())).thenReturn(Flux.error(rechazo));
 
-        StepVerifier.create(puente.register(USUARIO, List.of(new NewMovement(TransactionType.EXPENSE, CUENTA, null,
+        StepVerifier.create(puente.register(USUARIO, AssistantChannel.WEB_CHAT, List.of(new NewMovement(TransactionType.EXPENSE, CUENTA, null,
                         CATEGORIA, new BigDecimal("20000"), "COP", "Almuerzo", null))))
                 .verifyErrorMatches(e -> e == rechazo);
     }

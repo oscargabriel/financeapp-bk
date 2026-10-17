@@ -1,5 +1,6 @@
 package com.oscargabriel.financeapp.ia.application.usecase;
 
+import static com.oscargabriel.financeapp.ia.domain.model.AssistantChannel.WEB_CHAT;
 import static com.oscargabriel.financeapp.ia.support.AsistenteMother.AHORROS_ID;
 import static com.oscargabriel.financeapp.ia.support.AsistenteMother.EFECTIVO_ID;
 import static com.oscargabriel.financeapp.ia.support.AsistenteMother.MERCADO_ID;
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -45,6 +47,7 @@ import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestExcept
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.responses.ErrorDetail;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantBalance;
+import com.oscargabriel.financeapp.ia.domain.model.AssistantChannel;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantContext;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantContext.CategoriaConAmbito;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantDecision;
@@ -116,8 +119,8 @@ class AssistantUseCaseTest {
     void escenario() {
         when(nombres.findActiveAccounts(USER_ID)).thenReturn(Flux.fromIterable(AsistenteMother.cuentas()));
         when(nombres.findLiveCategories(USER_ID)).thenAnswer(invocacion -> Flux.fromIterable(categoriasDelUsuario));
-        when(pendientes.register(eq(USER_ID), any())).thenAnswer(invocacion -> Mono.just(registrados(
-                invocacion.<List<NewMovement>>getArgument(1).size())));
+        when(pendientes.register(eq(USER_ID), any(), any())).thenAnswer(invocacion -> Mono.just(registrados(
+                invocacion.<List<NewMovement>>getArgument(2).size())));
         when(series.catchUp(USER_ID)).thenReturn(Mono.empty());
     }
 
@@ -158,7 +161,7 @@ class AssistantUseCaseTest {
     void elModeloRecibeElTextoLaFechaDeHoyYLosNombresDeLasCuentasYCategoriasActivas() {
         elModeloDecide(new AssistantDecision.SinFuncion());
 
-        StepVerifier.create(useCase().atender(USER_ID, MENSAJE)).expectNextCount(1).verifyComplete();
+        StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE)).expectNextCount(1).verifyComplete();
 
         verify(modelo).interpretar(eq(MENSAJE), contexto.capture());
         assertThat(contexto.getValue().hoy()).isEqualTo(LocalDate.of(2026, 10, 8));
@@ -178,7 +181,7 @@ class AssistantUseCaseTest {
                 List.of(gasto("20000", "efectivo", "mercado", "Almuerzo", null)))));
         ArgumentCaptor<AssistantMessage> recibido = ArgumentCaptor.forClass(AssistantMessage.class);
 
-        StepVerifier.create(useCase().atender(USER_ID, conRecibo))
+        StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,conRecibo))
                 .assertNext(respuesta -> assertThat(respuesta.intent()).isEqualTo(AssistantIntent.CREATE_TRANSACTION))
                 .verifyComplete();
 
@@ -193,7 +196,7 @@ class AssistantUseCaseTest {
         void registraElGastoComoPendienteYLoDevuelveConLosNombres() {
             elModeloDecide(gasto("20000", "efectivo", "MERCADO", " Almuerzo ", null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                     .assertNext(respuesta -> {
                         assertThat(respuesta.intent()).isEqualTo(AssistantIntent.CREATE_TRANSACTION);
                         assertThat(respuesta.group()).isEqualTo(new CreatedGroup(GRUPO_ID, List.of(
@@ -207,9 +210,20 @@ class AssistantUseCaseTest {
                     })
                     .verifyComplete();
 
-            verify(pendientes).register(eq(USER_ID), nuevos.capture());
+            verify(pendientes).register(eq(USER_ID), eq(WEB_CHAT), nuevos.capture());
             assertThat(nuevos.getValue().getFirst()).isEqualTo(new NewMovement(TransactionType.EXPENSE, EFECTIVO_ID, null,
                     MERCADO_ID, new BigDecimal("20000"), "COP", "Almuerzo", null));
+        }
+
+        /** FIN-112: el canal lo fija quien llama y llega tal cual al alta. */
+        @ParameterizedTest
+        @EnumSource(AssistantChannel.class)
+        void registraConElCanalPorElQueEntroLaPeticion(AssistantChannel canal) {
+            elModeloDecide(gasto("20000", "efectivo", "mercado", "Almuerzo", null));
+
+            StepVerifier.create(useCase().atender(USER_ID, canal, MENSAJE)).expectNextCount(1).verifyComplete();
+
+            verify(pendientes).register(eq(USER_ID), eq(canal), any());
         }
 
         @Test
@@ -217,9 +231,9 @@ class AssistantUseCaseTest {
             elModeloDecide(new AssistantDecision.CrearMovimiento("income", "1500000", "Ahorros", null, "salario",
                     "Quincena", null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE)).expectNextCount(1).verifyComplete();
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE)).expectNextCount(1).verifyComplete();
 
-            verify(pendientes).register(eq(USER_ID), nuevos.capture());
+            verify(pendientes).register(eq(USER_ID), eq(WEB_CHAT), nuevos.capture());
             assertThat(nuevos.getValue().getFirst()).extracting(NewMovement::type, NewMovement::accountId, NewMovement::categoryId)
                     .containsExactly(TransactionType.INCOME, AHORROS_ID, SALARIO_ID);
         }
@@ -230,14 +244,14 @@ class AssistantUseCaseTest {
             elModeloDecide(new AssistantDecision.CrearMovimiento("TRANSFER", "100000", "Efectivo", "ahorros",
                     "Mercado", "Ahorro", null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                     .assertNext(r -> assertThat(r.group().transactions().getFirst())
                             .extracting(CreatedMovement::account, CreatedMovement::destinationAccount,
                                     CreatedMovement::category)
                             .containsExactly("Efectivo", "Ahorros", null))
                     .verifyComplete();
 
-            verify(pendientes).register(eq(USER_ID), nuevos.capture());
+            verify(pendientes).register(eq(USER_ID), eq(WEB_CHAT), nuevos.capture());
             assertThat(nuevos.getValue().getFirst()).extracting(NewMovement::accountId, NewMovement::destinationAccountId,
                     NewMovement::categoryId).containsExactly(EFECTIVO_ID, AHORROS_ID, null);
         }
@@ -246,7 +260,7 @@ class AssistantUseCaseTest {
         void unaCuentaQueNoExistePideAclaracionConLasCuentasDelUsuario() {
             elModeloDecide(gasto("20000", "Bancolombia", "Mercado", "Almuerzo", null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                     .assertNext(r -> esAclaracion(r, "Bancolombia", "Efectivo", "Ahorros"))
                     .verifyComplete();
             verifyNoInteractions(pendientes);
@@ -257,7 +271,7 @@ class AssistantUseCaseTest {
         void unaCuentaDesactivadaPideAclaracion() {
             elModeloDecide(gasto("20000", "Nequi", "Mercado", "Almuerzo", null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                     .assertNext(r -> esAclaracion(r, "Nequi"))
                     .verifyComplete();
             verifyNoInteractions(pendientes);
@@ -268,7 +282,7 @@ class AssistantUseCaseTest {
             categoriasDelUsuario.add(new UserCategory(UUID.randomUUID(), "mercado ", CategoryScope.EXPENSE));
             elModeloDecide(gasto("20000", "Efectivo", "Mercado", "Almuerzo", null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                     .assertNext(r -> esAclaracion(r, "Mercado"))
                     .verifyComplete();
             verifyNoInteractions(pendientes);
@@ -279,7 +293,7 @@ class AssistantUseCaseTest {
         void unaCategoriaQueNoAplicaAlTipoPideAclaracion() {
             elModeloDecide(gasto("20000", "Efectivo", "Salario", "Almuerzo", null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                     .assertNext(r -> esAclaracion(r, "Salario", "Mercado"))
                     .verifyComplete();
             verifyNoInteractions(pendientes);
@@ -289,7 +303,7 @@ class AssistantUseCaseTest {
         void unGastoSinCategoriaPideAclaracion() {
             elModeloDecide(gasto("20000", "Efectivo", null, "Almuerzo", null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                     .assertNext(r -> esAclaracion(r, "categoria"))
                     .verifyComplete();
             verifyNoInteractions(pendientes);
@@ -300,7 +314,7 @@ class AssistantUseCaseTest {
         void unMontoInvalidoPideAclaracion(String monto) {
             elModeloDecide(gasto(monto, "Efectivo", "Mercado", "Almuerzo", null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                     .assertNext(r -> esAclaracion(r, "monto"))
                     .verifyComplete();
             verifyNoInteractions(pendientes);
@@ -311,7 +325,7 @@ class AssistantUseCaseTest {
             elModeloDecide(new AssistantDecision.CrearMovimiento("PRESTAMO", "20000", "Efectivo", null, "Mercado",
                     "Almuerzo", null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                     .assertNext(r -> esAclaracion(r, "tipo"))
                     .verifyComplete();
             verifyNoInteractions(pendientes);
@@ -321,7 +335,7 @@ class AssistantUseCaseTest {
         void unaDescripcionVaciaOLargaPideAclaracion() {
             elModeloDecide(gasto("20000", "Efectivo", "Mercado", "x".repeat(256), null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                     .assertNext(r -> esAclaracion(r, "descripcion"))
                     .verifyComplete();
             verifyNoInteractions(pendientes);
@@ -332,9 +346,9 @@ class AssistantUseCaseTest {
         void sinFechaOConLaDeHoyUsaElInstanteDeLaPeticion(String fecha) {
             elModeloDecide(gasto("20000", "Efectivo", "Mercado", "Almuerzo", fecha));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE)).expectNextCount(1).verifyComplete();
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE)).expectNextCount(1).verifyComplete();
 
-            verify(pendientes).register(eq(USER_ID), nuevos.capture());
+            verify(pendientes).register(eq(USER_ID), eq(WEB_CHAT), nuevos.capture());
             assertThat(nuevos.getValue().getFirst().occurredAt()).isNull();
         }
 
@@ -342,9 +356,9 @@ class AssistantUseCaseTest {
         void otroDiaVaALasDoceDeEseDiaEnLaZonaDeLaAplicacion() {
             elModeloDecide(gasto("20000", "Efectivo", "Mercado", "Almuerzo", "2026-10-05"));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE)).expectNextCount(1).verifyComplete();
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE)).expectNextCount(1).verifyComplete();
 
-            verify(pendientes).register(eq(USER_ID), nuevos.capture());
+            verify(pendientes).register(eq(USER_ID), eq(WEB_CHAT), nuevos.capture());
             assertThat(nuevos.getValue().getFirst().occurredAt()).isEqualTo("2026-10-05T12:00-05:00");
         }
 
@@ -352,7 +366,7 @@ class AssistantUseCaseTest {
         void unaFechaQueNoEsUnDiaPideAclaracion() {
             elModeloDecide(gasto("20000", "Efectivo", "Mercado", "Almuerzo", "ayer"));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                     .assertNext(r -> esAclaracion(r, "fecha"))
                     .verifyComplete();
             verifyNoInteractions(pendientes);
@@ -361,12 +375,12 @@ class AssistantUseCaseTest {
         /** Lo que rechaza el alta (aqui, una cuenta desactivada) se le explica al usuario con el mismo mensaje. */
         @Test
         void loQueRechazaElAltaPideAclaracionConSuMensaje() {
-            when(pendientes.register(eq(USER_ID), any()))
+            when(pendientes.register(eq(USER_ID), any(), any()))
                     .thenReturn(Mono.error(new BadRequestException(HttpStatus.BAD_REQUEST, List.of(ErrorDetail.of(
                             ErrorCodes.VALIDATION_ERROR.getCode(), "La cuenta esta desactivada", "[0].accountId")))));
             elModeloDecide(gasto("20000", "Ahorros USD", "Mercado", "Almuerzo", null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                     .assertNext(r -> esAclaracion(r, "La cuenta esta desactivada"))
                     .verifyComplete();
         }
@@ -377,7 +391,7 @@ class AssistantUseCaseTest {
             elModeloDecide(gasto("20000", "Efectivo", "Mercado", "Almuerzo", null),
                     new AssistantDecision.CrearMovimiento("INCOME", "50000", "Ahorros", null, "Salario", "Bono", null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                     .assertNext(r -> {
                         assertThat(r.intent()).isEqualTo(AssistantIntent.CREATE_TRANSACTION);
                         assertThat(r.group().id()).isEqualTo(GRUPO_ID);
@@ -388,7 +402,7 @@ class AssistantUseCaseTest {
                     })
                     .verifyComplete();
 
-            verify(pendientes).register(eq(USER_ID), nuevos.capture());
+            verify(pendientes).register(eq(USER_ID), eq(WEB_CHAT), nuevos.capture());
             assertThat(nuevos.getValue()).extracting(NewMovement::type, NewMovement::accountId)
                     .containsExactly(tuple(TransactionType.EXPENSE, EFECTIVO_ID), tuple(TransactionType.INCOME, AHORROS_ID));
         }
@@ -398,7 +412,7 @@ class AssistantUseCaseTest {
             elModeloDecide(gasto("20000", "Efectivo", "Mercado", "Almuerzo", null),
                     gasto("15000", "Bancolombia", "Mercado", "Taxi", null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                     .assertNext(r -> esAclaracion(r, "Movimiento 2:", "Bancolombia"))
                     .verifyComplete();
             verifyNoInteractions(pendientes);
@@ -408,7 +422,7 @@ class AssistantUseCaseTest {
         void conUnSoloMovimientoLaAclaracionNoLoNumera() {
             elModeloDecide(gasto("20000", "Bancolombia", "Mercado", "Almuerzo", null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                     .assertNext(r -> assertThat(r.message()).doesNotContain("Movimiento 1"))
                     .verifyComplete();
         }
@@ -417,7 +431,7 @@ class AssistantUseCaseTest {
         void registrarNoPoneAlDiaLasSeries() {
             elModeloDecide(gasto("20000", "Efectivo", "Mercado", "Almuerzo", null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE)).expectNextCount(1).verifyComplete();
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE)).expectNextCount(1).verifyComplete();
 
             verifyNoInteractions(series);
         }
@@ -441,7 +455,7 @@ class AssistantUseCaseTest {
         void devuelveLosMovimientosYLosTotalesEnLaMonedaDelUsuario() {
             elModeloDecide(new AssistantDecision.ConsultarMovimientos("2026-10-01", "2026-10-08", null, null, null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                     .assertNext(r -> {
                         assertThat(r.intent()).isEqualTo(AssistantIntent.LIST_TRANSACTIONS);
                         assertThat(r.report()).isEqualTo(new AssistantReport(LocalDate.of(2026, 10, 1),
@@ -458,7 +472,7 @@ class AssistantUseCaseTest {
         void filtraPorElRangoYElTipoPedidosALaHoraDeLaPeticion() {
             elModeloDecide(new AssistantDecision.ConsultarMovimientos("2026-10-01", "2026-10-08", "expense", null, null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE)).expectNextCount(1).verifyComplete();
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE)).expectNextCount(1).verifyComplete();
 
             verify(reportes).findMovements(USER_ID, new ReportFilter(LocalDate.of(2026, 10, 1),
                     LocalDate.of(2026, 10, 8), Set.of(), Set.of(), Set.of(TransactionType.EXPENSE)), AHORA);
@@ -468,7 +482,7 @@ class AssistantUseCaseTest {
         void sinRangoUsaElMesEnCurso() {
             elModeloDecide(new AssistantDecision.ConsultarMovimientos(null, null, null, null, null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE)).expectNextCount(1).verifyComplete();
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE)).expectNextCount(1).verifyComplete();
 
             verify(reportes).findMovements(USER_ID, new ReportFilter(LocalDate.of(2026, 10, 1),
                     LocalDate.of(2026, 10, 31), Set.of(), Set.of(), Set.of()), AHORA);
@@ -478,7 +492,7 @@ class AssistantUseCaseTest {
         void resuelveLaCategoriaYLaCuentaPorNombre() {
             elModeloDecide(new AssistantDecision.ConsultarMovimientos(null, null, null, "mercado", "efectivo"));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE)).expectNextCount(1).verifyComplete();
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE)).expectNextCount(1).verifyComplete();
 
             verify(reportes).findMovements(USER_ID, new ReportFilter(LocalDate.of(2026, 10, 1),
                     LocalDate.of(2026, 10, 31), Set.of(MERCADO_ID), Set.of(EFECTIVO_ID), Set.of()), AHORA);
@@ -488,7 +502,7 @@ class AssistantUseCaseTest {
         void poneAlDiaLasSeriesAntesDeLeer() {
             elModeloDecide(new AssistantDecision.ConsultarMovimientos(null, null, null, null, null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE)).expectNextCount(1).verifyComplete();
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE)).expectNextCount(1).verifyComplete();
 
             InOrder orden = inOrder(series, reportes);
             orden.verify(series).catchUp(USER_ID);
@@ -500,7 +514,7 @@ class AssistantUseCaseTest {
         void unaCategoriaQueNoExistePideAclaracionSinTocarNada() {
             elModeloDecide(new AssistantDecision.ConsultarMovimientos(null, null, null, "Viajes", null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                     .assertNext(r -> esAclaracion(r, "Viajes"))
                     .verifyComplete();
             verifyNoInteractions(series, reportes);
@@ -510,7 +524,7 @@ class AssistantUseCaseTest {
         void soloUnExtremoDelRangoPideAclaracion() {
             elModeloDecide(new AssistantDecision.ConsultarMovimientos("2026-10-01", null, null, null, null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                     .assertNext(r -> esAclaracion(r, "fechas"))
                     .verifyComplete();
             verifyNoInteractions(series, reportes);
@@ -520,7 +534,7 @@ class AssistantUseCaseTest {
         void unRangoInvertidoPideAclaracionSinTocarNada() {
             elModeloDecide(new AssistantDecision.ConsultarMovimientos("2026-10-08", "2026-10-01", null, null, null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                     .assertNext(r -> esAclaracion(r, "2026-10-08", "posterior", "2026-10-01"))
                     .verifyComplete();
             verifyNoInteractions(series, reportes);
@@ -540,7 +554,7 @@ class AssistantUseCaseTest {
         void sinRangoDevuelveElSaldoDelMes() {
             elModeloDecide(new AssistantDecision.ConsultarSaldo(null, null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                     .assertNext(r -> {
                         assertThat(r.intent()).isEqualTo(AssistantIntent.GET_BALANCE);
                         assertThat(r.balance()).isEqualTo(new AssistantBalance(LocalDate.of(2026, 10, 1),
@@ -557,7 +571,7 @@ class AssistantUseCaseTest {
         void conRangoLoPasaTalCual() {
             elModeloDecide(new AssistantDecision.ConsultarSaldo("2026-09-01", "2026-09-30"));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE)).expectNextCount(1).verifyComplete();
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE)).expectNextCount(1).verifyComplete();
 
             verify(saldos).findSums(USER_ID, LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30));
         }
@@ -566,7 +580,7 @@ class AssistantUseCaseTest {
         void poneAlDiaLasSeriesAntesDeLeer() {
             elModeloDecide(new AssistantDecision.ConsultarSaldo(null, null));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE)).expectNextCount(1).verifyComplete();
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE)).expectNextCount(1).verifyComplete();
 
             InOrder orden = inOrder(series, saldos);
             orden.verify(series).catchUp(USER_ID);
@@ -577,7 +591,7 @@ class AssistantUseCaseTest {
         void unaFechaQueNoEsUnDiaPideAclaracion() {
             elModeloDecide(new AssistantDecision.ConsultarSaldo("septiembre", "2026-09-30"));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                     .assertNext(r -> esAclaracion(r, "fecha"))
                     .verifyComplete();
             verifyNoInteractions(series, saldos);
@@ -587,7 +601,7 @@ class AssistantUseCaseTest {
         void unRangoInvertidoPideAclaracionSinTocarNada() {
             elModeloDecide(new AssistantDecision.ConsultarSaldo("2026-09-30", "2026-09-01"));
 
-            StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+            StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                     .assertNext(r -> esAclaracion(r, "posterior"))
                     .verifyComplete();
             verifyNoInteractions(series, saldos);
@@ -598,7 +612,7 @@ class AssistantUseCaseTest {
     void sinFuncionNoEsSoportadoYNoTocaNada() {
         elModeloDecide(new AssistantDecision.SinFuncion());
 
-        StepVerifier.create(useCase().atender(USER_ID, MENSAJE))
+        StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE))
                 .assertNext(r -> {
                     assertThat(r.intent()).isEqualTo(AssistantIntent.UNSUPPORTED);
                     assertThat(r.message()).contains("movimiento", "saldo");
@@ -616,7 +630,7 @@ class AssistantUseCaseTest {
                 "No disponible", "server");
         when(modelo.interpretar(any(), any())).thenReturn(Mono.error(caido));
 
-        StepVerifier.create(useCase().atender(USER_ID, MENSAJE)).verifyErrorMatches(e -> e == caido);
+        StepVerifier.create(useCase().atender(USER_ID, WEB_CHAT,MENSAJE)).verifyErrorMatches(e -> e == caido);
         verifyNoInteractions(pendientes, series, reportes, saldos);
     }
 }
