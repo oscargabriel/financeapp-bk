@@ -1,7 +1,7 @@
 info:
   name: Perfil de un usuario con el teléfono repetido
   type: http
-  seq: 22
+  seq: 44
 
 http:
   method: GET

@@ -1,7 +1,7 @@
 info:
   name: Cambiar el celular desvincula el chat
   type: http
-  seq: 24
+  seq: 46
 
 http:
   method: PATCH

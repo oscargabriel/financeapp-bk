@@ -1,0 +1,42 @@
+info:
+  name: Webhook con el mismo update otra vez
+  type: http
+  seq: 27
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  headers:
+    - name: X-Telegram-Bot-Api-Secret-Token
+      value: "{{telegramSecret}}"
+  body:
+    type: json
+    data: |-
+      {
+        "update_id": 10202,
+        "message": {
+          "message_id": 202,
+          "date": 1791590401,
+          "from": {"id": 777001, "is_bot": false, "first_name": "Ana"},
+          "chat": {"id": 777001, "type": "private", "first_name": "Ana"},
+          "text": "crear_movimiento {\"tipo\":\"EXPENSE\",\"monto\":45000,\"cuenta\":\"Billetera\",\"categoria\":\"Mercado\",\"descripcion\":\"Almuerzo\"}"
+        }
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un reenvío de Telegram no se procesa dos veces (FIN-61)
+
+  Mismo `update_id` que `Webhook con un texto que registra un gasto`: `finance.telegram_updates` ya
+  lo tiene, así que responde 200 sin llamar al asistente. Lo comprueba `Pendientes sin repetir`.

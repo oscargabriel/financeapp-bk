@@ -1,0 +1,47 @@
+info:
+  name: Webhook con el botón Confirmar
+  type: http
+  seq: 29
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  headers:
+    - name: X-Telegram-Bot-Api-Secret-Token
+      value: "{{telegramSecret}}"
+  body:
+    type: json
+    data: |-
+      {
+        "update_id": 10203,
+        "callback_query": {
+          "id": "cb-10203",
+          "from": {"id": 777001, "is_bot": false, "first_name": "Ana"},
+          "message": {
+            "message_id": 203,
+            "date": 1791590402,
+            "chat": {"id": 777001, "type": "private", "first_name": "Ana"},
+            "text": "Registré 1 movimiento sin confirmar:"
+          },
+          "chat_instance": "777001",
+          "data": "confirmar:{{grupoTelegram}}"
+        }
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Confirmar el grupo desde el chat (FIN-61)
+
+  El usuario sale del chat vinculado, nunca del botón. Lo comprueban `Cuenta tras confirmar` y
+  `Pendientes tras confirmar`.

@@ -1,0 +1,43 @@
+info:
+  name: Webhook con una nota de voz sin pie
+  type: http
+  seq: 38
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  headers:
+    - name: X-Telegram-Bot-Api-Secret-Token
+      value: "{{telegramSecret}}"
+  body:
+    type: json
+    data: |-
+      {
+        "update_id": 10207,
+        "message": {
+          "message_id": 207,
+          "date": 1791590405,
+          "from": {"id": 777001, "is_bot": false, "first_name": "Ana"},
+          "chat": {"id": 777001, "type": "private", "first_name": "Ana"},
+          "voice": {"file_id": "stub-ogg", "file_unique_id": "v1", "duration": 3, "mime_type": "audio/ogg", "file_size": 4000}
+        }
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Una nota de voz llega al asistente sin texto (FIN-61)
+
+  El stub de Telegram entrega `stub-ogg` con cabecera Ogg. El asistente stub no oye: sin texto no
+  hay función y responde que no puede hacerlo, así que no se registra nada (`Pendientes tras la nota
+  de voz`). Lo que el modelo real hace con el audio está en `docs/verificaciones-manuales.md`.

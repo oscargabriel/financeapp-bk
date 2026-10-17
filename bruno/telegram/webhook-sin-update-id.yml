@@ -1,0 +1,39 @@
+info:
+  name: Webhook sin update_id
+  type: http
+  seq: 12
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  headers:
+    - name: X-Telegram-Bot-Api-Secret-Token
+      value: "{{telegramSecret}}"
+  body:
+    type: json
+    data: |-
+      {"message": {"message_id": 1, "date": 1791590401, "chat": {"id": 123456, "type": "private"}, "text": "hola"}}
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.errors[0].code
+      operator: eq
+      value: VALIDATION_ERROR
+    - expression: res.body.errors[0].field
+      operator: eq
+      value: updateId
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Un update sin update_id (FIN-61)
+
+  Sin `update_id` el bot no puede saber si ya atendio el update: 400 sobre `updateId`, y ni el bot
+  contesta ni el asistente recibe nada. Telegram siempre lo manda.

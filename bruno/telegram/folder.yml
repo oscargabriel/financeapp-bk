@@ -27,5 +27,15 @@ docs: |
   `webhook-contacto-propio` vincula el chat de `telegram@` y `parche-celular-desvincula` le cambia el
   celular, **solo pasa con `test-data.sql` recien cargado**.
 
+  **La conversación con el asistente (FIN-61) se observa por los pendientes y las cuentas.** Desde
+  `Webhook con /start de un chat vinculado`, el chat 777001 de Ana manda texto, una foto, una nota de
+  voz, un video y los botones Confirmar y Descartar, con `update_id` desde 10201. El asistente es el
+  stub (`<funcion> <json>`), y cada `webhook-*` va seguido de un `GET /transactions/pending` o
+  `GET /accounts` de Ana: el gasto queda pendiente con origen `TELEGRAM`, un `update_id` repetido no
+  registra otro, Confirmar mueve la Billetera una sola vez y Descartar borra el grupo. El stub de
+  Telegram solo entrega dos archivos: `stub-jpeg` (cabecera JPEG) y `stub-ogg` (cabecera Ogg);
+  cualquier otro `file_id` falla como si Telegram no lo diera. `test-data.sql` vacía
+  `finance.telegram_updates`, así que esta parte **también pide los datos recién cargados**.
+
   Necesita `auth/login` antes, por el `accessToken` de `Webhook con Bearer` y de
   `Perfil con un chat guardado sin telefono admitido`.

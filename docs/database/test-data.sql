@@ -57,6 +57,7 @@ SET search_path TO finance, public;
 \set telegram            '10000000-0000-7000-8000-000000000006'
 \set telegram_par1       '10000000-0000-7000-8000-000000000007'
 \set telegram_par2       '10000000-0000-7000-8000-000000000008'
+\set billetera_telegram  '20000000-0000-7000-8000-000000000024'
 \set saldo               '10000000-0000-7000-8000-000000000009'
 \set debito_pesos        '20000000-0000-7000-8000-000000000020'
 \set debito_dolares      '20000000-0000-7000-8000-000000000021'
@@ -591,11 +592,14 @@ SELECT :'compra_ajena'::uuid, :'uid'::uuid, :'credit'::uuid, c.id, 600000, 'COP'
 
 
 -- -----------------------------------------------------------------------------
--- Vinculación del chat de Telegram (FIN-60)
+-- Vinculación del chat de Telegram (FIN-60) y conversación con el asistente (FIN-61)
 --
--- bruno/telegram/ vincula el chat de telegram@ compartiendo su contacto, y después
--- le cambia el celular para desvincularlo: entre dos corridas hay que recargar este
--- script. Los dos telegram-par* comparten teléfono admitido, así que ninguno vincula.
+-- bruno/telegram/ vincula el chat de telegram@ compartiendo su contacto, registra,
+-- confirma y descarta desde el chat en su cuenta Billetera (500.000 de saldo inicial:
+-- una cuenta CASH no confirma un gasto que la deje en negativo), y después le cambia el
+-- celular para desvincularlo: entre dos corridas hay que recargar este script, que
+-- también olvida los update_id ya atendidos para que la corrida siguiente los reuse.
+-- Los dos telegram-par* comparten teléfono admitido, así que ninguno vincula.
 -- +573009990003 está admitido y no es de nadie: es el celular nuevo del parche.
 -- prueba@ conserva su chat 123456789 con un phone sin admitir: cuenta como sin vincular.
 -- -----------------------------------------------------------------------------
@@ -615,6 +619,17 @@ VALUES
     (:'telegram_par2'::uuid, 'telegram-par2@financeapp.local',
      '$2a$10$a1kFiM14Uwu.ShxTcDB0seZDpwZFth4V8tIwytSj8jR46/UK1cAmy',
      'Par dos', '+573009990002', 'COP', 'America/Bogota');
+
+DELETE FROM finance.telegram_updates;
+
+INSERT INTO finance.categories
+    (id, user_id, name, applies_to, icon, color, sort_order, is_system)
+SELECT gen_random_uuid(), :'telegram'::uuid, d.name, d.applies_to, d.icon, d.color, d.sort_order, TRUE
+  FROM finance.default_categories d
+ WHERE d.is_active;
+
+INSERT INTO finance.accounts (id, user_id, name, type, currency_code, initial_balance)
+VALUES (:'billetera_telegram'::uuid, :'telegram'::uuid, 'Billetera', 'CASH', 'COP', 500000);
 
 
 -- -----------------------------------------------------------------------------

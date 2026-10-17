@@ -220,6 +220,19 @@ COMMENT ON TABLE  finance.registration_allowlist IS 'Correos que pueden registra
 COMMENT ON COLUMN finance.registration_allowlist.entry IS 'Un correo exacto (ana@correo.com) o un dominio completo (@correo.com), en minúsculas, o un teléfono E.164 con el + (+573001234567). Un teléfono solo sirve para el bot: el alta no lo tiene en cuenta. Una fila de dominio admite a CUALQUIER cuenta de ese dominio: no usarla con dominios públicos como @gmail.com.';
 
 -- =============================================================================
+-- TELEGRAM_UPDATES
+-- =============================================================================
+
+CREATE TABLE finance.telegram_updates (
+    update_id    BIGINT       PRIMARY KEY,
+    received_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE  finance.telegram_updates IS 'Updates del webhook de Telegram ya atendidos (FIN-61), para que un reenvío no registre ni conteste dos veces. La app inserta cada update al recibirlo y borra los de más de dos días: Telegram guarda los no entregados hasta 24 horas, y tras una semana sin updates elige el siguiente update_id al azar.';
+COMMENT ON COLUMN finance.telegram_updates.update_id IS 'El update_id que manda Telegram. Único por bot.';
+COMMENT ON COLUMN finance.telegram_updates.received_at IS 'Cuándo llegó el update por primera vez. Las filas de más de dos días se borran al atender el siguiente.';
+
+-- =============================================================================
 -- REFRESH_TOKENS
 -- =============================================================================
 

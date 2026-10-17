@@ -203,6 +203,11 @@ erDiagram
         timestamptz created_at
     }
 
+    telegram_updates {
+        bigint update_id PK
+        timestamptz received_at
+    }
+
     refresh_tokens {
         uuid id PK
         uuid user_id FK
@@ -537,6 +542,19 @@ y el login no la consulta. Las filas se insertan y se borran, nunca se
 modifican, por eso no lleva `updated_at`. Se mantiene a mano: las sentencias
 están en `docs/despliegue.md`. El porqué del diseño está en el `design.md` de
 `openspec/changes/archive/2026-10-09-fa-103-registro-admitidos/`.
+
+### Updates de Telegram atendidos
+
+`telegram_updates` guarda el `update_id` de cada update que el webhook del bot
+ya atendió (FIN-61), para que un reenvío de Telegram no registre ni conteste dos
+veces. La app inserta el update al recibirlo, antes de procesarlo, con
+`ON CONFLICT DO NOTHING`: si no insertó, el update ya se atendió. En la misma
+llamada borra las filas de más de dos días, porque Telegram guarda los updates
+no entregados hasta 24 horas y, tras una semana sin updates, elige el siguiente
+`update_id` al azar: una fila vieja podría tapar uno nuevo. Va en la base y no en
+memoria para sobrevivir a un reinicio y valer con más de una instancia. No se
+relaciona con `users`: el update se registra antes de saber de qué chat es. El
+porqué está en el `design.md` del change `fin-61-bot-telegram-asistente`.
 
 ### Sesiones y refresh tokens
 

@@ -1,7 +1,7 @@
 info:
   name: Login de un usuario con el teléfono repetido
   type: http
-  seq: 14
+  seq: 16
 
 http:
   method: POST

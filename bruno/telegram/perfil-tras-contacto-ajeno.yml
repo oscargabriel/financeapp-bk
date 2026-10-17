@@ -1,7 +1,7 @@
 info:
   name: Perfil tras contacto ajeno
   type: http
-  seq: 16
+  seq: 18
 
 http:
   method: GET

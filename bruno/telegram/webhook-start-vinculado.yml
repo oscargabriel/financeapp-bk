@@ -1,0 +1,42 @@
+info:
+  name: Webhook con /start de un chat vinculado
+  type: http
+  seq: 24
+
+http:
+  method: POST
+  url: "{{baseUrl}}/telegram/webhook"
+  headers:
+    - name: X-Telegram-Bot-Api-Secret-Token
+      value: "{{telegramSecret}}"
+  body:
+    type: json
+    data: |-
+      {
+        "update_id": 10201,
+        "message": {
+          "message_id": 201,
+          "date": 1791590401,
+          "from": {"id": 777001, "is_bot": false, "first_name": "Ana"},
+          "chat": {"id": 777001, "type": "private", "first_name": "Ana"},
+          "text": "/start"
+        }
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # /start no llega al asistente (FIN-61)
+
+  El chat de Ana ya está vinculado: el bot responde el saludo fijo y el asistente no recibe nada.
+  Bruno solo ve el 200; el texto lo fija `AtenderUpdateUseCaseTest`.
