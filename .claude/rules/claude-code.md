@@ -34,6 +34,13 @@ La configuración de agentes de este repo —`.claude/`, `AGENTS.md`, `openspec/
 cambio de ese tipo se hace allí; uno propio de este repo, aquí. Los cambios hechos desde la raíz
 llegan sin commit.
 
+`jira.ps1`, `md2adf.ps1` y `entregar.ps1` viven en `1-finanzas/.claude/scripts/` y se llaman con
+`../.claude/scripts/…`: este repo los necesita con la raíz al lado.
+
+`.claude/settings.json` apaga los plugins sincronizados de claude.ai (`engineering`,
+`cowork-plugin-management`), los conectores de claude.ai, Artifact y `NotebookEdit`: no se usan aquí
+y sus descripciones pesaban en cada turno. Se reactivan quitando la clave.
+
 ## OpenSpec
 
 `openspec init` instaló sus skills en `.claude/skills/openspec-*` y sus comandos en
@@ -47,16 +54,19 @@ cambio. Lo propio del proyecto va en `openspec/config.yaml`, en `AGENTS.md` y en
 los dos traen su propio paso de diseño y habría dos dueños de la misma decisión. En este repo eso
 reemplaza la regla global de hacer brainstorming antes de una feature: el diseño se hace en el
 change. La ejecución la cubren las skills del proyecto: `java-testing` (TDD por capa),
-`java-debugging`, `verificar` y las de dominio de la tabla del paso 5 de `tareas-jira`.
+`java-debugging`, `verificar` y las de dominio que cada grupo de `tasks.md` nombra (tabla de
+`references/proponer.md` de `tareas-jira`).
 
 ## Tareas en Jira
 
 El servidor MCP `atlassian` está declarado en `.mcp.json` con alcance de proyecto: solo existe
 aquí. Requiere autenticarse una vez por máquina desde `/mcp`. El ciclo completo —consumir el issue,
-pasarlo por un change de OpenSpec, entregarlo y cerrarlo— está en el skill `tareas-jira`, que tiene
-el `cloudId`, los estados y sus transiciones. Una tarea se lleva en dos sesiones: la
+pasarlo por un change de OpenSpec, entregarlo y cerrarlo— está en el skill `tareas-jira`: un núcleo
+con el `cloudId`, los estados y una tabla de entrada, y cada etapa en `references/` (`proponer.md`,
+`aplicar.md`, `entregar.md`), que se lee al llegar a ella. Una tarea se lleva en dos sesiones: la
 propuesta termina en la aprobación, y la implementación arranca en una sesión nueva con
-`aplica fin-<n>-<slug>` (*Retomar un change aprobado* en `tareas-jira`).
+`aplica fin-<n>-<slug>` (*Retomar un change aprobado* en `aplicar.md`). Un change largo se aplica en
+tramos de tres grupos, cada uno en su sesión.
 
 El servidor `notion` sigue declarado en `.mcp.json` solo para leer el histórico de las tareas
 `FA-n`, pero no está en `enabledMcpjsonServers`: se activa desde `/mcp` cuando hace falta, y

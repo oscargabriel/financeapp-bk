@@ -1,13 +1,22 @@
 # Crear un issue
 
-La descripción va en ADF, no en markdown: con `contentFormat: "markdown"` Jira escapa `- [ ]` y los
-criterios quedan como texto en vez de casillas.
+Se crea con `jira.ps1 crear-lote`, que convierte el markdown a ADF (con `contentFormat: "markdown"`
+Jira escapa `- [ ]` y los criterios quedan como texto), crea, enlaza y verifica en una llamada.
 
 0. Resolver sus dependencias con *Dependencias y orden*, más abajo.
-1. Escribir la descripción en un archivo temporal, precedida de una línea `=== <clave>` (por ejemplo
-   `=== nuevo`):
+1. Escribir el issue en un `lote.md` del scratchpad, con una cabecera y la descripción:
 
    ```markdown
+   === nuevo-1
+   tipo: Historia
+   summary: <qué queda hecho, en una frase>
+   componente: Backend
+   padre: FIN-<x>
+   prioridad: Medium
+   estado: pendiente
+   bloqueada-por: FIN-<n>
+   bloquea: FIN-<m>
+   ---
    ## Contexto
    Parte del epic FIN-<x>: leer sus `## Decisiones` antes de proponer. <Por qué surgió, en qué
    issue apareció o el encargo tal como llegó, y las rutas de archivo que lo muestran.>
@@ -20,7 +29,7 @@ criterios quedan como texto en vez de casillas.
 
    - El `## Contexto` **no copia** las decisiones ni los pedidos del epic: los nombra por su clave.
      Una decisión que solo afecta a esta tarea sí va, como criterio.
-   - `## Depende de` lleva una línea por cada enlace `is blocked by` del paso 4, y se omite si no
+   - `## Depende de` lleva una línea por cada clave de `bloqueada-por`, y se omite si no
      hay dependencias.
    - El último criterio es la verificación del repo. `Backend`: tests de la capa que toca,
      `gradlew build` y `bru run` en verde, y si toca endpoints, el archivo del recurso en
@@ -28,22 +37,25 @@ criterios quedan como texto en vez de casillas.
      `Frontend`: tests de componente o servicio, `ng test` y `ng build` en verde.
    - No lleva `## Notas de implementación`: este repo deja las notas en un comentario al cerrar
      (paso 9).
-2. `& .claude/skills/tareas-jira/md2adf.ps1 -Path <archivo> -OutDir <carpeta>` deja un
-   `<clave>.json`. Soporta `## `, `> `, `- [ ]`, `- [x]`, `- `, párrafos, `código`, `**negrita**` y
-   URLs; nada más.
-3. `createJiraIssue`: `projectKey: "FIN"`, `issueTypeName`, `summary`, `parent` (clave del epic,
-   **siempre**), `description` = contenido del `.json`, `contentFormat: "adf"`, `additional_fields` =
-   `{"components": [{"name": "Backend"}], "priority": {"name": "Medium"}, "labels": [...]}`, con
-   el componente del repo donde se resuelve. Sin `transition` queda en `pendiente`; con
-   `transition: {"id": "21"}`, en `Por hacer`.
-4. `createIssueLink` por cada dependencia, con `type: "Blocks"`, `inwardIssue` = el que bloquea y
-   `outwardIssue` = el que depende. Incluye los enlaces en los que el nuevo bloquea a uno
-   existente.
-5. Verificar con `getJiraIssue` (campos `description`, `issuelinks`, `components`, `parent`) cada
-   issue creado: las claves `FIN-n` de `## Depende de` y sus `is blocked by` coinciden uno a uno
-   —las `FA-n` de Notion solo van en texto—, y los criterios salen como `- [ ]`, no `\[ \]`. Si
-   algo sobra o falta, se corrige antes de seguir.
-6. Decir en chat el orden de ejecución que queda, sacado de los enlaces y con las bloqueadoras de
+   - Cabecera: `componente` es el del repo donde se resuelve y `padre` el epic, **siempre**.
+     `estado` es `pendiente` (por defecto) o `Por hacer`; `prioridad`, `Medium` por defecto. Una
+     `Tarea` lleva su etiqueta (`etiquetas: deuda-tecnica`). `bloqueada-por` y `bloquea` llevan las
+     claves separadas por comas, también hacia issues existentes; `## Depende de` repite las de
+     `bloqueada-por`.
+   - Varios issues van en el mismo lote, cada uno con su alias en minúsculas (`nuevo-1`, `fr-1`). El
+     texto que cita a otro del lote lo nombra por su alias: el script pone la clave real y crea antes
+     al citado.
+2. `pwsh -NoProfile -File ../.claude/scripts/jira.ps1 crear-lote <ruta> -Simular` valida (campos,
+   alias, ciclos, que las claves existan y que el padre sea un epic) sin escribir. Se corrige hasta
+   que pase.
+3. Lo mismo sin `-Simular`: imprime `nuevo-1 = FIN-n`, una línea por enlace y la línea de
+   `verificar` de cada issue creado. Ninguna puede tener `ERROR` (criterios que no salieron como
+   casillas, un `## Depende de` que no coincide con los `is blocked by`): si alguna lo tiene, se
+   corrige con `descripcion` o `enlazar` y se vuelve a correr `verificar`. Si falla a mitad, el
+   mismo comando retoma desde `<ruta>.hecho`.
+4. Para enlazar el issue en curso con uno existente (al cerrar, por *El contrato*), basta
+   `jira.ps1 enlazar <el que bloquea> <el bloqueado>`.
+5. Decir en chat el orden de ejecución que queda, sacado de los enlaces y con las bloqueadoras de
    otros epics o del otro repo («en `financeapp-bk`: FIN-n; después, en `financeapp-fr`: FIN-m»).
    **Avisar si un issue en `Por hacer` quedó bloqueado por uno en `pendiente`**: no se
    puede tomar, y el usuario decide si sube la bloqueadora o baja

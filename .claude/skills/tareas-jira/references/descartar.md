@@ -6,7 +6,7 @@ transición a `Listo`, que lo saca de las consultas activas sin borrarlo. Sigue 
 (`labels = descartada`), enlazable y se revierte con la transición de vuelta.
 
 Hazlo por tu cuenta, sin pedir permiso, y dilo en chat. Antes, deja un comentario con
-`addCommentToJiraIssue`:
+`jira.ps1 comentar FIN-n -Archivo <scratchpad>/descartada.md`:
 
 ```markdown
 ## Descartada
@@ -20,8 +20,7 @@ quedó cubierto en ninguna parte, decirlo con esas palabras: es un hueco, no un 
 
 Los tres campos son obligatorios. Sin el tercero, descartar un issue equivale a perder trabajo
 pendiente sin que nadie lo note. Después, con `jira.ps1`: `etiquetas FIN-n -Agregar descartada`
-(conserva las que tenga) y `transicion FIN-n 41`. Sin el script, `editJiraIssue` y
-`transitionJiraIssue` con `{"id": "41"}`.
+(conserva las que tenga) y `transicion FIN-n 41`. Sin el script, ver `jira-falla.md`.
 
 **El único caso que no descartas tú** es un issue en el que el usuario ya invirtió decisiones y
 quiere revisar: si dudas, deja el estado y pregunta.
