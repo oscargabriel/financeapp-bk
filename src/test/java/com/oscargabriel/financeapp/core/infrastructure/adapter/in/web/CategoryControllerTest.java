@@ -27,10 +27,7 @@ import com.oscargabriel.financeapp.compartido.domain.exceptions.responses.ErrorD
 import com.oscargabriel.financeapp.core.domain.model.CategoryScope;
 import com.oscargabriel.financeapp.core.domain.model.CreateCategoryCommand;
 import com.oscargabriel.financeapp.core.domain.model.UpdateCategoryCommand;
-import com.oscargabriel.financeapp.core.domain.port.in.CreateCategoryPort;
-import com.oscargabriel.financeapp.core.domain.port.in.DeleteCategoryPort;
-import com.oscargabriel.financeapp.core.domain.port.in.UpdateCategoryPort;
-import com.oscargabriel.financeapp.core.domain.port.in.ListCategoriesPort;
+import com.oscargabriel.financeapp.core.domain.port.in.CategoryPort;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
 import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.SecurityConfig;
@@ -50,16 +47,7 @@ class CategoryControllerTest {
     private WebTestClient webTestClient;
 
     @MockitoBean
-    private ListCategoriesPort listCategories;
-
-    @MockitoBean
-    private CreateCategoryPort createCategory;
-
-    @MockitoBean
-    private UpdateCategoryPort updateCategory;
-
-    @MockitoBean
-    private DeleteCategoryPort deleteCategory;
+    private CategoryPort categorias;
 
     private static JwtMutator tokenDelUsuario() {
         return mockJwt().jwt(jwt -> jwt.subject(CategoryMother.USER_ID.toString()));
@@ -71,12 +59,12 @@ class CategoryControllerTest {
                 .exchange()
                 .expectStatus().isUnauthorized();
 
-        verifyNoInteractions(listCategories);
+        verifyNoInteractions(categorias);
     }
 
     @Test
     void devuelveLasCategoriasConElFormatoDelContrato() {
-        when(listCategories.list(eq(CategoryMother.USER_ID), any()))
+        when(categorias.list(eq(CategoryMother.USER_ID), any()))
                 .thenReturn(Flux.just(CategoryMother.mercado()));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE)
@@ -95,7 +83,7 @@ class CategoryControllerTest {
 
     @Test
     void devuelveUnaCategoriaPropiaConSuAlcanceIconoYColor() {
-        when(listCategories.list(eq(CategoryMother.USER_ID), any()))
+        when(categorias.list(eq(CategoryMother.USER_ID), any()))
                 .thenReturn(Flux.just(CategoryMother.ajustes()));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE)
@@ -110,7 +98,7 @@ class CategoryControllerTest {
 
     @Test
     void devuelveUnArrayVacioCuandoElUsuarioNoTieneCategorias() {
-        when(listCategories.list(eq(CategoryMother.USER_ID), any())).thenReturn(Flux.empty());
+        when(categorias.list(eq(CategoryMother.USER_ID), any())).thenReturn(Flux.empty());
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE)
                 .exchange()
@@ -120,24 +108,24 @@ class CategoryControllerTest {
 
     @Test
     void pasaAlCasoDeUsoElFiltroParseado() {
-        when(listCategories.list(eq(CategoryMother.USER_ID), any())).thenReturn(Flux.empty());
+        when(categorias.list(eq(CategoryMother.USER_ID), any())).thenReturn(Flux.empty());
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "?appliesTo=INCOME")
                 .exchange()
                 .expectStatus().isOk();
 
-        verify(listCategories).list(CategoryMother.USER_ID, CategoryScope.INCOME);
+        verify(categorias).list(CategoryMother.USER_ID, CategoryScope.INCOME);
     }
 
     @Test
     void pasaNullAlCasoDeUsoCuandoNoLlegaElFiltro() {
-        when(listCategories.list(eq(CategoryMother.USER_ID), any())).thenReturn(Flux.empty());
+        when(categorias.list(eq(CategoryMother.USER_ID), any())).thenReturn(Flux.empty());
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE)
                 .exchange()
                 .expectStatus().isOk();
 
-        verify(listCategories).list(CategoryMother.USER_ID, null);
+        verify(categorias).list(CategoryMother.USER_ID, null);
     }
 
     @Test
@@ -149,7 +137,7 @@ class CategoryControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
                 .jsonPath("$.errors[0].field").isEqualTo("appliesTo");
 
-        verifyNoInteractions(listCategories);
+        verifyNoInteractions(categorias);
     }
 
     /** El contrato publica los valores en mayusculas, igual que la columna. */
@@ -161,7 +149,7 @@ class CategoryControllerTest {
                 .expectBody()
                 .jsonPath("$.errors[0].field").isEqualTo("appliesTo");
 
-        verifyNoInteractions(listCategories);
+        verifyNoInteractions(categorias);
     }
 
     @Test
@@ -174,12 +162,12 @@ class CategoryControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.UNAUTHENTICATED.getCode())
                 .jsonPath("$.errors[0].field").isEqualTo("authorization");
 
-        verifyNoInteractions(listCategories);
+        verifyNoInteractions(categorias);
     }
 
     @Test
     void creaLaCategoriaYRespondeConElMismoContratoQueElListado() {
-        when(createCategory.create(eq(CategoryMother.USER_ID), any()))
+        when(categorias.create(eq(CategoryMother.USER_ID), any()))
                 .thenReturn(Mono.just(CategoryMother.plantasCreada()));
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
@@ -201,7 +189,7 @@ class CategoryControllerTest {
 
     @Test
     void pasaAlCasoDeUsoElUsuarioDelTokenYElCuerpoTalCualLlega() {
-        when(createCategory.create(eq(CategoryMother.USER_ID), any()))
+        when(categorias.create(eq(CategoryMother.USER_ID), any()))
                 .thenReturn(Mono.just(CategoryMother.plantasCreada()));
 
         webTestClient.mutateWith(tokenDelUsuario()).post().uri(URI_BASE)
@@ -213,7 +201,7 @@ class CategoryControllerTest {
                 .expectStatus().isCreated();
 
         ArgumentCaptor<CreateCategoryCommand> comando = ArgumentCaptor.forClass(CreateCategoryCommand.class);
-        verify(createCategory).create(eq(CategoryMother.USER_ID), comando.capture());
+        verify(categorias).create(eq(CategoryMother.USER_ID), comando.capture());
         assertThat(comando.getValue()).isEqualTo(new CreateCategoryCommand("  Plantas  ", "expense", " sprout ", "#7cb342"));
     }
 
@@ -237,12 +225,12 @@ class CategoryControllerTest {
                 .isEqualTo("El color debe tener la forma #RRGGBB")
                 .jsonPath("$.errors[?(@.code != 'VALIDATION_ERROR')]").isEmpty();
 
-        verifyNoInteractions(createCategory);
+        verifyNoInteractions(categorias);
     }
 
     @Test
     void devuelve409CuandoElNombreYaLoUsaOtraCategoriaViva() {
-        when(createCategory.create(eq(CategoryMother.USER_ID), any()))
+        when(categorias.create(eq(CategoryMother.USER_ID), any()))
                 .thenReturn(Mono.error(new BadRequestException(HttpStatus.CONFLICT, ErrorCodes.DUPLICATE_RESOURCE,
                         "Ya hay una categoria con ese nombre", "name")));
 
@@ -268,7 +256,7 @@ class CategoryControllerTest {
                 .expectBody()
                 .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.JSON_PARSING_ERROR.getCode());
 
-        verifyNoInteractions(createCategory);
+        verifyNoInteractions(categorias);
     }
 
     @Test
@@ -281,14 +269,14 @@ class CategoryControllerTest {
                 .exchange()
                 .expectStatus().isUnauthorized();
 
-        verifyNoInteractions(createCategory);
+        verifyNoInteractions(categorias);
     }
 
     private static final String URI_PLANTAS = URI_BASE + "/" + CategoryMother.PLANTAS_ID;
 
     @Test
     void modificaLaCategoriaYRespondeConElMismoContratoQueElListado() {
-        when(updateCategory.update(eq(CategoryMother.USER_ID), eq(CategoryMother.PLANTAS_ID), any()))
+        when(categorias.update(eq(CategoryMother.USER_ID), eq(CategoryMother.PLANTAS_ID), any()))
                 .thenReturn(Mono.just(CategoryMother.plantasCreada()));
 
         webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_PLANTAS)
@@ -309,7 +297,7 @@ class CategoryControllerTest {
 
     @Test
     void pasaAlCasoDeUsoElUsuarioElIdYElParcheTalCualLlega() {
-        when(updateCategory.update(eq(CategoryMother.USER_ID), eq(CategoryMother.PLANTAS_ID), any()))
+        when(categorias.update(eq(CategoryMother.USER_ID), eq(CategoryMother.PLANTAS_ID), any()))
                 .thenReturn(Mono.just(CategoryMother.plantasCreada()));
 
         webTestClient.mutateWith(tokenDelUsuario()).patch().uri(URI_PLANTAS)
@@ -321,7 +309,7 @@ class CategoryControllerTest {
                 .expectStatus().isOk();
 
         ArgumentCaptor<UpdateCategoryCommand> comando = ArgumentCaptor.forClass(UpdateCategoryCommand.class);
-        verify(updateCategory).update(eq(CategoryMother.USER_ID), eq(CategoryMother.PLANTAS_ID), comando.capture());
+        verify(categorias).update(eq(CategoryMother.USER_ID), eq(CategoryMother.PLANTAS_ID), comando.capture());
         assertThat(comando.getValue()).isEqualTo(new UpdateCategoryCommand(" Huerta ", "both", null, null));
     }
 
@@ -338,7 +326,7 @@ class CategoryControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
                 .jsonPath("$.errors[0].field").isEqualTo("body");
 
-        verifyNoInteractions(updateCategory);
+        verifyNoInteractions(categorias);
     }
 
     @Test
@@ -354,7 +342,7 @@ class CategoryControllerTest {
                 .jsonPath("$.errors.length()").isEqualTo(4)
                 .jsonPath("$.errors[?(@.code != 'VALIDATION_ERROR')]").isEmpty();
 
-        verifyNoInteractions(updateCategory);
+        verifyNoInteractions(categorias);
     }
 
     @Test
@@ -370,12 +358,12 @@ class CategoryControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
                 .jsonPath("$.errors[0].field").isEqualTo("id");
 
-        verifyNoInteractions(updateCategory);
+        verifyNoInteractions(categorias);
     }
 
     @Test
     void devuelve404CuandoLaCategoriaNoEsDelUsuario() {
-        when(updateCategory.update(eq(CategoryMother.USER_ID), eq(CategoryMother.PLANTAS_ID), any()))
+        when(categorias.update(eq(CategoryMother.USER_ID), eq(CategoryMother.PLANTAS_ID), any()))
                 .thenReturn(Mono.error(new BadRequestException(HttpStatus.NOT_FOUND, List.of(
                         ErrorDetail.of(ErrorCodes.NOT_FOUND.getCode(), "La categoria no existe", "id")))));
 
@@ -393,7 +381,7 @@ class CategoryControllerTest {
 
     @Test
     void devuelve409CuandoElNombreNuevoYaLoUsaOtraCategoria() {
-        when(updateCategory.update(eq(CategoryMother.USER_ID), eq(CategoryMother.PLANTAS_ID), any()))
+        when(categorias.update(eq(CategoryMother.USER_ID), eq(CategoryMother.PLANTAS_ID), any()))
                 .thenReturn(Mono.error(new BadRequestException(HttpStatus.CONFLICT, ErrorCodes.DUPLICATE_RESOURCE,
                         "Ya hay una categoria con ese nombre", "name")));
 
@@ -411,7 +399,7 @@ class CategoryControllerTest {
 
     @Test
     void devuelve409CuandoElAlcanceNoAdmiteLosMovimientosDeLaCategoria() {
-        when(updateCategory.update(eq(CategoryMother.USER_ID), eq(CategoryMother.PLANTAS_ID), any()))
+        when(categorias.update(eq(CategoryMother.USER_ID), eq(CategoryMother.PLANTAS_ID), any()))
                 .thenReturn(Mono.error(new BadRequestException(HttpStatus.CONFLICT, ErrorCodes.RESOURCE_IN_USE,
                         "La categoria tiene movimientos de un tipo que el nuevo alcance no admite", "appliesTo")));
 
@@ -437,19 +425,19 @@ class CategoryControllerTest {
                 .exchange()
                 .expectStatus().isUnauthorized();
 
-        verifyNoInteractions(updateCategory);
+        verifyNoInteractions(categorias);
     }
 
     @Test
     void borraLaCategoriaDelUsuarioDelTokenYRespondeSinCuerpo() {
-        when(deleteCategory.delete(CategoryMother.USER_ID, CategoryMother.PLANTAS_ID)).thenReturn(Mono.empty());
+        when(categorias.delete(CategoryMother.USER_ID, CategoryMother.PLANTAS_ID)).thenReturn(Mono.empty());
 
         webTestClient.mutateWith(tokenDelUsuario()).delete().uri(URI_PLANTAS)
                 .exchange()
                 .expectStatus().isNoContent()
                 .expectBody().isEmpty();
 
-        verify(deleteCategory).delete(CategoryMother.USER_ID, CategoryMother.PLANTAS_ID);
+        verify(categorias).delete(CategoryMother.USER_ID, CategoryMother.PLANTAS_ID);
     }
 
     @Test
@@ -461,12 +449,12 @@ class CategoryControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo(ErrorCodes.VALIDATION_ERROR.getCode())
                 .jsonPath("$.errors[0].field").isEqualTo("id");
 
-        verifyNoInteractions(deleteCategory);
+        verifyNoInteractions(categorias);
     }
 
     @Test
     void devuelve404AlBorrarUnaCategoriaQueNoEsDelUsuario() {
-        when(deleteCategory.delete(CategoryMother.USER_ID, CategoryMother.PLANTAS_ID))
+        when(categorias.delete(CategoryMother.USER_ID, CategoryMother.PLANTAS_ID))
                 .thenReturn(Mono.error(new BadRequestException(HttpStatus.NOT_FOUND, List.of(
                         ErrorDetail.of(ErrorCodes.NOT_FOUND.getCode(), "La categoria no existe", "id")))));
 
@@ -484,6 +472,6 @@ class CategoryControllerTest {
                 .exchange()
                 .expectStatus().isUnauthorized();
 
-        verifyNoInteractions(deleteCategory);
+        verifyNoInteractions(categorias);
     }
 }

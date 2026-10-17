@@ -17,8 +17,7 @@ import com.oscargabriel.financeapp.compartido.infrastructure.adapter.in.web.Usua
 import com.oscargabriel.financeapp.core.domain.model.AccountType;
 import com.oscargabriel.financeapp.core.domain.model.CategoryScope;
 import com.oscargabriel.financeapp.core.domain.model.TransactionType;
-import com.oscargabriel.financeapp.core.domain.port.in.ListCategoriesPort;
-import com.oscargabriel.financeapp.core.domain.port.in.ListCurrenciesPort;
+import com.oscargabriel.financeapp.core.domain.port.in.CatalogPort;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.CatalogCategoryResponse;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.CatalogItemResponse;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.CurrencyResponse;
@@ -27,16 +26,15 @@ import reactor.core.publisher.Flux;
 
 /**
  * Los valores validos para armar formularios (FA-59). Los tipos salen del enum sin puerto: no hay
- * persistencia ni regla que orquestar. Las categorias pasan por el mismo caso de uso que
- * GET /categories, asi que filtro y orden coinciden por construccion.
+ * persistencia ni regla que orquestar. Las categorias salen de la misma consulta que GET /categories,
+ * con los alcances de CategoryScope.compatiblesCon, asi que filtro y orden coinciden por construccion.
  */
 @RestController
 @RequestMapping("/catalogs")
 @AllArgsConstructor
 public class CatalogController {
 
-    private final ListCurrenciesPort listCurrencies;
-    private final ListCategoriesPort listCategories;
+    private final CatalogPort catalogo;
 
     @GetMapping("/account-types")
     public Flux<CatalogItemResponse> accountTypes() {
@@ -50,14 +48,14 @@ public class CatalogController {
 
     @GetMapping("/currencies")
     public Flux<CurrencyResponse> currencies() {
-        return listCurrencies.listActive().map(CurrencyResponse::from);
+        return catalogo.listCurrencies().map(CurrencyResponse::from);
     }
 
     @GetMapping("/categories")
     public Flux<CatalogCategoryResponse> categories(
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(required = false) String appliesTo) {
-        return Flux.defer(() -> listCategories.list(UsuarioDelToken.de(jwt), parseScope(appliesTo)))
+        return Flux.defer(() -> catalogo.listCategories(UsuarioDelToken.de(jwt), parseScope(appliesTo)))
                 .map(CatalogCategoryResponse::from);
     }
 

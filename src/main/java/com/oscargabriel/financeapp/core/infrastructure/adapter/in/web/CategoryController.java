@@ -23,10 +23,7 @@ import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestExcept
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.compartido.infrastructure.adapter.in.web.UsuarioDelToken;
 import com.oscargabriel.financeapp.core.domain.model.CategoryScope;
-import com.oscargabriel.financeapp.core.domain.port.in.CreateCategoryPort;
-import com.oscargabriel.financeapp.core.domain.port.in.DeleteCategoryPort;
-import com.oscargabriel.financeapp.core.domain.port.in.ListCategoriesPort;
-import com.oscargabriel.financeapp.core.domain.port.in.UpdateCategoryPort;
+import com.oscargabriel.financeapp.core.domain.port.in.CategoryPort;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.CategoryResponse;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.CreateCategoryRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.UpdateCategoryRequest;
@@ -39,16 +36,13 @@ import reactor.core.publisher.Mono;
 @AllArgsConstructor
 public class CategoryController {
 
-    private final ListCategoriesPort listCategories;
-    private final CreateCategoryPort createCategory;
-    private final UpdateCategoryPort updateCategory;
-    private final DeleteCategoryPort deleteCategory;
+    private final CategoryPort categorias;
 
     @GetMapping
     public Flux<CategoryResponse> categories(
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(required = false) String appliesTo) {
-        return Flux.defer(() -> listCategories.list(UsuarioDelToken.de(jwt), parseScope(appliesTo)))
+        return Flux.defer(() -> categorias.list(UsuarioDelToken.de(jwt), parseScope(appliesTo)))
                 .map(CategoryResponse::from);
     }
 
@@ -57,7 +51,7 @@ public class CategoryController {
     public Mono<CategoryResponse> create(
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody CreateCategoryRequest request) {
-        return Mono.defer(() -> createCategory.create(UsuarioDelToken.de(jwt), request.toCommand()))
+        return Mono.defer(() -> categorias.create(UsuarioDelToken.de(jwt), request.toCommand()))
                 .map(CategoryResponse::from);
     }
 
@@ -72,7 +66,7 @@ public class CategoryController {
                         throw new BadRequestException(HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR,
                                 "El parche no trae ningun campo para modificar", "body");
                     }
-                    return updateCategory.update(UsuarioDelToken.de(jwt), categoria, parche.toCommand());
+                    return categorias.update(UsuarioDelToken.de(jwt), categoria, parche.toCommand());
                 })
                 .map(CategoryResponse::from);
     }
@@ -80,7 +74,7 @@ public class CategoryController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public Mono<Void> delete(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
-        return Mono.defer(() -> deleteCategory.delete(UsuarioDelToken.de(jwt), parseId(id)));
+        return Mono.defer(() -> categorias.delete(UsuarioDelToken.de(jwt), parseId(id)));
     }
 
     /** A mano y no como UUID de Spring: su conversion fallida saldria como JSON_PARSING_ERROR del cuerpo. */

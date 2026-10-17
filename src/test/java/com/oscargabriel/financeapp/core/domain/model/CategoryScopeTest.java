@@ -23,4 +23,16 @@ class CategoryScopeTest {
     void ambosAdmiteSoloLasCategoriasDeAmbos() {
         assertThat(CategoryScope.BOTH.compatibles()).containsExactly(CategoryScope.BOTH);
     }
+
+    @Test
+    void sinFiltroSonLosTresAlcances() {
+        assertThat(CategoryScope.compatiblesCon(null))
+                .containsExactlyInAnyOrder(CategoryScope.EXPENSE, CategoryScope.INCOME, CategoryScope.BOTH);
+    }
+
+    @Test
+    void conFiltroSonLosCompatiblesDelFiltro() {
+        assertThat(CategoryScope.compatiblesCon(CategoryScope.INCOME))
+                .containsExactlyInAnyOrder(CategoryScope.INCOME, CategoryScope.BOTH);
+    }
 }
