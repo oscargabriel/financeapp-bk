@@ -52,8 +52,7 @@ import com.oscargabriel.financeapp.core.domain.model.Sharing;
 import com.oscargabriel.financeapp.core.domain.model.TransactionReport;
 import com.oscargabriel.financeapp.core.domain.model.TransactionType;
 import com.oscargabriel.financeapp.core.domain.port.in.DescribeSharingPort;
-import com.oscargabriel.financeapp.core.domain.port.in.GetBalancePort;
-import com.oscargabriel.financeapp.core.domain.port.in.GetTransactionReportPort;
+import com.oscargabriel.financeapp.core.domain.port.in.TransactionReportPort;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.JwtConfig;
 import com.oscargabriel.financeapp.compartido.support.SesionSiempreAbierta;
 import com.oscargabriel.financeapp.compartido.infrastructure.config.SecurityConfig;
@@ -72,10 +71,7 @@ class TransactionReportControllerTest {
     private WebTestClient webTestClient;
 
     @MockitoBean
-    private GetTransactionReportPort getTransactionReport;
-
-    @MockitoBean
-    private GetBalancePort getBalance;
+    private TransactionReportPort reportes;
 
     @MockitoBean
     private DescribeSharingPort describeSharing;
@@ -93,7 +89,7 @@ class TransactionReportControllerTest {
                 unGasto(MERCADO_ID, "Mercado", "15000.0000", "2026-09-03T15:00:00Z")), AHORA);
         UUID compartido = reporte.transactions().getLast().id();
         UUID parte = UUID.fromString("72000000-0000-7000-8000-000000000001");
-        when(getTransactionReport.get(eq(USER_ID), any(), any(), any(), any(), any())).thenReturn(Mono.just(reporte));
+        when(reportes.transactions(eq(USER_ID), any(), any(), any(), any(), any())).thenReturn(Mono.just(reporte));
         when(describeSharing.describe(eq(USER_ID), anyList())).thenReturn(Mono.just(Map.of(compartido, new Sharing(
                 null, null, List.of(new Sharing.Share(parte, new Sharing.Person("beto@correo.com", "Beto", null),
                         new BigDecimal("30000"), "COP", ShareStatus.REJECTED))))));
@@ -116,7 +112,7 @@ class TransactionReportControllerTest {
     }
 
     private void respondeVacio() {
-        when(getTransactionReport.get(eq(USER_ID), any(), any(), any(), any(), any()))
+        when(reportes.transactions(eq(USER_ID), any(), any(), any(), any(), any()))
                 .thenReturn(Mono.just(TransactionReport.of("COP", sinFiltros(), List.of(), AHORA)));
     }
 
@@ -128,7 +124,7 @@ class TransactionReportControllerTest {
                 .exchange()
                 .expectStatus().isOk();
 
-        verify(getTransactionReport).get(USER_ID, DESDE, HASTA, Set.of(), Set.of(), Set.of());
+        verify(reportes).transactions(USER_ID, DESDE, HASTA, Set.of(), Set.of(), Set.of());
     }
 
     @Test
@@ -142,7 +138,7 @@ class TransactionReportControllerTest {
                 .exchange()
                 .expectStatus().isOk();
 
-        verify(getTransactionReport).get(USER_ID, DESDE, HASTA, Set.of(MERCADO_ID, SALARIO_ID, RESTAURANTES_ID),
+        verify(reportes).transactions(USER_ID, DESDE, HASTA, Set.of(MERCADO_ID, SALARIO_ID, RESTAURANTES_ID),
                 Set.of(), Set.of(TransactionType.EXPENSE, TransactionType.INCOME));
     }
 
@@ -156,7 +152,7 @@ class TransactionReportControllerTest {
                 .exchange()
                 .expectStatus().isOk();
 
-        verify(getTransactionReport).get(USER_ID, DESDE, HASTA, Set.of(), Set.of(CUENTA_ID, DESTINO_ID), Set.of());
+        verify(reportes).transactions(USER_ID, DESDE, HASTA, Set.of(), Set.of(CUENTA_ID, DESTINO_ID), Set.of());
     }
 
     @Test
@@ -164,7 +160,7 @@ class TransactionReportControllerTest {
         TransactionReport reporte = TransactionReport.of("COP", sinFiltros(), List.of(
                 unGasto(MERCADO_ID, "Mercado", "85000.0000", "2026-09-02T15:00:00Z"),
                 unaTransferenciaEnDolares("2026-09-10T20:00:00Z")), AHORA);
-        when(getTransactionReport.get(eq(USER_ID), any(), any(), any(), any(), any())).thenReturn(Mono.just(reporte));
+        when(reportes.transactions(eq(USER_ID), any(), any(), any(), any(), any())).thenReturn(Mono.just(reporte));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(RANGO)
                 .exchange()
@@ -202,7 +198,7 @@ class TransactionReportControllerTest {
         TransactionReport reporte = TransactionReport.of("COP", sinFiltros(), List.of(
                 unGasto(MERCADO_ID, "Mercado", "85000.0000", "2026-09-02T15:00:00Z"),
                 unGasto(MERCADO_ID, "Mercado", "40000.0000", "2026-10-15T15:00:00Z")), AHORA);
-        when(getTransactionReport.get(eq(USER_ID), any(), any(), any(), any(), any())).thenReturn(Mono.just(reporte));
+        when(reportes.transactions(eq(USER_ID), any(), any(), any(), any(), any())).thenReturn(Mono.just(reporte));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(RANGO)
                 .exchange()
@@ -222,7 +218,7 @@ class TransactionReportControllerTest {
                 unGasto(MERCADO_ID, "Mercado", "85000.0000", "2026-09-02T15:00:00Z"),
                 deLaSerie(unGasto(MERCADO_ID, "Mercado", "44900.0000", "2026-09-15T05:00:00Z"), serie)),
                 AHORA);
-        when(getTransactionReport.get(eq(USER_ID), any(), any(), any(), any(), any())).thenReturn(Mono.just(reporte));
+        when(reportes.transactions(eq(USER_ID), any(), any(), any(), any(), any())).thenReturn(Mono.just(reporte));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(RANGO)
                 .exchange()
@@ -239,7 +235,7 @@ class TransactionReportControllerTest {
                 unGasto(MERCADO_ID, "Mercado", "85000.0000", "2026-09-02T15:00:00Z"),
                 cuota(unGasto(MERCADO_ID, "Mercado", "424000.0000", "2026-09-05T05:00:00Z"), compra)),
                 AHORA);
-        when(getTransactionReport.get(eq(USER_ID), any(), any(), any(), any(), any())).thenReturn(Mono.just(reporte));
+        when(reportes.transactions(eq(USER_ID), any(), any(), any(), any(), any())).thenReturn(Mono.just(reporte));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(RANGO)
                 .exchange()
@@ -278,7 +274,7 @@ class TransactionReportControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
                 .jsonPath("$.errors[0].field").isEqualTo(campo);
 
-        verifyNoInteractions(getTransactionReport);
+        verifyNoInteractions(reportes);
     }
 
     @Test
@@ -287,7 +283,7 @@ class TransactionReportControllerTest {
                 .exchange()
                 .expectStatus().isUnauthorized();
 
-        verifyNoInteractions(getTransactionReport);
+        verifyNoInteractions(reportes);
     }
 
     private static final String SALDO = "/reports/balance";
@@ -295,7 +291,7 @@ class TransactionReportControllerTest {
     private static final LocalDate ULTIMO = LocalDate.of(2026, 10, 31);
 
     private void saldoDelEscenario() {
-        when(getBalance.get(eq(USER_ID), any(), any()))
+        when(reportes.balance(eq(USER_ID), any(), any()))
                 .thenReturn(Mono.just(Balance.of(PRIMERO, ULTIMO, sumasDelEscenario(), List.of(efectivo(), visa()))));
     }
 
@@ -307,7 +303,7 @@ class TransactionReportControllerTest {
                 .exchange()
                 .expectStatus().isOk();
 
-        verify(getBalance).get(USER_ID, null, null);
+        verify(reportes).balance(USER_ID, null, null);
     }
 
     @Test
@@ -318,7 +314,7 @@ class TransactionReportControllerTest {
                 .exchange()
                 .expectStatus().isOk();
 
-        verify(getBalance).get(USER_ID, PRIMERO, ULTIMO);
+        verify(reportes).balance(USER_ID, PRIMERO, ULTIMO);
     }
 
     @Test
@@ -329,7 +325,7 @@ class TransactionReportControllerTest {
                 .exchange()
                 .expectStatus().isOk();
 
-        verify(getBalance).get(USER_ID, PRIMERO, null);
+        verify(reportes).balance(USER_ID, PRIMERO, null);
     }
 
     @Test
@@ -383,6 +379,6 @@ class TransactionReportControllerTest {
                 .jsonPath("$.errors[0].code").isEqualTo("VALIDATION_ERROR")
                 .jsonPath("$.errors[0].field").isEqualTo(campo);
 
-        verifyNoInteractions(getBalance);
+        verifyNoInteractions(reportes);
     }
 }

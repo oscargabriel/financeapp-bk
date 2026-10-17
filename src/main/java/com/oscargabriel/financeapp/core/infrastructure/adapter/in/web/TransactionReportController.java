@@ -26,8 +26,7 @@ import com.oscargabriel.financeapp.compartido.infrastructure.adapter.in.web.Usua
 import com.oscargabriel.financeapp.core.domain.model.ReportedTransaction;
 import com.oscargabriel.financeapp.core.domain.model.TransactionType;
 import com.oscargabriel.financeapp.core.domain.port.in.DescribeSharingPort;
-import com.oscargabriel.financeapp.core.domain.port.in.GetBalancePort;
-import com.oscargabriel.financeapp.core.domain.port.in.GetTransactionReportPort;
+import com.oscargabriel.financeapp.core.domain.port.in.TransactionReportPort;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.BalanceResponse;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.TransactionReportResponse;
 
@@ -40,8 +39,7 @@ public class TransactionReportController {
 
     private static final Pattern FORMATO_DIA = Pattern.compile("[0-9]{4}-[0-9]{2}-[0-9]{2}");
 
-    private final GetTransactionReportPort getTransactionReport;
-    private final GetBalancePort getBalance;
+    private final TransactionReportPort reportes;
     private final DescribeSharingPort compartido;
 
     /**
@@ -56,7 +54,7 @@ public class TransactionReportController {
             @RequestParam(name = "categoryId", required = false) List<String> categoryIds,
             @RequestParam(name = "accountId", required = false) List<String> accountIds,
             @RequestParam(name = "type", required = false) List<String> types) {
-        return Mono.defer(() -> getTransactionReport.get(
+        return Mono.defer(() -> reportes.transactions(
                         UsuarioDelToken.de(jwt),
                         parseDay(from, "from"),
                         parseDay(to, "to"),
@@ -75,7 +73,7 @@ public class TransactionReportController {
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(required = false) String from,
             @RequestParam(required = false) String to) {
-        return Mono.defer(() -> getBalance.get(
+        return Mono.defer(() -> reportes.balance(
                         UsuarioDelToken.de(jwt), parseOptionalDay(from, "from"), parseOptionalDay(to, "to")))
                 .map(BalanceResponse::from);
     }
