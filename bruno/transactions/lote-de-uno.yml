@@ -93,4 +93,4 @@ docs: |
 
   El `status`, el `origin`, el `recurrenceId` y el `installment` del cuerpo se ignoran: el alta siempre
   entra `CONFIRMED`, `WEB` y suelta, sin serie (FA-107) ni compra en cuotas (FA-108). Solo el asistente (FA-77) crea
-  pendientes, con origen `TELEGRAM`.
+  pendientes, con origen `WEB_CHAT` (FIN-112).

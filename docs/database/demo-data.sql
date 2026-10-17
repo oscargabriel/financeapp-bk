@@ -25,7 +25,8 @@
 -- Ademas de los pendientes que le dejan esas personas, el usuario tiene dos
 -- grupos pendientes del asistente (FIN-95), como los deja un mensaje a Telegram:
 -- uno de tres movimientos y otro de uno, para la pantalla de pendientes del
--- front y su filtro por persona, que los deja fuera (FIN-71, FIN-73). Y
+-- front y su filtro por persona, que los deja fuera (FIN-71, FIN-73). Uno mas
+-- de dos gastos, como los deja un mensaje al chat web (WEB_CHAT, FIN-112). Y
 -- pendientes de los demas origenes (FIN-101): grupos EMAIL de correos del banco
 -- (compras con tarjeta, un retiro, debitos automaticos) en el mes en curso y el
 -- anterior, un gasto WEB que llego en USD a la Mastercard en el mes en curso, y
@@ -147,6 +148,8 @@ SELECT split_part(:'email', '@', 1) || '.financeapp.local' AS dominio \gset
 \set grupo_correo_3   'e000000' :u '-0000-7000-8000-000000000005'
 \set grupo_web_usd    'e000000' :u '-0000-7000-8000-000000000006'
 \set grupo_import     'e000000' :u '-0000-7000-8000-000000000007'
+-- Pendientes del chat web (FIN-112).
+\set grupo_chat       'e000000' :u '-0000-7000-8000-000000000008'
 
 BEGIN;
 
@@ -765,13 +768,17 @@ SELECT gen_random_uuid(), m.user_id, m.account_id, c.id, m.type, f.amount, 'COP'
 -- Pendientes del asistente (FIN-95)
 --
 -- Las filas que deja el alta en lote del asistente (PendienteDelAsistenteAdapter):
--- origen TELEGRAM, cuenta y categoria resueltas, un grupo por mensaje y sin
--- persona que los comparta. Sin fecha dictada, occurred_at es el instante del
--- mensaje; con fecha, ese dia a las 12:00 en Bogota. Por dias hacia atras desde
--- now(), como lo compartido.
---   A hace 1 dia    mercado y gasolina en la tarjeta (la gasolina con fecha
---                   dictada, dos dias antes) y una recarga de la nomina a Nequi
---   B hace 3 horas  almuerzo en efectivo
+-- cuenta y categoria resueltas, un grupo por mensaje y sin persona que los
+-- comparta, con el origen del canal: TELEGRAM lo del bot y WEB_CHAT lo del chat
+-- web (FIN-112). Sin fecha dictada, occurred_at es el instante del mensaje; con
+-- fecha, ese dia a las 12:00 en Bogota. Por dias hacia atras desde now(), como
+-- lo compartido.
+--   A    TELEGRAM  hace 1 dia    mercado y gasolina en la tarjeta (la gasolina
+--                                con fecha dictada, dos dias antes) y una
+--                                recarga de la nomina a Nequi
+--   B    TELEGRAM  hace 3 horas  almuerzo en efectivo
+--   chat WEB_CHAT  hace 5 horas  un domicilio en la tarjeta y un parqueadero en
+--                                efectivo, del mismo mensaje
 -- -----------------------------------------------------------------------------
 INSERT INTO finance.transactions
     (id, user_id, account_id, destination_account_id, category_id, type, amount, currency_code,
@@ -781,13 +788,15 @@ SELECT gen_random_uuid(), :'uid'::uuid, p.account_id, p.destination_id, c.id, p.
        COALESCE((((now() - p.mensaje) AT TIME ZONE 'America/Bogota')::date - p.dias_antes + TIME '12:00')
                     AT TIME ZONE 'America/Bogota',
                 now() - p.mensaje),
-       'PENDING', 'TELEGRAM', p.group_id, now() - p.mensaje
+       'PENDING', p.origin, p.group_id, now() - p.mensaje
   FROM (VALUES
-        (:'grupo_a'::uuid, :'tarjeta'::uuid,  NULL::uuid,     'Mercado',      'EXPENSE',   86400::numeric, 'Mercado del fin de semana', INTERVAL '1 day',   NULL::int),
-        (:'grupo_a'::uuid, :'tarjeta'::uuid,  NULL::uuid,     'Transporte',   'EXPENSE',  120000::numeric, 'Gasolina',                  INTERVAL '1 day',   2),
-        (:'grupo_a'::uuid, :'nomina'::uuid,   :'nequi'::uuid, NULL,           'TRANSFER', 200000::numeric, 'Recarga Nequi',             INTERVAL '1 day',   NULL),
-        (:'grupo_b'::uuid, :'efectivo'::uuid, NULL::uuid,     'Restaurantes', 'EXPENSE',   28000::numeric, 'Almuerzo',                  INTERVAL '3 hours', NULL)
-       ) AS p(group_id, account_id, destination_id, category_name, type, amount, description, mensaje, dias_antes)
+        (:'grupo_a'::uuid,    :'tarjeta'::uuid,  NULL::uuid,     'Mercado',      'EXPENSE',   86400::numeric, 'Mercado del fin de semana', INTERVAL '1 day',   NULL::int, 'TELEGRAM'),
+        (:'grupo_a'::uuid,    :'tarjeta'::uuid,  NULL::uuid,     'Transporte',   'EXPENSE',  120000::numeric, 'Gasolina',                  INTERVAL '1 day',   2,         'TELEGRAM'),
+        (:'grupo_a'::uuid,    :'nomina'::uuid,   :'nequi'::uuid, NULL,           'TRANSFER', 200000::numeric, 'Recarga Nequi',             INTERVAL '1 day',   NULL,      'TELEGRAM'),
+        (:'grupo_b'::uuid,    :'efectivo'::uuid, NULL::uuid,     'Restaurantes', 'EXPENSE',   28000::numeric, 'Almuerzo',                  INTERVAL '3 hours', NULL,      'TELEGRAM'),
+        (:'grupo_chat'::uuid, :'tarjeta'::uuid,  NULL::uuid,     'Restaurantes', 'EXPENSE',   42500::numeric, 'Domicilio',                 INTERVAL '5 hours', NULL,      'WEB_CHAT'),
+        (:'grupo_chat'::uuid, :'efectivo'::uuid, NULL::uuid,     'Transporte',   'EXPENSE',    8000::numeric, 'Parqueadero',               INTERVAL '5 hours', NULL,      'WEB_CHAT')
+       ) AS p(group_id, account_id, destination_id, category_name, type, amount, description, mensaje, dias_antes, origin)
   LEFT JOIN finance.categories c
     ON c.user_id = :'uid'::uuid AND c.name = p.category_name;
 

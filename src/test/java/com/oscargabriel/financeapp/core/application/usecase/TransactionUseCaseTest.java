@@ -44,6 +44,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -765,11 +767,12 @@ class TransactionUseCaseTest {
             verify(repositorio).confirm(GASTO_GUARDADO_ID, USER_ID);
         }
 
-        /** FIN-101 */
-        @Test
-        void aprobarUnPendienteQueLlegoPorCorreoConservaSuOrigenYSuGrupo() {
+        /** FIN-101 y FIN-112 */
+        @ParameterizedTest
+        @EnumSource(value = TransactionOrigin.class, names = {"EMAIL", "WEB_CHAT"})
+        void aprobarUnPendienteConservaSuOrigenYSuGrupo(TransactionOrigin origen) {
             Transaction pendiente = TransactionMother.enGrupo(
-                    TransactionMother.conOrigen(TransactionMother.unGastoPendiente(), TransactionOrigin.EMAIL),
+                    TransactionMother.conOrigen(TransactionMother.unGastoPendiente(), origen),
                     GRUPO_ID);
             when(repositorio.findByIdAndUser(GASTO_GUARDADO_ID, USER_ID)).thenReturn(Mono.just(pendiente));
             conCuenta(AccountMother.efectivo(), pendiente.accountId());
@@ -778,7 +781,7 @@ class TransactionUseCaseTest {
             StepVerifier.create(useCase().approve(USER_ID, GASTO_GUARDADO_ID, ApprovalChoice.NONE))
                     .assertNext(t -> assertThat(t)
                             .extracting(Transaction::status, Transaction::origin, Transaction::groupId)
-                            .containsExactly(TransactionStatus.CONFIRMED, TransactionOrigin.EMAIL, GRUPO_ID))
+                            .containsExactly(TransactionStatus.CONFIRMED, origen, GRUPO_ID))
                     .verifyComplete();
         }
 
@@ -1264,18 +1267,19 @@ class TransactionUseCaseTest {
                     .verifyComplete();
         }
 
-        /** FIN-101 */
-        @Test
-        void aprobarUnGrupoQueLlegoPorCorreoConservaElOrigenYElGrupo() {
+        /** FIN-101 y FIN-112 */
+        @ParameterizedTest
+        @EnumSource(value = TransactionOrigin.class, names = {"EMAIL", "WEB_CHAT"})
+        void aprobarUnGrupoConservaElOrigenYElGrupo(TransactionOrigin origen) {
             Transaction gasto = pendiente(
-                    TransactionMother.conOrigen(TransactionMother.unGastoPendiente(), TransactionOrigin.EMAIL));
+                    TransactionMother.conOrigen(TransactionMother.unGastoPendiente(), origen));
             when(repositorio.findByGroup(GRUPO_ID, USER_ID)).thenReturn(Flux.just(gasto));
             when(repositorio.confirmAll(List.of(GASTO_GUARDADO_ID), USER_ID)).thenReturn(Mono.just(true));
 
             StepVerifier.create(useCase().approveGroup(USER_ID, GRUPO_ID))
                     .assertNext(t -> assertThat(t)
                             .extracting(Transaction::status, Transaction::origin, Transaction::groupId)
-                            .containsExactly(TransactionStatus.CONFIRMED, TransactionOrigin.EMAIL, GRUPO_ID))
+                            .containsExactly(TransactionStatus.CONFIRMED, origen, GRUPO_ID))
                     .verifyComplete();
         }
 

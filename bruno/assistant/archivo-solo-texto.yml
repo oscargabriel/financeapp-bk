@@ -1,7 +1,7 @@
 info:
   name: Multipart solo con texto
   type: http
-  seq: 69
+  seq: 70
 
 http:
   method: POST

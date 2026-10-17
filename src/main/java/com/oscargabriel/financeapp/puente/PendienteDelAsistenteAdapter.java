@@ -10,6 +10,7 @@ import com.oscargabriel.financeapp.core.domain.model.CreateTransactionCommand;
 import com.oscargabriel.financeapp.core.domain.model.TransactionOrigin;
 import com.oscargabriel.financeapp.core.domain.model.TransactionStatus;
 import com.oscargabriel.financeapp.core.domain.port.in.CreateTransactionsPort;
+import com.oscargabriel.financeapp.ia.domain.model.AssistantChannel;
 import com.oscargabriel.financeapp.ia.domain.model.NewMovement;
 import com.oscargabriel.financeapp.ia.domain.model.RegisteredGroup;
 import com.oscargabriel.financeapp.ia.domain.model.RegisteredMovement;
@@ -26,13 +27,21 @@ public class PendienteDelAsistenteAdapter implements PendingMovementPort {
 
     /** Un lote con todo el mensaje, pendiente hasta que el usuario lo confirme: el alta le da un solo grupo (FIN-58). */
     @Override
-    public Mono<RegisteredGroup> register(UUID userId, List<NewMovement> movements) {
-        return alta.create(userId, TransactionOrigin.TELEGRAM, TransactionStatus.PENDING,
+    public Mono<RegisteredGroup> register(UUID userId, AssistantChannel canal, List<NewMovement> movements) {
+        return alta.create(userId, origen(canal), TransactionStatus.PENDING,
                         movements.stream().map(PendienteDelAsistenteAdapter::comando).toList())
                 .collectList()
                 .map(guardados -> new RegisteredGroup(guardados.getFirst().groupId(), guardados.stream()
                         .map(t -> new RegisteredMovement(t.id(), t.status().name(), t.occurredAt()))
                         .toList()));
+    }
+
+    /** Sin default y no por name(): un canal nuevo sin origen no compila (design.md de FIN-112). */
+    private static TransactionOrigin origen(AssistantChannel canal) {
+        return switch (canal) {
+            case WEB_CHAT -> TransactionOrigin.WEB_CHAT;
+            case TELEGRAM -> TransactionOrigin.TELEGRAM;
+        };
     }
 
     private static CreateTransactionCommand comando(NewMovement movement) {

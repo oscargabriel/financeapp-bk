@@ -15,7 +15,7 @@ docs: |
 
   El stub traduce `<funcion> <json de argumentos>` a la misma decision que sacaria de Gemini, asi que
   aqui se ejerce todo lo que va despues del modelo: la resolucion de nombres, el alta pendiente con
-  `origin` `TELEGRAM` contra la base, las consultas y los rechazos.
+  `origin` `WEB_CHAT` contra la base (FIN-112), las consultas y los rechazos.
 
   Desde FIN-58, lo que registra entra en un grupo de pendientes que se confirma o se descarta con
   `POST /api/transactions/groups/{groupId}/approve|reject`. El stub entiende una llamada por linea, asi

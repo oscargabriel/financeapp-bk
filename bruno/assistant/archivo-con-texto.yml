@@ -56,4 +56,5 @@ docs: |
 
   El stub no mira el archivo: interpreta `data` como siempre. Aqui se prueba que el camino multipart
   llega al mismo resultado que el JSON. Lo que hace Gemini con la imagen esta en
-  `docs/verificaciones-manuales.md`. El siguiente request descarta el grupo.
+  `docs/verificaciones-manuales.md`. El siguiente request comprueba su origen y el otro descarta el
+  grupo.

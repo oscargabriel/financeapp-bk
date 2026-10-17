@@ -139,9 +139,10 @@ su propia forma: trae `destinationAmount`, pero no `originalAmount` ni `original
 | Valor | Quién lo pone |
 |---|---|
 | `WEB` | Este endpoint, las ocurrencias de una [serie](recurrentes.md#series-recurrentes) y las cuotas de una [compra en cuotas](cuotas.md#compras-en-cuotas) |
-| `TELEGRAM` | El [asistente](asistente.md#post-apiassistantmessages) |
+| `TELEGRAM` | El bot de Telegram (FIN-61). Hoy ningún endpoint lo produce |
 | `IMPORT` | Reservado para una importación de archivos. Hoy ningún endpoint lo produce |
 | `EMAIL` | Reservado para la ingesta desde correo (FIN-12). Hoy ningún endpoint lo produce: solo lo traen los datos de demo y de prueba |
+| `WEB_CHAT` | El [asistente](asistente.md#post-apiassistantmessages), desde el chat de la web |
 
 Va en las mismas respuestas que `status`. Lo pone el servidor: si el cuerpo trae un `origin`, se
 ignora.
@@ -267,7 +268,7 @@ sea cual sea su origen (FIN-58). Mientras tanto no mueve saldos ni cuenta en `mo
 `reports/transactions` ni `reports/balance`. Hoy entran así:
 
 - todo lo que registra [`POST /api/assistant/messages`](asistente.md#post-apiassistantmessages), con
-  `"origin": "TELEGRAM"`;
+  `"origin": "WEB_CHAT"`;
 - lo que [`POST /api/transactions`](#post-apitransactions) convierte de otra moneda (FA-51), con
   `"origin": "WEB"`;
 - lo que otra persona comparte con el usuario: su parte de un gasto, el ingreso de una transferencia o

@@ -23,7 +23,7 @@ runtime:
       code: |-
         test("el gasto del asistente esta en la lista de pendientes", function() {
           expect(res.getBody()[0].id).to.equal(bru.getVar("idPendienteAsistente"));
-          expect(res.getBody()[0].origin).to.equal("TELEGRAM");
+          expect(res.getBody()[0].origin).to.equal("WEB_CHAT");
         });
 
 settings:

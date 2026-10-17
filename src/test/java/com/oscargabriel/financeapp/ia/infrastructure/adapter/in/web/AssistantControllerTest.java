@@ -41,6 +41,7 @@ import org.springframework.web.reactive.function.BodyInserters;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.ErrorCodes;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantBalance;
+import com.oscargabriel.financeapp.ia.domain.model.AssistantChannel;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantFile;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantFileType;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantMessage;
@@ -87,7 +88,7 @@ class AssistantControllerTest {
     }
 
     private void responde(AssistantReply respuesta) {
-        when(assistant.atender(eq(AsistenteMother.USER_ID), any(AssistantMessage.class))).thenReturn(Mono.just(respuesta));
+        when(assistant.atender(eq(AsistenteMother.USER_ID), eq(AssistantChannel.WEB_CHAT), any(AssistantMessage.class))).thenReturn(Mono.just(respuesta));
     }
 
     static Stream<Arguments> datosInvalidos() {
@@ -117,7 +118,7 @@ class AssistantControllerTest {
 
         envia(Map.of("data", mil)).expectStatus().isOk();
 
-        verify(assistant).atender(AsistenteMother.USER_ID, AssistantMessage.deTexto(mil));
+        verify(assistant).atender(AsistenteMother.USER_ID, AssistantChannel.WEB_CHAT, AssistantMessage.deTexto(mil));
     }
 
     @Test
@@ -237,7 +238,7 @@ class AssistantControllerTest {
 
     @Test
     void unaFallaDelModeloEsUn502ConElFormatoComun() {
-        when(assistant.atender(eq(AsistenteMother.USER_ID), any(AssistantMessage.class)))
+        when(assistant.atender(eq(AsistenteMother.USER_ID), eq(AssistantChannel.WEB_CHAT), any(AssistantMessage.class)))
                 .thenReturn(Mono.error(new BadRequestException(HttpStatus.BAD_GATEWAY,
                         ErrorCodes.EXTERNAL_SERVICE_ERROR, "El asistente no esta disponible", "server")));
 
@@ -298,7 +299,7 @@ class AssistantControllerTest {
 
             envia(cuerpo).expectStatus().isOk().expectBody().jsonPath("$.intent").isEqualTo("UNSUPPORTED");
 
-            verify(assistant).atender(eq(AsistenteMother.USER_ID), recibido.capture());
+            verify(assistant).atender(eq(AsistenteMother.USER_ID), eq(AssistantChannel.WEB_CHAT), recibido.capture());
             assertThat(recibido.getValue().texto()).isEqualTo("con la Nequi");
             assertThat(recibido.getValue().archivo().tipo()).isEqualTo(AssistantFileType.JPEG);
             assertThat(recibido.getValue().archivo().contenido()).containsExactly(recibo);
@@ -312,7 +313,7 @@ class AssistantControllerTest {
 
             envia(cuerpo).expectStatus().isOk();
 
-            verify(assistant).atender(AsistenteMother.USER_ID, AssistantMessage.deTexto(TEXTO));
+            verify(assistant).atender(AsistenteMother.USER_ID, AssistantChannel.WEB_CHAT, AssistantMessage.deTexto(TEXTO));
         }
 
         /** El codec corta los cuerpos en memoria por encima de su tope; el archivo llega en trozos y no lo toca. */
@@ -322,7 +323,7 @@ class AssistantControllerTest {
 
             envia(conArchivo(jpeg(AssistantFile.TOPE_BYTES, "x"), MediaType.IMAGE_JPEG)).expectStatus().isOk();
 
-            verify(assistant).atender(eq(AsistenteMother.USER_ID), any(AssistantMessage.class));
+            verify(assistant).atender(eq(AsistenteMother.USER_ID), eq(AssistantChannel.WEB_CHAT), any(AssistantMessage.class));
         }
 
         @Test

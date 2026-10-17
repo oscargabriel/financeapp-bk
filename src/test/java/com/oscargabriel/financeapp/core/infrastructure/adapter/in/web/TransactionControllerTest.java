@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -600,24 +601,26 @@ class TransactionControllerTest {
                 .jsonPath("$[1].groupId").isEqualTo(GRUPO_ID.toString());
     }
 
-    /** FIN-101: el origen de la ingesta desde correo sale en la lista aunque ningun endpoint lo produzca. */
-    @Test
-    void unPendienteQueLlegoPorCorreoSaleConSuOrigen() {
+    /** FIN-101 y FIN-112: el origen del correo y el del chat web salen en la lista. */
+    @ParameterizedTest
+    @EnumSource(value = TransactionOrigin.class, names = {"EMAIL", "WEB_CHAT"})
+    void unPendienteSaleConSuOrigen(TransactionOrigin origen) {
         when(movimientos.pending(TransactionMother.USER_ID, Optional.empty())).thenReturn(Flux.just(
                 TransactionMother.conOrigen(TransactionMother.enGrupo(
                         TransactionMother.conEstado(gasto(), TransactionStatus.PENDING), GRUPO_ID),
-                        TransactionOrigin.EMAIL)));
+                        origen)));
 
         webTestClient.mutateWith(tokenDelUsuario()).get().uri(URI_BASE + "/pending")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$[0].status").isEqualTo("PENDING")
-                .jsonPath("$[0].origin").isEqualTo("EMAIL");
+                .jsonPath("$[0].origin").isEqualTo(origen.name());
     }
 
-    @Test
-    void unLoteQueDeclaraOrigenCorreoSeGuardaComoWeb() {
+    @ParameterizedTest
+    @EnumSource(value = TransactionOrigin.class, names = {"EMAIL", "WEB_CHAT"})
+    void unLoteQueDeclaraOtroOrigenSeGuardaComoWeb(TransactionOrigin origen) {
         when(movimientos.create(eq(TransactionMother.USER_ID), eq(TransactionOrigin.WEB), eq(TransactionStatus.CONFIRMED), anyList()))
                 .thenReturn(Flux.just(gasto()));
 
@@ -626,8 +629,8 @@ class TransactionControllerTest {
                 .bodyValue("""
                         [{"type": "EXPENSE", "accountId": "30000000-0000-7000-8000-000000000001",
                           "categoryId": "40000000-0000-7000-8000-000000000001", "amount": 50000,
-                          "description": "Mercado", "occurredAt": "2026-09-20T10:15:00-05:00", "origin": "EMAIL"}]
-                        """)
+                          "description": "Mercado", "occurredAt": "2026-09-20T10:15:00-05:00", "origin": "%s"}]
+                        """.formatted(origen))
                 .exchange()
                 .expectStatus().isCreated()
                 .expectBody()

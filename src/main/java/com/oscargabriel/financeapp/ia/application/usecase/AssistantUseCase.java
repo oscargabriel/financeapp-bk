@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.BadRequestException;
 import com.oscargabriel.financeapp.compartido.domain.exceptions.responses.ErrorDetail;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantBalance;
+import com.oscargabriel.financeapp.ia.domain.model.AssistantChannel;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantContext;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantContext.CategoriaConAmbito;
 import com.oscargabriel.financeapp.ia.domain.model.AssistantDecision;
@@ -79,13 +80,13 @@ public class AssistantUseCase implements AssistantPort {
     private final Clock clock;
 
     @Override
-    public Mono<AssistantReply> atender(UUID userId, AssistantMessage mensaje) {
+    public Mono<AssistantReply> atender(UUID userId, AssistantChannel canal, AssistantMessage mensaje) {
         return Mono.zip(nombres.findActiveAccounts(userId).collectList(),
                         nombres.findLiveCategories(userId).collectList())
                 .flatMap(t -> {
                     DelUsuario suyo = new DelUsuario(t.getT1(), t.getT2());
                     return modelo.interpretar(mensaje, suyo.contexto(LocalDate.now(clock)))
-                            .flatMap(decision -> ejecutar(userId, decision, suyo)
+                            .flatMap(decision -> ejecutar(userId, canal, decision, suyo)
                                     .onErrorResume(Aclaracion.class,
                                             a -> Mono.just(AssistantReply.aclaracion(a.getMessage())))
                                     .onErrorResume(AssistantUseCase::esDeValidacion,
@@ -93,9 +94,10 @@ public class AssistantUseCase implements AssistantPort {
                 });
     }
 
-    private Mono<AssistantReply> ejecutar(UUID userId, AssistantDecision decision, DelUsuario suyo) {
+    private Mono<AssistantReply> ejecutar(UUID userId, AssistantChannel canal, AssistantDecision decision,
+            DelUsuario suyo) {
         return switch (decision) {
-            case AssistantDecision.CrearMovimientos c -> Mono.defer(() -> crear(userId, c.movimientos(), suyo));
+            case AssistantDecision.CrearMovimientos c -> Mono.defer(() -> crear(userId, canal, c.movimientos(), suyo));
             case AssistantDecision.ConsultarMovimientos q -> Mono.defer(() -> consultarMovimientos(userId, q, suyo));
             case AssistantDecision.ConsultarSaldo s -> Mono.defer(() -> consultarSaldo(userId, s));
             case AssistantDecision.SinFuncion ignorada -> Mono.just(AssistantReply.noSoportado(NO_SOPORTADO));
@@ -106,7 +108,8 @@ public class AssistantUseCase implements AssistantPort {
      * Todo o nada (FIN-58): se resuelven todos antes de registrar, y el primero que no se pueda pide aclarar sin crear
      * ninguno. Con varios, la aclaracion dice cual por su posicion en el mensaje. Se registran en un solo grupo.
      */
-    private Mono<AssistantReply> crear(UUID userId, List<AssistantDecision.CrearMovimiento> llamadas, DelUsuario suyo) {
+    private Mono<AssistantReply> crear(UUID userId, AssistantChannel canal,
+            List<AssistantDecision.CrearMovimiento> llamadas, DelUsuario suyo) {
         List<Resuelto> resueltos = new ArrayList<>(llamadas.size());
         for (int i = 0; i < llamadas.size(); i++) {
             try {
@@ -115,7 +118,7 @@ public class AssistantUseCase implements AssistantPort {
                 throw llamadas.size() == 1 ? a : new Aclaracion("Movimiento " + (i + 1) + ": " + a.getMessage());
             }
         }
-        return pendientes.register(userId, resueltos.stream().map(Resuelto::nuevo).toList())
+        return pendientes.register(userId, canal, resueltos.stream().map(Resuelto::nuevo).toList())
                 .map(registrado -> AssistantReply.creado(mensaje(resueltos), new CreatedGroup(registrado.groupId(),
                         IntStream.range(0, resueltos.size())
                                 .mapToObj(i -> resueltos.get(i).creado(registrado.movements().get(i)))

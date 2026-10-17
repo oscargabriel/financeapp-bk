@@ -20,7 +20,7 @@ runtime:
       value: CONFIRMED
     - expression: res.body.origin
       operator: eq
-      value: TELEGRAM
+      value: WEB_CHAT
 
 settings:
   encodeUrl: true
