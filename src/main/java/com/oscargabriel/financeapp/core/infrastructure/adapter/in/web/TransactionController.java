@@ -32,16 +32,8 @@ import com.oscargabriel.financeapp.core.domain.model.Sharing;
 import com.oscargabriel.financeapp.core.domain.model.Transaction;
 import com.oscargabriel.financeapp.core.domain.model.TransactionOrigin;
 import com.oscargabriel.financeapp.core.domain.model.TransactionStatus;
-import com.oscargabriel.financeapp.core.domain.port.in.ApprovePendingGroupPort;
-import com.oscargabriel.financeapp.core.domain.port.in.ApprovePendingTransactionPort;
-import com.oscargabriel.financeapp.core.domain.port.in.CreateTransactionsPort;
-import com.oscargabriel.financeapp.core.domain.port.in.DeleteTransactionPort;
 import com.oscargabriel.financeapp.core.domain.port.in.DescribeSharingPort;
-import com.oscargabriel.financeapp.core.domain.port.in.ListPendingTransactionsPort;
-import com.oscargabriel.financeapp.core.domain.port.in.RejectPendingBatchPort;
-import com.oscargabriel.financeapp.core.domain.port.in.RejectPendingGroupPort;
-import com.oscargabriel.financeapp.core.domain.port.in.RejectPendingTransactionPort;
-import com.oscargabriel.financeapp.core.domain.port.in.UpdateTransactionPort;
+import com.oscargabriel.financeapp.core.domain.port.in.TransactionPort;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.ApprovePendingRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.CreateTransactionRequest;
 import com.oscargabriel.financeapp.core.infrastructure.adapter.in.web.dto.RejectPendingBatchRequest;
@@ -65,15 +57,7 @@ public class TransactionController {
 
     private static final Pattern CORREO = Pattern.compile(Formatos.EMAIL);
 
-    private final CreateTransactionsPort createTransactions;
-    private final UpdateTransactionPort updateTransaction;
-    private final DeleteTransactionPort deleteTransaction;
-    private final ListPendingTransactionsPort listPending;
-    private final ApprovePendingTransactionPort approvePending;
-    private final RejectPendingTransactionPort rejectPending;
-    private final ApprovePendingGroupPort approvePendingGroup;
-    private final RejectPendingGroupPort rejectPendingGroup;
-    private final RejectPendingBatchPort rejectPendingBatch;
+    private final TransactionPort movimientos;
     private final DescribeSharingPort compartido;
     private final Clock clock;
 
@@ -91,7 +75,7 @@ public class TransactionController {
             @RequestBody
             @Size(min = 1, max = TOPE_LOTE, message = "El lote debe tener entre 1 y " + TOPE_LOTE + " movimientos")
             List<@NotNull(message = "El elemento no puede ser nulo") @Valid CreateTransactionRequest> lote) {
-        return Flux.defer(() -> createTransactions.create(UsuarioDelToken.de(jwt), TransactionOrigin.WEB,
+        return Flux.defer(() -> movimientos.create(UsuarioDelToken.de(jwt), TransactionOrigin.WEB,
                         TransactionStatus.CONFIRMED, lote.stream().map(CreateTransactionRequest::toCommand).toList()))
                 .as(movimientos -> responder(jwt, movimientos));
     }
@@ -107,7 +91,7 @@ public class TransactionController {
                         throw new BadRequestException(HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR,
                                 "El parche no trae ningun campo para modificar", "body");
                     }
-                    return updateTransaction.update(UsuarioDelToken.de(jwt), movimiento, parche.toCommand());
+                    return movimientos.update(UsuarioDelToken.de(jwt), movimiento, parche.toCommand());
                 })
                 .flatMap(t -> responder(jwt, t));
     }
@@ -115,7 +99,7 @@ public class TransactionController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public Mono<Void> delete(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
-        return Mono.defer(() -> deleteTransaction.delete(UsuarioDelToken.de(jwt), parseId(id)));
+        return Mono.defer(() -> movimientos.delete(UsuarioDelToken.de(jwt), parseId(id)));
     }
 
     /**
@@ -125,7 +109,7 @@ public class TransactionController {
     @GetMapping("/pending")
     public Flux<TransactionResponse> pending(@AuthenticationPrincipal Jwt jwt,
             @RequestParam(required = false) String sharedBy) {
-        return Flux.defer(() -> listPending.listPending(UsuarioDelToken.de(jwt), parseSharedBy(sharedBy)))
+        return Flux.defer(() -> movimientos.pending(UsuarioDelToken.de(jwt), parseSharedBy(sharedBy)))
                 .as(movimientos -> responder(jwt, movimientos))
                 .flatMapIterable(respuestas -> respuestas);
     }
@@ -133,7 +117,7 @@ public class TransactionController {
     @PostMapping("/{id}/approve")
     public Mono<TransactionResponse> approve(@AuthenticationPrincipal Jwt jwt, @PathVariable String id,
             @RequestBody(required = false) ApprovePendingRequest cuerpo) {
-        return Mono.defer(() -> approvePending.approve(UsuarioDelToken.de(jwt), parseId(id),
+        return Mono.defer(() -> movimientos.approve(UsuarioDelToken.de(jwt), parseId(id),
                         ApprovePendingRequest.toChoice(cuerpo)))
                 .flatMap(t -> responder(jwt, t));
     }
@@ -145,14 +129,14 @@ public class TransactionController {
     @PostMapping("/pending/reject")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public Mono<Void> rejectBatch(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody RejectPendingBatchRequest lote) {
-        return Mono.defer(() -> rejectPendingBatch.reject(UsuarioDelToken.de(jwt), lote.toIds()));
+        return Mono.defer(() -> movimientos.rejectBatch(UsuarioDelToken.de(jwt), lote.toIds()));
     }
 
     /** Solo un pendiente: sobre un confirmado es 409, para no borrarlo creyendo rechazar. */
     @PostMapping("/{id}/reject")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public Mono<Void> reject(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
-        return Mono.defer(() -> rejectPending.reject(UsuarioDelToken.de(jwt), parseId(id)));
+        return Mono.defer(() -> movimientos.reject(UsuarioDelToken.de(jwt), parseId(id)));
     }
 
     /**
@@ -161,14 +145,14 @@ public class TransactionController {
      */
     @PostMapping("/groups/{groupId}/approve")
     public Mono<List<TransactionResponse>> approveGroup(@AuthenticationPrincipal Jwt jwt, @PathVariable String groupId) {
-        return Flux.defer(() -> approvePendingGroup.approve(UsuarioDelToken.de(jwt), parseGroupId(groupId)))
+        return Flux.defer(() -> movimientos.approveGroup(UsuarioDelToken.de(jwt), parseGroupId(groupId)))
                 .as(movimientos -> responder(jwt, movimientos));
     }
 
     @PostMapping("/groups/{groupId}/reject")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public Mono<Void> rejectGroup(@AuthenticationPrincipal Jwt jwt, @PathVariable String groupId) {
-        return Mono.defer(() -> rejectPendingGroup.reject(UsuarioDelToken.de(jwt), parseGroupId(groupId)));
+        return Mono.defer(() -> movimientos.rejectGroup(UsuarioDelToken.de(jwt), parseGroupId(groupId)));
     }
 
     /**
